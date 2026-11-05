@@ -1,0 +1,43 @@
+import { describe, expect, it } from 'vitest';
+import { createComponentNode, getDefaultNodeSize } from './componentNode';
+
+describe('createComponentNode', () => {
+  it('creates a button with draft-style defaults', () => {
+    const node = createComponentNode('button');
+
+    expect(node.type).toBe('button');
+    if (node.type === 'button') {
+      expect(node.props.label).toBe('Click me');
+      expect(node.props.variant).toBe('solid');
+    }
+  });
+
+  it('creates one node per palette type', () => {
+    const types = ['text', 'input', 'image', 'container', 'list'] as const;
+
+    types.forEach((type) => {
+      expect(createComponentNode(type).type).toBe(type);
+    });
+  });
+
+  it('container nodes start with no children', () => {
+    const node = createComponentNode('container');
+    expect(node.type).toBe('container');
+    if (node.type === 'container') {
+      expect(node.children).toEqual([]);
+    }
+  });
+
+  it('generates unique ids', () => {
+    const a = createComponentNode('button');
+    const b = createComponentNode('button');
+    expect(a.id).not.toBe(b.id);
+  });
+});
+
+describe('getDefaultNodeSize', () => {
+  it('returns the default size of each component type', () => {
+    expect(getDefaultNodeSize('button')).toEqual({ w: 160, h: 44 });
+    expect(getDefaultNodeSize('text')).toEqual({ w: 220, h: 28 });
+  });
+});
