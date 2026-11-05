@@ -39,21 +39,68 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(within(canvas).getByText('Hello, World!')).toBeInTheDocument();
     expect(within(canvas).getByText('Press the button to change the text above.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Editor' })).toBeInTheDocument();
   });
 
-  it('switches to the Logic placeholder and back', async () => {
+  it('switches to the Logic workspace and back to design', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);
     const projects = await repositories.projects.listProjects();
     renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
     await screen.findByRole('button', { name: 'Hello, World!' });
 
+    // The demo project ships without workflows; Logic still opens the full
+    // node library and dotted canvas instead of a blocking empty-state card.
     fireEvent.click(screen.getByRole('button', { name: 'logic' }));
-    expect(await screen.findByRole('heading', { name: 'Logic' })).toBeInTheDocument();
-    expect(await screen.findByText(/The Logic workspace arrives in Phase 5/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Nodes' })).toBeInTheDocument();
+    expect(screen.getByTestId('logic-stage')).toBeInTheDocument();
+    expect(screen.getByText(/Add a trigger node from Nodes/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New behavior' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to design' }));
+    fireEvent.click(screen.getByRole('button', { name: 'design' }));
     expect(await screen.findByRole('button', { name: 'Click me' })).toBeInTheDocument();
+  });
+
+  it('keeps Figma-style Layers selection and canvas visibility in sync', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    const canvas = await screen.findByTestId('canvas-frame');
+    const sidebar = screen.getByRole('complementary', { name: 'Editor sidebar' });
+
+    const heroLayer = within(sidebar).getByRole('button', { name: 'Text — Hello, World!' });
+    fireEvent.click(heroLayer);
+    expect(canvas.querySelector('[data-node-id][data-selected="true"]')).toHaveAttribute(
+      'data-selected',
+      'true',
+    );
+
+    fireEvent.click(within(sidebar).getByRole('button', { name: 'Hide Text — Hello, World!' }));
+    expect(within(canvas).queryByText('Hello, World!')).not.toBeInTheDocument();
+    expect(within(sidebar).getByRole('button', { name: 'Text — Hello, World!' })).toBeInTheDocument();
+  });
+
+  it('places, edits, and previews the PD6 Form component', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    await screen.findByTestId('canvas-frame');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'assets' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Form' }));
+    fireEvent.change(screen.getByLabelText('Form title'), {
+      target: { value: 'Course registration' },
+    });
+    fireEvent.change(screen.getByLabelText('Submit button label'), {
+      target: { value: 'Register' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    const preview = await screen.findByRole('dialog');
+    expect(within(preview).getByRole('form', { name: 'Course registration' })).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: 'Register' })).toBeInTheDocument();
   });
 
   it('previews the active screen and closes again', async () => {
@@ -71,6 +118,35 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(await screen.findByRole('button', { name: 'Preview' })).toBeInTheDocument();
   });
 
+  it('applies an AI assistant proposal to the canvas and undoes it', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    const canvas = await screen.findByTestId('canvas-frame');
+    await screen.findByRole('button', { name: 'Hello, World!' });
+
+    const assistantChip = screen.getByRole('button', { name: /AI assistant/ });
+    assistantChip.focus();
+    fireEvent.click(assistantChip);
+    const dialog = await screen.findByRole('dialog', { name: 'AI assistant' });
+    fireEvent.change(within(dialog).getByLabelText('Message'), {
+      target: { value: 'add a button "Sign up"' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send' }));
+
+    expect(within(dialog).getByText('Add a button “Sign up”')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep' }));
+
+    expect(within(canvas).getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Undo' }));
+    expect(within(canvas).queryByRole('button', { name: 'Sign up' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close assistant' }));
+    expect(assistantChip).toHaveFocus();
+  });
+
   it('navigates to the deployment flow from Deploy', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);
@@ -80,7 +156,7 @@ describe('EditorPage (integration over the real route tree)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Deploy' }));
 
-    expect(await screen.findByRole('heading', { name: 'Deployment' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Publish your app' })).toBeInTheDocument();
   });
 
   it('shows not-found for a missing project id', async () => {

@@ -18,6 +18,7 @@ export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
   { type: 'input', label: 'Input', description: 'Labelled text field', category: 'Basic' },
   { type: 'image', label: 'Image', description: 'Picture with alt text', category: 'Basic' },
   { type: 'list', label: 'List', description: 'Rows of repeating data', category: 'Data' },
+  { type: 'form', label: 'Form', description: 'Fields with a submit action', category: 'Data' },
 ];
 
 const CATEGORY_ORDER: readonly PaletteCategory[] = ['Layout', 'Basic', 'Data'];
@@ -26,6 +27,7 @@ export const COMPONENT_MIME = 'application/x-novy-component';
 
 interface ComponentsPaletteProps {
   onAddByType: (type: ComponentType) => void;
+  isEmbedded?: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ interface ComponentsPaletteProps {
  * canvas (HTML5 drag with a typed payload) and support click-to-add so the
  * keyboard path stays first-class.
  */
-export function ComponentsPalette({ onAddByType }: ComponentsPaletteProps) {
+export function ComponentsPalette({ onAddByType, isEmbedded = false }: ComponentsPaletteProps) {
   const [search, setSearch] = useState('');
 
   const query = search.trim().toLowerCase();
@@ -47,7 +49,12 @@ export function ComponentsPalette({ onAddByType }: ComponentsPaletteProps) {
   }
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-hairline bg-surface">
+    <section
+      aria-label="Component assets"
+      className={`flex min-h-0 flex-col bg-surface ${
+        isEmbedded ? 'min-w-0 flex-1' : 'w-60 shrink-0 border-r border-hairline'
+      }`}
+    >
       <div className="border-b border-hairline p-3">
         <TextInput
           label="Search components"
@@ -93,7 +100,7 @@ export function ComponentsPalette({ onAddByType }: ComponentsPaletteProps) {
         })}
 
         {visibleItems.length === 0 ? (
-          <p className="px-1 text-sm text-ink-muted">No components match “{search}”.</p>
+          <p className="px-1 text-sm text-ink-muted" role="status">No components match “{search}”.</p>
         ) : null}
       </nav>
 
@@ -101,6 +108,6 @@ export function ComponentsPalette({ onAddByType }: ComponentsPaletteProps) {
         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Roadmap</h3>
         <p className="mt-1 text-xs text-ink-muted">Data modeling arrives in a later phase.</p>
       </div>
-    </aside>
+    </section>
   );
 }

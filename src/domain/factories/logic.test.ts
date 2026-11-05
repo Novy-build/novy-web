@@ -25,7 +25,12 @@ describe('createLogicGraph', () => {
     expect(graph.nodes).toHaveLength(2);
     expect(graph.nodes[1]).toMatchObject({ kind: 'action', payload: { type: 'show-message', message: 'You clicked me!' } });
     expect(graph.edges).toEqual([
-      { fromNodeId: graph.nodes[0].id, toNodeId: action.id },
+      expect.objectContaining({
+        fromNodeId: graph.nodes[0].id,
+        fromPort: 'next',
+        toNodeId: action.id,
+        toPort: 'in',
+      }),
     ]);
   });
 });

@@ -22,6 +22,9 @@ export interface ScreenFrameProps {
   scale?: number;
   selectedNodeId?: string | null;
   onSelectNode?: (nodeId: string) => void;
+  /** Reactive preview: forwards runtime clicks on non-canvas nodes. */
+  onNodeAction?: (nodeId: string) => void;
+  onNodeValueChange?: (nodeId: string, value: string) => void;
 }
 
 /**
@@ -36,6 +39,8 @@ export function ScreenFrame({
   scale = 1,
   selectedNodeId = null,
   onSelectNode,
+  onNodeAction,
+  onNodeValueChange,
 }: ScreenFrameProps) {
   const outerWidth = Math.round(size.width * scale);
   const outerHeight = Math.round(size.height * scale);
@@ -60,8 +65,11 @@ export function ScreenFrame({
             key={node.id}
             mode={mode}
             node={node}
+            onNodeAction={onNodeAction}
+            onNodeValueChange={onNodeValueChange}
             onSelect={onSelectNode}
             selected={selectedNodeId === node.id}
+            selectedNodeId={selectedNodeId}
           />
         ))}
       </div>

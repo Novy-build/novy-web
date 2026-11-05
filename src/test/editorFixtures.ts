@@ -1,4 +1,4 @@
-import type { ButtonNode, ComponentNode, ContainerNode, ImageNode, ListNode, TextNode } from '@domain/entities/componentNode';
+import type { ButtonNode, ComponentNode, ContainerNode, FormNode, ImageNode, ListNode, TextNode } from '@domain/entities/componentNode';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 
 /**
@@ -68,6 +68,26 @@ export function makeList(id: string, overrides: Partial<ListNode> = {}): ListNod
     w: 320,
     h: 160,
     props: { items: ['First', 'Second'] },
+    ...overrides,
+  };
+}
+
+export function makeForm(id: string, overrides: Partial<FormNode> = {}): FormNode {
+  return {
+    id,
+    type: 'form',
+    x: 24,
+    y: 180,
+    w: 320,
+    h: 260,
+    props: {
+      title: 'Contact us',
+      fields: [
+        { label: 'Name', placeholder: 'Your name', type: 'text' },
+        { label: 'Email', placeholder: 'you@example.com', type: 'email' },
+      ],
+      submitLabel: 'Submit',
+    },
     ...overrides,
   };
 }

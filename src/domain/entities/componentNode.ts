@@ -5,7 +5,7 @@
  * Container children carry coordinates relative to their parent container,
  * so moving a container keeps its content attached.
  */
-export type ComponentType = 'button' | 'text' | 'input' | 'image' | 'container' | 'list';
+export type ComponentType = 'button' | 'text' | 'input' | 'image' | 'container' | 'list' | 'form';
 
 export interface ButtonProps {
   label: string;
@@ -36,6 +36,18 @@ export interface ListProps {
   items: string[];
 }
 
+export interface FormField {
+  label: string;
+  placeholder: string;
+  type: 'text' | 'email' | 'number';
+}
+
+export interface FormProps {
+  title: string;
+  fields: FormField[];
+  submitLabel: string;
+}
+
 export interface NodeGeometry {
   x: number;
   y: number;
@@ -45,6 +57,12 @@ export interface NodeGeometry {
 
 export interface NodeBase extends NodeGeometry {
   id: string;
+  /** Optional editor-facing name; old documents derive a label from content. */
+  name?: string;
+  /** Hidden layers stay in the document but do not render on canvas/preview. */
+  isHidden?: boolean;
+  /** Locked layers remain selectable from Layers but ignore direct canvas manipulation. */
+  isLocked?: boolean;
 }
 
 export interface ButtonNode extends NodeBase {
@@ -78,19 +96,27 @@ export interface ListNode extends NodeBase {
   props: ListProps;
 }
 
+export interface FormNode extends NodeBase {
+  type: 'form';
+  props: FormProps;
+}
+
 export type ComponentNode =
   | ButtonNode
   | TextNode
   | InputNode
   | ImageNode
   | ContainerNode
-  | ListNode;
+  | ListNode
+  | FormNode;
 
-/** Component types a container may hold for the MVP. */
+/** Frames may nest any supported component, including another frame. */
 export const CONTAINER_CHILD_TYPES: readonly ComponentType[] = [
   'button',
   'text',
   'input',
   'image',
   'list',
+  'container',
+  'form',
 ];

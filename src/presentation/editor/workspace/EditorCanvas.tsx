@@ -1,11 +1,14 @@
 import {
   useEffect,
   useRef,
+  useState,
   type DragEvent as ReactDragEvent,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
 } from 'react';
 import type { ComponentNode, ComponentType } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
+import { findFrameAtPoint, getComponentTreeLocation, type FrameHit } from '@domain/componentTree';
 import { ScreenFrame } from '../renderer/ScreenFrame';
 import { SNAP_GRID, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
 import { ZOOM_LIMITS } from '../state/editorState';
@@ -18,7 +21,15 @@ export const CANVAS_PAD_PX = 48;
 /** Pointer travel (screen px) before a press counts as a drag, not a click. */
 const DRAG_THRESHOLD_PX = 4;
 
-const COMPONENT_TYPES: readonly ComponentType[] = ['button', 'text', 'input', 'image', 'container', 'list'];
+const COMPONENT_TYPES: readonly ComponentType[] = [
+  'button',
+  'text',
+  'input',
+  'image',
+  'container',
+  'list',
+  'form',
+];
 
 function isComponentType(value: string): value is ComponentType {
   return (COMPONENT_TYPES as readonly string[]).includes(value);
@@ -39,7 +50,12 @@ interface EditorCanvasProps {
   onDuplicateSelected: () => void;
   onDeleteSelected: () => void;
   onAddBehavior: () => void;
-  onDropAt: (nodeType: ComponentType, x: number, y: number) => void;
+  onDropAt: (nodeType: ComponentType, x: number, y: number, parentId: string | null) => void;
+  onReparentNode: (
+    nodeId: string,
+    parentId: string | null,
+    absolutePosition: { x: number; y: number },
+  ) => void;
   onDropIndicatorChange: (position: { x: number; y: number } | null) => void;
   onZoomChange: (zoom: number) => void;
   onToggleSnap: () => void;
@@ -61,14 +77,21 @@ function flattenInteractionTargets(
   nodes: readonly ComponentNode[],
   originX: number,
   originY: number,
+  ancestorLocked = false,
 ): InteractionTarget[] {
   const targets: InteractionTarget[] = [];
   for (const node of nodes) {
+    if (node.isHidden) {
+      continue;
+    }
     const absX = originX + node.x;
     const absY = originY + node.y;
-    targets.push({ node, absX, absY });
+    const isLocked = ancestorLocked || node.isLocked === true;
+    if (!isLocked) {
+      targets.push({ node, absX, absY });
+    }
     if (node.type === 'container') {
-      targets.push(...flattenInteractionTargets(node.children, absX, absY));
+      targets.push(...flattenInteractionTargets(node.children, absX, absY, isLocked));
     }
   }
   return targets;
@@ -82,6 +105,11 @@ interface DragSession {
   nodeStartX: number;
   nodeStartY: number;
   isDragging: boolean;
+  targetParentId: string | null;
+  startAbsoluteX: number;
+  startAbsoluteY: number;
+  lastAbsoluteX: number;
+  lastAbsoluteY: number;
 }
 
 /**
@@ -104,6 +132,7 @@ export function EditorCanvas({
   onDeleteSelected,
   onAddBehavior,
   onDropAt,
+  onReparentNode,
   onDropIndicatorChange,
   onZoomChange,
   onToggleSnap,
@@ -111,14 +140,20 @@ export function EditorCanvas({
   const viewportRef = useRef<HTMLDivElement>(null);
   const interactionLayerRef = useRef<HTMLDivElement>(null);
   const dragSessionRef = useRef<DragSession | null>(null);
+  const isSpacePressedRef = useRef(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [frameDropTarget, setFrameDropTarget] = useState<FrameHit | null>(null);
 
   const bounds = deviceViewport(device);
   const targets = flattenInteractionTargets(screen.nodes, 0, 0);
   const frameWidth = bounds.width * zoom;
   const frameHeight = bounds.height * zoom;
-  const topLevelNode = selectedNodeId
-    ? screen.nodes.find((node) => node.id === selectedNodeId)
+  const selectedTarget = selectedNodeId
+    ? targets.find((target) => target.node.id === selectedNodeId)
     : undefined;
+  const selectedLocation = selectedNodeId
+    ? getComponentTreeLocation(screen.nodes, selectedNodeId)
+    : null;
 
   function computeFittedZoom(): number | null {
     const viewport = viewportRef.current;
@@ -159,6 +194,34 @@ export function EditorCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device]);
 
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null): boolean {
+      return (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      );
+    }
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.code === 'Space' && !isTypingTarget(event.target)) {
+        isSpacePressedRef.current = true;
+      }
+    }
+    function handleKeyUp(event: KeyboardEvent): void {
+      if (event.code === 'Space') {
+        isSpacePressedRef.current = false;
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      isSpacePressedRef.current = false;
+    };
+  }, []);
+
   function capturePointer(event: ReactPointerEvent<HTMLElement>): void {
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -168,12 +231,54 @@ export function EditorCanvas({
   }
 
   function handleBackgroundPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
-    if (event.target === event.currentTarget) {
+    if (!isSpacePressedRef.current && event.button !== 1 && event.target === event.currentTarget) {
       onSelectNode(null);
     }
   }
 
+  function beginCanvasPan(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (event.button !== 1 && !isSpacePressedRef.current) {
+      return;
+    }
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const canvasViewport = viewport;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startLeft = canvasViewport.scrollLeft;
+    const startTop = canvasViewport.scrollTop;
+    setIsPanning(true);
+
+    function handleMove(moveEvent: PointerEvent): void {
+      canvasViewport.scrollLeft = startLeft - (moveEvent.clientX - startX);
+      canvasViewport.scrollTop = startTop - (moveEvent.clientY - startY);
+    }
+    function finish(): void {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      setIsPanning(false);
+    }
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+  }
+
+  function handleCanvasWheel(event: ReactWheelEvent<HTMLDivElement>): void {
+    if (!event.ctrlKey && !event.metaKey) {
+      return;
+    }
+    event.preventDefault();
+    onZoomChange(zoom + (event.deltaY < 0 ? ZOOM_LIMITS.step : -ZOOM_LIMITS.step));
+  }
+
   function beginNodeInteraction(event: ReactPointerEvent<HTMLDivElement>, target: InteractionTarget): void {
+    if (event.button === 1 || isSpacePressedRef.current) {
+      return;
+    }
     event.stopPropagation();
     dragSessionRef.current = {
       nodeId: target.node.id,
@@ -182,6 +287,12 @@ export function EditorCanvas({
       nodeStartX: target.node.x,
       nodeStartY: target.node.y,
       isDragging: false,
+      targetParentId:
+        getComponentTreeLocation(screen.nodes, target.node.id)?.parentId ?? null,
+      startAbsoluteX: target.absX,
+      startAbsoluteY: target.absY,
+      lastAbsoluteX: target.absX,
+      lastAbsoluteY: target.absY,
     };
     capturePointer(event);
 
@@ -192,6 +303,8 @@ export function EditorCanvas({
       }
       const totalDx = moveEvent.clientX - session.startClientX;
       const totalDy = moveEvent.clientY - session.startClientY;
+      session.lastAbsoluteX = session.startAbsoluteX + totalDx / zoom;
+      session.lastAbsoluteY = session.startAbsoluteY + totalDy / zoom;
       if (!session.isDragging) {
         if (Math.hypot(totalDx, totalDy) < DRAG_THRESHOLD_PX) {
           return;
@@ -200,6 +313,10 @@ export function EditorCanvas({
         onDragStart();
       }
       onNodeMove(session.nodeId, session.nodeStartX + totalDx / zoom, session.nodeStartY + totalDy / zoom);
+      const point = toDesignPoint(moveEvent.clientX, moveEvent.clientY);
+      const frame = findFrameAtPoint(screen.nodes, point.x, point.y, session.nodeId);
+      session.targetParentId = frame?.id ?? null;
+      setFrameDropTarget(frame);
     }
 
     function detach(): void {
@@ -211,16 +328,25 @@ export function EditorCanvas({
     function handleFinish(): void {
       const session = dragSessionRef.current;
       detach();
-      if (session !== null && !session.isDragging) {
-        // A press without travel is a click: select (history untouched).
-        onSelectNode(session.nodeId);
+      if (session !== null) {
+        if (!session.isDragging) {
+          // A press without travel is a click: select (history untouched).
+          onSelectNode(session.nodeId);
+        } else {
+          onReparentNode(session.nodeId, session.targetParentId, {
+            x: session.lastAbsoluteX,
+            y: session.lastAbsoluteY,
+          });
+        }
       }
       dragSessionRef.current = null;
+      setFrameDropTarget(null);
     }
 
     function handleCancel(): void {
       detach();
       dragSessionRef.current = null;
+      setFrameDropTarget(null);
     }
 
     window.addEventListener('pointermove', handleMove);
@@ -235,6 +361,7 @@ export function EditorCanvas({
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
     const point = toDesignPoint(event.clientX, event.clientY);
+    setFrameDropTarget(findFrameAtPoint(screen.nodes, point.x, point.y));
     onDropIndicatorChange({
       x: snapOrRaw(point.x, isSnapEnabled),
       y: snapOrRaw(point.y, isSnapEnabled),
@@ -246,11 +373,14 @@ export function EditorCanvas({
       return;
     }
     onDropIndicatorChange(null);
+    setFrameDropTarget(null);
   }
 
   function handleDrop(event: ReactDragEvent<HTMLDivElement>): void {
     event.preventDefault();
+    const targetParentId = frameDropTarget?.id ?? null;
     onDropIndicatorChange(null);
+    setFrameDropTarget(null);
     if (!event.dataTransfer.types.includes(COMPONENT_MIME)) {
       return;
     }
@@ -259,12 +389,23 @@ export function EditorCanvas({
       return;
     }
     const point = toDesignPoint(event.clientX, event.clientY);
-    onDropAt(nodeType, snapOrRaw(point.x, isSnapEnabled), snapOrRaw(point.y, isSnapEnabled));
+    onDropAt(
+      nodeType,
+      snapOrRaw(point.x, isSnapEnabled),
+      snapOrRaw(point.y, isSnapEnabled),
+      targetParentId,
+    );
   }
 
   return (
     <section aria-label="Design canvas" className="relative min-h-0 flex-1">
-      <div ref={viewportRef} className="h-full w-full overflow-auto">
+      <div
+        className={`h-full w-full overflow-auto ${isPanning ? 'cursor-grabbing select-none' : ''}`}
+        data-testid="canvas-viewport"
+        onPointerDown={beginCanvasPan}
+        onWheel={handleCanvasWheel}
+        ref={viewportRef}
+      >
         <div
           className="flex w-fit min-w-full justify-center p-12"
           data-testid="canvas-stage"
@@ -323,15 +464,42 @@ export function EditorCanvas({
                 />
               ) : null}
 
-              {topLevelNode ? (
+              {frameDropTarget ? (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute z-20 rounded-tile border-2 border-brand-500 bg-brand-500/10"
+                  data-testid="frame-drop-target"
+                  style={{
+                    height: frameDropTarget.h * zoom,
+                    left: frameDropTarget.x * zoom,
+                    top: frameDropTarget.y * zoom,
+                    width: frameDropTarget.w * zoom,
+                  }}
+                />
+              ) : null}
+
+              {selectedTarget && selectedLocation ? (
                 <SelectionOverlay
+                  bounds={
+                    selectedLocation.parentWidth && selectedLocation.parentHeight
+                      ? {
+                          width: selectedLocation.parentWidth,
+                          height: selectedLocation.parentHeight,
+                        }
+                      : bounds
+                  }
                   device={device}
-                  geometry={topLevelNode}
+                  geometry={selectedTarget.node}
                   isSnapEnabled={isSnapEnabled}
                   onAddBehavior={onAddBehavior}
                   onDelete={onDeleteSelected}
                   onDuplicate={onDuplicateSelected}
-                  onResize={(geometry) => onNodeResize(topLevelNode.id, geometry)}
+                  offset={{
+                    x: selectedTarget.absX - selectedTarget.node.x,
+                    y: selectedTarget.absY - selectedTarget.node.y,
+                  }}
+                  onResize={(geometry) => onNodeResize(selectedTarget.node.id, geometry)}
+                  onResizeStart={onDragStart}
                   zoom={zoom}
                 />
               ) : null}

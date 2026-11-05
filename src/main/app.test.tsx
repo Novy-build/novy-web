@@ -74,11 +74,10 @@ describe('application routing', () => {
     expect(screen.getByText('abc-123')).toBeInTheDocument();
   });
 
-  it('renders the deployment screen for a project id', async () => {
+  it('reports not-found when opening deployment for a missing project', async () => {
     renderRoutesAt('/project/abc-123/deploy');
 
-    expect(await screen.findByRole('heading', { name: 'Deployment' })).toBeInTheDocument();
-    expect(screen.getByText('abc-123')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Project not found' })).toBeInTheDocument();
   });
 
   it('falls back to the projects screen for unknown URLs', async () => {

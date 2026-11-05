@@ -9,6 +9,7 @@ function renderOverlay(overrides: Record<string, unknown> = {}) {
     device: 'mobile' as const,
     isSnapEnabled: true,
     onResize: vi.fn(),
+    onResizeStart: vi.fn(),
     onDuplicate: vi.fn(),
     onDelete: vi.fn(),
     onAddBehavior: vi.fn(),
@@ -41,6 +42,7 @@ describe('SelectionOverlay', () => {
 
     // dx = 12 / zoom 2 = 6 -> snaps to 8; dy = 20 / 2 = 10 -> snaps to 8
     expect(props.onResize).toHaveBeenCalledWith({ x: 100, y: 100, w: 88, h: 68 });
+    expect(props.onResizeStart).toHaveBeenCalledTimes(1);
   });
 
   it('stops resizing after pointerup', () => {

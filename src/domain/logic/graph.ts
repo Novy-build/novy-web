@@ -1,0 +1,312 @@
+import type {
+  ActionNode,
+  ActionPayload,
+  ConditionNode,
+  LogicEdge,
+  LogicGraph,
+  LogicInputPort,
+  LogicNode,
+  LogicNodePosition,
+  LogicOutputPort,
+  TriggerEvent,
+} from '../entities/logic';
+import {
+  createActionNode,
+  createConditionNode,
+  createDefaultActionPayload,
+  createTriggerNode,
+} from '../factories/logic';
+import { generateId } from '../ids';
+import type { ReadonlySetLike } from './shared';
+
+/** Deterministic display order: reachable breadth-first nodes, then orphans. */
+export function orderChain(graph: LogicGraph): LogicNode[] {
+  const trigger = graph.nodes.find((node) => node.kind === 'trigger');
+  if (!trigger) {
+    return [...graph.nodes];
+  }
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
+  const ordered: LogicNode[] = [];
+  const visited = new Set<string>();
+  const queue = [trigger.id];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (visited.has(id)) {
+      continue;
+    }
+    const node = byId.get(id);
+    if (!node) {
+      continue;
+    }
+    visited.add(id);
+    ordered.push(node);
+    graph.edges
+      .filter((edge) => edge.fromNodeId === id)
+      .sort((left, right) => portOrder(left.fromPort) - portOrder(right.fromPort))
+      .forEach((edge) => queue.push(edge.toNodeId));
+  }
+  return [...ordered, ...graph.nodes.filter((node) => !visited.has(node.id))];
+}
+
+export function connectLogicPorts(
+  graph: LogicGraph,
+  fromNodeId: string,
+  fromPort: LogicOutputPort,
+  toNodeId: string,
+  toPort: LogicInputPort = 'in',
+): LogicGraph | null {
+  if (!canConnectLogicPorts(graph, fromNodeId, fromPort, toNodeId, toPort)) {
+    return null;
+  }
+  return {
+    ...graph,
+    edges: [
+      ...graph.edges,
+      { id: generateId('edge'), fromNodeId, fromPort, toNodeId, toPort },
+    ],
+  };
+}
+
+export function canConnectLogicPorts(
+  graph: LogicGraph,
+  fromNodeId: string,
+  fromPort: LogicOutputPort,
+  toNodeId: string,
+  toPort: LogicInputPort = 'in',
+): boolean {
+  const from = graph.nodes.find((node) => node.id === fromNodeId);
+  const to = graph.nodes.find((node) => node.id === toNodeId);
+  if (!from || !to || fromNodeId === toNodeId || to.kind === 'trigger' || toPort !== 'in') {
+    return false;
+  }
+  if (!outputPortsFor(from).includes(fromPort)) {
+    return false;
+  }
+  if (graph.edges.some((edge) => edge.fromNodeId === fromNodeId && edge.fromPort === fromPort)) {
+    return false;
+  }
+  if (graph.edges.some((edge) => edge.toNodeId === toNodeId && edge.toPort === toPort)) {
+    return false;
+  }
+  if (wouldCreateCycle(graph, fromNodeId, toNodeId)) {
+    return false;
+  }
+  return true;
+}
+
+/** Backwards-compatible reducer/domain entry using default flow ports. */
+export function addConnection(
+  graph: LogicGraph,
+  fromNodeId: string,
+  toNodeId: string,
+): LogicGraph | null {
+  return connectLogicPorts(graph, fromNodeId, 'next', toNodeId, 'in');
+}
+
+export function disconnectLogicEdge(graph: LogicGraph, edgeId: string): LogicGraph {
+  const kept = graph.edges.filter((edge) => edge.id !== edgeId);
+  return kept.length === graph.edges.length ? graph : { ...graph, edges: kept };
+}
+
+export function removeConnection(
+  graph: LogicGraph,
+  fromNodeId: string,
+  toNodeId: string,
+): LogicGraph {
+  const kept = graph.edges.filter(
+    (edge) => !(edge.fromNodeId === fromNodeId && edge.toNodeId === toNodeId),
+  );
+  return kept.length === graph.edges.length ? graph : { ...graph, edges: kept };
+}
+
+export function appendAction(
+  graph: LogicGraph,
+  payload: ActionPayload = createDefaultActionPayload(),
+): LogicGraph {
+  const position = nextNodePosition(graph);
+  const node: ActionNode = createActionNode(payload, position);
+  const withNode = { ...graph, nodes: [...graph.nodes, node] };
+  const chain = orderChain(graph);
+  const tail = chain[chain.length - 1];
+  if (!tail) {
+    return withNode;
+  }
+  const port = firstFreeOutput(graph, tail);
+  return port ? connectLogicPorts(withNode, tail.id, port, node.id) ?? withNode : withNode;
+}
+
+export function appendCondition(graph: LogicGraph): LogicGraph {
+  const node = createConditionNode(nextNodePosition(graph));
+  const withNode = { ...graph, nodes: [...graph.nodes, node] };
+  const tail = orderChain(graph).at(-1);
+  if (!tail) {
+    return withNode;
+  }
+  const port = firstFreeOutput(graph, tail);
+  return port ? connectLogicPorts(withNode, tail.id, port, node.id) ?? withNode : withNode;
+}
+
+export function addActionNode(
+  graph: LogicGraph,
+  payload: ActionPayload,
+  position: LogicNodePosition,
+): LogicGraph {
+  return { ...graph, nodes: [...graph.nodes, createActionNode(payload, position)] };
+}
+
+export function addConditionNode(
+  graph: LogicGraph,
+  position: LogicNodePosition,
+): LogicGraph {
+  return { ...graph, nodes: [...graph.nodes, createConditionNode(position)] };
+}
+
+/** Repairs legacy/in-memory graphs before the n8n-style canvas renders them. */
+export function normalizeLogicGraph(graph: LogicGraph, fallbackEvent: TriggerEvent): LogicGraph {
+  let changed = false;
+  let nodes = graph.nodes.map((node, index) => {
+    const position = node.position;
+    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+      changed = true;
+      return { ...node, position: { x: 80 + index * 232, y: 160 } };
+    }
+    return node;
+  });
+  if (!nodes.some((node) => node.kind === 'trigger')) {
+    changed = true;
+    nodes = [
+      createTriggerNode(fallbackEvent, { x: 80, y: 160 }),
+      ...nodes.map((node) => ({
+        ...node,
+        position: { ...node.position, x: node.position.x + 232 },
+      })),
+    ];
+  }
+  const edges = graph.edges.map((edge, index) => {
+    const legacy = edge as LogicEdge & Partial<LogicEdge>;
+    if (!legacy.id || !legacy.fromPort || !legacy.toPort) {
+      changed = true;
+      return {
+        id: legacy.id ?? `edge_${graph.id}_${index + 1}`,
+        fromNodeId: edge.fromNodeId,
+        fromPort: legacy.fromPort ?? 'next',
+        toNodeId: edge.toNodeId,
+        toPort: legacy.toPort ?? 'in',
+      } satisfies LogicEdge;
+    }
+    return edge;
+  });
+  return changed ? { ...graph, nodes, edges } : graph;
+}
+
+export function updateAction(
+  graph: LogicGraph,
+  nodeId: string,
+  payload: ActionPayload,
+): LogicGraph {
+  const target = graph.nodes.find((node) => node.id === nodeId);
+  if (!target || target.kind !== 'action' || JSON.stringify(target.payload) === JSON.stringify(payload)) {
+    return graph;
+  }
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) =>
+      node.kind === 'action' && node.id === nodeId ? { ...node, payload } : node,
+    ),
+  };
+}
+
+export function updateCondition(
+  graph: LogicGraph,
+  nodeId: string,
+  patch: Partial<Pick<ConditionNode, 'left' | 'operator' | 'compareValue'>>,
+): LogicGraph {
+  const target = graph.nodes.find((node) => node.id === nodeId);
+  if (!target || target.kind !== 'condition') {
+    return graph;
+  }
+  const next = { ...target, ...patch };
+  if (JSON.stringify(next) === JSON.stringify(target)) {
+    return graph;
+  }
+  return { ...graph, nodes: graph.nodes.map((node) => (node.id === nodeId ? next : node)) };
+}
+
+export function moveLogicNode(
+  graph: LogicGraph,
+  nodeId: string,
+  position: LogicNodePosition,
+): LogicGraph {
+  const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+  if (!node || (node.position.x === position.x && node.position.y === position.y)) {
+    return graph;
+  }
+  return {
+    ...graph,
+    nodes: graph.nodes.map((candidate) =>
+      candidate.id === nodeId ? { ...candidate, position } : candidate,
+    ),
+  };
+}
+
+export function removeLogicNodes(
+  graph: LogicGraph,
+  removed: ReadonlySetLike<string>,
+): LogicGraph {
+  const keptNodes = graph.nodes.filter((node) => !removed.has(node.id));
+  if (keptNodes.length === graph.nodes.length) {
+    return graph;
+  }
+  const surviving = new Set(keptNodes.map((node) => node.id));
+  return {
+    ...graph,
+    nodes: keptNodes,
+    edges: graph.edges.filter(
+      (edge) => surviving.has(edge.fromNodeId) && surviving.has(edge.toNodeId),
+    ),
+  };
+}
+
+export function wouldCreateCycle(
+  graph: LogicGraph,
+  fromNodeId: string,
+  toNodeId: string,
+): boolean {
+  const outgoing = new Map<string, string[]>();
+  for (const edge of graph.edges) {
+    outgoing.set(edge.fromNodeId, [...(outgoing.get(edge.fromNodeId) ?? []), edge.toNodeId]);
+  }
+  const stack = [toNodeId];
+  const visited = new Set<string>();
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (current === fromNodeId) {
+      return true;
+    }
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+    stack.push(...(outgoing.get(current) ?? []));
+  }
+  return false;
+}
+
+export function outputPortsFor(node: LogicNode): readonly LogicOutputPort[] {
+  return node.kind === 'condition' ? ['true', 'false'] : ['next'];
+}
+
+function firstFreeOutput(graph: LogicGraph, node: LogicNode): LogicOutputPort | null {
+  return outputPortsFor(node).find(
+    (port) => !graph.edges.some((edge) => edge.fromNodeId === node.id && edge.fromPort === port),
+  ) ?? null;
+}
+
+function nextNodePosition(graph: LogicGraph): LogicNodePosition {
+  const maxX = graph.nodes.reduce((maximum, node) => Math.max(maximum, node.position.x), 80);
+  return { x: maxX + 232, y: 160 };
+}
+
+function portOrder(port: LogicOutputPort): number {
+  return port === 'next' ? 0 : port === 'true' ? 1 : 2;
+}

@@ -58,4 +58,21 @@ describe('LocalStorageDeploymentRepository', () => {
     expect(records).toHaveLength(1);
     expect(records[0].url).toBe('https://x.novy.app');
   });
+
+  it('simulates every publish stage before persisting the live result', async () => {
+    const stages: string[] = [];
+    const repository = new LocalStorageDeploymentRepository(window.localStorage, {
+      latencyMs: 0,
+      pipelineStepMs: 0,
+    });
+
+    const published = await repository.publishDeployment(
+      { projectId: 'project_1', url: 'https://demo.novy.app' },
+      (stage) => stages.push(stage),
+    );
+
+    expect(stages).toEqual(['build', 'optimize', 'provision', 'live']);
+    expect(published).toMatchObject({ status: 'live', url: 'https://demo.novy.app' });
+    expect(await repository.listDeployments('project_1')).toHaveLength(1);
+  });
 });

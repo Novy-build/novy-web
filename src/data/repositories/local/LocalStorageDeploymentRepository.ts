@@ -1,5 +1,6 @@
-import type { DeploymentRecord } from '@domain/entities/deployment';
+import { DEPLOYMENT_STAGES, type DeploymentRecord } from '@domain/entities/deployment';
 import type { DeploymentRepository } from '@domain/repositories/deployment.repository';
+import type { PublishDeploymentInput } from '@domain/repositories/deployment.repository';
 import { generateId } from '@domain/ids';
 import { mapDeploymentFromDto, mapDeploymentToDto } from '../../mappers/deployment.mapper';
 import type { DeploymentCollectionDTO, DeploymentRecordDTO } from '../../dto/deployment.dto';
@@ -7,6 +8,7 @@ import { readJson, sleep, writeJson, type StorageLike } from '../../storage/stor
 
 const DEPLOYMENTS_KEY = 'novy.deployments.v1';
 const DEFAULT_LATENCY_MS = 250;
+const DEFAULT_PIPELINE_STEP_MS = 650;
 
 /**
  * Mock deployment history. Phase 7 layers the simulated Vercel pipeline on
@@ -15,10 +17,12 @@ const DEFAULT_LATENCY_MS = 250;
 export class LocalStorageDeploymentRepository implements DeploymentRepository {
   private readonly storage: StorageLike;
   private readonly latencyMs: number;
+  private readonly pipelineStepMs: number;
 
-  constructor(storage: StorageLike, options?: { latencyMs?: number }) {
+  constructor(storage: StorageLike, options?: { latencyMs?: number; pipelineStepMs?: number }) {
     this.storage = storage;
     this.latencyMs = options?.latencyMs ?? DEFAULT_LATENCY_MS;
+    this.pipelineStepMs = options?.pipelineStepMs ?? DEFAULT_PIPELINE_STEP_MS;
   }
 
   async listDeployments(projectId: string): Promise<DeploymentRecord[]> {
@@ -48,6 +52,21 @@ export class LocalStorageDeploymentRepository implements DeploymentRepository {
       deployments: [...this.readAll(), mapDeploymentToDto(created)],
     });
     return created;
+  }
+
+  async publishDeployment(
+    input: PublishDeploymentInput,
+    onStage: (stage: (typeof DEPLOYMENT_STAGES)[number]) => void,
+  ): Promise<DeploymentRecord> {
+    for (const stage of DEPLOYMENT_STAGES) {
+      onStage(stage);
+      await sleep(this.pipelineStepMs);
+    }
+    return this.createDeployment({
+      projectId: input.projectId,
+      status: 'live',
+      url: input.url,
+    });
   }
 
   private readAll(): DeploymentRecordDTO[] {

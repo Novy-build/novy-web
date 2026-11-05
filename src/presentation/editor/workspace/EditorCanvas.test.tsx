@@ -21,6 +21,7 @@ function canvasProps(overrides: Record<string, unknown> = {}) {
     onDeleteSelected: vi.fn(),
     onAddBehavior: vi.fn(),
     onDropAt: vi.fn(),
+    onReparentNode: vi.fn(),
     onDropIndicatorChange: vi.fn(),
     onZoomChange: vi.fn(),
     onToggleSnap: vi.fn(),
@@ -59,6 +60,21 @@ describe('EditorCanvas', () => {
     expect(screen.getByTestId('canvas-frame').style.width).toBe('390px');
     expect(screen.getByTestId('canvas-frame').style.height).toBe('780px');
     expect(screen.getByTestId('interaction-node_text')).toBeInTheDocument();
+  });
+
+  it('omits hidden layers and prevents direct interaction with locked layers', () => {
+    const hidden = makeText('hidden', { isHidden: true, props: { text: 'Hidden copy', level: 'body' } });
+    const locked = makeButton('locked', { isLocked: true, props: { label: 'Locked CTA', variant: 'solid' } });
+    render(
+      <EditorCanvas
+        {...canvasProps({ screen: makeScreen('screen_1', [hidden, locked]) })}
+      />,
+    );
+
+    expect(screen.queryByText('Hidden copy')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Locked CTA' })).toBeInTheDocument();
+    expect(screen.queryByTestId('interaction-hidden')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('interaction-locked')).not.toBeInTheDocument();
   });
 
   it('scales the frame by the zoom factor', () => {
@@ -169,7 +185,102 @@ describe('EditorCanvas', () => {
     });
 
     expect(props.onDropIndicatorChange).toHaveBeenLastCalledWith(null);
-    expect(props.onDropAt).toHaveBeenCalledWith('button', 96, 96);
+    expect(props.onDropAt).toHaveBeenCalledWith('button', 96, 96, null);
+  });
+
+  it('targets the deepest frame for palette drops', () => {
+    const frame = makeContainer('frame', [], { x: 24, y: 24, w: 240, h: 220 });
+    const props = canvasProps({ screen: makeScreen('screen_1', [frame]) });
+    render(<EditorCanvas {...props} />);
+    const layer = screen.getByTestId('canvas-interactions');
+
+    dispatchDragEvent('dragover', layer, {
+      clientX: 100,
+      clientY: 100,
+      types: [COMPONENT_MIME],
+    });
+    expect(screen.getByTestId('frame-drop-target')).toBeInTheDocument();
+
+    dispatchDragEvent('drop', layer, {
+      clientX: 100,
+      clientY: 100,
+      types: [COMPONENT_MIME],
+      getData: () => 'button',
+    });
+    expect(props.onDropAt).toHaveBeenCalledWith('button', 104, 104, 'frame');
+  });
+
+  it('reparents a directly dragged layer when released over a frame', () => {
+    const frame = makeContainer('frame', [], { x: 24, y: 24, w: 220, h: 220 });
+    const button = makeButton('button', { x: 280, y: 280 });
+    const props = canvasProps({ screen: makeScreen('screen_1', [frame, button]) });
+    render(<EditorCanvas {...props} />);
+
+    const shim = screen.getByTestId('interaction-button');
+    fireEvent.pointerDown(shim, { clientX: 300, clientY: 300 });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 100, clientY: 100 }));
+    });
+    expect(screen.getByTestId('frame-drop-target')).toBeInTheDocument();
+    act(() => {
+      window.dispatchEvent(new MouseEvent('pointerup'));
+    });
+
+    expect(props.onReparentNode).toHaveBeenCalledWith('button', 'frame', { x: 80, y: 80 });
+  });
+
+  it('positions selection handles for a nested frame child', () => {
+    const child = makeButton('child', { x: 16, y: 24, w: 120, h: 44 });
+    const frame = makeContainer('frame', [child], { x: 40, y: 56, w: 240, h: 220 });
+    render(
+      <EditorCanvas
+        {...canvasProps({
+          screen: makeScreen('screen_1', [frame]),
+          selectedNodeId: 'child',
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId('selection-outline')).toHaveStyle({
+      left: '56px',
+      top: '80px',
+      width: '120px',
+      height: '44px',
+    });
+    expect(screen.getByTestId('resize-handle-se')).toBeInTheDocument();
+  });
+
+  it('pans the canvas with Space-drag without moving a component', () => {
+    const props = canvasProps();
+    render(<EditorCanvas {...props} />);
+    const viewport = screen.getByTestId('canvas-viewport');
+    viewport.scrollLeft = 10;
+    viewport.scrollTop = 20;
+
+    fireEvent.keyDown(window, { code: 'Space' });
+    fireEvent.pointerDown(screen.getByTestId('interaction-node_text'), {
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+    });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 75, clientY: 60 }));
+    });
+    expect(viewport.scrollLeft).toBe(35);
+    expect(viewport.scrollTop).toBe(60);
+    expect(props.onNodeMove).not.toHaveBeenCalled();
+
+    act(() => window.dispatchEvent(new MouseEvent('pointerup')));
+    fireEvent.keyUp(window, { code: 'Space' });
+  });
+
+  it('zooms with Ctrl/Command plus the mouse wheel', () => {
+    const props = canvasProps({ zoom: 1 });
+    render(<EditorCanvas {...props} />);
+
+    fireEvent.wheel(screen.getByTestId('canvas-viewport'), { ctrlKey: true, deltaY: -100 });
+
+    expect(props.onZoomChange).toHaveBeenCalledWith(1.25);
   });
 
   it('ignores drops that carry no Novy component payload', () => {

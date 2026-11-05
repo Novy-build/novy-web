@@ -10,6 +10,10 @@ function renderLayers(nodes: readonly ComponentNode[], selectedNodeId: string | 
     selectedNodeId,
     onSelect: vi.fn(),
     onOrder: vi.fn(),
+    onRename: vi.fn(),
+    onToggleVisibility: vi.fn(),
+    onToggleLock: vi.fn(),
+    onMove: vi.fn(),
   };
   render(<LayersPanel {...props} />);
   return props;
@@ -66,9 +70,65 @@ describe('LayersPanel', () => {
     expect(row).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('collapses and expands frame children', () => {
+    renderLayers([makeContainer('frame', [makeButton('child')])]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Container — Frame' }));
+    expect(screen.queryByTestId('layer-row-child')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Container — Frame' }));
+    expect(screen.getByTestId('layer-row-child')).toBeInTheDocument();
+  });
+
+  it('renames a layer inline on double-click', () => {
+    const props = renderLayers([makeButton('node_button')]);
+    const row = screen.getByTestId('layer-row-node_button');
+
+    fireEvent.doubleClick(within(row).getByRole('button', { name: 'Button — Click me' }));
+    const input = within(row).getByRole('textbox', { name: 'Rename Button — Click me' });
+    fireEvent.change(input, { target: { value: 'Primary CTA' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(props.onRename).toHaveBeenCalledWith('node_button', 'Primary CTA');
+  });
+
+  it('toggles visibility and locking from layer controls', () => {
+    const props = renderLayers([makeButton('node_button')], 'node_button');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Button — Click me' }));
+    expect(props.onToggleVisibility).toHaveBeenCalledWith('node_button');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lock Button — Click me' }));
+    expect(props.onToggleLock).toHaveBeenCalledWith('node_button');
+  });
+
+  it('drags a layer into a frame and supports keyboard nesting', () => {
+    const props = renderLayers([makeButton('node_button'), makeContainer('frame')]);
+    const source = screen.getByTestId('layer-row-node_button');
+    const target = screen.getByTestId('layer-row-frame');
+    const dataTransfer = {
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      setData: vi.fn(),
+      getData: vi.fn(() => 'node_button'),
+    };
+
+    fireEvent.dragStart(source, { dataTransfer });
+    fireEvent.dragOver(target, { dataTransfer });
+    expect(target).toHaveClass('ring-2');
+    fireEvent.drop(target, { dataTransfer });
+    expect(props.onMove).toHaveBeenCalledWith('node_button', 'frame', 'inside');
+
+    fireEvent.keyDown(
+      within(source).getByRole('button', { name: 'Button — Click me' }),
+      { altKey: true, key: 'ArrowRight' },
+    );
+    expect(props.onMove).toHaveBeenLastCalledWith('node_button', 'frame', 'inside');
+  });
+
   it('guides to the palette when empty', () => {
     renderLayers([]);
 
-    expect(screen.getByText('No components yet — add one from the palette.')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('No components yet — add one from Assets.');
   });
 });

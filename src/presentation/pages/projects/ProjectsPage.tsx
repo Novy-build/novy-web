@@ -141,7 +141,7 @@ export function ProjectsPage() {
         )}
 
         {visibleProjects.length === 0 && search.trim().length > 0 && !isLoading && !hasFailed ? (
-          <p className="mt-8 text-center text-sm text-ink-muted">
+          <p className="mt-8 text-center text-sm text-ink-muted" role="status">
             No projects match &ldquo;{search}&rdquo;.
           </p>
         ) : null}

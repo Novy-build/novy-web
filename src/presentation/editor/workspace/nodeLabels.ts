@@ -8,10 +8,15 @@ export const NODE_TYPE_LABELS: Record<ComponentNode['type'], string> = {
   image: 'Image',
   container: 'Container',
   list: 'List',
+  form: 'Form',
 };
 
 /** Short content snippet used in layer rows and aria labels. */
 export function nodeDisplayLabel(node: ComponentNode): string {
+  const customName = node.name?.trim();
+  if (customName) {
+    return customName;
+  }
   switch (node.type) {
     case 'button':
       return node.props.label;
@@ -24,7 +29,9 @@ export function nodeDisplayLabel(node: ComponentNode): string {
     case 'list':
       return `${node.props.items.length} item${node.props.items.length === 1 ? '' : 's'}`;
     case 'container':
-      return 'Group';
+      return 'Frame';
+    case 'form':
+      return node.props.title;
   }
 }
 

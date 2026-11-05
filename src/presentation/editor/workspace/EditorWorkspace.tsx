@@ -1,6 +1,7 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useReducer, useState } from 'react';
 import type { Project } from '@domain/entities/project';
 import type { ComponentType } from '@domain/entities/componentNode';
+import type { TriggerEvent } from '@domain/entities/logic';
 import { deviceViewport } from '../state/geometry';
 import {
   type EditorMode,
@@ -13,12 +14,14 @@ import { editorReducer } from '../state/editorReducer';
 import { useProjectAutosave } from '../hooks/useProjectAutosave';
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts';
 import { EditorTopBar, type AutosaveStatus } from './EditorTopBar';
-import { ComponentsPalette } from './ComponentsPalette';
+import { EditorLeftPanel } from './EditorLeftPanel';
 import { ScreenTabs } from './ScreenTabs';
 import { EditorCanvas } from './EditorCanvas';
 import { PreviewOverlay } from './PreviewOverlay';
 import { Inspector } from './Inspector';
-import { LayersPanel } from './LayersPanel';
+import { LogicWorkspace } from '../logic/LogicWorkspace';
+import { AssistantChip } from '../assistant/AssistantChip';
+import { AssistantSheet } from '../assistant/AssistantSheet';
 
 interface EditorWorkspaceProps {
   project: Project;
@@ -30,23 +33,17 @@ interface EditorWorkspaceProps {
 /**
  * Orchestrates the editor: owns the reducer (document + history + canvas
  * chrome), wires autosave and keyboard shortcuts, and lays out top bar,
- * palette, canvas, inspector, and layers. The Logic mode placeholder clears
- * the way for Phase 5 without blocking the design workspace.
+ * palette, canvas, inspector, and layers. Design/Logic modes share the same
+ * document and command stack; the assistant sheet applies proposals to it.
  */
 export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: EditorWorkspaceProps) {
   const [state, dispatch] = useReducer(editorReducer, project.document, createEditorState);
   const [mode, setMode] = useState<EditorMode>('design');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
   const activeScreen = getActiveScreen(state);
   const selectedNode = state.selectedNodeId ? findNodeInScreen(activeScreen, state.selectedNodeId) : undefined;
-
-  useEffect(() => {
-    if (project.document !== state.document) {
-      dispatch({ type: 'document/set', document: project.document });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.document, state.document]);
 
   useProjectAutosave({
     projectId: project.id,
@@ -75,8 +72,15 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     dispatch({ type: 'node/add', nodeType, x: bounds.width / 2, y: bounds.height / 2 });
   }
 
+  function addBehaviorFromSelection(event: TriggerEvent = 'click'): void {
+    if (state.selectedNodeId) {
+      dispatch({ type: 'behavior/create', targetNodeId: state.selectedNodeId, event });
+    }
+    setMode('logic');
+  }
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-canvas text-ink">
+    <main aria-label="Editor" className="flex min-h-0 flex-1 flex-col bg-canvas text-ink">
       <EditorTopBar
         canRedo={state.future.length > 0}
         canUndo={state.past.length > 0}
@@ -94,7 +98,19 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
 
       {mode === 'design' ? (
         <div className="flex min-h-0 flex-1">
-          <ComponentsPalette onAddByType={addFromPalette} />
+          <EditorLeftPanel
+            nodes={activeScreen.nodes}
+            onAddByType={addFromPalette}
+            onMove={(nodeId, targetId, position) =>
+              dispatch({ type: 'node/layer-move', nodeId, targetId, position })
+            }
+            onOrder={(nodeId, direction) => dispatch({ type: 'node/order', nodeId, direction })}
+            onRename={(nodeId, name) => dispatch({ type: 'node/layer-rename', nodeId, name })}
+            onSelect={(nodeId) => dispatch({ type: 'node/select', nodeId })}
+            onToggleLock={(nodeId) => dispatch({ type: 'node/layer-lock', nodeId })}
+            onToggleVisibility={(nodeId) => dispatch({ type: 'node/layer-visibility', nodeId })}
+            selectedNodeId={state.selectedNodeId}
+          />
 
           <div className="flex min-w-0 flex-1 flex-col">
             <ScreenTabs
@@ -109,7 +125,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
               device={state.device}
               dropIndicator={state.dropIndicator}
               isSnapEnabled={state.isSnapEnabled}
-              onAddBehavior={() => setMode('logic')}
+              onAddBehavior={() => addBehaviorFromSelection('click')}
               onDeleteSelected={() => {
                 if (state.selectedNodeId) {
                   dispatch({ type: 'node/delete', nodeId: state.selectedNodeId });
@@ -121,10 +137,15 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                   dispatch({ type: 'node/duplicate', nodeId: state.selectedNodeId });
                 }
               }}
-              onDropAt={(nodeType, x, y) => dispatch({ type: 'canvas/dropAt', nodeType, x, y })}
+              onDropAt={(nodeType, x, y, parentId) =>
+                dispatch({ type: 'canvas/dropAt', nodeType, x, y, parentId })
+              }
               onDropIndicatorChange={(position) => dispatch({ type: 'canvas/dropIndicator', position })}
               onNodeMove={(nodeId, x, y) => dispatch({ type: 'node/move', nodeId, x, y })}
               onNodeResize={(nodeId, geometry) => dispatch({ type: 'node/resize', nodeId, geometry })}
+              onReparentNode={(nodeId, parentId, absolutePosition) =>
+                dispatch({ type: 'node/reparent', nodeId, parentId, absolutePosition })
+              }
               onSelectNode={(nodeId) => dispatch({ type: 'node/select', nodeId })}
               onToggleSnap={() => dispatch({ type: 'snap/toggle' })}
               onZoomChange={(zoom) => dispatch({ type: 'zoom/set', zoom })}
@@ -136,35 +157,15 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
 
           <aside className="flex w-72 shrink-0 flex-col border-l border-hairline bg-surface">
             <Inspector
+              behaviors={activeScreen.behaviors}
               node={selectedNode ?? null}
               onAction={(action: EditorAction) => dispatch(action)}
               onOpenLogic={() => setMode('logic')}
             />
-            <LayersPanel
-              nodes={activeScreen.nodes}
-              onOrder={(nodeId, direction) => dispatch({ type: 'node/order', nodeId, direction })}
-              onSelect={(nodeId) => dispatch({ type: 'node/select', nodeId })}
-              selectedNodeId={state.selectedNodeId}
-            />
           </aside>
         </div>
       ) : (
-        <section aria-label="Logic workspace" className="flex min-h-0 flex-1 items-center justify-center p-6">
-          <div className="rounded-panel border border-hairline bg-surface p-8 text-center shadow-sm">
-            <h2 className="text-xl font-semibold text-ink">Logic</h2>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-ink-muted">
-              Connect triggers to actions visually — button taps, form changes, screen navigation.
-              The Logic workspace arrives in Phase 5.
-            </p>
-            <button
-              className="mt-4 rounded-tile px-4 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-canvas"
-              onClick={() => setMode('design')}
-              type="button"
-            >
-              Back to design
-            </button>
-          </div>
-        </section>
+        <LogicWorkspace state={state} dispatch={dispatch} />
       )}
 
       {isPreviewOpen ? (
@@ -172,9 +173,18 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
           device={state.device}
           onClose={() => setIsPreviewOpen(false)}
           projectName={project.name}
-          screen={activeScreen}
+          screens={state.document.screens}
         />
       ) : null}
-    </div>
+
+      <AssistantChip isHidden={isAssistantOpen} onOpen={() => setIsAssistantOpen(true)} />
+      {isAssistantOpen ? (
+        <AssistantSheet
+          dispatch={dispatch}
+          onClose={() => setIsAssistantOpen(false)}
+          state={state}
+        />
+      ) : null}
+    </main>
   );
 }

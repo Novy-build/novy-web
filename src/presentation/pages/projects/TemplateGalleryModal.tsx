@@ -67,7 +67,7 @@ export function TemplateGalleryModal({ templates, onCancel, onCreate }: Template
       </p>
 
       {templates.length === 0 ? (
-        <p className="mt-4 rounded-tile border border-hairline bg-canvas p-4 text-sm text-ink-muted">
+        <p className="mt-4 rounded-tile border border-hairline bg-canvas p-4 text-sm text-ink-muted" role="status">
           No templates are available right now.
           <button className="ml-1 text-brand-600 underline" onClick={onCancel} type="button">
             Close

@@ -1,6 +1,6 @@
 # Novy Frontend Plan (frontend-only phase)
 
-> Status: agreed plan — Tailwind v4, react-router, useReducer + Context state, localStorage mock repos, width-switchable device frame.
+> Status: frontend phases 0–8 complete; PD6 interaction redesign Gates 1–3 complete — Tailwind v4, react-router, useReducer + Context state, localStorage mock repos, width-switchable device frame.
 
 ## 1 · Ground rules
 
@@ -104,10 +104,10 @@ Per-project page: environment selector (Preview/Production mock), **Publish** ->
 | 2 | Auth screens | S | validation + guard tests | ✅ done (typecheck + 111 tests + build green) |
 | 3 | Projects dashboard + template modal | M | CRUD flows tested | ✅ done (typecheck + 145 tests + build green) |
 | 4 | Editor shell + Design mode (4a shell/canvas, 4b inspector/layers/undo) | XL | reducer + geometry + interaction tests | ✅ done (typecheck + 266 tests + build green) |
-| 5 | Logic mode workspace | L | graph reducer + behavior linking tests | ← next |
-| 6 | AI assistant mock | M | intent + apply/undo tests | |
-| 7 | Deployment | M | stepper + history tests | |
-| 8 | Polish: a11y, focus traps, error boundaries, empty states, final build | M | `npm test` + `build` all green | |
+| 5 | Logic mode workspace | L | graph reducer + behavior linking tests | ✅ done (typecheck + 310 tests + build green) |
+| 6 | AI assistant mock | M | intent + apply/undo tests | ✅ done (typecheck + 333 tests + build green) |
+| 7 | Deployment | M | stepper + history tests | ✅ done (typecheck + 342 tests + build green) |
+| 8 | Polish: a11y, focus traps, error boundaries, empty states, final build | M | `npm test` + `build` all green | ✅ done (typecheck + 349 tests + build green) |
 
 ## 9 · Deferred (noted in code/docs)
 
@@ -115,4 +115,18 @@ Per-project page: environment selector (Preview/Production mock), **Publish** ->
 - Live collaboration
 - Real AI / Vercel / Supabase wiring (backend phase)
 - Multi-user
-- Data-model builder (Data panel ships as read-only stub)
+
+## 10 · PD6 Interaction Redesign (Figma / n8n references)
+
+The builder-facing requirements in `project_information/PD6_A-04.pdf` are the functional baseline.
+Figma and n8n are interaction references only; Novy keeps its own visual identity. Administration
+is excluded while Novy remains a single-builder product.
+
+| Gate | Scope | Gate | Status |
+|---|---|---|---|
+| 1 | Figma-style editor shell + hierarchical Layers | metadata/migration + layer interaction tests | ✅ done (typecheck + 364 tests + build green) |
+| 2 | Direct canvas manipulation + nested frames + Form | geometry/reparent/keyboard tests | ✅ done (typecheck + 380 tests + build green) |
+| 3 | n8n-style Logic Builder + conditions/typed ports + searchable node library | graph/runtime/connection tests | ✅ done (typecheck + 404 tests + build green) |
+| 4 | Project Data workspace + schema/record CRUD | repository + CRUD + binding tests | ← next |
+| 5 | Project validation + preview/deploy integration | validator + failure-preservation tests | |
+| 6 | PD6 traceability + final accessibility/regression | full test + build gate | |

@@ -1,5 +1,6 @@
 import { type PointerEvent as ReactPointerEvent } from 'react';
 import type { NodeGeometry } from '@domain/entities/componentNode';
+import type { ScreenFrameSize } from '../renderer/ScreenFrame';
 import {
   RESIZE_HANDLES,
   resizeFromHandle,
@@ -12,8 +13,11 @@ interface SelectionOverlayProps {
   geometry: NodeGeometry;
   zoom: number;
   device: EditorDevice;
+  bounds?: ScreenFrameSize;
+  offset?: { x: number; y: number };
   isSnapEnabled: boolean;
   onResize: (geometry: NodeGeometry) => void;
+  onResizeStart: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onAddBehavior: () => void;
@@ -41,13 +45,16 @@ export function SelectionOverlay({
   geometry,
   zoom,
   device,
+  bounds: boundsOverride,
+  offset = { x: 0, y: 0 },
   isSnapEnabled,
   onResize,
+  onResizeStart,
   onDuplicate,
   onDelete,
   onAddBehavior,
 }: SelectionOverlayProps) {
-  const bounds = deviceViewport(device);
+  const bounds = boundsOverride ?? deviceViewport(device);
 
   function beginResize(event: ReactPointerEvent<HTMLButtonElement>, handle: ResizeHandle) {
     event.preventDefault();
@@ -56,6 +63,7 @@ export function SelectionOverlay({
     const startX = event.clientX;
     const startY = event.clientY;
     const start = { ...geometry };
+    let hasStarted = false;
     // Pointer capture keeps drags sticky, but jsdom may not implement it;
     // the window listeners below carry the drag either way.
     try {
@@ -67,6 +75,13 @@ export function SelectionOverlay({
     function handleMove(moveEvent: PointerEvent) {
       const dx = (moveEvent.clientX - startX) / zoom;
       const dy = (moveEvent.clientY - startY) / zoom;
+      if (!hasStarted) {
+        if (Math.hypot(dx, dy) < 1) {
+          return;
+        }
+        hasStarted = true;
+        onResizeStart();
+      }
       onResize(resizeFromHandle(start, handle, { x: dx, y: dy }, { isSnapEnabled, bounds }));
     }
 
@@ -80,8 +95,8 @@ export function SelectionOverlay({
   }
 
   const scaled = {
-    left: geometry.x * zoom,
-    top: geometry.y * zoom,
+    left: (offset.x + geometry.x) * zoom,
+    top: (offset.y + geometry.y) * zoom,
     width: geometry.w * zoom,
     height: geometry.h * zoom,
   };

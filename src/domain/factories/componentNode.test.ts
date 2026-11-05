@@ -13,7 +13,7 @@ describe('createComponentNode', () => {
   });
 
   it('creates one node per palette type', () => {
-    const types = ['text', 'input', 'image', 'container', 'list'] as const;
+    const types = ['text', 'input', 'image', 'container', 'list', 'form'] as const;
 
     types.forEach((type) => {
       expect(createComponentNode(type).type).toBe(type);
@@ -25,6 +25,17 @@ describe('createComponentNode', () => {
     expect(node.type).toBe('container');
     if (node.type === 'container') {
       expect(node.children).toEqual([]);
+    }
+  });
+
+  it('creates a configurable Form with accessible starter fields', () => {
+    const node = createComponentNode('form');
+
+    expect(node.type).toBe('form');
+    if (node.type === 'form') {
+      expect(node.props.title).toBe('Contact us');
+      expect(node.props.fields).toHaveLength(2);
+      expect(node.props.submitLabel).toBe('Submit');
     }
   });
 

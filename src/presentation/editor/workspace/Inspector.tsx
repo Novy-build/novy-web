@@ -1,11 +1,15 @@
 import type { ChangeEvent } from 'react';
 import type { ComponentNode } from '@domain/entities/componentNode';
+import type { Behavior } from '@domain/entities/logic';
 import { TextInput } from '@presentation/components/ui/TextInput';
 import type { EditorAction } from '../state/editorState';
 import { NODE_TYPE_LABELS } from './nodeLabels';
+import { TRIGGER_EVENT_LABELS } from '../logic/behaviorLabels';
 
 interface InspectorProps {
   node: ComponentNode | null;
+  /** All behaviors of the active screen, filtered for the selected node. */
+  behaviors: readonly Behavior[];
   onAction: (action: EditorAction) => void;
   onOpenLogic: () => void;
 }
@@ -50,7 +54,7 @@ function SegmentedControl<T extends string>({
  * layout, appearance controls, and the behavior stub that hands off to Logic
  * mode. Every edit dispatches a typed reducer action through `onAction`.
  */
-export function Inspector({ node: candidate, onAction, onOpenLogic }: InspectorProps) {
+export function Inspector({ node: candidate, behaviors, onAction, onOpenLogic }: InspectorProps) {
   if (candidate === null) {
     return (
       <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
@@ -77,7 +81,7 @@ export function Inspector({ node: candidate, onAction, onOpenLogic }: InspectorP
       return;
     }
     onAction({
-      type: 'node/move',
+      type: 'node/layout-position',
       nodeId: node.id,
       x: actionX ?? node.x,
       y: actionY ?? node.y,
@@ -89,9 +93,10 @@ export function Inspector({ node: candidate, onAction, onOpenLogic }: InspectorP
       return;
     }
     onAction({
-      type: 'node/resize',
+      type: 'node/layout-size',
       nodeId: node.id,
-      geometry: { x: node.x, y: node.y, w: actionW ?? node.w, h: actionH ?? node.h },
+      w: actionW ?? node.w,
+      h: actionH ?? node.h,
     });
   }
 
@@ -189,6 +194,55 @@ export function Inspector({ node: candidate, onAction, onOpenLogic }: InspectorP
         </div>
       ) : null}
 
+      {node.type === 'form' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <TextInput
+            label="Form title"
+            name="inspector-form-title"
+            onChange={(event) =>
+              onAction({ type: 'node/props-form', nodeId: node.id, props: { title: event.target.value } })
+            }
+            value={node.props.title}
+          />
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-form-fields">
+            Field labels
+          </label>
+          <textarea
+            className="h-24 w-full rounded-tile border border-hairline bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:outline-brand-600"
+            id="inspector-form-fields"
+            onChange={(event) => {
+              const labels = event.target.value.split('\n');
+              onAction({
+                type: 'node/props-form',
+                nodeId: node.id,
+                props: {
+                  fields: labels.map((label, index) => ({
+                    label,
+                    placeholder: node.props.fields[index]?.placeholder ?? `Enter ${label.toLowerCase()}`,
+                    type: node.props.fields[index]?.type ?? 'text',
+                  })),
+                },
+              });
+            }}
+            value={node.props.fields.map((field) => field.label).join('\n')}
+          />
+          <p className="text-xs text-ink-muted">One field per line.</p>
+          <TextInput
+            label="Submit button label"
+            name="inspector-form-submit-label"
+            onChange={(event) =>
+              onAction({
+                type: 'node/props-form',
+                nodeId: node.id,
+                props: { submitLabel: event.target.value },
+              })
+            }
+            value={node.props.submitLabel}
+          />
+        </div>
+      ) : null}
+
       <div aria-label="Layout" className="mt-6">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Layout</p>
         <div className="grid grid-cols-2 gap-2">
@@ -259,13 +313,24 @@ export function Inspector({ node: candidate, onAction, onOpenLogic }: InspectorP
             value={node.props.fit}
           />
         ) : null}
-        {node.type === 'input' || node.type === 'container' || node.type === 'list' ? (
+        {node.type === 'input' || node.type === 'container' || node.type === 'list' || node.type === 'form' ? (
           <p className="text-sm text-ink-muted">Fixed for the MVP.</p>
         ) : null}
       </div>
 
       <div className="mt-6">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Behavior</p>
+        {node.type === 'button' && behaviors.length > 0 ? (
+          <ul className="mb-2 grid gap-1" data-testid="bound-behaviors">
+            {behaviors
+              .filter((behavior) => behavior.targetNodeId === node.id)
+              .map((behavior) => (
+                <li className="rounded-tile bg-canvas px-2 py-1.5 text-xs text-ink" key={behavior.id}>
+                  {TRIGGER_EVENT_LABELS[behavior.event]}
+                </li>
+              ))}
+          </ul>
+        ) : null}
         <p className="text-xs text-ink-muted">
           Connect this component to actions like taps and screen changes in Logic mode.
         </p>

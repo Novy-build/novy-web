@@ -5,6 +5,10 @@
 
 export interface ComponentNodeDTOBase {
   id: string;
+  /** Optional for backward compatibility with documents saved before the Layers redesign. */
+  name?: string;
+  isHidden?: boolean;
+  isLocked?: boolean;
   x: number;
   y: number;
   w: number;
@@ -42,13 +46,27 @@ export interface ListNodeDTO extends ComponentNodeDTOBase {
   props: { items: string[] };
 }
 
+export interface FormNodeDTO extends ComponentNodeDTOBase {
+  type: 'form';
+  props: {
+    title: string;
+    fields: Array<{
+      label: string;
+      placeholder: string;
+      type: 'text' | 'email' | 'number';
+    }>;
+    submitLabel: string;
+  };
+}
+
 export type ComponentNodeDTO =
   | ButtonNodeDTO
   | TextNodeDTO
   | InputNodeDTO
   | ImageNodeDTO
   | ContainerNodeDTO
-  | ListNodeDTO;
+  | ListNodeDTO
+  | FormNodeDTO;
 
 export interface BehaviorDTO {
   id: string;
@@ -62,6 +80,7 @@ export interface TriggerNodeDTO {
   kind: 'trigger';
   id: string;
   event: 'click' | 'change' | 'load';
+  position?: { x: number; y: number };
 }
 
 export interface ChangeTextPayloadDTO {
@@ -80,19 +99,67 @@ export interface NavigatePayloadDTO {
   targetScreenId: string;
 }
 
-export type ActionPayloadDTO = ChangeTextPayloadDTO | ShowMessagePayloadDTO | NavigatePayloadDTO;
+export interface GetRecordsPayloadDTO {
+  type: 'get-records';
+  collectionId: string;
+}
+
+export interface InsertRecordPayloadDTO {
+  type: 'insert-record';
+  collectionId: string;
+  values: Record<string, string>;
+}
+
+export interface UpdateRecordPayloadDTO {
+  type: 'update-record';
+  collectionId: string;
+  recordId: string;
+  values: Record<string, string>;
+}
+
+export interface DeleteRecordPayloadDTO {
+  type: 'delete-record';
+  collectionId: string;
+  recordId: string;
+}
+
+export type ActionPayloadDTO =
+  | ChangeTextPayloadDTO
+  | ShowMessagePayloadDTO
+  | NavigatePayloadDTO
+  | GetRecordsPayloadDTO
+  | InsertRecordPayloadDTO
+  | UpdateRecordPayloadDTO
+  | DeleteRecordPayloadDTO;
 
 export interface ActionNodeDTO {
   kind: 'action';
   id: string;
   payload: ActionPayloadDTO;
+  position?: { x: number; y: number };
 }
 
-export type LogicNodeDTO = TriggerNodeDTO | ActionNodeDTO;
+export interface ConditionNodeDTO {
+  kind: 'condition';
+  id: string;
+  position?: { x: number; y: number };
+  left: {
+    source: 'component';
+    nodeId: string;
+    property: 'value' | 'text';
+  };
+  operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'is-empty' | 'is-not-empty';
+  compareValue: string;
+}
+
+export type LogicNodeDTO = TriggerNodeDTO | ConditionNodeDTO | ActionNodeDTO;
 
 export interface LogicEdgeDTO {
+  id?: string;
   fromNodeId: string;
+  fromPort?: 'next' | 'true' | 'false';
   toNodeId: string;
+  toPort?: 'in';
 }
 
 export interface LogicGraphDTO {
@@ -112,6 +179,7 @@ export interface ScreenDTO {
 }
 
 export interface ProjectDTO {
+  schemaVersion?: number;
   id: string;
   name: string;
   createdAt: string;

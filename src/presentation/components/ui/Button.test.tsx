@@ -22,6 +22,7 @@ describe('Button', () => {
 
     const button = screen.getByRole('button', { name: 'Save project' });
     expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
 
     fireEvent.click(button);
     expect(handleClick).not.toHaveBeenCalled();

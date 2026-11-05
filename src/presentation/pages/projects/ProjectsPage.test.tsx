@@ -61,7 +61,7 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('heading', { name: 'Hello, World!' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Search projects'), { target: { value: 'nothing-bricked' } });
-    expect(screen.getByText(/No projects match/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/No projects match/);
   });
 
   it('creates a project from a template and opens the editor', async () => {

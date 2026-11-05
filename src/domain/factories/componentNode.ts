@@ -3,6 +3,7 @@ import type {
   ComponentNode,
   ComponentType,
   ContainerNode,
+  FormNode,
   ImageNode,
   InputNode,
   ListNode,
@@ -88,6 +89,25 @@ function createListNode(): ListNode {
   };
 }
 
+function createFormNode(): FormNode {
+  return {
+    id: generateId('node'),
+    type: 'form',
+    x: 24,
+    y: 24,
+    w: 320,
+    h: 260,
+    props: {
+      title: 'Contact us',
+      fields: [
+        { label: 'Name', placeholder: 'Your name', type: 'text' },
+        { label: 'Email', placeholder: 'you@example.com', type: 'email' },
+      ],
+      submitLabel: 'Submit',
+    },
+  };
+}
+
 interface NodeFactory {
   (): ComponentNode;
 }
@@ -99,6 +119,7 @@ const factories: Record<ComponentType, NodeFactory> = {
   image: createImageNode,
   container: createContainerNode,
   list: createListNode,
+  form: createFormNode,
 };
 
 /** Creates a palette component with sensible defaults, ready to drop on canvas. */

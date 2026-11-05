@@ -20,6 +20,7 @@ import type {
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
+    schemaVersion: 2,
     id: project.id,
     name: project.name,
     createdAt: project.createdAt.toISOString(),
@@ -74,10 +75,12 @@ export function mapScreenFromDto(dto: ScreenDTO): Screen {
 }
 
 function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
+  const editor = mapNodeEditorToDto(node);
   switch (node.type) {
     case 'button':
       return {
         id: node.id,
+        ...editor,
         type: 'button',
         x: node.x,
         y: node.y,
@@ -88,6 +91,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
     case 'text':
       return {
         id: node.id,
+        ...editor,
         type: 'text',
         x: node.x,
         y: node.y,
@@ -98,6 +102,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
     case 'input':
       return {
         id: node.id,
+        ...editor,
         type: 'input',
         x: node.x,
         y: node.y,
@@ -108,6 +113,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
     case 'image':
       return {
         id: node.id,
+        ...editor,
         type: 'image',
         x: node.x,
         y: node.y,
@@ -118,6 +124,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
     case 'list':
       return {
         id: node.id,
+        ...editor,
         type: 'list',
         x: node.x,
         y: node.y,
@@ -128,6 +135,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
     case 'container':
       return {
         id: node.id,
+        ...editor,
         type: 'container',
         x: node.x,
         y: node.y,
@@ -136,14 +144,31 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         props: {},
         children: node.children.map(mapNodeToDto),
       };
+    case 'form':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'form',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: {
+          title: node.props.title,
+          fields: node.props.fields.map((field) => ({ ...field })),
+          submitLabel: node.props.submitLabel,
+        },
+      };
   }
 }
 
 function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
+  const editor = mapNodeEditorFromDto(dto);
   switch (dto.type) {
     case 'button':
       return {
         id: dto.id,
+        ...editor,
         type: 'button',
         x: dto.x,
         y: dto.y,
@@ -154,6 +179,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
     case 'text':
       return {
         id: dto.id,
+        ...editor,
         type: 'text',
         x: dto.x,
         y: dto.y,
@@ -164,6 +190,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
     case 'input':
       return {
         id: dto.id,
+        ...editor,
         type: 'input',
         x: dto.x,
         y: dto.y,
@@ -174,6 +201,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
     case 'image':
       return {
         id: dto.id,
+        ...editor,
         type: 'image',
         x: dto.x,
         y: dto.y,
@@ -184,6 +212,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
     case 'list':
       return {
         id: dto.id,
+        ...editor,
         type: 'list',
         x: dto.x,
         y: dto.y,
@@ -194,6 +223,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
     case 'container':
       return {
         id: dto.id,
+        ...editor,
         type: 'container',
         x: dto.x,
         y: dto.y,
@@ -202,7 +232,46 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         props: {},
         children: dto.children.map(mapNodeFromDto),
       };
+    case 'form':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'form',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: {
+          title: dto.props.title,
+          fields: dto.props.fields.map((field) => ({ ...field })),
+          submitLabel: dto.props.submitLabel,
+        },
+      };
   }
+}
+
+function mapNodeEditorToDto(
+  node: ComponentNode,
+): Partial<Pick<ComponentNodeDTO, 'name' | 'isHidden' | 'isLocked'>> {
+  return compactEditorMetadata(node.name, node.isHidden, node.isLocked);
+}
+
+function mapNodeEditorFromDto(
+  dto: ComponentNodeDTO,
+): Partial<Pick<ComponentNode, 'name' | 'isHidden' | 'isLocked'>> {
+  return compactEditorMetadata(dto.name, dto.isHidden, dto.isLocked);
+}
+
+function compactEditorMetadata(
+  name: string | undefined,
+  isHidden: boolean | undefined,
+  isLocked: boolean | undefined,
+): { name?: string; isHidden?: boolean; isLocked?: boolean } {
+  return {
+    ...(name !== undefined ? { name } : {}),
+    ...(isHidden !== undefined ? { isHidden } : {}),
+    ...(isLocked !== undefined ? { isLocked } : {}),
+  };
 }
 
 function mapBehaviorToDto(behavior: Behavior): BehaviorDTO {
@@ -240,23 +309,30 @@ function mapLogicGraphFromDto(dto: LogicGraphDTO): LogicGraph {
     id: dto.id,
     name: dto.name,
     sourceNodeId: dto.sourceNodeId,
-    nodes: dto.nodes.map(mapLogicNodeFromDto),
-    edges: dto.edges.map(mapEdgeFromDto),
+    nodes: dto.nodes.map((node, index) => mapLogicNodeFromDto(node, index)),
+    edges: dto.edges.map((edge, index) => mapEdgeFromDto(edge, dto.id, index)),
   };
 }
 
 function mapLogicNodeToDto(node: LogicNode): LogicNodeDTO {
-  return { ...node };
+  return structuredClone(node);
 }
 
-function mapLogicNodeFromDto(dto: LogicNodeDTO): LogicNode {
-  return { ...dto };
+function mapLogicNodeFromDto(dto: LogicNodeDTO, index: number): LogicNode {
+  const position = dto.position ?? { x: 80 + index * 232, y: 160 };
+  return { ...structuredClone(dto), position };
 }
 
 function mapEdgeToDto(edge: LogicEdge): LogicEdgeDTO {
-  return { fromNodeId: edge.fromNodeId, toNodeId: edge.toNodeId };
+  return { ...edge };
 }
 
-function mapEdgeFromDto(dto: LogicEdgeDTO): LogicEdge {
-  return { fromNodeId: dto.fromNodeId, toNodeId: dto.toNodeId };
+function mapEdgeFromDto(dto: LogicEdgeDTO, graphId: string, index: number): LogicEdge {
+  return {
+    id: dto.id ?? `edge_${graphId}_${index + 1}`,
+    fromNodeId: dto.fromNodeId,
+    fromPort: dto.fromPort ?? 'next',
+    toNodeId: dto.toNodeId,
+    toPort: dto.toPort ?? 'in',
+  };
 }

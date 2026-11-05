@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ButtonNode, ComponentNode, ContainerNode, ImageNode, InputNode, ListNode } from '@domain/entities/componentNode';
+import type { ButtonNode, ComponentNode, ContainerNode, FormNode, ImageNode, InputNode, ListNode } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import { ComponentRenderer } from './ComponentRenderer';
 import { CANVAS_PRESETS, ScreenFrame } from './ScreenFrame';
@@ -53,6 +53,36 @@ describe('ComponentRenderer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('fires onNodeAction with the node id when a preview node is clicked', () => {
+    const onNodeAction = vi.fn();
+    render(<ComponentRenderer mode="preview" node={BUTTON} selected={false} onNodeAction={onNodeAction} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onNodeAction).toHaveBeenCalledTimes(1);
+    expect(onNodeAction).toHaveBeenCalledWith('node_save');
+  });
+
+  it('never wires runtime clicks in canvas or thumbnail mode', () => {
+    const onNodeAction = vi.fn();
+
+    const canvas = render(
+      <ComponentRenderer mode="canvas" node={BUTTON} selected={false} onSelect={vi.fn()} onNodeAction={onNodeAction} />,
+    );
+    canvas.unmount();
+    render(<ComponentRenderer mode="thumbnail" node={BUTTON} selected={false} onNodeAction={onNodeAction} />);
+
+    fireEvent.click(screen.getByText('Save'));
+
+    expect(onNodeAction).not.toHaveBeenCalled();
+  });
+
+  it('clicks without a runtime hook are harmless no-ops', () => {
+    render(<ComponentRenderer mode="preview" node={BUTTON} selected={false} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   });
 
   it('renders widgets statically in thumbnail mode to keep tiles valid HTML', () => {
@@ -132,6 +162,56 @@ describe('ComponentRenderer', () => {
     expect(onSelect).toHaveBeenCalledWith('node_save');
   });
 
+  it('does not render hidden layers in canvas or preview', () => {
+    const hidden = { ...BUTTON, isHidden: true };
+    const { rerender } = render(
+      <ComponentRenderer mode="canvas" node={hidden} selected={false} />,
+    );
+    expect(screen.queryByText('Save')).not.toBeInTheDocument();
+
+    rerender(<ComponentRenderer mode="preview" node={hidden} selected={false} />);
+    expect(screen.queryByText('Save')).not.toBeInTheDocument();
+  });
+
+  it('renders locked layers but ignores direct canvas selection', () => {
+    const onSelect = vi.fn();
+    render(
+      <ComponentRenderer
+        mode="canvas"
+        node={{ ...BUTTON, isLocked: true }}
+        onSelect={onSelect}
+        selected={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('marks a nested layer selected through selectedNodeId', () => {
+    const frame: ContainerNode = {
+      id: 'frame',
+      type: 'container',
+      x: 0,
+      y: 0,
+      w: 240,
+      h: 180,
+      props: {},
+      children: [BUTTON],
+    };
+    const { container } = render(
+      <ComponentRenderer
+        mode="canvas"
+        node={frame}
+        selected={false}
+        selectedNodeId="node_save"
+      />,
+    );
+
+    expect(container.querySelector('[data-node-id="frame"]')).toHaveAttribute('data-selected', 'false');
+    expect(container.querySelector('[data-node-id="node_save"]')).toHaveAttribute('data-selected', 'true');
+  });
+
   it('renders list items', () => {
     const list: ListNode = {
       id: 'node_list',
@@ -147,6 +227,32 @@ describe('ComponentRenderer', () => {
 
     expect(screen.getByText('Bañares, Peter Andrew')).toBeInTheDocument();
     expect(screen.getByText('Briñas, Andrei')).toBeInTheDocument();
+  });
+
+  it('renders an editable Form control and a static thumbnail variant', () => {
+    const form: FormNode = {
+      id: 'node_form',
+      type: 'form',
+      x: 0,
+      y: 0,
+      w: 320,
+      h: 260,
+      props: {
+        title: 'Contact us',
+        fields: [{ label: 'Email', placeholder: 'you@example.com', type: 'email' }],
+        submitLabel: 'Send',
+      },
+    };
+    const canvas = render(<ComponentRenderer mode="canvas" node={form} selected={false} />);
+    expect(screen.getByRole('form', { name: 'Contact us' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Email')).toHaveAttribute('type', 'email');
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument();
+
+    canvas.unmount();
+    render(<ComponentRenderer mode="thumbnail" node={form} selected={false} />);
+    expect(screen.queryByRole('form')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByText('Contact us')).toBeInTheDocument();
   });
 
   it('shows an image placeholder until a src is set', () => {

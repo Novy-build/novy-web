@@ -2,12 +2,23 @@ import type {
   ButtonProps,
   ComponentNode,
   ComponentType,
+  FormProps,
   ImageProps,
   InputProps,
   ListProps,
   NodeGeometry,
   TextProps,
 } from '@domain/entities/componentNode';
+import type {
+  ActionPayload,
+  Behavior,
+  ConditionNode,
+  LogicGraph,
+  LogicNodePosition,
+  LogicOutputPort,
+  TriggerEvent,
+} from '@domain/entities/logic';
+import type { AssistantProposal } from '@domain/ai/assistant';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import type { EditorDevice } from './geometry';
 
@@ -29,6 +40,8 @@ export type EditorNodeAction =
   /** Pushes history once when a drag session starts; move/resize skip history. */
   | { type: 'node/dragStart' }
   | { type: 'node/move'; nodeId: string; x: number; y: number }
+  | { type: 'node/layout-position'; nodeId: string; x: number; y: number }
+  | { type: 'node/layout-size'; nodeId: string; w: number; h: number }
   | { type: 'node/nudge'; nodeId: string; dx: number; dy: number }
   | { type: 'node/resize'; nodeId: string; geometry: NodeGeometry }
   | { type: 'node/props-button'; nodeId: string; props: Partial<ButtonProps> }
@@ -36,13 +49,88 @@ export type EditorNodeAction =
   | { type: 'node/props-input'; nodeId: string; props: Partial<InputProps> }
   | { type: 'node/props-image'; nodeId: string; props: Partial<ImageProps> }
   | { type: 'node/props-list'; nodeId: string; props: Partial<ListProps> }
+  | { type: 'node/props-form'; nodeId: string; props: Partial<FormProps> }
   | { type: 'node/duplicate'; nodeId: string }
   | { type: 'node/delete'; nodeId: string }
-  | { type: 'node/order'; nodeId: string; direction: 'forward' | 'backward' };
+  | { type: 'node/order'; nodeId: string; direction: 'forward' | 'backward' }
+  | { type: 'node/layer-rename'; nodeId: string; name: string }
+  | { type: 'node/layer-visibility'; nodeId: string }
+  | { type: 'node/layer-lock'; nodeId: string }
+  | {
+      type: 'node/reparent';
+      nodeId: string;
+      parentId: string | null;
+      absolutePosition?: { x: number; y: number };
+    }
+  | {
+      type: 'node/layer-move';
+      nodeId: string;
+      targetId: string;
+      position: 'before' | 'inside';
+    };
 
 export type EditorCanvasAction =
   | { type: 'canvas/dropIndicator'; position: { x: number; y: number } | null }
-  | { type: 'canvas/dropAt'; nodeType: ComponentType; x: number; y: number };
+  | {
+      type: 'canvas/dropAt';
+      nodeType: ComponentType;
+      x: number;
+      y: number;
+      parentId?: string | null;
+    };
+
+export type EditorLogicAction =
+  | { type: 'behavior/create'; targetNodeId: string; event: TriggerEvent }
+  | { type: 'workflow/create'; event: TriggerEvent; position: LogicNodePosition }
+  | { type: 'workflow/repair-graph'; behaviorId: string }
+  | {
+      type: 'workflow/trigger-update';
+      behaviorId: string;
+      targetNodeId: string;
+      event: TriggerEvent;
+    }
+  | { type: 'behavior/delete'; behaviorId: string }
+  | { type: 'behavior/select'; behaviorId: string }
+  | { type: 'graph/action-add'; graphId: string; payload?: ActionPayload }
+  | { type: 'graph/action-update'; graphId: string; nodeId: string; payload: ActionPayload }
+  | { type: 'graph/action-delete'; graphId: string; nodeId: string }
+  | { type: 'graph/condition-add'; graphId: string }
+  | {
+      type: 'graph/node-add';
+      graphId: string;
+      node:
+        | { kind: 'condition' }
+        | { kind: 'action'; payload: ActionPayload };
+      position: LogicNodePosition;
+    }
+  | { type: 'graph/normalize'; graph: LogicGraph }
+  | {
+      type: 'graph/condition-update';
+      graphId: string;
+      nodeId: string;
+      patch: Partial<Pick<ConditionNode, 'left' | 'operator' | 'compareValue'>>;
+    }
+  | { type: 'graph/node-dragStart' }
+  | { type: 'graph/node-move'; graphId: string; nodeId: string; x: number; y: number }
+  | {
+      type: 'graph/connect-ports';
+      graphId: string;
+      fromNodeId: string;
+      fromPort: LogicOutputPort;
+      toNodeId: string;
+    }
+  | { type: 'graph/edge-delete'; graphId: string; edgeId: string }
+  | { type: 'graph/connect'; graphId: string; fromNodeId: string; toNodeId: string }
+  | { type: 'graph/disconnect'; graphId: string; fromNodeId: string; toNodeId: string };
+
+/**
+ * AI assistant: applying a proposal is one document transform and one
+ * history entry, so Keep/Undo share the manual command stack.
+ */
+export type EditorAssistantAction = {
+  type: 'assistant/apply';
+  proposal: AssistantProposal;
+};
 
 export type EditorChromeAction =
   | { type: 'device/set'; device: EditorDevice }
@@ -62,6 +150,8 @@ export type EditorAction =
   | EditorScreenAction
   | EditorNodeAction
   | EditorCanvasAction
+  | EditorLogicAction
+  | EditorAssistantAction
   | EditorChromeAction
   | EditorHistoryAction
   | EditorAutosaveAction;
@@ -79,6 +169,8 @@ export interface EditorState {
   readonly future: readonly ProjectDocument[];
   readonly activeScreenId: string;
   readonly selectedNodeId: string | null;
+  /** Open behavior tab in the Logic workspace; falls back to the first behavior. */
+  readonly activeBehaviorId: string | null;
   readonly device: EditorDevice;
   readonly zoom: number;
   readonly isSnapEnabled: boolean;
@@ -97,6 +189,7 @@ export function createEditorState(document: ProjectDocument): EditorState {
     future: [],
     activeScreenId: document.screens[0]?.id ?? '',
     selectedNodeId: null,
+    activeBehaviorId: null,
     device: 'mobile',
     zoom: 1,
     isSnapEnabled: true,
@@ -110,6 +203,23 @@ export function createEditorState(document: ProjectDocument): EditorState {
 export function getActiveScreen(state: EditorState): Screen {
   const screen = state.document.screens.find((candidate) => candidate.id === state.activeScreenId);
   return screen ?? state.document.screens[0];
+}
+
+export interface ActiveLogic {
+  behavior: Behavior;
+  graph: LogicGraph;
+}
+
+/** Active behavior tab and its graph on the active screen (first tab as fallback). */
+export function getActiveLogic(state: EditorState): ActiveLogic | undefined {
+  const screen = getActiveScreen(state);
+  const behavior =
+    screen.behaviors.find((candidate) => candidate.id === state.activeBehaviorId) ?? screen.behaviors[0];
+  if (!behavior) {
+    return undefined;
+  }
+  const graph = screen.logicGraphs.find((candidate) => candidate.id === behavior.graphId);
+  return graph ? { behavior, graph } : undefined;
 }
 
 /** Finds a node anywhere in the active screen tree (top-level or container child). */
@@ -127,4 +237,16 @@ export function findNodeInScreen(screen: Screen, nodeId: string): ComponentNode 
     }
   }
   return undefined;
+}
+
+/** Flat list of every node including container children, in paint order. */
+export function flattenScreenNodes(nodes: readonly ComponentNode[]): ComponentNode[] {
+  const flat: ComponentNode[] = [];
+  for (const node of nodes) {
+    flat.push(node);
+    if (node.type === 'container') {
+      flat.push(...flattenScreenNodes(node.children));
+    }
+  }
+  return flat;
 }

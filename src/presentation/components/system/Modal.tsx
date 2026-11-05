@@ -1,4 +1,5 @@
-import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
+import { useRef, type MouseEvent, type ReactNode } from 'react';
+import { useDialogFocus } from '@presentation/hooks/useDialogFocus';
 
 interface ModalProps {
   /** Id of the dialog heading, wired to aria-labelledby. */
@@ -10,25 +11,12 @@ interface ModalProps {
 }
 
 /**
- * Minimal accessible dialog: labelled panel on a scrim, Escape and scrim-click
- * to dismiss. Focus-trap polish lands in the a11y phase (Phase 8).
+ * Accessible dialog foundation: labelled panel, trapped/restored focus,
+ * background scroll lock, Escape, and scrim-click dismissal.
  */
 export function Modal({ labelledBy, onClose, panelClassName = 'max-w-md', children }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    panelRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  useDialogFocus({ containerRef: panelRef, onClose });
 
   function handleOverlayClick(event: MouseEvent) {
     if (event.target === event.currentTarget) {
@@ -46,7 +34,6 @@ export function Modal({ labelledBy, onClose, panelClassName = 'max-w-md', childr
         aria-labelledby={labelledBy}
         aria-modal="true"
         className={`w-full overflow-y-auto rounded-panel border border-hairline bg-surface p-6 shadow-lg outline-none ${panelClassName}`}
-        onClick={handleOverlayClick}
         ref={panelRef}
         role="dialog"
         tabIndex={-1}

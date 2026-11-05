@@ -7,5 +7,11 @@ export interface ComponentRendererProps {
   node: ComponentNode;
   mode: RendererMode;
   selected: boolean;
+  /** Carries nested selection through frame recursion. */
+  selectedNodeId?: string | null;
   onSelect?: (nodeId: string) => void;
+  /** Reactive preview: fires when a non-canvas node receives a click. */
+  onNodeAction?: (nodeId: string) => void;
+  /** Preview-only input value updates consumed by condition nodes. */
+  onNodeValueChange?: (nodeId: string, value: string) => void;
 }

@@ -7,6 +7,7 @@ import { RepositoriesProvider } from '@main/providers/RepositoriesProvider';
 import { SessionProvider } from '@main/providers/SessionProvider';
 import { AppRoutes } from '@main/routes';
 import { LoadingScreen } from '@presentation/components/system/LoadingScreen';
+import { AppErrorBoundary } from '@presentation/components/system/AppErrorBoundary';
 import '@presentation/styles.css';
 
 const rootElement = document.getElementById('root');
@@ -33,13 +34,15 @@ async function bootstrap(): Promise<void> {
 
   root.render(
     <StrictMode>
-      <RepositoriesProvider repositories={repositories}>
-        <SessionProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </SessionProvider>
-      </RepositoriesProvider>
+      <AppErrorBoundary>
+        <RepositoriesProvider repositories={repositories}>
+          <SessionProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </SessionProvider>
+        </RepositoriesProvider>
+      </AppErrorBoundary>
     </StrictMode>,
   );
 }

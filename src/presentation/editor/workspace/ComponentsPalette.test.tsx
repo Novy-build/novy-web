@@ -20,6 +20,7 @@ describe('ComponentsPalette', () => {
     expect(screen.getByLabelText('Add Input')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Image')).toBeInTheDocument();
     expect(screen.getByLabelText('Add List')).toBeInTheDocument();
+    expect(screen.getByLabelText('Add Form')).toBeInTheDocument();
   });
 
   it('adds a component on click', () => {
@@ -58,6 +59,6 @@ describe('ComponentsPalette', () => {
 
     fireEvent.change(screen.getByLabelText('Search components'), { target: { value: 'zzz' } });
 
-    expect(screen.getByText('No components match “zzz”.')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('No components match “zzz”.');
   });
 });

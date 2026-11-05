@@ -7,12 +7,15 @@ import { ImageNodeView } from './nodes/ImageNodeView';
 import { InputNodeView } from './nodes/InputNodeView';
 import { ListNodeView } from './nodes/ListNodeView';
 import { TextNodeView } from './nodes/TextNodeView';
+import { FormNodeView } from './nodes/FormNodeView';
 
 interface NodeFrameProps {
   geometry: Pick<ComponentNode, 'id' | 'x' | 'y' | 'w' | 'h'>;
   interactive: boolean;
   selected: boolean;
   onSelect?: (nodeId: string) => void;
+  /** Runtime hook for published behavior (preview overlay executes chains). */
+  onNodeAction?: (nodeId: string) => void;
 }
 
 /**
@@ -20,7 +23,7 @@ interface NodeFrameProps {
  * it also owns hit-testing: the selection click reaches the deepest node
  * first (inner frames stop propagation).
  */
-function NodeFrame({ geometry, interactive, selected, onSelect, children }: PropsWithChildren<NodeFrameProps>) {
+function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, children }: PropsWithChildren<NodeFrameProps>) {
   const selectionClass = interactive && selected ? ' ring-2 ring-brand-600' : '';
   return (
     <div
@@ -33,7 +36,9 @@ function NodeFrame({ geometry, interactive, selected, onSelect, children }: Prop
               event.stopPropagation();
               onSelect?.(geometry.id);
             }
-          : undefined
+          : onNodeAction
+            ? () => onNodeAction(geometry.id)
+            : undefined
       }
       style={{
         left: geometry.x,
@@ -52,16 +57,32 @@ function NodeFrame({ geometry, interactive, selected, onSelect, children }: Prop
  * behind the editor canvas, the preview overlay, and dashboard thumbnails,
  * guaranteeing what the canvas shows is what gets published.
  */
-export function ComponentRenderer({ node, mode, selected, onSelect }: ComponentRendererProps) {
-  const interactive = mode === 'canvas';
+export function ComponentRenderer({
+  node,
+  mode,
+  selected,
+  selectedNodeId = null,
+  onSelect,
+  onNodeAction,
+  onNodeValueChange,
+}: ComponentRendererProps) {
+  if (node.isHidden) {
+    return null;
+  }
+  const interactive = mode === 'canvas' && !node.isLocked;
+  const isSelected = selected || selectedNodeId === node.id;
   const renderStatic = mode === 'thumbnail';
+  // Runtime clicks only exist in the reactive preview; canvas delegates to
+  // selection and thumbnails stay inert dashboard tiles.
+  const runtimeClick = mode === 'preview' && onNodeAction ? onNodeAction : undefined;
 
   const frame = (children: React.ReactNode) => (
     <NodeFrame
       geometry={node}
       interactive={interactive}
-      selected={selected}
+      selected={isSelected}
       onSelect={onSelect}
+      onNodeAction={runtimeClick}
     >
       {children}
     </NodeFrame>
@@ -73,7 +94,14 @@ export function ComponentRenderer({ node, mode, selected, onSelect }: ComponentR
     case 'text':
       return frame(<TextNodeView props={node.props} />);
     case 'input':
-      return frame(<InputNodeView props={node.props} renderStatic={renderStatic} />);
+      return frame(
+        <InputNodeView
+          isPreview={mode === 'preview'}
+          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
     case 'image':
       return frame(<ImageNodeView props={node.props} />);
     case 'list':
@@ -87,11 +115,16 @@ export function ComponentRenderer({ node, mode, selected, onSelect }: ComponentR
               mode={mode}
               node={child}
               onSelect={onSelect}
-              selected={selected}
+              onNodeAction={runtimeClick}
+              onNodeValueChange={onNodeValueChange}
+              selected={false}
+              selectedNodeId={selectedNodeId}
             />
           ))}
         </ContainerNodeView>,
       );
+    case 'form':
+      return frame(<FormNodeView props={node.props} renderStatic={renderStatic} />);
     default:
       return null;
   }

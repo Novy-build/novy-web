@@ -5,10 +5,16 @@
  */
 export type TriggerEvent = 'click' | 'change' | 'load';
 
+export interface LogicNodePosition {
+  x: number;
+  y: number;
+}
+
 export interface TriggerNode {
   kind: 'trigger';
   id: string;
   event: TriggerEvent;
+  position: LogicNodePosition;
 }
 
 export interface ChangeTextPayload {
@@ -27,19 +33,80 @@ export interface NavigatePayload {
   targetScreenId: string;
 }
 
-export type ActionPayload = ChangeTextPayload | ShowMessagePayload | NavigatePayload;
+export interface GetRecordsPayload {
+  type: 'get-records';
+  collectionId: string;
+}
+
+export interface InsertRecordPayload {
+  type: 'insert-record';
+  collectionId: string;
+  values: Record<string, string>;
+}
+
+export interface UpdateRecordPayload {
+  type: 'update-record';
+  collectionId: string;
+  recordId: string;
+  values: Record<string, string>;
+}
+
+export interface DeleteRecordPayload {
+  type: 'delete-record';
+  collectionId: string;
+  recordId: string;
+}
+
+export type ActionPayload =
+  | ChangeTextPayload
+  | ShowMessagePayload
+  | NavigatePayload
+  | GetRecordsPayload
+  | InsertRecordPayload
+  | UpdateRecordPayload
+  | DeleteRecordPayload;
 
 export interface ActionNode {
   kind: 'action';
   id: string;
   payload: ActionPayload;
+  position: LogicNodePosition;
 }
 
-export type LogicNode = TriggerNode | ActionNode;
+export type ConditionOperator =
+  | 'equals'
+  | 'not-equals'
+  | 'contains'
+  | 'not-contains'
+  | 'is-empty'
+  | 'is-not-empty';
+
+export interface ComponentValueReference {
+  source: 'component';
+  nodeId: string;
+  property: 'value' | 'text';
+}
+
+export interface ConditionNode {
+  kind: 'condition';
+  id: string;
+  position: LogicNodePosition;
+  left: ComponentValueReference;
+  operator: ConditionOperator;
+  compareValue: string;
+}
+
+export type LogicNode = TriggerNode | ConditionNode | ActionNode;
+
+export type LogicInputPort = 'in';
+export type LogicOutputPort = 'next' | 'true' | 'false';
 
 export interface LogicEdge {
+  id: string;
   fromNodeId: string;
+  fromPort: LogicOutputPort;
   toNodeId: string;
+  toPort: LogicInputPort;
 }
 
 export interface LogicGraph {

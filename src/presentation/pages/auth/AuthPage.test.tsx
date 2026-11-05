@@ -90,8 +90,9 @@ describe('auth flows', () => {
 
     fillLoginForm('student@novy.app', 'secret123');
 
-    expect(await screen.findByRole('heading', { name: 'Deployment' })).toBeInTheDocument();
-    expect(screen.getByText('acme')).toBeInTheDocument();
+    // The protected deploy route was restored; its real page then resolves
+    // the unknown project id to the expected not-found state.
+    expect(await screen.findByRole('heading', { name: 'Project not found' })).toBeInTheDocument();
   });
 
   it('logs in and defaults to the projects screen', async () => {
