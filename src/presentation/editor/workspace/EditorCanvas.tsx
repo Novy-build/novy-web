@@ -10,6 +10,7 @@ import type { ComponentNode, ComponentType } from '@domain/entities/componentNod
 import type { Screen } from '@domain/entities/screen';
 import { findFrameAtPoint, getComponentTreeLocation, type FrameHit } from '@domain/componentTree';
 import { ScreenFrame } from '../renderer/ScreenFrame';
+import type { RendererDataContext } from '../renderer/renderer';
 import { SNAP_GRID, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
 import { ZOOM_LIMITS } from '../state/editorState';
 import { COMPONENT_MIME } from './ComponentsPalette';
@@ -59,6 +60,7 @@ interface EditorCanvasProps {
   onDropIndicatorChange: (position: { x: number; y: number } | null) => void;
   onZoomChange: (zoom: number) => void;
   onToggleSnap: () => void;
+  dataContext?: RendererDataContext;
 }
 
 interface InteractionTarget {
@@ -136,6 +138,7 @@ export function EditorCanvas({
   onDropIndicatorChange,
   onZoomChange,
   onToggleSnap,
+  dataContext,
 }: EditorCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const interactionLayerRef = useRef<HTMLDivElement>(null);
@@ -423,6 +426,7 @@ export function EditorCanvas({
           >
             <ScreenFrame
               mode="canvas"
+              dataContext={dataContext}
               scale={zoom}
               screen={screen}
               selectedNodeId={selectedNodeId}

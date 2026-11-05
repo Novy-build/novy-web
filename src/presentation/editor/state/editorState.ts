@@ -156,7 +156,7 @@ export type EditorAction =
   | EditorHistoryAction
   | EditorAutosaveAction;
 
-export type EditorMode = 'design' | 'logic';
+export type EditorMode = 'design' | 'logic' | 'data';
 
 /**
  * The editor workspace state: one reducer for the document (with undo/redo

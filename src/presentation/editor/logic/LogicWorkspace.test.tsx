@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useReducer } from 'react';
 import type { ProjectDocument } from '@domain/entities/screen';
+import type { DataCollection } from '@domain/entities/appData';
 import { editorReducer } from '../state/editorReducer';
 import { createEditorState, getActiveScreen, type EditorState } from '../state/editorState';
 import { makeButton, makeScreen, makeText } from '@test/editorFixtures';
@@ -12,12 +13,20 @@ const SCREEN = makeScreen('screen_home', [
   makeButton('node_button', { x: 24, y: 560, w: 160, h: 44 }),
 ]);
 const DOCUMENT: ProjectDocument = { screens: [SCREEN] };
+const COLLECTION: DataCollection = {
+  id: 'students',
+  projectId: 'project',
+  name: 'Students',
+  fields: [{ id: 'student_name', key: 'name', label: 'Student name', type: 'text', required: true }],
+  createdAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-01-01'),
+};
 const latest: { current: EditorState | null } = { current: null };
 
 function Harness({ document }: { document: ProjectDocument }) {
   const [state, dispatch] = useReducer(editorReducer, document, createEditorState);
   latest.current = state;
-  return <LogicWorkspace state={state} dispatch={dispatch} />;
+  return <LogicWorkspace collections={[COLLECTION]} state={state} dispatch={dispatch} />;
 }
 
 function renderWorkspace(document: ProjectDocument = DOCUMENT) {
@@ -144,12 +153,14 @@ describe('LogicWorkspace with a workflow', () => {
       (node) => node.kind === 'action' && node.payload.type === 'insert-record',
     )!;
     fireEvent.click(screen.getByTestId(`logic-node-${insert.id}`));
-    fireEvent.change(screen.getByLabelText('Collection ID'), { target: { value: 'students' } });
+    fireEvent.change(screen.getByLabelText('Collection'), { target: { value: 'students' } });
+    fireEvent.change(screen.getByLabelText('Student name'), { target: { value: 'Ada' } });
 
     const updated = getActiveScreen(latest.current!).logicGraphs[0]!.nodes.find((node) => node.id === insert.id);
     expect(updated?.kind === 'action' ? updated.payload : null).toMatchObject({
       type: 'insert-record',
       collectionId: 'students',
+      values: { student_name: 'Ada' },
     });
   });
 

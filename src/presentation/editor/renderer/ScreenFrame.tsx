@@ -1,5 +1,6 @@
 import type { Screen } from '@domain/entities/screen';
 import type { RendererMode } from './renderer';
+import type { RendererDataContext } from './renderer';
 import { ComponentRenderer } from './ComponentRenderer';
 
 /** Design-space dimensions rendered by ScreenFrame (MVP presets). */
@@ -25,6 +26,8 @@ export interface ScreenFrameProps {
   /** Reactive preview: forwards runtime clicks on non-canvas nodes. */
   onNodeAction?: (nodeId: string) => void;
   onNodeValueChange?: (nodeId: string, value: string) => void;
+  dataContext?: RendererDataContext;
+  onFormSubmit?: (nodeId: string, values: string[]) => void;
 }
 
 /**
@@ -41,6 +44,8 @@ export function ScreenFrame({
   onSelectNode,
   onNodeAction,
   onNodeValueChange,
+  dataContext,
+  onFormSubmit,
 }: ScreenFrameProps) {
   const outerWidth = Math.round(size.width * scale);
   const outerHeight = Math.round(size.height * scale);
@@ -67,6 +72,8 @@ export function ScreenFrame({
             node={node}
             onNodeAction={onNodeAction}
             onNodeValueChange={onNodeValueChange}
+            dataContext={dataContext}
+            onFormSubmit={onFormSubmit}
             onSelect={onSelectNode}
             selected={selectedNodeId === node.id}
             selectedNodeId={selectedNodeId}

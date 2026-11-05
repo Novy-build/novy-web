@@ -18,8 +18,7 @@ export type PreviewEffect =
   | { kind: 'navigate'; screenId: string }
   | {
       kind: 'data-operation';
-      operation: 'get-records' | 'insert-record' | 'update-record' | 'delete-record';
-      collectionId: string;
+      payload: Extract<ActionPayload, { type: 'get-records' | 'insert-record' | 'update-record' | 'delete-record' }>;
     };
 
 export interface PreviewRuntimeContext {
@@ -133,9 +132,8 @@ function effectFor(payload: ActionPayload, document: ProjectDocument): PreviewEf
     case 'delete-record':
       return payload.collectionId
         ? {
-            kind: 'data-operation',
-            operation: payload.type,
-            collectionId: payload.collectionId,
+          kind: 'data-operation',
+            payload,
           }
         : null;
     default: {

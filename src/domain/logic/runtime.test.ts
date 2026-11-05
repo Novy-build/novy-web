@@ -117,6 +117,23 @@ describe('runClickBehavior', () => {
       { componentValues: new Map([['node_input', 'no']]) },
     )).toEqual([{ kind: 'show-message', message: 'Try again' }]);
   });
+
+  it('emits repository-agnostic database effects for preview orchestration', () => {
+    const { screen, graphId } = buildScreen();
+    const graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'insert-record',
+      collectionId: 'students',
+      values: { name: 'Ada' },
+    });
+    const withGraph = { ...screen, logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item) };
+
+    expect(runClickBehavior({ screens: [withGraph] }, withGraph, 'node_button')).toEqual([
+      {
+        kind: 'data-operation',
+        payload: { type: 'insert-record', collectionId: 'students', values: { name: 'Ada' } },
+      },
+    ]);
+  });
 });
 
 describe('applyTextOverrides', () => {

@@ -1,6 +1,6 @@
 # Novy Frontend Plan (frontend-only phase)
 
-> Status: frontend phases 0–8 complete; PD6 interaction redesign Gates 1–3 complete — Tailwind v4, react-router, useReducer + Context state, localStorage mock repos, width-switchable device frame.
+> Status: frontend phases 0–8 complete; PD6 interaction redesign Gates 1–4 complete — Tailwind v4, react-router, useReducer + Context state, localStorage mock repos, width-switchable device frame.
 
 ## 1 · Ground rules
 
@@ -127,6 +127,6 @@ is excluded while Novy remains a single-builder product.
 | 1 | Figma-style editor shell + hierarchical Layers | metadata/migration + layer interaction tests | ✅ done (typecheck + 364 tests + build green) |
 | 2 | Direct canvas manipulation + nested frames + Form | geometry/reparent/keyboard tests | ✅ done (typecheck + 380 tests + build green) |
 | 3 | n8n-style Logic Builder + conditions/typed ports + searchable node library | graph/runtime/connection tests | ✅ done (typecheck + 404 tests + build green) |
-| 4 | Project Data workspace + schema/record CRUD | repository + CRUD + binding tests | ← next |
-| 5 | Project validation + preview/deploy integration | validator + failure-preservation tests | |
+| 4 | Project Data workspace + schema/record CRUD | repository + CRUD + binding tests | ✅ done (typecheck + 419 tests + build green) |
+| 5 | Project validation + preview/deploy integration | validator + failure-preservation tests | ← next |
 | 6 | PD6 traceability + final accessibility/regression | full test + build gate | |

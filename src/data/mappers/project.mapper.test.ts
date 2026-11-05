@@ -40,6 +40,22 @@ const FIXTURE_SCREEN: Screen = {
         title: 'Contact us',
         fields: [{ label: 'Email', placeholder: 'you@example.com', type: 'email' }],
         submitLabel: 'Send',
+        dataBinding: {
+          collectionId: 'contacts',
+          fields: [{ formFieldIndex: 0, dataFieldId: 'email' }],
+        },
+      },
+    },
+    {
+      id: 'node_list',
+      type: 'list',
+      x: 40,
+      y: 560,
+      w: 280,
+      h: 180,
+      props: {
+        items: [],
+        dataSource: { kind: 'collection', collectionId: 'contacts', displayFieldId: 'email' },
       },
     },
   ],

@@ -5,9 +5,11 @@ import type { FormProps } from '@domain/entities/componentNode';
 export function FormNodeView({
   props,
   renderStatic,
+  onSubmit,
 }: {
   props: FormProps;
   renderStatic: boolean;
+  onSubmit?: (values: string[]) => void;
 }) {
   const idPrefix = useId();
 
@@ -30,6 +32,8 @@ export function FormNodeView({
 
   function preventSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    onSubmit?.(props.fields.map((_, index) => String(data.get(`field-${index}`) ?? '')));
   }
 
   return (
@@ -49,6 +53,7 @@ export function FormNodeView({
             <input
               className="h-9 rounded-md border border-hairline bg-surface px-3 text-sm text-ink outline-none focus:border-brand-500"
               id={fieldId}
+              name={`field-${index}`}
               placeholder={field.placeholder}
               type={field.type}
             />

@@ -34,6 +34,9 @@ export interface ContainerProps {
 
 export interface ListProps {
   items: string[];
+  dataSource?:
+    | { kind: 'static' }
+    | { kind: 'collection'; collectionId: string; displayFieldId: string };
 }
 
 export interface FormField {
@@ -46,6 +49,10 @@ export interface FormProps {
   title: string;
   fields: FormField[];
   submitLabel: string;
+  dataBinding?: {
+    collectionId: string;
+    fields: Array<{ formFieldIndex: number; dataFieldId: string }>;
+  };
 }
 
 export interface NodeGeometry {

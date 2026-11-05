@@ -65,6 +65,8 @@ export function ComponentRenderer({
   onSelect,
   onNodeAction,
   onNodeValueChange,
+  dataContext,
+  onFormSubmit,
 }: ComponentRendererProps) {
   if (node.isHidden) {
     return null;
@@ -105,7 +107,7 @@ export function ComponentRenderer({
     case 'image':
       return frame(<ImageNodeView props={node.props} />);
     case 'list':
-      return frame(<ListNodeView props={node.props} />);
+      return frame(<ListNodeView items={resolveListItems(node.props.items, node.props.dataSource, dataContext)} />);
     case 'container':
       return frame(
         <ContainerNodeView>
@@ -117,6 +119,8 @@ export function ComponentRenderer({
               onSelect={onSelect}
               onNodeAction={runtimeClick}
               onNodeValueChange={onNodeValueChange}
+              dataContext={dataContext}
+              onFormSubmit={onFormSubmit}
               selected={false}
               selectedNodeId={selectedNodeId}
             />
@@ -124,8 +128,25 @@ export function ComponentRenderer({
         </ContainerNodeView>,
       );
     case 'form':
-      return frame(<FormNodeView props={node.props} renderStatic={renderStatic} />);
+      return frame(
+        <FormNodeView
+          onSubmit={(values) => onFormSubmit?.(node.id, values)}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
     default:
       return null;
   }
+}
+
+function resolveListItems(
+  staticItems: string[],
+  source: Extract<ComponentNode, { type: 'list' }>['props']['dataSource'],
+  dataContext: ComponentRendererProps['dataContext'],
+): string[] {
+  if (!source || source.kind === 'static' || !dataContext) return staticItems;
+  return (dataContext.recordsByCollection.get(source.collectionId) ?? []).map((record) =>
+    String(record.values[source.displayFieldId] ?? ''),
+  );
 }

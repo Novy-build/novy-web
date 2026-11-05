@@ -130,7 +130,10 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { items: [...node.props.items] },
+        props: {
+          items: [...node.props.items],
+          ...(node.props.dataSource ? { dataSource: structuredClone(node.props.dataSource) } : {}),
+        },
       };
     case 'container':
       return {
@@ -157,6 +160,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
           title: node.props.title,
           fields: node.props.fields.map((field) => ({ ...field })),
           submitLabel: node.props.submitLabel,
+          ...(node.props.dataBinding ? { dataBinding: structuredClone(node.props.dataBinding) } : {}),
         },
       };
   }
@@ -218,7 +222,10 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { items: [...dto.props.items] },
+        props: {
+          items: [...dto.props.items],
+          ...(dto.props.dataSource ? { dataSource: structuredClone(dto.props.dataSource) } : {}),
+        },
       };
     case 'container':
       return {
@@ -245,6 +252,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
           title: dto.props.title,
           fields: dto.props.fields.map((field) => ({ ...field })),
           submitLabel: dto.props.submitLabel,
+          ...(dto.props.dataBinding ? { dataBinding: structuredClone(dto.props.dataBinding) } : {}),
         },
       };
   }

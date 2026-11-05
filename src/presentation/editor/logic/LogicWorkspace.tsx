@@ -6,6 +6,7 @@ import type {
   LogicOutputPort,
   TriggerEvent,
 } from '@domain/entities/logic';
+import type { DataCollection } from '@domain/entities/appData';
 import { normalizeLogicGraph } from '@domain/logic/graph';
 import {
   findNodeInScreen,
@@ -25,6 +26,7 @@ import { nodeDisplayLabel } from '../workspace/nodeLabels';
 interface LogicWorkspaceProps {
   state: EditorState;
   dispatch: Dispatch<EditorAction>;
+  collections?: readonly DataCollection[];
 }
 
 const EMPTY_GRAPH: LogicGraph = {
@@ -36,7 +38,7 @@ const EMPTY_GRAPH: LogicGraph = {
 };
 
 /** n8n-inspired workspace: Nodes library, workflow canvas, and focused Details inspector. */
-export function LogicWorkspace({ state, dispatch }: LogicWorkspaceProps) {
+export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorkspaceProps) {
   const screen = getActiveScreen(state);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [libraryMessage, setLibraryMessage] = useState('');
@@ -182,6 +184,7 @@ export function LogicWorkspace({ state, dispatch }: LogicWorkspaceProps) {
         <aside className="w-72 shrink-0 overflow-y-auto border-l border-hairline bg-surface p-4">
           <LogicNodeConfig
             behavior={behavior}
+            collections={collections}
             currentScreenId={screen.id}
             node={selectedNode}
             onConfigure={configureSelected}

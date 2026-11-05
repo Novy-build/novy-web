@@ -1,5 +1,6 @@
 import type { ChangeEvent } from 'react';
 import type { ComponentNode } from '@domain/entities/componentNode';
+import type { DataCollection } from '@domain/entities/appData';
 import type { Behavior } from '@domain/entities/logic';
 import { TextInput } from '@presentation/components/ui/TextInput';
 import type { EditorAction } from '../state/editorState';
@@ -12,6 +13,7 @@ interface InspectorProps {
   behaviors: readonly Behavior[];
   onAction: (action: EditorAction) => void;
   onOpenLogic: () => void;
+  collections?: readonly DataCollection[];
 }
 
 interface SegmentOption<T extends string> {
@@ -54,7 +56,13 @@ function SegmentedControl<T extends string>({
  * layout, appearance controls, and the behavior stub that hands off to Logic
  * mode. Every edit dispatches a typed reducer action through `onAction`.
  */
-export function Inspector({ node: candidate, behaviors, onAction, onOpenLogic }: InspectorProps) {
+export function Inspector({
+  node: candidate,
+  behaviors,
+  onAction,
+  onOpenLogic,
+  collections = [],
+}: InspectorProps) {
   if (candidate === null) {
     return (
       <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
@@ -67,6 +75,10 @@ export function Inspector({ node: candidate, behaviors, onAction, onOpenLogic }:
   }
 
   const node: ComponentNode = candidate;
+  const listCollectionSource = node.type === 'list' && node.props.dataSource?.kind === 'collection'
+    ? node.props.dataSource
+    : null;
+  const formDataBinding = node.type === 'form' ? node.props.dataBinding ?? null : null;
   function numberFromEvent(event: ChangeEvent<HTMLInputElement>): number | null {
     const raw = event.target.value;
     if (raw.trim().length === 0) {
@@ -165,8 +177,62 @@ export function Inspector({ node: candidate, behaviors, onAction, onOpenLogic }:
       ) : null}
 
       {node.type === 'list' ? (
-        <div className="mt-4">
+        <div className="mt-4 grid gap-3">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-list-source">Data source</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-list-source"
+            onChange={(event) => {
+              if (event.target.value === 'static') {
+                onAction({ type: 'node/props-list', nodeId: node.id, props: { dataSource: { kind: 'static' } } });
+                return;
+              }
+              const collection = collections[0];
+              onAction({
+                type: 'node/props-list',
+                nodeId: node.id,
+                props: {
+                  dataSource: {
+                    kind: 'collection',
+                    collectionId: collection?.id ?? '',
+                    displayFieldId: collection?.fields[0]?.id ?? '',
+                  },
+                },
+              });
+            }}
+            value={node.props.dataSource?.kind ?? 'static'}
+          >
+            <option value="static">Static items</option>
+            <option value="collection">Collection</option>
+          </select>
+          {listCollectionSource ? (
+            <>
+              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-list-collection">Collection</label>
+              <select
+                className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+                id="inspector-list-collection"
+                onChange={(event) => {
+                  const collection = collections.find((item) => item.id === event.target.value);
+                  onAction({ type: 'node/props-list', nodeId: node.id, props: { dataSource: { kind: 'collection', collectionId: event.target.value, displayFieldId: collection?.fields[0]?.id ?? '' } } });
+                }}
+                value={listCollectionSource.collectionId}
+              >
+                <option value="">Choose a collection…</option>
+                {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
+              </select>
+              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-list-field">Display field</label>
+              <select
+                className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+                id="inspector-list-field"
+                onChange={(event) => onAction({ type: 'node/props-list', nodeId: node.id, props: { dataSource: { ...listCollectionSource, displayFieldId: event.target.value } } })}
+                value={listCollectionSource.displayFieldId}
+              >
+                <option value="">Choose a field…</option>
+                {collections.find((collection) => collection.id === listCollectionSource.collectionId)?.fields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
+              </select>
+            </>
+          ) : null}
           <label className="mb-1 block text-xs font-medium text-ink-muted" htmlFor="inspector-list-items">
             List items
           </label>
@@ -240,6 +306,55 @@ export function Inspector({ node: candidate, behaviors, onAction, onOpenLogic }:
             }
             value={node.props.submitLabel}
           />
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-form-collection">Submit to collection</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-form-collection"
+            onChange={(event) => {
+              const collection = collections.find((item) => item.id === event.target.value);
+              onAction({
+                type: 'node/props-form',
+                nodeId: node.id,
+                props: {
+                  dataBinding: event.target.value
+                    ? {
+                        collectionId: event.target.value,
+                        fields: node.props.fields.map((_, index) => ({
+                          formFieldIndex: index,
+                          dataFieldId: collection?.fields[index]?.id ?? '',
+                        })),
+                      }
+                    : undefined,
+                },
+              });
+            }}
+            value={node.props.dataBinding?.collectionId ?? ''}
+          >
+            <option value="">No collection</option>
+            {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
+          </select>
+          {formDataBinding ? node.props.fields.map((field, index) => (
+            <label className="text-xs font-medium text-ink-muted" key={`${field.label}-${index}`}>
+              {field.label}
+              <select
+                className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+                onChange={(event) => onAction({
+                  type: 'node/props-form',
+                  nodeId: node.id,
+                  props: {
+                    dataBinding: {
+                      ...formDataBinding,
+                      fields: formDataBinding.fields.map((binding) => binding.formFieldIndex === index ? { ...binding, dataFieldId: event.target.value } : binding),
+                    },
+                  },
+                })}
+                value={formDataBinding.fields.find((binding) => binding.formFieldIndex === index)?.dataFieldId ?? ''}
+              >
+                <option value="">Choose a field…</option>
+                {collections.find((collection) => collection.id === formDataBinding.collectionId)?.fields.map((dataField) => <option key={dataField.id} value={dataField.id}>{dataField.label}</option>)}
+              </select>
+            </label>
+          )) : null}
         </div>
       ) : null}
 

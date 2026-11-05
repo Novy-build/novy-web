@@ -1,9 +1,11 @@
 import type { AuthRepository } from '@domain/repositories/auth.repository';
+import type { AppDataRepository } from '@domain/repositories/appData.repository';
 import type { DeploymentRepository } from '@domain/repositories/deployment.repository';
 import type { ProjectRepository } from '@domain/repositories/project.repository';
 import type { TemplateRepository } from '@domain/repositories/template.repository';
 import { TEMPLATE_CATALOG } from '../../templates/templateCatalog';
 import { LocalAuthRepository } from './LocalAuthRepository';
+import { LocalStorageAppDataRepository } from './LocalStorageAppDataRepository';
 import { LocalStorageDeploymentRepository } from './LocalStorageDeploymentRepository';
 import { LocalStorageProjectRepository } from './LocalStorageProjectRepository';
 import { StaticTemplateRepository } from './StaticTemplateRepository';
@@ -18,6 +20,7 @@ export interface Repositories {
   projects: ProjectRepository;
   templates: TemplateRepository;
   deployments: DeploymentRepository;
+  appData: AppDataRepository;
 }
 
 export interface LocalRepositoriesOptions {
@@ -33,5 +36,6 @@ export function createLocalRepositories(options?: LocalRepositoriesOptions): Rep
     projects: new LocalStorageProjectRepository(window.localStorage, { latencyMs }),
     templates: new StaticTemplateRepository([...TEMPLATE_CATALOG], latencyMs ?? 120),
     deployments: new LocalStorageDeploymentRepository(window.localStorage, { latencyMs }),
+    appData: new LocalStorageAppDataRepository(window.localStorage, { latencyMs }),
   };
 }

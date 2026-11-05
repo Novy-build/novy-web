@@ -3,14 +3,28 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EditorAction } from '../state/editorState';
 import { Inspector } from './Inspector';
 import { makeButton, makeContainer, makeForm, makeImage, makeList, makeText } from '@test/editorFixtures';
+import type { DataCollection } from '@domain/entities/appData';
+
+const COLLECTION: DataCollection = {
+  id: 'collection_students',
+  projectId: 'project_1',
+  name: 'Students',
+  fields: [
+    { id: 'field_name', key: 'name', label: 'Name', type: 'text', required: true },
+    { id: 'field_email', key: 'email', label: 'Email', type: 'text', required: false },
+  ],
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+};
 
 function renderInspector(
   node: Parameters<typeof Inspector>[0]['node'],
   onOpenLogic = vi.fn(),
   behaviors: Parameters<typeof Inspector>[0]['behaviors'] = [],
+  collections: readonly DataCollection[] = [],
 ) {
   const onAction = vi.fn<(action: EditorAction) => void>();
-  render(<Inspector behaviors={behaviors} node={node} onAction={onAction} onOpenLogic={onOpenLogic} />);
+  render(<Inspector behaviors={behaviors} collections={collections} node={node} onAction={onAction} onOpenLogic={onOpenLogic} />);
   return { onAction, onOpenLogic };
 }
 
@@ -149,6 +163,23 @@ describe('Inspector', () => {
     });
   });
 
+  it('binds a List to a collection display field', () => {
+    const { onAction } = renderInspector(makeList('node_list'), vi.fn(), [], [COLLECTION]);
+    fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'collection' } });
+
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'node/props-list',
+      nodeId: 'node_list',
+      props: {
+        dataSource: {
+          kind: 'collection',
+          collectionId: 'collection_students',
+          displayFieldId: 'field_name',
+        },
+      },
+    });
+  });
+
   it('edits Form title, fields, and submit label', () => {
     const { onAction } = renderInspector(makeForm('node_form'));
 
@@ -176,6 +207,27 @@ describe('Inspector', () => {
       type: 'node/props-form',
       nodeId: 'node_form',
       props: { submitLabel: 'Join now' },
+    });
+  });
+
+  it('binds Form fields to collection fields', () => {
+    const { onAction } = renderInspector(makeForm('node_form'), vi.fn(), [], [COLLECTION]);
+    fireEvent.change(screen.getByLabelText('Submit to collection'), {
+      target: { value: 'collection_students' },
+    });
+
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'node/props-form',
+      nodeId: 'node_form',
+      props: {
+        dataBinding: {
+          collectionId: 'collection_students',
+          fields: [
+            { formFieldIndex: 0, dataFieldId: 'field_name' },
+            { formFieldIndex: 1, dataFieldId: 'field_email' },
+          ],
+        },
+      },
     });
   });
 

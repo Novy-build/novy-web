@@ -1,4 +1,5 @@
 import type { ComponentNode } from '@domain/entities/componentNode';
+import type { DataCollection } from '@domain/entities/appData';
 import type {
   ActionPayload,
   Behavior,
@@ -24,6 +25,7 @@ interface LogicNodeConfigProps {
   onConfigureTrigger: (targetNodeId: string, event: TriggerEvent) => void;
   onRemoveSelected: () => void;
   onDeleteBehavior: () => void;
+  collections?: readonly DataCollection[];
 }
 
 /**
@@ -41,6 +43,7 @@ export function LogicNodeConfig({
   onConfigureTrigger,
   onRemoveSelected,
   onDeleteBehavior,
+  collections = [],
 }: LogicNodeConfigProps) {
   if (!behavior) {
     return <EmptyDetails />;
@@ -176,6 +179,9 @@ export function LogicNodeConfig({
 
   const configure = (payload: ActionPayload): void => onConfigure(node.id, payload);
   const actionPayload = node.payload;
+  const selectedDataCollection = isDataPayload(actionPayload)
+    ? collections.find((collection) => collection.id === actionPayload.collectionId) ?? null
+    : null;
 
   return (
     <div>
@@ -270,15 +276,17 @@ export function LogicNodeConfig({
             Collections are configured in the Data workspace.
           </p>
           <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-collection">
-            Collection ID
+            Collection
           </label>
-          <input
+          <select
             className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
             id="logic-collection"
             onChange={(event) => configure({ ...actionPayload, collectionId: event.target.value })}
-            placeholder="students"
             value={actionPayload.collectionId}
-          />
+          >
+            <option value="">Choose a collection…</option>
+            {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
+          </select>
           {'recordId' in actionPayload ? (
             <>
               <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-record-id">
@@ -291,6 +299,24 @@ export function LogicNodeConfig({
                 value={actionPayload.recordId}
               />
             </>
+          ) : null}
+          {'values' in actionPayload && selectedDataCollection ? (
+            <div className="mt-4 grid gap-3">
+              <p className="text-xs font-medium text-ink-muted">Field values</p>
+              {selectedDataCollection.fields.map((field) => (
+                <label className="text-xs font-medium text-ink-muted" key={field.id}>
+                  {field.label}
+                  <input
+                    className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+                    onChange={(event) => configure({
+                      ...actionPayload,
+                      values: { ...actionPayload.values, [field.id]: event.target.value },
+                    })}
+                    value={actionPayload.values[field.id] ?? ''}
+                  />
+                </label>
+              ))}
+            </div>
           ) : null}
         </>
       ) : null}

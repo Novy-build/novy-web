@@ -16,6 +16,9 @@ export function validateRecordValues(
   collection: DataCollection,
   values: Readonly<Record<string, DataValue>>,
 ): string | null {
+  const fieldIds = new Set(collection.fields.map((field) => field.id));
+  const unknownField = Object.keys(values).find((fieldId) => !fieldIds.has(fieldId));
+  if (unknownField) return `Unknown field “${unknownField}”.`;
   for (const field of collection.fields) {
     const value = values[field.id];
     if (field.required && (value === null || value === undefined || value === '')) {

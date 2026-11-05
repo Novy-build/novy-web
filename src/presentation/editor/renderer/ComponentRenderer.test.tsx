@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ButtonNode, ComponentNode, ContainerNode, FormNode, ImageNode, InputNode, ListNode } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
+import type { DataCollection, DataRecord } from '@domain/entities/appData';
 import { ComponentRenderer } from './ComponentRenderer';
 import { CANVAS_PRESETS, ScreenFrame } from './ScreenFrame';
 
@@ -227,6 +228,32 @@ describe('ComponentRenderer', () => {
 
     expect(screen.getByText('Bañares, Peter Andrew')).toBeInTheDocument();
     expect(screen.getByText('Briñas, Andrei')).toBeInTheDocument();
+  });
+
+  it('resolves collection-bound List items from renderer data context', () => {
+    const collection: DataCollection = {
+      id: 'students', projectId: 'project', name: 'Students',
+      fields: [{ id: 'name', key: 'name', label: 'Name', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const record: DataRecord = {
+      id: 'record', projectId: 'project', collectionId: 'students', values: { name: 'Ada Lovelace' },
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const list: ListNode = {
+      id: 'list', type: 'list', x: 0, y: 0, w: 240, h: 160,
+      props: { items: [], dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' } },
+    };
+
+    render(
+      <ComponentRenderer
+        dataContext={{ collections: [collection], recordsByCollection: new Map([['students', [record]]]) }}
+        mode="preview"
+        node={list}
+        selected={false}
+      />,
+    );
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
   });
 
   it('renders an editable Form control and a static thumbnail variant', () => {

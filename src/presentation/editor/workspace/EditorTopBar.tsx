@@ -132,10 +132,10 @@ export function EditorTopBar({
         <div className="flex items-center gap-2">
           <div
             aria-label="Editor mode"
-            className="grid h-8 grid-cols-2 gap-1 rounded-tile bg-canvas p-0.5"
+            className="grid h-8 grid-cols-3 gap-1 rounded-tile bg-canvas p-0.5"
             role="group"
           >
-            {(['design', 'logic'] as const).map((candidate) => (
+            {(['design', 'logic', 'data'] as const).map((candidate) => (
               <button
                 aria-pressed={mode === candidate}
                 className={`rounded-tile px-3 text-xs font-medium capitalize transition-colors ${

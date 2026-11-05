@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Screen } from '@domain/entities/screen';
+import type { DataCollection, DataRecord, DataValue } from '@domain/entities/appData';
+import { generateId } from '@domain/ids';
+import type { ComponentNode } from '@domain/entities/componentNode';
+import type { ActionPayload } from '@domain/entities/logic';
 import { applyTextOverrides, runClickBehavior } from '@domain/logic/runtime';
 import { Modal } from '@presentation/components/system/Modal';
 import { ScreenFrame } from '../renderer/ScreenFrame';
@@ -20,6 +24,8 @@ interface PreviewOverlayProps {
   device: EditorDevice;
   projectName: string;
   onClose: () => void;
+  collections?: readonly DataCollection[];
+  recordsByCollection?: ReadonlyMap<string, readonly DataRecord[]>;
 }
 
 interface Toast {
@@ -32,11 +38,21 @@ interface Toast {
  * (chains of change-text / show-message / navigate) execute through the
  * domain runtime, and effects render through the same ScreenFrame.
  */
-export function PreviewOverlay({ screens, device, projectName, onClose }: PreviewOverlayProps) {
+export function PreviewOverlay({
+  screens,
+  device,
+  projectName,
+  onClose,
+  collections = [],
+  recordsByCollection = new Map(),
+}: PreviewOverlayProps) {
   const bounds = CANVAS_PRESETS[device];
   const [screenId, setScreenId] = useState(() => screens[0]?.id ?? '');
   const [textOverrides, setTextOverrides] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [componentValues, setComponentValues] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const [previewRecords, setPreviewRecords] = useState<ReadonlyMap<string, readonly DataRecord[]>>(
+    () => new Map(recordsByCollection),
+  );
   const [toast, setToast] = useState<Toast | null>(null);
 
   const screen: Screen | null = screens.find((candidate) => candidate.id === screenId) ?? screens[0] ?? null;
@@ -66,10 +82,7 @@ export function PreviewOverlay({ screens, device, projectName, onClose }: Previe
             setScreenId(effect.screenId);
             break;
           case 'data-operation':
-            setToast({
-              id: Date.now() + Math.floor(Math.random() * 1000),
-              message: `${effect.operation} queued for ${effect.collectionId}`,
-            });
+            applyDataOperation(effect.payload);
             break;
           default: {
             const exhaustive: never = effect;
@@ -78,8 +91,70 @@ export function PreviewOverlay({ screens, device, projectName, onClose }: Previe
         }
       }
     },
-    [componentValues, screens, screen],
+    [componentValues, previewRecords, screens, screen],
   );
+
+  function applyDataOperation(
+    payload: Extract<ActionPayload, { type: 'get-records' | 'insert-record' | 'update-record' | 'delete-record' }>,
+  ): void {
+    const current = previewRecords.get(payload.collectionId) ?? [];
+    if (payload.type === 'get-records') {
+      setToast({ id: Date.now(), message: `${current.length} records loaded.` });
+      return;
+    }
+    if (payload.type === 'insert-record') {
+      const now = new Date();
+      const record: DataRecord = {
+        id: generateId('preview-record'),
+        projectId: 'preview',
+        collectionId: payload.collectionId,
+        values: { ...payload.values },
+        createdAt: now,
+        updatedAt: now,
+      };
+      setPreviewRecords((previous) => new Map([...previous, [payload.collectionId, [...current, record]]]));
+      setToast({ id: Date.now(), message: 'Preview record inserted.' });
+      return;
+    }
+    if (payload.type === 'update-record') {
+      setPreviewRecords((previous) => new Map([
+        ...previous,
+        [payload.collectionId, current.map((record) => record.id === payload.recordId
+          ? { ...record, values: { ...record.values, ...payload.values }, updatedAt: new Date() }
+          : record)],
+      ]));
+      setToast({ id: Date.now(), message: 'Preview record updated.' });
+      return;
+    }
+    setPreviewRecords((previous) => new Map([
+      ...previous,
+      [payload.collectionId, current.filter((record) => record.id !== payload.recordId)],
+    ]));
+    setToast({ id: Date.now(), message: 'Preview record deleted.' });
+  }
+
+  function submitBoundForm(nodeId: string, values: string[]): void {
+    const node = screens.flatMap((candidate) => flattenNodes(candidate.nodes)).find((candidate) => candidate.id === nodeId);
+    if (!node || node.type !== 'form' || !node.props.dataBinding) return;
+    const mapped: Record<string, DataValue> = {};
+    for (const binding of node.props.dataBinding.fields) {
+      mapped[binding.dataFieldId] = values[binding.formFieldIndex] ?? '';
+    }
+    const now = new Date();
+    const record: DataRecord = {
+      id: generateId('preview-record'),
+      projectId: 'preview',
+      collectionId: node.props.dataBinding.collectionId,
+      values: mapped,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setPreviewRecords((previous) => new Map([
+      ...previous,
+      [record.collectionId, [...(previous.get(record.collectionId) ?? []), record]],
+    ]));
+    setToast({ id: Date.now(), message: 'Form created a preview record.' });
+  }
 
   useEffect(() => {
     if (!toast) {
@@ -120,11 +195,13 @@ export function PreviewOverlay({ screens, device, projectName, onClose }: Previe
       </div>
       <div className="relative mt-3 flex justify-center overflow-auto rounded-tile border border-hairline bg-canvas p-3">
         <ScreenFrame
+          dataContext={{ collections, recordsByCollection: previewRecords }}
           mode="preview"
           onNodeAction={handleNodeAction}
           onNodeValueChange={(nodeId, value) =>
             setComponentValues((previous) => new Map([...previous, [nodeId, value]]))
           }
+          onFormSubmit={submitBoundForm}
           screen={effectiveScreen}
           size={bounds}
         />
@@ -143,5 +220,11 @@ export function PreviewOverlay({ screens, device, projectName, onClose }: Previe
         </div>
       ) : null}
     </Modal>
+  );
+}
+
+function flattenNodes(nodes: readonly ComponentNode[]): ComponentNode[] {
+  return nodes.flatMap((node) =>
+    node.type === 'container' ? [node, ...flattenNodes(node.children)] : [node],
   );
 }

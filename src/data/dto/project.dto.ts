@@ -43,7 +43,12 @@ export interface ContainerNodeDTO extends ComponentNodeDTOBase {
 
 export interface ListNodeDTO extends ComponentNodeDTOBase {
   type: 'list';
-  props: { items: string[] };
+  props: {
+    items: string[];
+    dataSource?:
+      | { kind: 'static' }
+      | { kind: 'collection'; collectionId: string; displayFieldId: string };
+  };
 }
 
 export interface FormNodeDTO extends ComponentNodeDTOBase {
@@ -56,6 +61,10 @@ export interface FormNodeDTO extends ComponentNodeDTOBase {
       type: 'text' | 'email' | 'number';
     }>;
     submitLabel: string;
+    dataBinding?: {
+      collectionId: string;
+      fields: Array<{ formFieldIndex: number; dataFieldId: string }>;
+    };
   };
 }
 

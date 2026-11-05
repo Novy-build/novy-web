@@ -1,7 +1,13 @@
 import type { ComponentNode } from '@domain/entities/componentNode';
+import type { DataCollection, DataRecord } from '@domain/entities/appData';
 
 /** Rendering contexts for the shared project-document renderer. */
 export type RendererMode = 'canvas' | 'preview' | 'thumbnail';
+
+export interface RendererDataContext {
+  collections: readonly DataCollection[];
+  recordsByCollection: ReadonlyMap<string, readonly DataRecord[]>;
+}
 
 export interface ComponentRendererProps {
   node: ComponentNode;
@@ -14,4 +20,6 @@ export interface ComponentRendererProps {
   onNodeAction?: (nodeId: string) => void;
   /** Preview-only input value updates consumed by condition nodes. */
   onNodeValueChange?: (nodeId: string, value: string) => void;
+  dataContext?: RendererDataContext;
+  onFormSubmit?: (nodeId: string, values: string[]) => void;
 }

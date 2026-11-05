@@ -22,6 +22,8 @@ import { Inspector } from './Inspector';
 import { LogicWorkspace } from '../logic/LogicWorkspace';
 import { AssistantChip } from '../assistant/AssistantChip';
 import { AssistantSheet } from '../assistant/AssistantSheet';
+import { DataWorkspace } from '../data/DataWorkspace';
+import { useProjectData } from '../data/useProjectData';
 
 interface EditorWorkspaceProps {
   project: Project;
@@ -41,6 +43,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
   const [mode, setMode] = useState<EditorMode>('design');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const projectData = useProjectData(project.id);
 
   const activeScreen = getActiveScreen(state);
   const selectedNode = state.selectedNodeId ? findNodeInScreen(activeScreen, state.selectedNodeId) : undefined;
@@ -122,6 +125,10 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
               screens={state.document.screens}
             />
             <EditorCanvas
+              dataContext={{
+                collections: projectData.collections,
+                recordsByCollection: projectData.recordsByCollection,
+              }}
               device={state.device}
               dropIndicator={state.dropIndicator}
               isSnapEnabled={state.isSnapEnabled}
@@ -158,14 +165,17 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
           <aside className="flex w-72 shrink-0 flex-col border-l border-hairline bg-surface">
             <Inspector
               behaviors={activeScreen.behaviors}
+              collections={projectData.collections}
               node={selectedNode ?? null}
               onAction={(action: EditorAction) => dispatch(action)}
               onOpenLogic={() => setMode('logic')}
             />
           </aside>
         </div>
+      ) : mode === 'logic' ? (
+        <LogicWorkspace collections={projectData.collections} state={state} dispatch={dispatch} />
       ) : (
-        <LogicWorkspace state={state} dispatch={dispatch} />
+        <DataWorkspace data={projectData} />
       )}
 
       {isPreviewOpen ? (
@@ -173,6 +183,8 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
           device={state.device}
           onClose={() => setIsPreviewOpen(false)}
           projectName={project.name}
+          collections={projectData.collections}
+          recordsByCollection={projectData.recordsByCollection}
           screens={state.document.screens}
         />
       ) : null}

@@ -4,7 +4,8 @@ import type { PreviewEffect } from '@domain/logic/runtime';
 import type { Screen } from '@domain/entities/screen';
 import { createActionNode, createBehaviorBundle } from '@domain/factories/logic';
 import { appendAction, appendCondition, connectLogicPorts, updateCondition } from '@domain/logic/graph';
-import { makeButton, makeScreen, makeText } from '@test/editorFixtures';
+import { makeButton, makeForm, makeList, makeScreen, makeText } from '@test/editorFixtures';
+import type { DataCollection } from '@domain/entities/appData';
 import { PreviewOverlay } from './PreviewOverlay';
 
 beforeEach(() => {
@@ -174,5 +175,92 @@ describe('PreviewOverlay', () => {
     fireEvent.change(screen.getByLabelText('Answer'), { target: { value: 'no' } });
     fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
     expect(screen.getByTestId('preview-toast')).toHaveTextContent('Try again');
+  });
+
+  it('keeps Form-created records in isolated preview data and refreshes bound Lists', () => {
+    const collection: DataCollection = {
+      id: 'students',
+      projectId: 'project',
+      name: 'Students',
+      fields: [
+        { id: 'name', key: 'name', label: 'Name', type: 'text', required: true },
+        { id: 'email', key: 'email', label: 'Email', type: 'text', required: false },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const list = makeList('list', {
+      props: {
+        items: [],
+        dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' },
+      },
+      y: 400,
+    });
+    const form = makeForm('form', {
+      props: {
+        title: 'Add student',
+        fields: [
+          { label: 'Name', placeholder: 'Name', type: 'text' },
+          { label: 'Email', placeholder: 'Email', type: 'email' },
+        ],
+        submitLabel: 'Create student',
+        dataBinding: {
+          collectionId: 'students',
+          fields: [
+            { formFieldIndex: 0, dataFieldId: 'name' },
+            { formFieldIndex: 1, dataFieldId: 'email' },
+          ],
+        },
+      },
+    });
+    render(
+      <PreviewOverlay
+        collections={[collection]}
+        device="mobile"
+        onClose={vi.fn()}
+        projectName="Students"
+        recordsByCollection={new Map([['students', []]])}
+        screens={[makeScreen('home', [form, list])]}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Ada' } });
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create student' }));
+
+    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Form created a preview record.');
+    expect(screen.getByText('Ada')).toBeInTheDocument();
+  });
+
+  it('applies database-node effects to isolated preview records', () => {
+    const collection: DataCollection = {
+      id: 'students', projectId: 'project', name: 'Students',
+      fields: [{ id: 'name', key: 'name', label: 'Name', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const button = makeButton('button', { x: 24, y: 24 });
+    const list = makeList('list', {
+      y: 100,
+      props: { items: [], dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' } },
+    });
+    const base = makeScreen('home', [button, list]);
+    const bundle = createBehaviorBundle('On click — Click me', 'button', 'click');
+    const graph = appendAction(bundle.graph, {
+      type: 'insert-record', collectionId: 'students', values: { name: 'Grace Hopper' },
+    });
+    render(
+      <PreviewOverlay
+        collections={[collection]}
+        device="mobile"
+        onClose={vi.fn()}
+        projectName="Students"
+        recordsByCollection={new Map([['students', []]])}
+        screens={[{ ...base, behaviors: [bundle.behavior], logicGraphs: [graph] }]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
+    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Preview record inserted.');
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
   });
 });
