@@ -12,10 +12,13 @@ import { findFrameAtPoint, getComponentTreeLocation, type FrameHit } from '@doma
 import { ScreenFrame } from '../renderer/ScreenFrame';
 import type { RendererDataContext } from '../renderer/renderer';
 import { SNAP_GRID, ZOOM_LIMITS, computeFitZoom, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
+import { ALIGNMENT_THRESHOLD, computeAlignment, type AlignmentGuide } from '../state/alignment';
 import { COMPONENT_MIME } from './ComponentsPalette';
 import { SelectionOverlay } from './SelectionOverlay';
 import { DeviceToggle } from './DeviceToggle';
 import { ZoomPill } from './ZoomPill';
+import { CanvasRulers } from './CanvasRulers';
+import { AlignmentGuides } from './AlignmentGuides';
 /** Padding around the device frame inside the scrollable stage. */
 export const CANVAS_PAD_PX = 48;
 /** Pointer travel (screen px) before a press counts as a drag, not a click. */
@@ -119,6 +122,22 @@ interface DragSession {
   startAbsoluteY: number;
   lastAbsoluteX: number;
   lastAbsoluteY: number;
+  /** Absolute - relative offset at drag start (constant during the gesture). */
+  parentOffsetX: number;
+  parentOffsetY: number;
+}
+
+/** Ids of a node and everything nested inside it (containers only). */
+function collectSubtreeIds(node: ComponentNode): Set<string> {
+  const ids = new Set<string>([node.id]);
+  if (node.type === 'container') {
+    for (const child of node.children) {
+      for (const id of collectSubtreeIds(child)) {
+        ids.add(id);
+      }
+    }
+  }
+  return ids;
 }
 
 /**
@@ -154,6 +173,8 @@ export function EditorCanvas({
   const isSpacePressedRef = useRef(false);
   const [isPanning, setIsPanning] = useState(false);
   const [frameDropTarget, setFrameDropTarget] = useState<FrameHit | null>(null);
+  const [areRulersVisible, setAreRulersVisible] = useState(true);
+  const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuide[]>([]);
 
   const bounds = deviceViewport(device);
   const targets = flattenInteractionTargets(screen.nodes, 0, 0);
@@ -312,6 +333,19 @@ export function EditorCanvas({
       return;
     }
     event.stopPropagation();
+    const parentOffsetX = target.absX - target.node.x;
+    const parentOffsetY = target.absY - target.node.y;
+    const subtreeIds = collectSubtreeIds(target.node);
+    const alignmentTargets = targets
+      .filter((candidate) => !subtreeIds.has(candidate.node.id))
+      .map((candidate) => ({
+        x: candidate.absX,
+        y: candidate.absY,
+        w: candidate.node.w,
+        h: candidate.node.h,
+      }));
+    alignmentTargets.push({ x: 0, y: 0, w: bounds.width, h: bounds.height });
+
     dragSessionRef.current = {
       nodeId: target.node.id,
       startClientX: event.clientX,
@@ -325,6 +359,8 @@ export function EditorCanvas({
       startAbsoluteY: target.absY,
       lastAbsoluteX: target.absX,
       lastAbsoluteY: target.absY,
+      parentOffsetX,
+      parentOffsetY,
     };
     capturePointer(event);
 
@@ -335,8 +371,6 @@ export function EditorCanvas({
       }
       const totalDx = moveEvent.clientX - session.startClientX;
       const totalDy = moveEvent.clientY - session.startClientY;
-      session.lastAbsoluteX = session.startAbsoluteX + totalDx / zoom;
-      session.lastAbsoluteY = session.startAbsoluteY + totalDy / zoom;
       if (!session.isDragging) {
         if (Math.hypot(totalDx, totalDy) < DRAG_THRESHOLD_PX) {
           return;
@@ -344,7 +378,24 @@ export function EditorCanvas({
         session.isDragging = true;
         onDragStart();
       }
-      onNodeMove(session.nodeId, session.nodeStartX + totalDx / zoom, session.nodeStartY + totalDy / zoom);
+
+      const candidateAbsX = session.startAbsoluteX + totalDx / zoom;
+      const candidateAbsY = session.startAbsoluteY + totalDy / zoom;
+      const aligned = computeAlignment(
+        { x: candidateAbsX, y: candidateAbsY, w: target.node.w, h: target.node.h },
+        alignmentTargets,
+        { snap: isSnapEnabled, threshold: ALIGNMENT_THRESHOLD / zoom },
+      );
+      session.lastAbsoluteX = aligned.x;
+      session.lastAbsoluteY = aligned.y;
+      setAlignmentGuides(aligned.guides);
+
+      onNodeMove(
+        session.nodeId,
+        aligned.x - session.parentOffsetX,
+        aligned.y - session.parentOffsetY,
+      );
+
       const point = toDesignPoint(moveEvent.clientX, moveEvent.clientY);
       const frame = findFrameAtPoint(screen.nodes, point.x, point.y, session.nodeId);
       session.targetParentId = frame?.id ?? null;
@@ -373,12 +424,14 @@ export function EditorCanvas({
       }
       dragSessionRef.current = null;
       setFrameDropTarget(null);
+      setAlignmentGuides([]);
     }
 
     function handleCancel(): void {
       detach();
       dragSessionRef.current = null;
       setFrameDropTarget(null);
+      setAlignmentGuides([]);
     }
 
     window.addEventListener('pointermove', handleMove);
@@ -448,6 +501,7 @@ export function EditorCanvas({
               : undefined,
           }}
         >
+          <CanvasRulers height={bounds.height} visible={areRulersVisible} width={bounds.width} zoom={zoom}>
           <div
             className="relative mx-auto shrink-0 border border-hairline bg-surface shadow-sm"
             data-testid="canvas-frame"
@@ -536,13 +590,17 @@ export function EditorCanvas({
                   zoom={zoom}
                 />
               ) : null}
+
+              <AlignmentGuides guides={alignmentGuides} zoom={zoom} />
             </div>
           </div>
+          </CanvasRulers>
         </div>
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0">
         <ZoomPill
+          areRulersVisible={areRulersVisible}
           isSnapEnabled={isSnapEnabled}
           onFit={() => {
             autoFitRef.current = true;
@@ -551,6 +609,7 @@ export function EditorCanvas({
               onZoomChange(fitted);
             }
           }}
+          onToggleRulers={() => setAreRulersVisible((visible) => !visible)}
           onToggleSnap={onToggleSnap}
           onZoomIn={() => {
             autoFitRef.current = false;

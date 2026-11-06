@@ -237,7 +237,7 @@ describe('EditorCanvas', () => {
       window.dispatchEvent(new MouseEvent('pointerup'));
     });
 
-    expect(props.onReparentNode).toHaveBeenCalledWith('button', 'frame', { x: 80, y: 80 });
+    expect(props.onReparentNode).toHaveBeenCalledWith('button', 'frame', { x: 84, y: 80 });
   });
 
   it('positions selection handles for a nested frame child', () => {
@@ -379,5 +379,52 @@ describe('EditorCanvas', () => {
     expect(props.onDeleteSelected).toHaveBeenCalledTimes(1);
     expect(props.onDuplicateSelected).toHaveBeenCalledTimes(1);
     expect(props.onAddBehavior).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders rulers around the frame and toggles them from the zoom pill', () => {
+    render(<EditorCanvas {...canvasProps()} />);
+
+    expect(screen.getByTestId('ruler-horizontal')).toBeInTheDocument();
+    expect(screen.getByTestId('ruler-vertical')).toBeInTheDocument();
+    expect(screen.getByTestId('ruler-corner')).toHaveTextContent('px');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rulers' }));
+
+    expect(screen.queryByTestId('ruler-horizontal')).not.toBeInTheDocument();
+    expect(screen.getByTestId('canvas-with-rulers')).toHaveAttribute('data-rulers-visible', 'false');
+    expect(screen.getByTestId('canvas-frame')).toBeInTheDocument();
+  });
+
+  it('snaps to a sibling edge while dragging and clears guides on release', () => {
+    const peer = makeText('node_peer', {
+      x: 400,
+      y: 300,
+      w: 160,
+      props: { text: 'Peer', level: 'body' },
+    });
+    const props = canvasProps({
+      screen: makeScreen('screen_1', [makeText('node_text'), peer]),
+    });
+    render(<EditorCanvas {...props} />);
+
+    fireEvent.pointerDown(screen.getByTestId('interaction-node_text'), {
+      clientX: 100,
+      clientY: 100,
+    });
+    act(() => {
+      // Candidate left is 403; the peer's left edge is at 400 (delta -3).
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 415, clientY: 100 }));
+    });
+
+    expect(props.onNodeMove).toHaveBeenLastCalledWith('node_text', 400, 96);
+    const guides = screen.getAllByTestId('alignment-guide');
+    expect(guides).toHaveLength(1);
+    expect(guides[0]).toHaveAttribute('data-guide-axis', 'x');
+    expect(guides[0].style.left).toBe('400px');
+    expect(guides[0].style.top).toBe('96px');
+
+    act(() => window.dispatchEvent(new MouseEvent('pointerup')));
+
+    expect(screen.queryByTestId('alignment-guides')).not.toBeInTheDocument();
   });
 });

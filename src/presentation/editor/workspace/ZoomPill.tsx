@@ -7,13 +7,25 @@ interface ZoomPillProps {
   onFit: () => void;
   isSnapEnabled: boolean;
   onToggleSnap: () => void;
+  areRulersVisible: boolean;
+  onToggleRulers: () => void;
 }
 
 /**
  * Canvas zoom controls floating bottom-left: stepper, percent readout, Fit,
- * and the snap-grid toggle that drives the dotted background.
+ * the snap-grid toggle that drives the dotted background, and the ruler
+ * visibility toggle.
  */
-export function ZoomPill({ zoom, onZoomIn, onZoomOut, onFit, isSnapEnabled, onToggleSnap }: ZoomPillProps) {
+export function ZoomPill({
+  zoom,
+  onZoomIn,
+  onZoomOut,
+  onFit,
+  isSnapEnabled,
+  onToggleSnap,
+  areRulersVisible,
+  onToggleRulers,
+}: ZoomPillProps) {
   const percent = Math.round(zoom * 100);
   const canZoomOut = zoom > ZOOM_LIMITS.min;
   const canZoomIn = zoom < ZOOM_LIMITS.max;
@@ -59,6 +71,16 @@ export function ZoomPill({ zoom, onZoomIn, onZoomOut, onFit, isSnapEnabled, onTo
         type="button"
       >
         Snap
+      </button>
+      <button
+        aria-pressed={areRulersVisible}
+        className={`rounded-full px-2 py-1 text-xs font-medium transition-colors ${
+          areRulersVisible ? 'bg-brand-600 text-white' : 'text-ink-muted hover:bg-canvas hover:text-ink'
+        }`}
+        onClick={onToggleRulers}
+        type="button"
+      >
+        Rulers
       </button>
     </div>
   );

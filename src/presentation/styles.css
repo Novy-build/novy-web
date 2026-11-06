@@ -40,6 +40,9 @@
   /* Editor canvas dot grid */
   --color-grid-dot: rgba(14, 16, 19, 0.09);
 
+  /* Figma-style smart alignment guides (canvas overlay) */
+  --color-guide: #ec4899;
+
   /* Dark sidebar surface (n8n-inspired, graphite) */
   --color-sidebar: #1b1d23;
   --color-sidebar-soft: #24272f;
@@ -86,6 +89,7 @@
     --color-ink: #eef0f4;
     --color-ink-muted: #8a90a0;
     --color-grid-dot: rgba(238, 240, 244, 0.07);
+    --color-guide: #f472b6;
 
     --color-sidebar: #0a0c10;
     --color-sidebar-soft: #13161c;
