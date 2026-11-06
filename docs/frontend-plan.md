@@ -132,3 +132,22 @@ is excluded while Novy remains a single-builder product.
 | 6 | PD6 traceability + final accessibility/regression | full test + build gate | ✅ done (typecheck + 425 tests + build green) |
 | 7 | Flutter-inspired component expansion (Checkbox, Radio, Switch, Dropdown, Slider, Progress, Divider + TextField/List/Button upgrades) | mapper/default/validation/palette tests | ✅ done (typecheck + 433 tests + build green) |
 | 8 | Preview overlay fit: content-hugging window, device/zoom controls, always fits the viewport (fit-on-open, refit on device change and resize, manual zoom scrolls instead of overflowing) | zoom/fit/device/runtime tests | ✅ done (typecheck + 436 tests + build green) |
+
+## 11 · Post-gate editor enhancements (2026-11-06)
+
+Follow-up work after the Gate 8 milestone. Review-ready changelogs: [`CHANGELOG.md`](../CHANGELOG.md)
+and [`docs/changelogs/`](changelogs/).
+
+| Task | Scope | Tests | Status |
+|---|---|---|---|
+| Canva-style rulers + smart alignment guides | `state/ruler.ts`, `state/alignment.ts`, `CanvasRulers`, `Ruler`, `AlignmentGuides`, `ZoomPill` toggle, `--color-guide` | ruler/alignment/guide/canvas unit + integration tests | ✅ committed `aa02420` (typecheck + 502 tests + build green) |
+| Preset-adaptive editor chrome + content centering | `usesCompactEditorChrome()`, compact panel bar + drawers, `centerNodesForViewport()` applied on `device/set` | presetLayout + geometry + reducer + EditorPage integration tests | ⏳ uncommitted (typecheck + 512 tests / 68 files + build green) |
+
+Verification gate for the uncommitted work: `npm.cmd run typecheck`, `npm.cmd test`
+(512 passed / 68 files), `npm.cmd run build`, plus a browser check that
+Desktop → Tablet → Mobile re-centers the demo content group while collapsing/restoring
+the editor rails.
+
+Scope note: browser-width responsive shell/modal/page edits were reverted after clarification;
+the canvas preset, not the viewport width, drives the adaptive behavior. No admin UI, new
+screens, or backend logic were added.
