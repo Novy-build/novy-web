@@ -5,6 +5,7 @@ import type {
   DeploymentRecord,
 } from '@domain/entities/deployment';
 import { DEPLOYMENT_STAGES } from '@domain/entities/deployment';
+import { validateProject } from '@domain/validation/projectValidation';
 import type { Project } from '@domain/entities/project';
 import { useRepositories } from '@main/providers/RepositoriesProvider';
 
@@ -19,6 +20,7 @@ export interface DeploymentController {
   isPublishing: boolean;
   activeStageIndex: number | null;
   publishError: string | null;
+  validationError: string | null;
   successfulDeployment: DeploymentRecord | null;
   publish: () => Promise<void>;
   closeSuccess: () => void;
@@ -33,7 +35,9 @@ export interface DeploymentController {
  */
 export function useDeployment(
   projectId: string,
+  options: { collections?: readonly import('@domain/entities/appData').DataCollection[] } = {},
 ): DeploymentController {
+  const collections = options.collections ?? [];
   const { projects, deployments: deploymentRepository } = useRepositories();
   const [project, setProject] = useState<Project | null>(null);
   const [deployments, setDeployments] = useState<DeploymentRecord[]>([]);
@@ -43,6 +47,7 @@ export function useDeployment(
   const [isPublishing, setIsPublishing] = useState(false);
   const [activeStageIndex, setActiveStageIndex] = useState<number | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [successfulDeployment, setSuccessfulDeployment] = useState<DeploymentRecord | null>(null);
   const isMounted = useRef(true);
   const publishRun = useRef(0);
@@ -85,10 +90,16 @@ export function useDeployment(
 
     const run = ++publishRun.current;
     setPublishError(null);
+    setValidationError(null);
     setSuccessfulDeployment(null);
     setIsPublishing(true);
 
     try {
+      const report = validateProject(project.document, collections);
+      if (!report.isValid) {
+        setValidationError(`Deployment blocked: ${report.issues.filter((issue) => issue.severity === 'error').map((issue) => issue.message).join(' ')}`);
+        return;
+      }
       const created = await deploymentRepository.publishDeployment({
         projectId: project.id,
         url: deploymentUrl(project.name, environment),
@@ -112,7 +123,7 @@ export function useDeployment(
         setActiveStageIndex(null);
       }
     }
-  }, [deploymentRepository, environment, isPublishing, project]);
+  }, [collections, deploymentRepository, environment, isPublishing, project]);
 
   return {
     project,
@@ -123,6 +134,7 @@ export function useDeployment(
     isPublishing,
     activeStageIndex,
     publishError,
+    validationError,
     successfulDeployment,
     publish,
     closeSuccess: () => setSuccessfulDeployment(null),

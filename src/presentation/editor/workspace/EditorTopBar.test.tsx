@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { EditorTopBar, autosaveStatusText, type AutosaveStatus } from './EditorTopBar';
-
+import { validateProject } from '@domain/validation/projectValidation';
 function autosave(overrides: Partial<AutosaveStatus> = {}): AutosaveStatus {
   return {
     isSaving: false,
@@ -25,6 +25,7 @@ function renderTopBar(overrides: Record<string, unknown> = {}) {
     onDeploy: vi.fn(),
     onBack: vi.fn(),
     saving: autosave(),
+    validation: validateProject({ screens: [] }),
     ...overrides,
   };
   render(<EditorTopBar {...props} />);

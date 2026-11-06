@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { formatRelativeTime } from '@presentation/pages/projects/formatRelativeTime';
 import type { EditorMode } from '../state/editorState';
-
+import type { ValidationReport } from '@domain/validation/projectValidation';
 export interface AutosaveStatus {
   isSaving: boolean;
   hasUnsavedChanges: boolean;
@@ -21,6 +21,7 @@ interface EditorTopBarProps {
   onDeploy: () => void;
   onBack: () => void;
   saving: AutosaveStatus;
+  validation: ValidationReport;
 }
 
 export function autosaveStatusText(saving: AutosaveStatus, now: Date): string {
@@ -53,6 +54,7 @@ export function EditorTopBar({
   onDeploy,
   onBack,
   saving,
+  validation,
 }: EditorTopBarProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState(projectName);
@@ -127,6 +129,13 @@ export function EditorTopBar({
           <p aria-live="polite" className="shrink-0 text-xs text-ink-muted">
             {error ?? autosaveStatusText(saving, new Date())}
           </p>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${validation.isValid ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+            data-testid="validation-badge"
+            role="status"
+          >
+            {validation.isValid ? 'Valid' : `${validation.issues.filter((issue) => issue.severity === 'error').length} errors`}
+          </span>
         </div>
 
         <div className="flex items-center gap-2">

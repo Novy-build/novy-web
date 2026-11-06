@@ -1,0 +1,153 @@
+# Novy PD6 Traceability
+
+This document maps the builder-facing requirements in `project_information/PD6_A-04.pdf` to the
+implemented frontend surfaces, domain/data contracts, and automated tests. UC-08 Platform
+Administration is intentionally excluded because Novy currently targets one application builder.
+
+## UC-01 Register and Sign In
+
+- Routes: `/login`, guarded `/projects`, `/project/:id/editor`, `/project/:id/deploy`
+- Domain/data: `AuthRepository`, `SessionProvider`, `RequireAuth`
+- Presentation: `AuthPage`, `LoginForm`, `RegisterForm`
+- Tests:
+  - `src/presentation/pages/auth/AuthPage.test.tsx`
+  - `src/main/providers/SessionProvider.test.tsx`
+  - `src/main/app.test.tsx`
+- Evidence: login/register validation, demo-user sign-in, deep-link restoration, unauthorized
+  guard behavior, and error banners.
+
+## UC-02 Manage Projects
+
+- Route: `/projects`
+- Domain/data: `ProjectRepository`, `Project`, `ProjectSummary`
+- Presentation: `ProjectsPage`, `ProjectCard`, `TemplateGalleryModal`, `RenameDialog`,
+  `ConfirmDeleteDialog`
+- Tests:
+  - `src/presentation/pages/projects/ProjectsPage.test.tsx`
+  - `src/presentation/pages/projects/TemplateGalleryModal.test.tsx`
+  - `src/data/repositories/local/LocalStorageProjectRepository.test.ts`
+- Evidence: CRUD operations, search, duplicate, rename, delete confirmation, empty states,
+  and template-based creation.
+
+## UC-03 Design UI with Components and Templates
+
+- Routes: `/project/:id/editor`
+- Domain/data: `ComponentNode`, `ComponentType`, `ContainerNode`, `FormNode`, `ProjectDocument`,
+  `Screen`, `TemplateRepository`
+- Presentation: `EditorWorkspace`, `ComponentsPalette`, `EditorLeftPanel`, `LayersPanel`,
+  `EditorCanvas`, `ScreenTabs`, `Inspector`, `ScreenFrame`, `ComponentRenderer`
+- Tests:
+  - `src/presentation/pages/editor/EditorPage.test.tsx`
+  - `src/presentation/editor/workspace/EditorCanvas.test.tsx`
+  - `src/presentation/editor/workspace/EditorLeftPanel.test.tsx`
+  - `src/presentation/editor/workspace/LayersPanel.test.tsx`
+  - `src/presentation/editor/workspace/ComponentsPalette.test.tsx`
+  - `src/presentation/editor/renderer/ComponentRenderer.test.tsx`
+  - `src/data/mappers/project.mapper.test.ts`
+- Evidence: drag/drop, nested frames, reparenting, resize, visibility, locking, inline rename,
+  ordering, snap, pan, zoom, palette search, templates, Form component, autosave, and undo/redo.
+
+## UC-04 Configure Logic and App Data
+
+- Routes: `/project/:id/editor` (Design, Logic, Data modes)
+- Domain/data:
+  - `LogicGraph`, `Behavior`, `TriggerNode`, `ConditionNode`, `ActionNode`
+  - `AppDataRepository`, `DataCollection`, `DataField`, `DataRecord`
+  - `validateProject`
+- Presentation:
+  - `LogicWorkspace`, `LogicNodeLibrary`, `LogicGraphCanvas`, `LogicNodeConfig`
+  - `DataWorkspace`, `CollectionSchemaEditor`, `RecordsTable`, `RecordDialog`
+  - `Inspector` data bindings
+- Tests:
+  - `src/presentation/editor/logic/LogicWorkspace.test.tsx`
+  - `src/presentation/editor/logic/LogicGraphCanvas.test.tsx`
+  - `src/presentation/editor/logic/LogicNodeLibrary.test.tsx`
+  - `src/presentation/editor/state/editorReducer.test.ts`
+  - `src/presentation/editor/data/DataWorkspace.test.tsx`
+  - `src/presentation/editor/data/useProjectData.test.tsx`
+  - `src/data/repositories/local/LocalStorageAppDataRepository.test.ts`
+  - `src/domain/logic/graph.test.ts`
+  - `src/domain/logic/runtime.test.ts`
+- Evidence: typed workflow ports, node positioning, If/Else branches, node dragging, connection
+  validation, cycle prevention, searchable node library, component/data node configuration,
+  project-scoped collection CRUD, records, schema editing, List/Form bindings, and preview data
+  effects.
+
+## UC-05 Generate UI Component with AI
+
+- Route: `/project/:id/editor`
+- Domain/data: `AssistantProposal`, `applyAssistantProposal`, `interpretAssistantMessage`
+- Presentation: `AssistantChip`, `AssistantSheet`, `useAssistantConversation`
+- Tests:
+  - `src/domain/ai/assistant.test.ts`
+  - `src/domain/ai/proposal.test.ts`
+  - `src/presentation/editor/assistant/AssistantSheet.test.tsx`
+  - `src/presentation/pages/editor/EditorPage.test.tsx`
+- Evidence: rule-based intents, structured proposals, Keep/Undo, one history entry per proposal,
+  demo badge, and no-op handling for impossible proposals.
+
+## UC-06 Preview Project
+
+- Route: `/project/:id/editor`
+- Domain/data: `runClickBehavior`, `applyTextOverrides`, `validateProject`
+- Presentation: `PreviewOverlay`, `ScreenFrame`
+- Tests:
+  - `src/presentation/editor/workspace/PreviewOverlay.test.tsx`
+  - `src/presentation/pages/editor/EditorPage.test.tsx`
+- Evidence: shared renderer, reactive click chains, text overrides, toast behavior, screen
+  navigation, condition branch execution, isolated preview data, validation blocking, and close
+  controls.
+
+## UC-07 Deploy Application
+
+- Route: `/project/:id/deploy`
+- Domain/data: `DeploymentRepository`, `DeploymentRecord`, `deploymentUrl`, `validateProject`
+- Presentation: `DeploymentPage`, `useDeployment`, `PublishStepper`, `DeploymentHistory`,
+  `PublishSuccessModal`
+- Tests:
+  - `src/presentation/pages/deployment/DeploymentPage.test.tsx`
+  - `src/presentation/pages/deployment/useDeployment.test.tsx`
+  - `src/data/repositories/local/LocalStorageDeploymentRepository.test.ts`
+  - `src/domain/deployment/deploymentUrl.test.ts`
+- Evidence: environment selection, animated publish pipeline, fake live URLs, copy action,
+  deployment history, View/Redeploy, custom-domain stub, validation blocking, and failure
+  preservation.
+
+## UC-08 Platform Administration
+
+- Status: intentionally excluded.
+- Reason: Novy currently has a single application-builder role. Multi-user administration, audit
+  dashboards, and service-health screens are outside the current frontend scope.
+- Boundary: repository and authorization contracts remain compatible with a future backend.
+
+## Gate Summary
+
+| Gate | Status | Tests |
+|---|---|---|
+| 0 Foundations | Complete | router smoke tests |
+| 1 Domain + mock data + renderer | Complete | repository/mapper/renderer tests |
+| 2 Auth | Complete | validation + guard tests |
+| 3 Projects | Complete | CRUD flow tests |
+| 4 Editor shell + design mode | Complete | reducer + geometry + interaction tests |
+| 5 Logic workspace | Complete | graph reducer + behavior linking tests |
+| 6 AI assistant mock | Complete | intent + apply/undo tests |
+| 7 Deployment | Complete | stepper + history tests |
+| 8 Polish | Complete | accessibility + error boundary + empty states |
+| PD6 Gate 1 Figma-style layers | Complete | metadata/migration + layer interaction tests |
+| PD6 Gate 2 Canvas manipulation + Form | Complete | geometry/reparent/keyboard tests |
+| PD6 Gate 3 Logic + node library | Complete | graph/runtime/connection tests |
+| PD6 Gate 4 Data workspace + bindings | Complete | repository/CRUD/binding tests |
+| PD6 Gate 5 Validation + preview/deploy | Complete | validator/failure-preservation tests |
+| PD6 Gate 6 Traceability + acceptance | In progress | final regression suite |
+
+## Backend Swap Seams
+
+- `AuthRepository`
+- `ProjectRepository`
+- `AppDataRepository`
+- `DeploymentRepository`
+- `AssistantProposal` generation boundary
+- `ValidationReport` producer boundary
+
+Presentation code consumes these interfaces exclusively. Backend integration should replace
+implementations under `src/data` without changing presentation contracts.

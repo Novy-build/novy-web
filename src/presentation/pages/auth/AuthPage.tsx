@@ -121,7 +121,7 @@ export function AuthPage() {
   }
 
   return (
-    <main className="flex min-h-full bg-canvas">
+    <main className="flex min-h-full bg-canvas" id="main-content">
       <BrandPanel />
       <section className="flex flex-1 items-center justify-center p-6">
         <AuthCard mode={mode} onModeChange={setMode} />

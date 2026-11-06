@@ -1,6 +1,8 @@
 import { useNavigate, useParams } from 'react-router';
 import type { DeploymentEnvironment } from '@domain/entities/deployment';
 import { Button } from '@presentation/components/ui/Button';
+import { useRepositories } from '@main/providers/RepositoriesProvider';
+import { useState, useEffect } from 'react';
 import { LoadingScreen } from '@presentation/components/system/LoadingScreen';
 import { DeploymentHistory } from './DeploymentHistory';
 import { PublishStepper } from './PublishStepper';
@@ -11,7 +13,12 @@ import { useDeployment } from './useDeployment';
 export function DeploymentPage() {
   const projectId = useParams<{ projectId: string }>().projectId ?? '';
   const navigate = useNavigate();
-  const deployment = useDeployment(projectId);
+  const { appData } = useRepositories();
+  const [collections, setCollections] = useState<import('@domain/entities/appData').DataCollection[]>([]);
+  useEffect(() => {
+    void appData.listCollections(projectId).then(setCollections).catch(() => setCollections([]));
+  }, [appData, projectId]);
+  const deployment = useDeployment(projectId, { collections });
 
   if (deployment.status === 'loading') {
     return <LoadingScreen label="Loading deployment…" />;
@@ -35,7 +42,7 @@ export function DeploymentPage() {
 
   const project = deployment.project;
   return (
-    <div className="flex min-h-full flex-col bg-canvas">
+    <div className="flex min-h-full flex-col bg-canvas" id="main-content">
       <header className="border-b border-hairline bg-surface px-6 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -89,6 +96,11 @@ export function DeploymentPage() {
             {deployment.publishError ? (
               <p className="rounded-tile border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
                 {deployment.publishError}
+              </p>
+            ) : null}
+            {deployment.validationError ? (
+              <p className="rounded-tile border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+                {deployment.validationError}
               </p>
             ) : null}
             <DeploymentHistory
