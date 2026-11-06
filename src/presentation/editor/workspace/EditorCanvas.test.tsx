@@ -25,6 +25,7 @@ function canvasProps(overrides: Record<string, unknown> = {}) {
     onDropIndicatorChange: vi.fn(),
     onZoomChange: vi.fn(),
     onToggleSnap: vi.fn(),
+    onDeviceChange: vi.fn(),
     ...overrides,
   };
 }
@@ -60,6 +61,16 @@ describe('EditorCanvas', () => {
     expect(screen.getByTestId('canvas-frame').style.width).toBe('390px');
     expect(screen.getByTestId('canvas-frame').style.height).toBe('780px');
     expect(screen.getByTestId('interaction-node_text')).toBeInTheDocument();
+  });
+
+  it('exposes a canvas device toggle that reports changes', () => {
+    const onDeviceChange = vi.fn();
+    render(<EditorCanvas {...canvasProps({ device: 'desktop', onDeviceChange })} />);
+
+    expect(screen.getByTestId('canvas-frame').style.width).toBe('1200px');
+    fireEvent.click(screen.getByRole('button', { name: 'Tablet' }));
+
+    expect(onDeviceChange).toHaveBeenCalledWith('tablet');
   });
 
   it('omits hidden layers and prevents direct interaction with locked layers', () => {

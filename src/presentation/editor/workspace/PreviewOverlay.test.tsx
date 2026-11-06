@@ -46,7 +46,7 @@ function buildScreens(steps: PreviewEffect[]): Screen[] {
 }
 
 function renderPreview(onClose = vi.fn(), screens: Screen[] = buildScreens([])) {
-  render(<PreviewOverlay device="mobile" onClose={onClose} projectName="My App" screens={screens} />);
+  render(<PreviewOverlay initialDevice="mobile" onClose={onClose} projectName="My App" screens={screens} />);
   return onClose;
 }
 
@@ -216,7 +216,7 @@ describe('PreviewOverlay', () => {
     render(
       <PreviewOverlay
         collections={[collection]}
-        device="mobile"
+        initialDevice="mobile"
         onClose={vi.fn()}
         projectName="Students"
         recordsByCollection={new Map([['students', []]])}
@@ -251,7 +251,7 @@ describe('PreviewOverlay', () => {
     render(
       <PreviewOverlay
         collections={[collection]}
-        device="mobile"
+        initialDevice="mobile"
         onClose={vi.fn()}
         projectName="Students"
         recordsByCollection={new Map([['students', []]])}
@@ -262,5 +262,24 @@ describe('PreviewOverlay', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
     expect(screen.getByTestId('preview-toast')).toHaveTextContent('Preview record inserted.');
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+  });
+});
+
+describe('PreviewOverlay device modes', () => {
+  it('opens at desktop by default', () => {
+    render(<PreviewOverlay onClose={vi.fn()} projectName="My App" screens={buildScreens([])} />);
+
+    expect(screen.getByText(/1200×800/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Desktop' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('switches preview device independently', () => {
+    render(<PreviewOverlay initialDevice="desktop" onClose={vi.fn()} projectName="My App" screens={buildScreens([])} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mobile' }));
+
+    expect(screen.getByText(/390×780/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mobile' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Desktop' })).toHaveAttribute('aria-pressed', 'false');
   });
 });

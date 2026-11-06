@@ -7,13 +7,14 @@ import type { ActionPayload } from '@domain/entities/logic';
 import { applyTextOverrides, runClickBehavior } from '@domain/logic/runtime';
 import { Modal } from '@presentation/components/system/Modal';
 import { ScreenFrame } from '../renderer/ScreenFrame';
-import type { EditorDevice } from '../state/geometry';
+import { DeviceToggle } from './DeviceToggle';import type { EditorDevice } from '../state/geometry';
+import { DEFAULT_EDITOR_DEVICE } from '../state/geometry';
 import { CANVAS_PRESETS } from '../renderer/ScreenFrame';
 
 const PANEL_WIDTH_BY_DEVICE: Record<EditorDevice, string> = {
   mobile: 'max-w-[430px]',
   tablet: 'max-w-[810px]',
-  desktop: 'max-w-[1240px]',
+  desktop: 'max-w-[1360px]',
 };
 
 const TOAST_VISIBLE_MS = 2400;
@@ -21,7 +22,7 @@ const TOAST_VISIBLE_MS = 2400;
 interface PreviewOverlayProps {
   /** All screens so navigate steps can switch the preview target. */
   screens: Screen[];
-  device: EditorDevice;
+  initialDevice?: EditorDevice;
   projectName: string;
   onClose: () => void;
   collections?: readonly DataCollection[];
@@ -40,13 +41,14 @@ interface Toast {
  */
 export function PreviewOverlay({
   screens,
-  device,
+  initialDevice = DEFAULT_EDITOR_DEVICE,
   projectName,
   onClose,
   collections = [],
   recordsByCollection = new Map(),
 }: PreviewOverlayProps) {
-  const bounds = CANVAS_PRESETS[device];
+  const [previewDevice, setPreviewDevice] = useState<EditorDevice>(initialDevice);
+  const bounds = CANVAS_PRESETS[previewDevice];
   const [screenId, setScreenId] = useState(() => screens[0]?.id ?? '');
   const [textOverrides, setTextOverrides] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [componentValues, setComponentValues] = useState<ReadonlyMap<string, string>>(() => new Map());
@@ -173,16 +175,13 @@ export function PreviewOverlay({
     <Modal
       labelledBy="preview-title"
       onClose={onClose}
-      panelClassName={`p-4 ${PANEL_WIDTH_BY_DEVICE[device]}`}
+      panelClassName={`p-4 ${PANEL_WIDTH_BY_DEVICE[previewDevice]}`}
     >
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold text-ink" id="preview-title">
-          Previewing {projectName}
-        </h2>
-        <div className="flex items-center gap-3">
-          <p className="shrink-0 text-xs font-medium uppercase tracking-wide text-ink-muted">
-            {device} · {bounds.width}×{bounds.height}
-          </p>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-ink" id="preview-title">
+            Previewing {projectName}
+          </h2>
           <button
             aria-label="Close preview"
             className="rounded-tile px-2 py-1 text-lg leading-none text-ink-muted hover:bg-canvas hover:text-ink"
@@ -191,6 +190,17 @@ export function PreviewOverlay({
           >
             ×
           </button>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <DeviceToggle
+            label="Preview device"
+            onChange={setPreviewDevice}
+            testId="preview-device-toggle"
+            value={previewDevice}
+          />
+          <p className="shrink-0 text-xs font-medium uppercase tracking-wide text-ink-muted">
+            {previewDevice} · {bounds.width}×{bounds.height}
+          </p>
         </div>
       </div>
       <div className="relative mt-3 flex justify-center overflow-auto rounded-tile border border-hairline bg-canvas p-3">

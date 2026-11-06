@@ -83,7 +83,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
   }
 
   return (
-    <main aria-label="Editor" className="flex min-h-0 flex-1 flex-col bg-canvas text-ink" id="main-content">
+    <main aria-label="Editor" className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink" id="main-content">
       <EditorTopBar
         canRedo={state.future.length > 0}
         canUndo={state.past.length > 0}
@@ -113,7 +113,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       />
 
       {mode === 'design' ? (
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           <EditorLeftPanel
             nodes={activeScreen.nodes}
             onAddByType={addFromPalette}
@@ -160,6 +160,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                 dispatch({ type: 'node/reparent', nodeId, parentId, absolutePosition })
               }
               onSelectNode={(nodeId) => dispatch({ type: 'node/select', nodeId })}
+              onDeviceChange={(nextDevice) => dispatch({ type: 'device/set', device: nextDevice })}
               onToggleSnap={() => dispatch({ type: 'snap/toggle' })}
               onZoomChange={(zoom) => dispatch({ type: 'zoom/set', zoom })}
               screen={activeScreen}
@@ -168,7 +169,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
             />
           </div>
 
-          <aside className="flex w-72 shrink-0 flex-col border-l border-hairline bg-surface">
+          <aside className="flex w-72 shrink-0 flex-col overflow-hidden border-l border-hairline bg-surface">
             <Inspector
               behaviors={activeScreen.behaviors}
               collections={projectData.collections}
@@ -209,15 +210,19 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
           </aside>
         </div>
       ) : mode === 'logic' ? (
-        <LogicWorkspace collections={projectData.collections} state={state} dispatch={dispatch} />
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <LogicWorkspace collections={projectData.collections} state={state} dispatch={dispatch} />
+        </div>
       ) : (
-        <DataWorkspace data={projectData} />
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <DataWorkspace data={projectData} />
+        </div>
       )}
 
       {isPreviewOpen ? (
         <PreviewOverlay
           collections={projectData.collections}
-          device={state.device}
+          initialDevice={state.device}
           onClose={() => setIsPreviewOpen(false)}
           projectName={project.name}
           recordsByCollection={projectData.recordsByCollection}

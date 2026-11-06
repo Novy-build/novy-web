@@ -123,8 +123,8 @@ describe('node add / drag', () => {
     const screen = getActiveScreen(next);
     const added = screen.nodes[screen.nodes.length - 1];
 
-    expect(added.x + added.w).toBeLessThanOrEqual(390);
-    expect(added.y + added.h).toBeLessThanOrEqual(780);
+    expect(added.x + added.w).toBeLessThanOrEqual(1200);
+    expect(added.y + added.h).toBeLessThanOrEqual(800);
   });
 
   it('moves nodes with snap applied in the canvas-provided coordinates', () => {
@@ -138,8 +138,8 @@ describe('node add / drag', () => {
   });
 
   it('keeps moved nodes inside the device frame', () => {
-    const overshoot = editorReducer(stateAt(), { type: 'node/move', nodeId: 'node_text', x: 900, y: 900 });
-    expect(findNodeInScreen(getActiveScreen(overshoot), 'node_text')?.x).toBe(390 - 200);
+    const overshoot = editorReducer(stateAt(), { type: 'node/move', nodeId: 'node_text', x: 1500, y: 900 });
+    expect(findNodeInScreen(getActiveScreen(overshoot), 'node_text')?.x).toBe(1200 - 200);
 
     const undershoot = editorReducer(stateAt(), { type: 'node/move', nodeId: 'node_text', x: -50, y: -50 });
     expect(findNodeInScreen(getActiveScreen(undershoot), 'node_text')?.x).toBe(0);

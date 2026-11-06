@@ -45,7 +45,7 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/presentation/editor/renderer/ComponentRenderer.test.tsx`
   - `src/data/mappers/project.mapper.test.ts`
 - Evidence: drag/drop, nested frames, reparenting, resize, visibility, locking, inline rename,
-  ordering, snap, pan, zoom, palette search, templates, Form component, autosave, and undo/redo.
+  ordering, snap, pan, zoom, palette search, templates, Form component, autosave, undo/redo,\n  and Mobile/Tablet/Desktop canvas and preview device switching.
 
 ## UC-04 Configure Logic and App Data
 

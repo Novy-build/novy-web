@@ -11,12 +11,11 @@ import type { Screen } from '@domain/entities/screen';
 import { findFrameAtPoint, getComponentTreeLocation, type FrameHit } from '@domain/componentTree';
 import { ScreenFrame } from '../renderer/ScreenFrame';
 import type { RendererDataContext } from '../renderer/renderer';
-import { SNAP_GRID, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
-import { ZOOM_LIMITS } from '../state/editorState';
+import { SNAP_GRID, ZOOM_LIMITS, computeFitZoom, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
 import { COMPONENT_MIME } from './ComponentsPalette';
 import { SelectionOverlay } from './SelectionOverlay';
+import { DeviceToggle } from './DeviceToggle';
 import { ZoomPill } from './ZoomPill';
-
 /** Padding around the device frame inside the scrollable stage. */
 export const CANVAS_PAD_PX = 48;
 /** Pointer travel (screen px) before a press counts as a drag, not a click. */
@@ -60,6 +59,7 @@ interface EditorCanvasProps {
   onDropIndicatorChange: (position: { x: number; y: number } | null) => void;
   onZoomChange: (zoom: number) => void;
   onToggleSnap: () => void;
+  onDeviceChange: (device: EditorDevice) => void;
   dataContext?: RendererDataContext;
 }
 
@@ -138,6 +138,7 @@ export function EditorCanvas({
   onDropIndicatorChange,
   onZoomChange,
   onToggleSnap,
+  onDeviceChange,
   dataContext,
 }: EditorCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -163,13 +164,7 @@ export function EditorCanvas({
     if (!viewport) {
       return null;
     }
-    const availableWidth = viewport.clientWidth - CANVAS_PAD_PX * 2;
-    const availableHeight = viewport.clientHeight - CANVAS_PAD_PX * 2;
-    const scaleX = availableWidth > 0 ? availableWidth / bounds.width : 1;
-    const scaleY = availableHeight > 0 ? availableHeight / bounds.height : 1;
-    return Number(
-      Math.min(ZOOM_LIMITS.max, Math.max(ZOOM_LIMITS.min, Math.min(scaleX, scaleY))).toFixed(2),
-    );
+    return computeFitZoom(viewport, bounds, CANVAS_PAD_PX, ZOOM_LIMITS);
   }
 
   function toDesignPoint(clientX: number, clientY: number): { x: number; y: number } {
@@ -182,20 +177,46 @@ export function EditorCanvas({
 
   // Refit once per device change, not on every render (a manual zoom must stick).
   const lastFitDeviceRef = useRef<EditorDevice | null>(null);
+  const autoFitRef = useRef(true);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+
+  function fitToViewport() {
+    const fittedZoom = computeFittedZoom();
+    if (fittedZoom !== null && Math.abs(fittedZoom - zoomRef.current) >= 0.01) {
+      onZoomChange(fittedZoom);
+    }
+  }
 
   useEffect(() => {
     if (lastFitDeviceRef.current === device) {
       return;
     }
     lastFitDeviceRef.current = device;
-    const fittedZoom = computeFittedZoom();
-    if (fittedZoom !== null && Math.abs(fittedZoom - zoomRef.current) >= 0.01) {
-      onZoomChange(fittedZoom);
-    }
+    autoFitRef.current = true;
+    fitToViewport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const handleResize = () => {
+      if (autoFitRef.current) {
+        fitToViewport();
+      }
+    };
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(handleResize);
+      observer.observe(viewport);
+      return () => observer.disconnect();
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bounds]);
 
   useEffect(() => {
     function isTypingTarget(target: EventTarget | null): boolean {
@@ -275,6 +296,7 @@ export function EditorCanvas({
       return;
     }
     event.preventDefault();
+    autoFitRef.current = false;
     onZoomChange(zoom + (event.deltaY < 0 ? ZOOM_LIMITS.step : -ZOOM_LIMITS.step));
   }
 
@@ -401,16 +423,16 @@ export function EditorCanvas({
   }
 
   return (
-    <section aria-label="Design canvas" className="relative min-h-0 flex-1">
+    <section aria-label="Design canvas" className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
       <div
-        className={`h-full w-full overflow-auto ${isPanning ? 'cursor-grabbing select-none' : ''}`}
+        className={`h-full w-full overflow-auto overscroll-contain ${isPanning ? 'cursor-grabbing select-none' : ''}`}
         data-testid="canvas-viewport"
         onPointerDown={beginCanvasPan}
         onWheel={handleCanvasWheel}
         ref={viewportRef}
       >
         <div
-          className="flex w-fit min-w-full justify-center p-12"
+          className="min-h-full w-max min-w-full p-12"
           data-testid="canvas-stage"
           style={{
             backgroundSize: `${SNAP_GRID * zoom}px ${SNAP_GRID * zoom}px`,
@@ -420,7 +442,7 @@ export function EditorCanvas({
           }}
         >
           <div
-            className="relative shrink-0 border border-hairline bg-surface shadow-sm"
+            className="relative mx-auto shrink-0 border border-hairline bg-surface shadow-sm"
             data-testid="canvas-frame"
             style={{ height: frameHeight, width: frameWidth }}
           >
@@ -516,16 +538,33 @@ export function EditorCanvas({
         <ZoomPill
           isSnapEnabled={isSnapEnabled}
           onFit={() => {
-            const fittedZoom = computeFittedZoom();
-            if (fittedZoom !== null) {
-              onZoomChange(fittedZoom);
+            autoFitRef.current = true;
+            const fitted = computeFittedZoom();
+            if (fitted !== null) {
+              onZoomChange(fitted);
             }
           }}
           onToggleSnap={onToggleSnap}
-          onZoomIn={() => onZoomChange(zoom + ZOOM_LIMITS.step)}
-          onZoomOut={() => onZoomChange(zoom - ZOOM_LIMITS.step)}
+          onZoomIn={() => {
+            autoFitRef.current = false;
+            onZoomChange(zoom + ZOOM_LIMITS.step);
+          }}
+          onZoomOut={() => {
+            autoFitRef.current = false;
+            onZoomChange(zoom - ZOOM_LIMITS.step);
+          }}
           zoom={zoom}
         />
+      </div>
+      <div className="pointer-events-none absolute bottom-4 right-4 z-20">
+        <div className="pointer-events-auto">
+          <DeviceToggle
+            label="Canvas device"
+            onChange={onDeviceChange}
+            testId="canvas-device-toggle"
+            value={device}
+          />
+        </div>
       </div>
     </section>
   );

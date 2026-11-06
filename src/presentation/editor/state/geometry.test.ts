@@ -3,6 +3,7 @@ import { CANVAS_PRESETS } from '@presentation/editor/renderer/ScreenFrame';
 import {
   clamp,
   clampNodeToBounds,
+  computeFitZoom,
   deviceViewport,
   resizeFromHandle,
   snapOrRaw,
@@ -93,5 +94,22 @@ describe('resizeFromHandle', () => {
     );
     expect(gone.w).toBe(CANVAS_PRESETS.mobile.width);
     expect(gone.h).toBe(CANVAS_PRESETS.mobile.height);
+  });
+});
+
+describe('computeFitZoom', () => {
+  it('fits a desktop frame into the available viewport', () => {
+    const zoom = computeFitZoom({ clientWidth: 1000, clientHeight: 700 }, CANVAS_PRESETS.desktop, 48);
+    expect(zoom).toBe(0.75);
+  });
+
+  it('clamps small viewports to the minimum zoom', () => {
+    const zoom = computeFitZoom({ clientWidth: 300, clientHeight: 200 }, CANVAS_PRESETS.desktop, 48);
+    expect(zoom).toBe(0.5);
+  });
+
+  it('falls back to 100% when layout is unavailable', () => {
+    const zoom = computeFitZoom({ clientWidth: 0, clientHeight: 0 }, CANVAS_PRESETS.desktop, 48);
+    expect(zoom).toBe(1);
   });
 });

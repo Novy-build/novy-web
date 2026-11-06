@@ -21,8 +21,8 @@ import type {
 import type { AssistantProposal } from '@domain/ai/assistant';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import type { EditorDevice } from './geometry';
-
-/*
+import { DEFAULT_EDITOR_DEVICE, ZOOM_LIMITS } from './geometry';
+export { ZOOM_LIMITS };/*
  * Every editor action carries a plain payload (serializable, replayable in
  * devtools). Node props have one action per component type, which keeps the
  * reducer fully type-safe without `any` or function-valued actions.
@@ -180,8 +180,7 @@ export interface EditorState {
   readonly lastSavedAt: Date | null;
 }
 
-export const ZOOM_LIMITS = { min: 0.5, max: 2, step: 0.25 } as const;
-
+// ZOOM_LIMITS is re-exported from ./geometry to keep a single source of truth.
 export function createEditorState(document: ProjectDocument): EditorState {
   return {
     document,
@@ -190,8 +189,7 @@ export function createEditorState(document: ProjectDocument): EditorState {
     activeScreenId: document.screens[0]?.id ?? '',
     selectedNodeId: null,
     activeBehaviorId: null,
-    device: 'mobile',
-    zoom: 1,
+    device: DEFAULT_EDITOR_DEVICE,    zoom: 1,
     isSnapEnabled: true,
     dropIndicator: null,
     hasUnsavedChanges: false,

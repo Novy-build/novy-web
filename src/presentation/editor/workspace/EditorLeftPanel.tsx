@@ -33,7 +33,7 @@ export function EditorLeftPanel({
   const [activeTab, setActiveTab] = useState<LeftPanelTab>('layers');
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-hairline bg-surface" aria-label="Editor sidebar">
+    <aside className="flex w-64 shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface" aria-label="Editor sidebar">
       <div aria-label="Editor sidebar views" className="grid grid-cols-2 border-b border-hairline p-1" role="tablist">
         {(['layers', 'assets'] as const).map((tab) => (
           <button
