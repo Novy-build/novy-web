@@ -29,6 +29,13 @@ const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
   container: '#',
   list: '☷',
   form: '▤',
+  checkbox: '☑',
+  radio: '◉',
+  switch: '⏻',
+  dropdown: '▾',
+  slider: '═',
+  progress: ' ',
+  divider: '—',
 };
 
 /** Figma-inspired hierarchical layer tree with persisted layer controls. */

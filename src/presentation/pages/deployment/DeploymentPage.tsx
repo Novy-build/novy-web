@@ -42,7 +42,7 @@ export function DeploymentPage() {
 
   const project = deployment.project;
   return (
-    <div className="flex min-h-full flex-col bg-canvas" id="main-content">
+    <div className="flex min-h-full flex-col bg-canvas">
       <header className="border-b border-hairline bg-surface px-6 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -94,12 +94,12 @@ export function DeploymentPage() {
               <PublishStepper activeStageIndex={deployment.activeStageIndex} />
             ) : null}
             {deployment.publishError ? (
-              <p className="rounded-tile border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+              <p className="rounded-tile border border-signal-invalid/30 bg-signal-invalid/5 p-3 text-sm text-signal-invalid" role="alert">
                 {deployment.publishError}
               </p>
             ) : null}
             {deployment.validationError ? (
-              <p className="rounded-tile border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+              <p className="rounded-tile border border-signal-invalid/30 bg-signal-invalid/5 p-3 text-sm text-signal-invalid" role="alert">
                 {deployment.validationError}
               </p>
             ) : null}
@@ -133,7 +133,7 @@ function EnvironmentSelector({
   onChange: (environment: DeploymentEnvironment) => void;
 }) {
   return (
-    <section className="rounded-panel border border-hairline bg-surface p-5 shadow-sm">
+    <section className="rounded-panel border border-hairline bg-surface p-5">
       <h2 className="text-base font-semibold text-ink">Environment</h2>
       <p className="mt-1 text-sm text-ink-muted">Preview is isolated; Production uses your public Novy URL.</p>
       <div aria-label="Deployment environment" className="mt-4 grid grid-cols-2 gap-3" role="group">
@@ -164,7 +164,7 @@ function EnvironmentSelector({
 
 function CustomDomainStub() {
   return (
-    <aside className="h-fit rounded-panel border border-hairline bg-surface p-5 shadow-sm">
+    <aside className="h-fit rounded-panel border border-hairline bg-surface p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-ink">Custom domain</h2>
         <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">Coming soon</span>

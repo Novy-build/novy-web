@@ -144,7 +144,7 @@ describe('PreviewOverlay', () => {
         y: 24,
         w: 220,
         h: 56,
-        props: { label: 'Answer', placeholder: 'yes or no' },
+        props: { label: 'Answer', placeholder: 'yes or no', inputType: 'text', multiline: false },
       },
       makeButton('node_button', { x: 24, y: 100 }),
     ]);
@@ -192,6 +192,8 @@ describe('PreviewOverlay', () => {
     const list = makeList('list', {
       props: {
         items: [],
+        scrollable: true,
+        showDividers: true,
         dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' },
       },
       y: 400,
@@ -241,7 +243,7 @@ describe('PreviewOverlay', () => {
     const button = makeButton('button', { x: 24, y: 24 });
     const list = makeList('list', {
       y: 100,
-      props: { items: [], dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' } },
+      props: { items: [], scrollable: true, showDividers: true, dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' } },
     });
     const base = makeScreen('home', [button, list]);
     const bundle = createBehaviorBundle('On click — Click me', 'button', 'click');
@@ -262,6 +264,56 @@ describe('PreviewOverlay', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
     expect(screen.getByTestId('preview-toast')).toHaveTextContent('Preview record inserted.');
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+  });
+});
+
+describe('PreviewOverlay zoom', () => {
+  it('zooms in and out from the toolbar controls', () => {
+    render(<PreviewOverlay initialDevice="mobile" onClose={vi.fn()} projectName="My App" screens={buildScreens([])} />);
+
+    const dialog = screen.getByRole('dialog');
+    const readPercent = () =>
+      Number((within(dialog).getByTestId('preview-zoom-value').textContent ?? '0%').replace('%', ''));
+    const initial = readPercent();
+
+    fireEvent.click(within(dialog).getByLabelText('Zoom in preview'));
+    expect(readPercent()).toBe(initial + 25);
+
+    fireEvent.click(within(dialog).getByLabelText('Zoom out preview'));
+    expect(readPercent()).toBe(initial);
+  });
+
+  it('fits the preview back to the stage', () => {
+    render(<PreviewOverlay initialDevice="mobile" onClose={vi.fn()} projectName="My App" screens={buildScreens([])} />);
+
+    const dialog = screen.getByRole('dialog');
+    const readPercent = () =>
+      Number((within(dialog).getByTestId('preview-zoom-value').textContent ?? '0%').replace('%', ''));
+    const initial = readPercent();
+
+    fireEvent.click(within(dialog).getByLabelText('Zoom in preview'));
+    expect(readPercent()).toBe(initial + 25);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Fit' }));
+    expect(readPercent()).toBe(initial);
+  });
+
+  it('opens on the requested screen', () => {
+    const screens = buildScreens([]);
+    const second = makeScreen('screen_second', [makeText('node_second', { props: { text: 'Second screen', level: 'body' } })], 'Second');
+    render(
+      <PreviewOverlay
+        initialDevice="mobile"
+        initialScreenId="screen_second"
+        onClose={vi.fn()}
+        projectName="My App"
+        screens={[...screens, second]}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Second screen')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Hello, World!')).not.toBeInTheDocument();
   });
 });
 

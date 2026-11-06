@@ -13,7 +13,7 @@ export function DeploymentHistory({
   onRedeploy,
 }: DeploymentHistoryProps) {
   return (
-    <section className="rounded-panel border border-hairline bg-surface shadow-sm">
+    <section className="rounded-panel border border-hairline bg-surface">
       <div className="border-b border-hairline px-5 py-4">
         <h2 className="text-base font-semibold text-ink">Deployment history</h2>
         <p className="mt-1 text-sm text-ink-muted">Every publish attempt for this project.</p>
@@ -27,7 +27,7 @@ export function DeploymentHistory({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="bg-canvas text-xs uppercase tracking-wide text-ink-muted">
+            <thead className="bg-canvas font-mono text-xs uppercase tracking-wide text-ink-muted">
               <tr>
                 <th className="px-5 py-3 font-medium" scope="col">Version</th>
                 <th className="px-5 py-3 font-medium" scope="col">Published</th>
@@ -40,7 +40,7 @@ export function DeploymentHistory({
                 const version = deployments.length - index;
                 return (
                   <tr key={deployment.id}>
-                    <td className="px-5 py-4 font-medium text-ink">v{version}</td>
+                    <td className="px-5 py-4 font-mono font-medium text-ink">v{version}</td>
                     <td className="px-5 py-4 text-ink-muted">
                       <time dateTime={deployment.createdAt.toISOString()}>
                         {formatDeploymentDate(deployment.createdAt)}
@@ -93,12 +93,12 @@ export function DeploymentHistory({
 function StatusBadge({ status }: { status: DeploymentRecord['status'] }) {
   const classes =
     status === 'live'
-      ? 'bg-emerald-50 text-emerald-700'
+      ? 'bg-signal-valid/10 text-signal-valid'
       : status === 'failed'
-        ? 'bg-red-50 text-red-700'
+        ? 'bg-signal-invalid/10 text-signal-invalid'
         : 'bg-brand-50 text-brand-700';
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${classes}`}>
+    <span className={`inline-flex rounded-full px-2.5 py-1 font-mono text-xs font-medium capitalize ${classes}`}>
       {status}
     </span>
   );

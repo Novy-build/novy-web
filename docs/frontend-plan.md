@@ -130,3 +130,5 @@ is excluded while Novy remains a single-builder product.
 | 4 | Project Data workspace + schema/record CRUD | repository + CRUD + binding tests | ✅ done (typecheck + 419 tests + build green) |
 | 5 | Project validation + preview/deploy integration | validator + failure-preservation tests | ✅ done (typecheck + 423 tests + build green) |
 | 6 | PD6 traceability + final accessibility/regression | full test + build gate | ✅ done (typecheck + 425 tests + build green) |
+| 7 | Flutter-inspired component expansion (Checkbox, Radio, Switch, Dropdown, Slider, Progress, Divider + TextField/List/Button upgrades) | mapper/default/validation/palette tests | ✅ done (typecheck + 433 tests + build green) |
+| 8 | Preview overlay fit: content-hugging window, device/zoom controls, always fits the viewport (fit-on-open, refit on device change and resize, manual zoom scrolls instead of overflowing) | zoom/fit/device/runtime tests | ✅ done (typecheck + 436 tests + build green) |

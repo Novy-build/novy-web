@@ -108,7 +108,84 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, placeholder: node.props.placeholder },
+        props: { label: node.props.label, placeholder: node.props.placeholder, inputType: node.props.inputType, multiline: node.props.multiline },
+      };
+    case 'checkbox':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'checkbox',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { label: node.props.label, checked: node.props.checked },
+      };
+    case 'radio':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'radio',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { label: node.props.label, options: [...node.props.options], selectedIndex: node.props.selectedIndex },
+      };
+    case 'switch':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'switch',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { label: node.props.label, checked: node.props.checked },
+      };
+    case 'dropdown':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'dropdown',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { label: node.props.label, placeholder: node.props.placeholder, options: [...node.props.options], selectedIndex: node.props.selectedIndex },
+      };
+    case 'slider':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'slider',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { label: node.props.label, min: node.props.min, max: node.props.max, step: node.props.step, value: node.props.value },
+      };
+    case 'progress':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'progress',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { label: node.props.label, value: node.props.value, indeterminate: node.props.indeterminate },
+      };
+    case 'divider':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'divider',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { orientation: node.props.orientation, thickness: node.props.thickness },
       };
     case 'image':
       return {
@@ -132,6 +209,8 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         h: node.h,
         props: {
           items: [...node.props.items],
+          scrollable: node.props.scrollable,
+          showDividers: node.props.showDividers,
           ...(node.props.dataSource ? { dataSource: structuredClone(node.props.dataSource) } : {}),
         },
       };
@@ -200,7 +279,89 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { label: dto.props.label, placeholder: dto.props.placeholder },
+        props: {
+          label: dto.props.label,
+          placeholder: dto.props.placeholder,
+          inputType: dto.props.inputType ?? 'text',
+          multiline: dto.props.multiline ?? false,
+        },
+      };
+    case 'checkbox':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'checkbox',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { label: dto.props.label, checked: dto.props.checked },
+      };
+    case 'radio':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'radio',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { label: dto.props.label, options: [...dto.props.options], selectedIndex: dto.props.selectedIndex },
+      };
+    case 'switch':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'switch',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { label: dto.props.label, checked: dto.props.checked },
+      };
+    case 'dropdown':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'dropdown',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { label: dto.props.label, placeholder: dto.props.placeholder, options: [...dto.props.options], selectedIndex: dto.props.selectedIndex },
+      };
+    case 'slider':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'slider',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { label: dto.props.label, min: dto.props.min, max: dto.props.max, step: dto.props.step, value: dto.props.value },
+      };
+    case 'progress':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'progress',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { label: dto.props.label, value: dto.props.value, indeterminate: dto.props.indeterminate },
+      };
+    case 'divider':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'divider',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { orientation: dto.props.orientation, thickness: dto.props.thickness },
       };
     case 'image':
       return {
@@ -224,6 +385,8 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         h: dto.h,
         props: {
           items: [...dto.props.items],
+          scrollable: dto.props.scrollable ?? true,
+          showDividers: dto.props.showDividers ?? true,
           ...(dto.props.dataSource ? { dataSource: structuredClone(dto.props.dataSource) } : {}),
         },
       };

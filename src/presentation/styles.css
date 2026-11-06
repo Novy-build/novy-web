@@ -1,36 +1,56 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
  * Novy design tokens (Tailwind v4 @theme).
- * One accent color, one neutral ramp, 8px spacing rhythm, shared radius scale.
+ * Graphite neutrals + electric indigo accent, sharp radii, mono companion.
  * Everything in the UI must come from these tokens instead of ad-hoc colors.
  */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    'Segoe UI', sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace,
+    'SFMono-Regular', 'SF Mono', Menlo, Consolas, monospace;
 
-  /* Brand accent ramp (indigo) */
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
+  /* Brand accent ramp (electric indigo) */
+  --color-brand-50: #eef0ff;
+  --color-brand-100: #dde1ff;
+  --color-brand-200: #c2c8ff;
+  --color-brand-300: #9ea5ff;
+  --color-brand-400: #8a86ff;
+  --color-brand-500: #6f6ffb;
+  --color-brand-600: #5551f2;
   --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
+  --color-brand-800: #352aa6;
+  --color-brand-900: #2a2181;
 
-  /* Semantic surfaces and text */
-  --color-canvas: #f4f5f9;
+  /* Semantic surfaces and text (graphite) */
+  --color-canvas: #f5f6f8;
   --color-surface: #ffffff;
-  --color-hairline: #e7e9f0;
-  --color-ink: #161a2e;
-  --color-ink-muted: #5d6373;
+  --color-surface-subtle: #fafbfc;
+  --color-hairline: #e5e6ea;
+  --color-ink: #0e1013;
+  --color-ink-muted: #565b66;
 
-  /* Shared radii */
-  --radius-panel: 1rem;
-  --radius-tile: 0.75rem;
+  /* Signal colors (status badges, validation, deployment) */
+  --color-signal-valid: #0ea974;
+  --color-signal-invalid: #dc2626;
+
+  /* Editor canvas dot grid */
+  --color-grid-dot: rgba(14, 16, 19, 0.09);
+
+  /* Dark sidebar surface (n8n-inspired, graphite) */
+  --color-sidebar: #1b1d23;
+  --color-sidebar-soft: #24272f;
+  --color-sidebar-active: #2c3039;
+  --color-sidebar-hairline: #2f333d;
+  --color-sidebar-ink: #f2f3f7;
+  --color-sidebar-ink-muted: #9aa0ad;
+
+  /* Shared radii (sharper, tech-crisp) */
+  --radius-panel: 0.625rem;
+  --radius-tile: 0.375rem;
 }
 
 @layer base {
@@ -54,5 +74,24 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --color-canvas: #0b0d11;
+    --color-surface: #15181e;
+    --color-surface-subtle: #1a1e25;
+    --color-hairline: #262a33;
+    --color-ink: #eef0f4;
+    --color-ink-muted: #8a90a0;
+    --color-grid-dot: rgba(238, 240, 244, 0.07);
+
+    --color-sidebar: #0a0c10;
+    --color-sidebar-soft: #13161c;
+    --color-sidebar-active: #1b1f27;
+    --color-sidebar-hairline: #232730;
+    --color-sidebar-ink: #f2f3f7;
+    --color-sidebar-ink-muted: #9aa0ad;
   }
 }

@@ -126,11 +126,11 @@ export function EditorTopBar({
               {projectName}
             </button>
           )}
-          <p aria-live="polite" className="shrink-0 text-xs text-ink-muted">
+          <p aria-live="polite" className="shrink-0 text-xs font-mono text-ink-muted">
             {error ?? autosaveStatusText(saving, new Date())}
           </p>
           <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${validation.isValid ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+            className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide ${validation.isValid ? 'bg-signal-valid/10 text-signal-valid' : 'bg-signal-invalid/10 text-signal-invalid'}`}
             data-testid="validation-badge"
             role="status"
           >

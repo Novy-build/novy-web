@@ -42,7 +42,7 @@ export function TextInput({
         {...rest}
       />
       {error ? (
-        <p className="mt-1 text-xs text-red-500" id={errorId} role="alert">
+        <p className="mt-1 text-xs text-signal-invalid" id={errorId} role="alert">
           {error}
         </p>
       ) : hint ? (

@@ -1,12 +1,19 @@
 import type {
   ButtonNode,
+  CheckboxNode,
   ComponentNode,
   ComponentType,
   ContainerNode,
+  DividerNode,
+  DropdownNode,
   FormNode,
   ImageNode,
   InputNode,
   ListNode,
+  ProgressNode,
+  RadioNode,
+  SliderNode,
+  SwitchNode,
   TextNode,
 } from '../entities/componentNode';
 import { generateId } from '../ids';
@@ -48,7 +55,7 @@ function createInputNode(): InputNode {
     y: 24,
     w: 260,
     h: 44,
-    props: { label: 'Label', placeholder: 'Enter value' },
+    props: { label: 'Label', placeholder: 'Enter value', inputType: 'text', multiline: false },
   };
 }
 
@@ -85,7 +92,7 @@ function createListNode(): ListNode {
     y: 24,
     w: 280,
     h: 180,
-    props: { items: [] },
+    props: { items: [], scrollable: true, showDividers: true },
   };
 }
 
@@ -108,6 +115,90 @@ function createFormNode(): FormNode {
   };
 }
 
+function createCheckboxNode(): CheckboxNode {
+  return {
+    id: generateId('node'),
+    type: 'checkbox',
+    x: 24,
+    y: 24,
+    w: 220,
+    h: 32,
+    props: { label: 'Accept terms', checked: false },
+  };
+}
+
+function createRadioNode(): RadioNode {
+  return {
+    id: generateId('node'),
+    type: 'radio',
+    x: 24,
+    y: 24,
+    w: 240,
+    h: 96,
+    props: { label: 'Choose one', options: ['Option A', 'Option B'], selectedIndex: 0 },
+  };
+}
+
+function createSwitchNode(): SwitchNode {
+  return {
+    id: generateId('node'),
+    type: 'switch',
+    x: 24,
+    y: 24,
+    w: 220,
+    h: 32,
+    props: { label: 'Enable notifications', checked: false },
+  };
+}
+
+function createDropdownNode(): DropdownNode {
+  return {
+    id: generateId('node'),
+    type: 'dropdown',
+    x: 24,
+    y: 24,
+    w: 260,
+    h: 44,
+    props: { label: 'Choose', placeholder: 'Select an option', options: ['Option A', 'Option B'], selectedIndex: -1 },
+  };
+}
+
+function createSliderNode(): SliderNode {
+  return {
+    id: generateId('node'),
+    type: 'slider',
+    x: 24,
+    y: 24,
+    w: 280,
+    h: 48,
+    props: { label: 'Volume', min: 0, max: 100, step: 1, value: 50 },
+  };
+}
+
+function createProgressNode(): ProgressNode {
+  return {
+    id: generateId('node'),
+    type: 'progress',
+    x: 24,
+    y: 24,
+    w: 280,
+    h: 32,
+    props: { label: 'Loading', value: 40, indeterminate: false },
+  };
+}
+
+function createDividerNode(): DividerNode {
+  return {
+    id: generateId('node'),
+    type: 'divider',
+    x: 24,
+    y: 24,
+    w: 280,
+    h: 16,
+    props: { orientation: 'horizontal', thickness: 1 },
+  };
+}
+
 interface NodeFactory {
   (): ComponentNode;
 }
@@ -120,6 +211,13 @@ const factories: Record<ComponentType, NodeFactory> = {
   container: createContainerNode,
   list: createListNode,
   form: createFormNode,
+  checkbox: createCheckboxNode,
+  radio: createRadioNode,
+  switch: createSwitchNode,
+  dropdown: createDropdownNode,
+  slider: createSliderNode,
+  progress: createProgressNode,
+  divider: createDividerNode,
 };
 
 /** Creates a palette component with sensible defaults, ready to drop on canvas. */

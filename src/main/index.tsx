@@ -8,6 +8,8 @@ import { SessionProvider } from '@main/providers/SessionProvider';
 import { AppRoutes } from '@main/routes';
 import { LoadingScreen } from '@presentation/components/system/LoadingScreen';
 import { SkipLink } from '@presentation/components/system/SkipLink';import { AppErrorBoundary } from '@presentation/components/system/AppErrorBoundary';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
 import '@presentation/styles.css';
 
 const rootElement = document.getElementById('root');

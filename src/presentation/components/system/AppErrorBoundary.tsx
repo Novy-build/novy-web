@@ -37,7 +37,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
 
     return (
       <main className="flex min-h-full items-center justify-center bg-canvas p-6">
-        <section className="max-w-md rounded-panel border border-hairline bg-surface p-8 text-center shadow-sm">
+        <section className="max-w-md rounded-panel border border-hairline bg-surface p-8 text-center">
           <div
             aria-hidden="true"
             className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-xl text-brand-700"

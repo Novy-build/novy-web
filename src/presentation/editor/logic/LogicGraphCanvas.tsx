@@ -252,7 +252,7 @@ export function LogicGraphCanvas({
       onWheel={handleWheel}
       ref={stageRef}
       style={{
-        backgroundImage: 'radial-gradient(circle, rgba(100, 116, 139, 0.38) 1px, transparent 1px)',
+        backgroundImage: 'radial-gradient(circle, var(--color-grid-dot) 1px, transparent 1px)',
         backgroundPosition: `${viewport.x}px ${viewport.y}px`,
         backgroundSize: `${16 * viewport.zoom}px ${16 * viewport.zoom}px`,
       }}

@@ -242,6 +242,41 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         node.type === 'form' ? { ...node, props: { ...node.props, ...action.props } } : node,
       );
 
+    case 'node/props-checkbox':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'checkbox' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-radio':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'radio' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-switch':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'switch' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-dropdown':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'dropdown' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-slider':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'slider' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-progress':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'progress' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-divider':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'divider' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
     case 'node/duplicate':
       return duplicateNode(state, action.nodeId);
 

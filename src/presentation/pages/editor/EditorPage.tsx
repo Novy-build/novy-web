@@ -5,7 +5,7 @@ import { EditorWorkspace } from '@presentation/editor/workspace/EditorWorkspace'
 function StatusPanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <main className="flex min-h-full flex-1 items-center justify-center p-6">
-      <section className="rounded-panel border border-hairline bg-surface p-8 text-center shadow-sm">
+      <section className="rounded-panel border border-hairline bg-surface p-8 text-center">
         <h1 className="text-xl font-semibold text-ink">{title}</h1>
         <div className="mt-2 max-w-sm text-sm text-ink-muted">{children}</div>
       </section>

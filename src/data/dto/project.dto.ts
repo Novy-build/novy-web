@@ -17,7 +17,7 @@ export interface ComponentNodeDTOBase {
 
 export interface ButtonNodeDTO extends ComponentNodeDTOBase {
   type: 'button';
-  props: { label: string; variant: 'solid' | 'outline' };
+  props: { label: string; variant: 'solid' | 'outline' | 'text' };
 }
 
 export interface TextNodeDTO extends ComponentNodeDTOBase {
@@ -27,7 +27,7 @@ export interface TextNodeDTO extends ComponentNodeDTOBase {
 
 export interface InputNodeDTO extends ComponentNodeDTOBase {
   type: 'input';
-  props: { label: string; placeholder: string };
+  props: { label: string; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number'; multiline?: boolean };
 }
 
 export interface ImageNodeDTO extends ComponentNodeDTOBase {
@@ -45,6 +45,8 @@ export interface ListNodeDTO extends ComponentNodeDTOBase {
   type: 'list';
   props: {
     items: string[];
+    scrollable?: boolean;
+    showDividers?: boolean;
     dataSource?:
       | { kind: 'static' }
       | { kind: 'collection'; collectionId: string; displayFieldId: string };
@@ -68,6 +70,41 @@ export interface FormNodeDTO extends ComponentNodeDTOBase {
   };
 }
 
+export interface CheckboxNodeDTO extends ComponentNodeDTOBase {
+  type: 'checkbox';
+  props: { label: string; checked: boolean };
+}
+
+export interface RadioNodeDTO extends ComponentNodeDTOBase {
+  type: 'radio';
+  props: { label: string; options: string[]; selectedIndex: number };
+}
+
+export interface SwitchNodeDTO extends ComponentNodeDTOBase {
+  type: 'switch';
+  props: { label: string; checked: boolean };
+}
+
+export interface DropdownNodeDTO extends ComponentNodeDTOBase {
+  type: 'dropdown';
+  props: { label: string; placeholder: string; options: string[]; selectedIndex: number };
+}
+
+export interface SliderNodeDTO extends ComponentNodeDTOBase {
+  type: 'slider';
+  props: { label: string; min: number; max: number; step: number; value: number };
+}
+
+export interface ProgressNodeDTO extends ComponentNodeDTOBase {
+  type: 'progress';
+  props: { label: string; value: number; indeterminate: boolean };
+}
+
+export interface DividerNodeDTO extends ComponentNodeDTOBase {
+  type: 'divider';
+  props: { orientation: 'horizontal' | 'vertical'; thickness: number };
+}
+
 export type ComponentNodeDTO =
   | ButtonNodeDTO
   | TextNodeDTO
@@ -75,7 +112,14 @@ export type ComponentNodeDTO =
   | ImageNodeDTO
   | ContainerNodeDTO
   | ListNodeDTO
-  | FormNodeDTO;
+  | FormNodeDTO
+  | CheckboxNodeDTO
+  | RadioNodeDTO
+  | SwitchNodeDTO
+  | DropdownNodeDTO
+  | SliderNodeDTO
+  | ProgressNodeDTO
+  | DividerNodeDTO;
 
 export interface BehaviorDTO {
   id: string;

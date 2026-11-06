@@ -14,7 +14,7 @@ export function ValidationPanel({
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-ink">Validation</h2>
         <span
-          className={`rounded-full px-2.5 py-1 text-xs font-medium ${report.isValid ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+          className={`rounded-full px-2.5 py-1 text-xs font-medium ${report.isValid ? 'bg-signal-valid/10 text-signal-valid' : 'bg-signal-invalid/10 text-signal-invalid'}`}
           role="status"
         >
           {report.isValid ? 'Valid' : `${errors.length} error${errors.length === 1 ? '' : 's'}`}

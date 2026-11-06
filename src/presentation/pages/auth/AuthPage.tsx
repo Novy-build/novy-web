@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { Button } from '@presentation/components/ui/Button';
+import { ThemeToggle } from '@presentation/components/ui/ThemeToggle';
 import { useSession } from '@main/providers/SessionProvider';
 import { LoginForm } from './LoginForm';
 import { RegisterForm } from './RegisterForm';
@@ -50,7 +51,7 @@ function AuthCard({ mode, onModeChange }: AuthCardProps) {
   const copy = MODE_COPY[mode];
   const { continueAsDemo } = useSession();
   return (
-    <div className="w-full max-w-sm rounded-panel border border-hairline bg-surface p-8 shadow-sm">
+    <div className="w-full max-w-sm rounded-panel border border-hairline bg-surface p-8">
       <div
         aria-hidden="true"
         className="mb-6 flex h-11 w-11 items-center justify-center rounded-tile bg-brand-600 text-lg font-bold text-white lg:hidden"
@@ -123,7 +124,10 @@ export function AuthPage() {
   return (
     <main className="flex min-h-full bg-canvas" id="main-content">
       <BrandPanel />
-      <section className="flex flex-1 items-center justify-center p-6">
+      <section className="relative flex flex-1 items-center justify-center p-6">
+        <div className="absolute right-4 top-4">
+          <ThemeToggle />
+        </div>
         <AuthCard mode={mode} onModeChange={setMode} />
       </section>
     </main>

@@ -5,11 +5,25 @@
  * Container children carry coordinates relative to their parent container,
  * so moving a container keeps its content attached.
  */
-export type ComponentType = 'button' | 'text' | 'input' | 'image' | 'container' | 'list' | 'form';
+export type ComponentType =
+  | 'button'
+  | 'text'
+  | 'input'
+  | 'image'
+  | 'container'
+  | 'list'
+  | 'form'
+  | 'checkbox'
+  | 'radio'
+  | 'switch'
+  | 'dropdown'
+  | 'slider'
+  | 'progress'
+  | 'divider';
 
 export interface ButtonProps {
   label: string;
-  variant: 'solid' | 'outline';
+  variant: 'solid' | 'outline' | 'text';
 }
 
 export interface TextProps {
@@ -20,6 +34,8 @@ export interface TextProps {
 export interface InputProps {
   label: string;
   placeholder: string;
+  inputType: 'text' | 'email' | 'password' | 'number';
+  multiline: boolean;
 }
 
 export interface ImageProps {
@@ -34,9 +50,53 @@ export interface ContainerProps {
 
 export interface ListProps {
   items: string[];
+  scrollable: boolean;
+  showDividers: boolean;
   dataSource?:
     | { kind: 'static' }
     | { kind: 'collection'; collectionId: string; displayFieldId: string };
+}
+
+export interface CheckboxProps {
+  label: string;
+  checked: boolean;
+}
+
+export interface RadioProps {
+  label: string;
+  options: string[];
+  selectedIndex: number;
+}
+
+export interface SwitchProps {
+  label: string;
+  checked: boolean;
+}
+
+export interface DropdownProps {
+  label: string;
+  placeholder: string;
+  options: string[];
+  selectedIndex: number;
+}
+
+export interface SliderProps {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+}
+
+export interface ProgressProps {
+  label: string;
+  value: number;
+  indeterminate: boolean;
+}
+
+export interface DividerProps {
+  orientation: 'horizontal' | 'vertical';
+  thickness: number;
 }
 
 export interface FormField {
@@ -108,6 +168,41 @@ export interface FormNode extends NodeBase {
   props: FormProps;
 }
 
+export interface CheckboxNode extends NodeBase {
+  type: 'checkbox';
+  props: CheckboxProps;
+}
+
+export interface RadioNode extends NodeBase {
+  type: 'radio';
+  props: RadioProps;
+}
+
+export interface SwitchNode extends NodeBase {
+  type: 'switch';
+  props: SwitchProps;
+}
+
+export interface DropdownNode extends NodeBase {
+  type: 'dropdown';
+  props: DropdownProps;
+}
+
+export interface SliderNode extends NodeBase {
+  type: 'slider';
+  props: SliderProps;
+}
+
+export interface ProgressNode extends NodeBase {
+  type: 'progress';
+  props: ProgressProps;
+}
+
+export interface DividerNode extends NodeBase {
+  type: 'divider';
+  props: DividerProps;
+}
+
 export type ComponentNode =
   | ButtonNode
   | TextNode
@@ -115,7 +210,14 @@ export type ComponentNode =
   | ImageNode
   | ContainerNode
   | ListNode
-  | FormNode;
+  | FormNode
+  | CheckboxNode
+  | RadioNode
+  | SwitchNode
+  | DropdownNode
+  | SliderNode
+  | ProgressNode
+  | DividerNode;
 
 /** Frames may nest any supported component, including another frame. */
 export const CONTAINER_CHILD_TYPES: readonly ComponentType[] = [
@@ -126,4 +228,11 @@ export const CONTAINER_CHILD_TYPES: readonly ComponentType[] = [
   'list',
   'container',
   'form',
+  'checkbox',
+  'radio',
+  'switch',
+  'dropdown',
+  'slider',
+  'progress',
+  'divider',
 ];

@@ -67,7 +67,7 @@ export function makeList(id: string, overrides: Partial<ListNode> = {}): ListNod
     y: 400,
     w: 320,
     h: 160,
-    props: { items: ['First', 'Second'] },
+    props: { items: ['First', 'Second'], scrollable: true, showDividers: true },
     ...overrides,
   };
 }

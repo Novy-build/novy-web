@@ -9,7 +9,9 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
   const variantClass =
     props.variant === 'outline'
       ? 'border border-brand-600 bg-transparent text-brand-600'
-      : 'bg-brand-600 text-white';
+      : props.variant === 'text'
+        ? 'bg-transparent text-brand-600'
+        : 'bg-brand-600 text-white';
   const widgetClass = `flex h-full w-full items-center justify-center rounded-tile text-sm font-medium transition-colors ${variantClass}`;
 
   if (renderStatic) {

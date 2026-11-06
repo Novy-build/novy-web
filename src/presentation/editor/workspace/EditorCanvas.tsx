@@ -29,6 +29,13 @@ const COMPONENT_TYPES: readonly ComponentType[] = [
   'container',
   'list',
   'form',
+  'checkbox',
+  'radio',
+  'switch',
+  'dropdown',
+  'slider',
+  'progress',
+  'divider',
 ];
 
 function isComponentType(value: string): value is ComponentType {
@@ -437,7 +444,7 @@ export function EditorCanvas({
           style={{
             backgroundSize: `${SNAP_GRID * zoom}px ${SNAP_GRID * zoom}px`,
             backgroundImage: isSnapEnabled
-              ? 'radial-gradient(circle, rgba(100, 116, 139, 0.35) 1px, transparent 1px)'
+              ? 'radial-gradient(circle, var(--color-grid-dot) 1px, transparent 1px)'
               : undefined,
           }}
         >

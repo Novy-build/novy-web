@@ -20,7 +20,7 @@ export function ProjectCard({ project, onRename, onDuplicate, onDelete }: Projec
   const screenLabel = project.screenCount === 1 ? 'screen' : 'screens';
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-panel border border-hairline bg-surface shadow-sm transition-shadow focus-within:ring-2 hover:shadow-md">
+    <article className="flex flex-col overflow-hidden rounded-panel border border-hairline bg-surface transition-colors focus-within:ring-2 hover:border-ink/15">
       <Link
         aria-label={`Open ${name}`}
         className="block overflow-hidden rounded-t-none bg-canvas"
@@ -32,7 +32,7 @@ export function ProjectCard({ project, onRename, onDuplicate, onDelete }: Projec
       </Link>
       <div className="flex flex-1 flex-col gap-3 p-4">
         <h2 className="text-sm font-semibold text-ink">{name}</h2>
-        <p className="text-xs text-ink-muted">
+        <p className="mt-1 text-xs font-mono tabular-nums text-ink-muted">
           {project.screenCount} {screenLabel} &middot; Edited {formatRelativeTime(project.updatedAt, new Date())}
         </p>
         <div className="mt-auto flex items-center gap-2 pt-1">

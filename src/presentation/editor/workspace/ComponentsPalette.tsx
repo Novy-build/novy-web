@@ -2,7 +2,7 @@ import { useState, type DragEvent } from 'react';
 import type { ComponentType } from '@domain/entities/componentNode';
 import { TextInput } from '@presentation/components/ui/TextInput';
 
-type PaletteCategory = 'Layout' | 'Basic' | 'Data';
+type PaletteCategory = 'Layout' | 'Basic' | 'Form controls' | 'Data';
 
 interface PaletteItemConfig {
   type: ComponentType;
@@ -15,13 +15,20 @@ export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
   { type: 'container', label: 'Container', description: 'Card that groups components', category: 'Layout' },
   { type: 'text', label: 'Text', description: 'Heading or body copy', category: 'Basic' },
   { type: 'button', label: 'Button', description: 'Tap target with a label', category: 'Basic' },
-  { type: 'input', label: 'Input', description: 'Labelled text field', category: 'Basic' },
   { type: 'image', label: 'Image', description: 'Picture with alt text', category: 'Basic' },
+  { type: 'divider', label: 'Divider', description: 'Horizontal or vertical separator', category: 'Basic' },
+  { type: 'input', label: 'Text field', description: 'Labelled text input', category: 'Form controls' },
+  { type: 'checkbox', label: 'Checkbox', description: 'Toggle a single option', category: 'Form controls' },
+  { type: 'radio', label: 'Radio group', description: 'Choose one of several options', category: 'Form controls' },
+  { type: 'switch', label: 'Switch', description: 'On/off toggle', category: 'Form controls' },
+  { type: 'dropdown', label: 'Dropdown', description: 'Select from a list of options', category: 'Form controls' },
+  { type: 'slider', label: 'Slider', description: 'Pick a value from a range', category: 'Form controls' },
+  { type: 'progress', label: 'Progress', description: 'Show completion status', category: 'Form controls' },
   { type: 'list', label: 'List', description: 'Rows of repeating data', category: 'Data' },
   { type: 'form', label: 'Form', description: 'Fields with a submit action', category: 'Data' },
 ];
 
-const CATEGORY_ORDER: readonly PaletteCategory[] = ['Layout', 'Basic', 'Data'];
+const CATEGORY_ORDER: readonly PaletteCategory[] = ['Layout', 'Basic', 'Form controls', 'Data'];
 
 export const COMPONENT_MIME = 'application/x-novy-component';
 

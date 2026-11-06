@@ -29,7 +29,7 @@ export function PublishSuccessModal({ deployment, onClose }: PublishSuccessModal
     <Modal labelledBy="publish-success-title" onClose={onClose}>
       <div
         aria-hidden="true"
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-xl text-emerald-700"
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-signal-valid/10 text-xl text-signal-valid"
       >
         ✓
       </div>

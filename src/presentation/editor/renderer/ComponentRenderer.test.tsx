@@ -103,7 +103,7 @@ describe('ComponentRenderer', () => {
       y: 0,
       w: 180,
       h: 60,
-      props: { label: 'Email', placeholder: 'you@school.edu' },
+      props: { label: 'Email', placeholder: 'you@school.edu', inputType: 'email', multiline: false },
     };
 
     render(<ComponentRenderer mode="thumbnail" node={input} selected={false} />);
@@ -221,7 +221,7 @@ describe('ComponentRenderer', () => {
       y: 0,
       w: 200,
       h: 120,
-      props: { items: ['Bañares, Peter Andrew', 'Briñas, Andrei'] },
+      props: { items: ['Bañares, Peter Andrew', 'Briñas, Andrei'], scrollable: true, showDividers: true },
     };
 
     render(<ComponentRenderer mode="preview" node={list} selected={false} />);
@@ -242,7 +242,7 @@ describe('ComponentRenderer', () => {
     };
     const list: ListNode = {
       id: 'list', type: 'list', x: 0, y: 0, w: 240, h: 160,
-      props: { items: [], dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' } },
+      props: { items: [], scrollable: true, showDividers: true, dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' } },
     };
 
     render(

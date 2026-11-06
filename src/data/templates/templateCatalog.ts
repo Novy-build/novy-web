@@ -112,7 +112,7 @@ const LOGIN_FORM: Template = {
         y: 218,
         w: 290,
         h: 64,
-        props: { label: 'Email', placeholder: 'you@example.com' },
+        props: { label: 'Email', placeholder: 'you@example.com', inputType: 'email', multiline: false },
       },
       {
         id: 'login_password',
@@ -121,7 +121,7 @@ const LOGIN_FORM: Template = {
         y: 292,
         w: 290,
         h: 64,
-        props: { label: 'Password', placeholder: '••••••••' },
+        props: { label: 'Password', placeholder: '••••••••', inputType: 'password', multiline: false },
       },
       {
         id: 'login_submit',
@@ -169,6 +169,8 @@ const STUDENT_LIST: Template = {
         h: 260,
         props: {
           items: ['Bañares, Peter Andrew', 'Briñas, Andrei', 'Muñoz, Carl'],
+          scrollable: true,
+          showDividers: true,
         },
       },
       {

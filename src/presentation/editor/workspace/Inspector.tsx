@@ -1,5 +1,5 @@
 import type { ChangeEvent } from 'react';
-import type { ComponentNode } from '@domain/entities/componentNode';
+import type { ComponentNode, DividerProps, InputProps } from '@domain/entities/componentNode';
 import type { DataCollection } from '@domain/entities/appData';
 import type { Behavior } from '@domain/entities/logic';
 import { TextInput } from '@presentation/components/ui/TextInput';
@@ -155,6 +155,26 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-input', nodeId: node.id, props: { placeholder: event.target.value } })}
             value={node.props.placeholder}
           />
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-input-type">Input type</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-input-type"
+            onChange={(event) => onAction({ type: 'node/props-input', nodeId: node.id, props: { inputType: event.target.value as InputProps['inputType'] } })}
+            value={node.props.inputType}
+          >
+            <option value="text">Text</option>
+            <option value="email">Email</option>
+            <option value="password">Password</option>
+            <option value="number">Number</option>
+          </select>
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={node.props.multiline}
+              onChange={(event) => onAction({ type: 'node/props-input', nodeId: node.id, props: { multiline: event.target.checked } })}
+              type="checkbox"
+            />
+            Multiline
+          </label>
         </div>
       ) : null}
 
@@ -233,6 +253,22 @@ export function Inspector({
               </select>
             </>
           ) : null}
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={node.props.scrollable}
+              onChange={(event) => onAction({ type: 'node/props-list', nodeId: node.id, props: { scrollable: event.target.checked } })}
+              type="checkbox"
+            />
+            Scrollable
+          </label>
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={node.props.showDividers}
+              onChange={(event) => onAction({ type: 'node/props-list', nodeId: node.id, props: { showDividers: event.target.checked } })}
+              type="checkbox"
+            />
+            Show dividers
+          </label>
           <label className="mb-1 block text-xs font-medium text-ink-muted" htmlFor="inspector-list-items">
             List items
           </label>
@@ -250,6 +286,218 @@ export function Inspector({
             value={node.props.items.join('\n')}
           />
           <p className="mt-1 text-xs text-ink-muted">One item per line.</p>
+        </div>
+      ) : null}
+
+      {node.type === 'checkbox' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <TextInput
+            label="Label"
+            name="inspector-checkbox-label"
+            onChange={(event) => onAction({ type: 'node/props-checkbox', nodeId: node.id, props: { label: event.target.value } })}
+            value={node.props.label}
+          />
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={node.props.checked}
+              onChange={(event) => onAction({ type: 'node/props-checkbox', nodeId: node.id, props: { checked: event.target.checked } })}
+              type="checkbox"
+            />
+            Checked by default
+          </label>
+        </div>
+      ) : null}
+
+      {node.type === 'radio' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <TextInput
+            label="Label"
+            name="inspector-radio-label"
+            onChange={(event) => onAction({ type: 'node/props-radio', nodeId: node.id, props: { label: event.target.value } })}
+            value={node.props.label}
+          />
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-radio-options">Options</label>
+          <textarea
+            className="h-24 w-full rounded-tile border border-hairline bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:outline-brand-600"
+            id="inspector-radio-options"
+            onChange={(event) => onAction({ type: 'node/props-radio', nodeId: node.id, props: { options: event.target.value.split('\\n').filter((item) => item.trim().length > 0) } })}
+            value={node.props.options.join('\\n')}
+          />
+          <TextInput
+            label="Selected index"
+            name="inspector-radio-selected"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({ type: 'node/props-radio', nodeId: node.id, props: { selectedIndex: parsed } });
+            }}
+            type="number"
+            value={node.props.selectedIndex}
+          />
+        </div>
+      ) : null}
+
+      {node.type === 'switch' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <TextInput
+            label="Label"
+            name="inspector-switch-label"
+            onChange={(event) => onAction({ type: 'node/props-switch', nodeId: node.id, props: { label: event.target.value } })}
+            value={node.props.label}
+          />
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={node.props.checked}
+              onChange={(event) => onAction({ type: 'node/props-switch', nodeId: node.id, props: { checked: event.target.checked } })}
+              type="checkbox"
+            />
+            On by default
+          </label>
+        </div>
+      ) : null}
+
+      {node.type === 'dropdown' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <TextInput
+            label="Label"
+            name="inspector-dropdown-label"
+            onChange={(event) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { label: event.target.value } })}
+            value={node.props.label}
+          />
+          <TextInput
+            label="Placeholder"
+            name="inspector-dropdown-placeholder"
+            onChange={(event) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { placeholder: event.target.value } })}
+            value={node.props.placeholder}
+          />
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-dropdown-options">Options</label>
+          <textarea
+            className="h-24 w-full rounded-tile border border-hairline bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:outline-brand-600"
+            id="inspector-dropdown-options"
+            onChange={(event) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { options: event.target.value.split('\\n').filter((item) => item.trim().length > 0) } })}
+            value={node.props.options.join('\\n')}
+          />
+          <TextInput
+            label="Selected index (-1 for none)"
+            name="inspector-dropdown-selected"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { selectedIndex: parsed } });
+            }}
+            type="number"
+            value={node.props.selectedIndex}
+          />
+        </div>
+      ) : null}
+
+      {node.type === 'slider' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <TextInput
+            label="Label"
+            name="inspector-slider-label"
+            onChange={(event) => onAction({ type: 'node/props-slider', nodeId: node.id, props: { label: event.target.value } })}
+            value={node.props.label}
+          />
+          <TextInput
+            label="Minimum"
+            name="inspector-slider-min"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({ type: 'node/props-slider', nodeId: node.id, props: { min: parsed } });
+            }}
+            type="number"
+            value={node.props.min}
+          />
+          <TextInput
+            label="Maximum"
+            name="inspector-slider-max"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({ type: 'node/props-slider', nodeId: node.id, props: { max: parsed } });
+            }}
+            type="number"
+            value={node.props.max}
+          />
+          <TextInput
+            label="Step"
+            name="inspector-slider-step"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({ type: 'node/props-slider', nodeId: node.id, props: { step: parsed } });
+            }}
+            type="number"
+            value={node.props.step}
+          />
+          <TextInput
+            label="Value"
+            name="inspector-slider-value"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({ type: 'node/props-slider', nodeId: node.id, props: { value: parsed } });
+            }}
+            type="number"
+            value={node.props.value}
+          />
+        </div>
+      ) : null}
+
+      {node.type === 'progress' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <TextInput
+            label="Label"
+            name="inspector-progress-label"
+            onChange={(event) => onAction({ type: 'node/props-progress', nodeId: node.id, props: { label: event.target.value } })}
+            value={node.props.label}
+          />
+          <TextInput
+            label="Value"
+            name="inspector-progress-value"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({ type: 'node/props-progress', nodeId: node.id, props: { value: parsed } });
+            }}
+            type="number"
+            value={node.props.value}
+          />
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={node.props.indeterminate}
+              onChange={(event) => onAction({ type: 'node/props-progress', nodeId: node.id, props: { indeterminate: event.target.checked } })}
+              type="checkbox"
+            />
+            Indeterminate
+          </label>
+        </div>
+      ) : null}
+
+      {node.type === 'divider' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-divider-orientation">Orientation</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-divider-orientation"
+            onChange={(event) => onAction({ type: 'node/props-divider', nodeId: node.id, props: { orientation: event.target.value as DividerProps['orientation'] } })}
+            value={node.props.orientation}
+          >
+            <option value="horizontal">Horizontal</option>
+            <option value="vertical">Vertical</option>
+          </select>
+          <TextInput
+            label="Thickness"
+            name="inspector-divider-thickness"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({ type: 'node/props-divider', nodeId: node.id, props: { thickness: parsed } });
+            }}
+            type="number"
+            value={node.props.thickness}
+          />
         </div>
       ) : null}
 
@@ -401,6 +649,7 @@ export function Inspector({
             options={[
               { value: 'solid', label: 'Solid' },
               { value: 'outline', label: 'Outline' },
+              { value: 'text', label: 'Text' },
             ]}
             value={node.props.variant}
           />
@@ -428,7 +677,7 @@ export function Inspector({
             value={node.props.fit}
           />
         ) : null}
-        {node.type === 'input' || node.type === 'container' || node.type === 'list' || node.type === 'form' ? (
+        {node.type === 'input' || node.type === 'container' || node.type === 'list' || node.type === 'form' || node.type === 'checkbox' || node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' || node.type === 'progress' || node.type === 'divider' ? (
           <p className="text-sm text-ink-muted">Fixed for the MVP.</p>
         ) : null}
       </div>

@@ -55,7 +55,7 @@ export function RegisterForm() {
   return (
     <form className="flex flex-col gap-4" noValidate onSubmit={handleSubmit}>
       {formError ? (
-        <p className="rounded-tile border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
+        <p className="rounded-tile border border-signal-invalid/30 bg-signal-invalid/5 px-3 py-2 text-sm text-signal-invalid" role="alert">
           {formError}
         </p>
       ) : null}

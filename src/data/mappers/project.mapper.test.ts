@@ -55,6 +55,8 @@ const FIXTURE_SCREEN: Screen = {
       h: 180,
       props: {
         items: [],
+        scrollable: true,
+        showDividers: true,
         dataSource: { kind: 'collection', collectionId: 'contacts', displayFieldId: 'email' },
       },
     },

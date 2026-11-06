@@ -185,7 +185,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                 type="button"
               >
                 Validation
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${validation.isValid ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${validation.isValid ? 'bg-signal-valid/10 text-signal-valid' : 'bg-signal-invalid/10 text-signal-invalid'}`}>
                   {validation.isValid ? 'Valid' : validation.issues.filter((issue) => issue.severity === 'error').length}
                 </span>
               </button>
@@ -223,6 +223,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
         <PreviewOverlay
           collections={projectData.collections}
           initialDevice={state.device}
+          initialScreenId={state.activeScreenId}
           onClose={() => setIsPreviewOpen(false)}
           projectName={project.name}
           recordsByCollection={projectData.recordsByCollection}

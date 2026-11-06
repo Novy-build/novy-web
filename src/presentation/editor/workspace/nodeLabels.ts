@@ -4,11 +4,18 @@ import type { ComponentNode } from '@domain/entities/componentNode';
 export const NODE_TYPE_LABELS: Record<ComponentNode['type'], string> = {
   button: 'Button',
   text: 'Text',
-  input: 'Input',
+  input: 'Text field',
   image: 'Image',
   container: 'Container',
   list: 'List',
   form: 'Form',
+  checkbox: 'Checkbox',
+  radio: 'Radio group',
+  switch: 'Switch',
+  dropdown: 'Dropdown',
+  slider: 'Slider',
+  progress: 'Progress',
+  divider: 'Divider',
 };
 
 /** Short content snippet used in layer rows and aria labels. */
@@ -24,6 +31,20 @@ export function nodeDisplayLabel(node: ComponentNode): string {
       return node.props.text;
     case 'input':
       return node.props.label;
+    case 'checkbox':
+      return node.props.label;
+    case 'radio':
+      return node.props.label;
+    case 'switch':
+      return node.props.label;
+    case 'dropdown':
+      return node.props.label;
+    case 'slider':
+      return node.props.label;
+    case 'progress':
+      return node.props.label;
+    case 'divider':
+      return node.props.orientation;
     case 'image':
       return node.props.alt.length > 0 ? node.props.alt : 'Untitled image';
     case 'list':

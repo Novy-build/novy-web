@@ -44,11 +44,12 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Student Tester')).toBeInTheDocument();
   });
 
-  it('signs out from the member header', async () => {
+  it('signs out from the account menu', async () => {
     await renderProjectsPage();
     await screen.findByRole('heading', { name: 'Hello, World!' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Account options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }));
 
     expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
   });
@@ -68,7 +69,7 @@ describe('ProjectsPage', () => {
     await renderProjectsPage();
     await screen.findByRole('heading', { name: 'Hello, World!' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    fireEvent.click(screen.getByText('New project'));
     expect(await screen.findByRole('heading', { name: 'Choose a starting template' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Student list/ }));

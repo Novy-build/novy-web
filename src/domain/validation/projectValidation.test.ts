@@ -61,7 +61,7 @@ describe('validateProject', () => {
       {
         ...makeButton('node_list'),
         type: 'list',
-        props: { items: [], dataSource: { kind: 'collection', collectionId: 'ghost', displayFieldId: 'field' } },
+        props: { items: [], scrollable: true, showDividers: true, dataSource: { kind: 'collection', collectionId: 'ghost', displayFieldId: 'field' } },
       } as ComponentNode,
     ]);
     const collection: DataCollection = {

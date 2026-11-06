@@ -142,6 +142,28 @@ function validateComponentProps(
         }
       }
       break;
+    case 'checkbox':
+    case 'switch':
+      if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Control label is empty.', base));
+      break;
+    case 'radio':
+    case 'dropdown':
+      if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Control label is empty.', base));
+      if (node.props.options.length === 0) issues.push(issue('component-options', 'error', 'component', 'Control needs at least one option.', base));
+      if (node.props.selectedIndex >= node.props.options.length || node.props.selectedIndex < -1) issues.push(issue('component-selection', 'warning', 'component', 'Selected option index is out of range.', base));
+      break;
+    case 'slider':
+      if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Slider label is empty.', base));
+      if (node.props.min >= node.props.max) issues.push(issue('component-range', 'error', 'component', 'Slider minimum must be less than maximum.', base));
+      if (node.props.step <= 0) issues.push(issue('component-range', 'error', 'component', 'Slider step must be positive.', base));
+      if (node.props.value < node.props.min || node.props.value > node.props.max) issues.push(issue('component-range', 'warning', 'component', 'Slider value is outside its range.', base));
+      break;
+    case 'progress':
+      if (node.props.value < 0 || node.props.value > 100) issues.push(issue('component-range', 'warning', 'component', 'Progress value should be between 0 and 100.', base));
+      break;
+    case 'divider':
+      if (node.props.thickness <= 0) issues.push(issue('component-size-invalid', 'error', 'component', 'Divider thickness must be positive.', base));
+      break;
     default:
       break;
   }

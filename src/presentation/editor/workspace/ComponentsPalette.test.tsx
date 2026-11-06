@@ -17,7 +17,7 @@ describe('ComponentsPalette', () => {
     expect(screen.getByLabelText('Add Container')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Text')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Button')).toBeInTheDocument();
-    expect(screen.getByLabelText('Add Input')).toBeInTheDocument();
+    expect(screen.getByLabelText('Add Text field')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Image')).toBeInTheDocument();
     expect(screen.getByLabelText('Add List')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Form')).toBeInTheDocument();

@@ -5,8 +5,12 @@ interface ModalProps {
   /** Id of the dialog heading, wired to aria-labelledby. */
   labelledBy: string;
   onClose: () => void;
-  /** Extra width classes on the panel, e.g. `max-w-2xl` for the gallery. */
+  /** Extra width/height classes on the panel, e.g. `max-w-2xl` for the gallery. */
   panelClassName?: string;
+  /** Whether the panel itself scrolls. Defaults to true. */
+  panelScrollable?: boolean;
+  /** Let the panel hug its content instead of stretching full width. */
+  panelFitContent?: boolean;
   children: ReactNode;
 }
 
@@ -14,7 +18,14 @@ interface ModalProps {
  * Accessible dialog foundation: labelled panel, trapped/restored focus,
  * background scroll lock, Escape, and scrim-click dismissal.
  */
-export function Modal({ labelledBy, onClose, panelClassName = 'max-w-md', children }: ModalProps) {
+export function Modal({
+  labelledBy,
+  onClose,
+  panelClassName = 'max-w-md',
+  panelScrollable = true,
+  panelFitContent = false,
+  children,
+}: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   useDialogFocus({ containerRef: panelRef, onClose });
 
@@ -33,7 +44,7 @@ export function Modal({ labelledBy, onClose, panelClassName = 'max-w-md', childr
       <div
         aria-labelledby={labelledBy}
         aria-modal="true"
-        className={`w-full overflow-y-auto rounded-panel border border-hairline bg-surface p-6 shadow-lg outline-none ${panelClassName}`}
+        className={`${panelFitContent ? 'w-auto' : 'w-full'} rounded-panel border border-hairline bg-surface p-6 shadow-lg outline-none ${panelScrollable ? 'overflow-y-auto' : 'overflow-hidden'} ${panelClassName}`}
         ref={panelRef}
         role="dialog"
         tabIndex={-1}

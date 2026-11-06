@@ -37,7 +37,7 @@ function buildScreen(): { screen: Screen; graphId: string } {
         y: 120,
         w: 200,
         h: 50,
-        props: { label: 'Answer', placeholder: 'Type yes' },
+        props: { label: 'Answer', placeholder: 'Type yes', inputType: 'text', multiline: false },
       },
     ],
     behaviors: [bundle.behavior],

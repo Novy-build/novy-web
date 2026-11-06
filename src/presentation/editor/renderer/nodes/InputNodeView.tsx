@@ -32,6 +32,15 @@ export function InputNodeView({
       ) : null}
       {renderStatic ? (
         <div className={widgetClass} />
+      ) : props.multiline ? (
+        <textarea
+          className={`${widgetClass} h-full py-2`}
+          id={inputId}
+          onChange={(event) => onValueChange?.(event.target.value)}
+          placeholder={props.placeholder}
+          readOnly={!isPreview}
+          tabIndex={isPreview ? 0 : -1}
+        />
       ) : (
         <input
           className={widgetClass}
@@ -40,6 +49,7 @@ export function InputNodeView({
           placeholder={props.placeholder}
           readOnly={!isPreview}
           tabIndex={isPreview ? 0 : -1}
+          type={props.inputType}
         />
       )}
     </div>

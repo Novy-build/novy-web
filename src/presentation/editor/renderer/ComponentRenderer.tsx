@@ -2,10 +2,17 @@ import type { ComponentNode } from '@domain/entities/componentNode';
 import { type PropsWithChildren } from 'react';
 import type { ComponentRendererProps } from './renderer';
 import { ButtonNodeView } from './nodes/ButtonNodeView';
+import { CheckboxNodeView } from './nodes/CheckboxNodeView';
 import { ContainerNodeView } from './nodes/ContainerNodeView';
+import { DividerNodeView } from './nodes/DividerNodeView';
+import { DropdownNodeView } from './nodes/DropdownNodeView';
 import { ImageNodeView } from './nodes/ImageNodeView';
 import { InputNodeView } from './nodes/InputNodeView';
 import { ListNodeView } from './nodes/ListNodeView';
+import { ProgressNodeView } from './nodes/ProgressNodeView';
+import { RadioNodeView } from './nodes/RadioNodeView';
+import { SliderNodeView } from './nodes/SliderNodeView';
+import { SwitchNodeView } from './nodes/SwitchNodeView';
 import { TextNodeView } from './nodes/TextNodeView';
 import { FormNodeView } from './nodes/FormNodeView';
 
@@ -107,7 +114,62 @@ export function ComponentRenderer({
     case 'image':
       return frame(<ImageNodeView props={node.props} />);
     case 'list':
-      return frame(<ListNodeView items={resolveListItems(node.props.items, node.props.dataSource, dataContext)} />);
+      return frame(
+        <ListNodeView
+          items={resolveListItems(node.props.items, node.props.dataSource, dataContext)}
+          scrollable={node.props.scrollable}
+          showDividers={node.props.showDividers}
+        />,
+      );
+    case 'checkbox':
+      return frame(
+        <CheckboxNodeView
+          isPreview={mode === 'preview'}
+          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
+    case 'radio':
+      return frame(
+        <RadioNodeView
+          isPreview={mode === 'preview'}
+          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
+    case 'switch':
+      return frame(
+        <SwitchNodeView
+          isPreview={mode === 'preview'}
+          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
+    case 'dropdown':
+      return frame(
+        <DropdownNodeView
+          isPreview={mode === 'preview'}
+          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
+    case 'slider':
+      return frame(
+        <SliderNodeView
+          isPreview={mode === 'preview'}
+          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
+    case 'progress':
+      return frame(<ProgressNodeView props={node.props} />);
+    case 'divider':
+      return frame(<DividerNodeView props={node.props} renderStatic={renderStatic} />);
     case 'container':
       return frame(
         <ContainerNodeView>

@@ -1,12 +1,19 @@
 import type {
   ButtonProps,
+  CheckboxProps,
   ComponentNode,
   ComponentType,
+  DividerProps,
+  DropdownProps,
   FormProps,
   ImageProps,
   InputProps,
   ListProps,
   NodeGeometry,
+  ProgressProps,
+  RadioProps,
+  SliderProps,
+  SwitchProps,
   TextProps,
 } from '@domain/entities/componentNode';
 import type {
@@ -50,6 +57,13 @@ export type EditorNodeAction =
   | { type: 'node/props-image'; nodeId: string; props: Partial<ImageProps> }
   | { type: 'node/props-list'; nodeId: string; props: Partial<ListProps> }
   | { type: 'node/props-form'; nodeId: string; props: Partial<FormProps> }
+  | { type: 'node/props-checkbox'; nodeId: string; props: Partial<CheckboxProps> }
+  | { type: 'node/props-radio'; nodeId: string; props: Partial<RadioProps> }
+  | { type: 'node/props-switch'; nodeId: string; props: Partial<SwitchProps> }
+  | { type: 'node/props-dropdown'; nodeId: string; props: Partial<DropdownProps> }
+  | { type: 'node/props-slider'; nodeId: string; props: Partial<SliderProps> }
+  | { type: 'node/props-progress'; nodeId: string; props: Partial<ProgressProps> }
+  | { type: 'node/props-divider'; nodeId: string; props: Partial<DividerProps> }
   | { type: 'node/duplicate'; nodeId: string }
   | { type: 'node/delete'; nodeId: string }
   | { type: 'node/order'; nodeId: string; direction: 'forward' | 'backward' }

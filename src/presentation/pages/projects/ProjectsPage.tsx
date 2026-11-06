@@ -5,13 +5,12 @@ import type { Template } from '@domain/entities/template';
 import { Button } from '@presentation/components/ui/Button';
 import { LoadingScreen } from '@presentation/components/system/LoadingScreen';
 import { TextInput } from '@presentation/components/ui/TextInput';
-import { useSession } from '@main/providers/SessionProvider';
+import { useProjects } from './useProjects';
 import { ProjectCard } from './ProjectCard';
+import { useTemplates } from './useTemplates';
 import { ConfirmDeleteDialog } from './dialogs/ConfirmDeleteDialog';
 import { RenameDialog } from './dialogs/RenameDialog';
 import { TemplateGalleryModal } from './TemplateGalleryModal';
-import { useProjects } from './useProjects';
-import { useTemplates } from './useTemplates';
 
 /**
  * Projects dashboard: member header, search over project cards, the New
@@ -19,7 +18,6 @@ import { useTemplates } from './useTemplates';
  * through the injected repositories — never directly from this page.
  */
 export function ProjectsPage() {
-  const { user, signOut } = useSession();
   const navigate = useNavigate();
   const {
     projects,
@@ -75,25 +73,7 @@ export function ProjectsPage() {
   }, [deleteProject, deleteTarget]);
 
   return (
-    <div className="flex min-h-full flex-col bg-canvas" id="main-content">
-      <header className="flex items-center justify-between border-b border-hairline bg-surface px-6 py-3">
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="flex h-8 w-8 items-center justify-center rounded-tile bg-brand-600 text-sm font-bold text-white"
-          >
-            N
-          </span>
-          <span className="text-base font-bold tracking-tight text-ink">Novy</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-ink-muted">{user?.displayName ?? ''}</p>
-          <Button onClick={() => void signOut()} variant="ghost">
-            Sign out
-          </Button>
-        </div>
-      </header>
-
+    <div className="flex min-h-full flex-col bg-canvas">
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
