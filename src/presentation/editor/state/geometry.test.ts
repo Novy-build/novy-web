@@ -8,6 +8,7 @@ import {
   resizeFromHandle,
   snapOrRaw,
   snapValue,
+  usesCompactEditorChrome,
 } from './geometry';
 
 describe('snapValue / snapOrRaw', () => {
@@ -49,6 +50,17 @@ describe('deviceViewport', () => {
     expect(deviceViewport('mobile')).toEqual(CANVAS_PRESETS.mobile);
     expect(deviceViewport('tablet')).toEqual(CANVAS_PRESETS.tablet);
     expect(deviceViewport('desktop')).toEqual(CANVAS_PRESETS.desktop);
+  });
+});
+
+describe('usesCompactEditorChrome', () => {
+  it('collapses the editor rails for mobile and tablet frames', () => {
+    expect(usesCompactEditorChrome('mobile')).toBe(true);
+    expect(usesCompactEditorChrome('tablet')).toBe(true);
+  });
+
+  it('keeps both rails inline for the desktop frame', () => {
+    expect(usesCompactEditorChrome('desktop')).toBe(false);
   });
 });
 

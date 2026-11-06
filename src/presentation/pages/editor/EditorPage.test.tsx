@@ -81,6 +81,67 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(within(sidebar).getByRole('button', { name: 'Text — Hello, World!' })).toBeInTheDocument();
   });
 
+  it('adapts the editor chrome to the selected device preset', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    await screen.findByTestId('canvas-frame');
+
+    // Desktop keeps both rails inline and hides the compact panel bar.
+    expect(screen.queryByTestId('preset-panel-bar')).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Editor sidebar' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mobile' }));
+
+    expect(screen.getByTestId('preset-panel-bar')).toHaveTextContent('mobile preset');
+    expect(screen.queryByRole('complementary', { name: 'Editor sidebar' })).not.toBeInTheDocument();
+
+    // Panels are available as drawers while a compact preset is active.
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle layers panel' }));
+    const layersDrawer = screen.getByRole('dialog', { name: 'Editor panel' });
+    expect(within(layersDrawer).getByRole('complementary', { name: 'Editor sidebar' })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Editor panel' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle inspector panel' }));
+    expect(screen.getByRole('dialog', { name: 'Editor panel' })).toBeInTheDocument();
+
+    // Returning to desktop restores the inline rails and closes the drawer.
+    fireEvent.click(screen.getByRole('button', { name: 'Desktop' }));
+
+    expect(screen.queryByTestId('preset-panel-bar')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Editor panel' })).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Editor sidebar' })).toBeInTheDocument();
+  });
+
+  it('centers canvas content as a group when the preset changes', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    const canvas = await screen.findByTestId('canvas-frame');
+
+    const titleFrame = () => within(canvas).getByText('Hello, World!').closest('[data-node-id]');
+    const bodyFrame = () =>
+      within(canvas).getByText('Press the button to change the text above.').closest('[data-node-id]');
+    const buttonFrame = () => within(canvas).getByRole('button', { name: 'Click me' }).closest('[data-node-id]');
+
+    // Seeded mobile composition: the group spans x 80..310 (230 wide).
+    expect(titleFrame()).toHaveStyle({ left: '95px' });
+    expect(bodyFrame()).toHaveStyle({ left: '90px' });
+    expect(buttonFrame()).toHaveStyle({ left: '80px' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tablet' }));
+
+    // Tablet centers that 230px group at (768 - 230) / 2 = 269, so every
+    // node shifts by +189 and keeps its relative offset.
+    expect(titleFrame()).toHaveStyle({ left: '284px' });
+    expect(bodyFrame()).toHaveStyle({ left: '279px' });
+    expect(buttonFrame()).toHaveStyle({ left: '269px' });
+  });
+
   it('places, edits, and previews the PD6 Form component', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);

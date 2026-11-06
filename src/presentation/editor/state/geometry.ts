@@ -10,6 +10,16 @@ export type EditorDevice = keyof typeof CANVAS_PRESETS;
 
 /** Default device for new editor sessions. Web apps are the current focus. */
 export const DEFAULT_EDITOR_DEVICE: EditorDevice = 'desktop';
+
+/**
+ * Presets whose frame is narrower than the editor rails can afford. Their
+ * chrome collapses the Layers/Inspector rails into drawers; desktop keeps
+ * both rails inline. This is the preset breakpoint the editor layout follows
+ * (not the browser window width).
+ */
+export function usesCompactEditorChrome(device: EditorDevice): boolean {
+  return device === 'mobile' || device === 'tablet';
+}
 export function snapValue(value: number): number {
   return Math.round(value / SNAP_GRID) * SNAP_GRID;
 }

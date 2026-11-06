@@ -32,6 +32,7 @@ import {
 } from '@domain/componentTree';
 import type { ScreenFrameSize } from '@presentation/editor/renderer/ScreenFrame';
 import { clampNodeToBounds, deviceViewport, snapOrRaw } from './geometry';
+import { centerNodesForViewport } from './presetLayout';
 import { behaviorDisplayName } from '../logic/behaviorLabels';
 import {
   createEditorState,
@@ -679,8 +680,28 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     // Device chrome -----------------------------------------------------------
 
-    case 'device/set':
-      return { ...state, device: action.device, selectedNodeId: null };
+    case 'device/set': {
+      // A preset change re-centers every screen so content stays visually
+      // anchored to the frame instead of clinging to its old coordinates.
+      // Group centering keeps relative composition; hidden nodes move too.
+      const viewport = deviceViewport(action.device);
+      const screens = state.document.screens.map((screen) => {
+        const nodes = centerNodesForViewport(screen.nodes, viewport);
+        return nodes === screen.nodes ? screen : { ...screen, nodes };
+      });
+      const didMoveContent = screens.some((screen, index) => screen !== state.document.screens[index]);
+
+      if (!didMoveContent) {
+        return { ...state, device: action.device, selectedNodeId: null };
+      }
+
+      return pushHistory(state, () => ({
+        ...state,
+        device: action.device,
+        selectedNodeId: null,
+        document: { screens },
+      }) as EditorState);
+    }
 
     case 'zoom/set':
       return {

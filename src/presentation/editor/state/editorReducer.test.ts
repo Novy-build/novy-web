@@ -573,6 +573,28 @@ describe('autosave + chrome', () => {
     expect(state.selectedNodeId).toBeNull();
   });
 
+  it('re-centers screen content when the device preset changes', () => {
+    const state = editorReducer(stateAt(), { type: 'device/set', device: 'mobile' });
+    const nodes = getActiveScreen(state).nodes;
+
+    // Node group spans 88..288 (200 wide) inside the 390px mobile frame.
+    expect(nodes[0]).toMatchObject({ id: 'node_text', x: 95, y: 96 });
+    expect(nodes[1]).toMatchObject({ id: 'node_button', x: 127, y: 560 });
+    expect(state.device).toBe('mobile');
+    expect(state.past).toHaveLength(1);
+    expect(state.hasUnsavedChanges).toBe(true);
+  });
+
+  it('does not add history when the preset is already applied', () => {
+    let state = editorReducer(stateAt(), { type: 'device/set', device: 'mobile' });
+    const centeredMobile = getActiveScreen(state).nodes;
+
+    state = editorReducer(state, { type: 'device/set', device: 'mobile' });
+
+    expect(getActiveScreen(state).nodes).toEqual(centeredMobile);
+    expect(state.past).toHaveLength(1);
+  });
+
   it('tracks and clears the drop indicator', () => {
     const positioned = editorReducer(stateAt(), { type: 'canvas/dropIndicator', position: { x: 96, y: 24 } });
     expect(positioned.dropIndicator).toEqual({ x: 96, y: 24 });
