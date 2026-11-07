@@ -627,6 +627,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         action.fromNodeId,
         action.fromPort,
         action.toNodeId,
+        action.toPort ?? 'in',
       );
       if (!nextGraph) {
         return state;

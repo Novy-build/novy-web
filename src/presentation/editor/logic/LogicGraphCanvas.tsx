@@ -3,15 +3,22 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
-  type WheelEvent,
 } from 'react';
 import type {
   LogicEdge,
   LogicGraph,
+  LogicInputPort,
   LogicNode,
   LogicOutputPort,
+  LogicResourcePort,
 } from '@domain/entities/logic';
-import { canConnectLogicPorts, connectLogicPorts, outputPortsFor } from '@domain/logic/graph';
+import {
+  canConnectLogicPorts,
+  connectLogicPorts,
+  outputPortsFor,
+  resourceInputPortsFor,
+  resourceOutputPortsFor,
+} from '@domain/logic/graph';
 import { logicNodeTitle } from './logicLabels';
 import {
   LOGIC_NODE_MIME,
@@ -21,6 +28,8 @@ import {
 
 const CARD = { w: 192, h: 96 };
 const CONDITION_HEIGHT = 124;
+const RESOURCE_CARD = { w: 168, h: 76 };
+const RESOURCE_PORT_SLOT_WIDTH = 80;
 const DRAG_THRESHOLD = 4;
 
 interface LogicGraphCanvasProps {
@@ -30,7 +39,7 @@ interface LogicGraphCanvasProps {
   onDropLibraryNode: (node: LogicLibraryNode, position: { x: number; y: number }) => void;
   onNodeDragStart: () => void;
   onMoveNode: (nodeId: string, x: number, y: number) => void;
-  onConnect: (fromNodeId: string, fromPort: LogicOutputPort, toNodeId: string) => void;
+  onConnect: (fromNodeId: string, fromPort: LogicOutputPort, toNodeId: string, toPort?: LogicInputPort) => void;
   onDeleteEdge: (edgeId: string) => void;
   targetLabelFor: (nodeId: string) => string | null;
   screenNameFor: (screenId: string) => string | null;
@@ -95,6 +104,25 @@ export function LogicGraphCanvas({
     };
   }, [onDeleteEdge, selectedEdgeId]);
 
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) {
+      return;
+    }
+    function handleWheel(event: WheelEvent): void {
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+      event.preventDefault();
+      setViewport((current) => ({
+        ...current,
+        zoom: clampZoom(current.zoom + (event.deltaY < 0 ? 0.1 : -0.1)),
+      }));
+    }
+    stage.addEventListener('wheel', handleWheel, { passive: false });
+    return () => stage.removeEventListener('wheel', handleWheel);
+  }, []);
+
   function worldPoint(clientX: number, clientY: number): { x: number; y: number } {
     const rect = stageRef.current?.getBoundingClientRect();
     return {
@@ -122,17 +150,6 @@ export function LogicGraphCanvas({
     }
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', finish);
-  }
-
-  function handleWheel(event: WheelEvent<HTMLDivElement>): void {
-    if (!event.ctrlKey && !event.metaKey) {
-      return;
-    }
-    event.preventDefault();
-    setViewport((current) => ({
-      ...current,
-      zoom: clampZoom(current.zoom + (event.deltaY < 0 ? 0.1 : -0.1)),
-    }));
   }
 
   function handleLibraryDragOver(event: React.DragEvent<HTMLDivElement>): void {
@@ -180,13 +197,13 @@ export function LogicGraphCanvas({
     window.addEventListener('pointerup', finish);
   }
 
-  function requestConnection(source: ConnectionSource, toNodeId: string): void {
-    const valid = connectLogicPorts(graph, source.nodeId, source.port, toNodeId);
+  function requestConnection(source: ConnectionSource, toNodeId: string, toPort: LogicInputPort = 'in'): void {
+    const valid = connectLogicPorts(graph, source.nodeId, source.port, toNodeId, toPort);
     if (!valid) {
       setFeedback('That connection is invalid or would create a cycle.');
       return;
     }
-    onConnect(source.nodeId, source.port, toNodeId);
+    onConnect(source.nodeId, source.port, toNodeId, toPort);
     setFeedback('Connection created.');
     setConnectionSource(null);
     setConnectionPoint(null);
@@ -209,8 +226,9 @@ export function LogicGraphCanvas({
         ? upEvent.target.closest<HTMLElement>('[data-input-node]')
         : null;
       const targetId = element?.dataset.inputNode;
+      const targetPort = element?.dataset.inputPort as LogicInputPort | undefined;
       if (targetId) {
-        requestConnection(source, targetId);
+        requestConnection(source, targetId, targetPort ?? 'in');
       } else {
         setConnectionPoint(null);
       }
@@ -226,7 +244,7 @@ export function LogicGraphCanvas({
     }
     const minX = Math.min(...graph.nodes.map((node) => node.position.x));
     const minY = Math.min(...graph.nodes.map((node) => node.position.y));
-    const maxX = Math.max(...graph.nodes.map((node) => node.position.x + CARD.w));
+    const maxX = Math.max(...graph.nodes.map((node) => node.position.x + nodeWidth(node)));
     const maxY = Math.max(...graph.nodes.map((node) => node.position.y + nodeHeight(node)));
     const zoom = clampZoom(Math.min((stage.clientWidth - 96) / (maxX - minX), (stage.clientHeight - 96) / (maxY - minY)));
     setViewport({ x: 48 - minX * zoom, y: 48 - minY * zoom, zoom });
@@ -239,7 +257,7 @@ export function LogicGraphCanvas({
   }, [graph.id]);
 
   const temporaryStart = connectionSource
-    ? outputPoint(graph.nodes.find((node) => node.id === connectionSource.nodeId), connectionSource.port)
+    ? connectionSourcePoint(graph.nodes.find((node) => node.id === connectionSource.nodeId), connectionSource.port)
     : null;
 
   return (
@@ -249,7 +267,6 @@ export function LogicGraphCanvas({
       onDragOver={handleLibraryDragOver}
       onDrop={handleLibraryDrop}
       onPointerDown={beginPan}
-      onWheel={handleWheel}
       ref={stageRef}
       style={{
         backgroundImage: 'radial-gradient(circle, var(--color-grid-dot) 1px, transparent 1px)',
@@ -286,14 +303,14 @@ export function LogicGraphCanvas({
 
         {graph.nodes.map((node) => (
           <div
-            className={`absolute rounded-panel border bg-surface shadow-sm ${
+            className={`absolute rounded-panel border shadow-sm ${isResourceOnlyNode(node) ? 'bg-canvas' : 'bg-surface'} ${
               selectedNodeId === node.id ? 'border-brand-600 ring-2 ring-brand-500' : 'border-hairline'
             }`}
             key={node.id}
             onPointerDown={(event) => beginNodeDrag(event, node)}
-            style={{ height: nodeHeight(node), left: node.position.x, top: node.position.y, width: CARD.w }}
+            style={{ height: nodeHeight(node), left: node.position.x, top: node.position.y, width: nodeWidth(node) }}
           >
-            {node.kind !== 'trigger' ? (
+            {node.kind !== 'trigger' && !isResourceOnlyNode(node) ? (
               <button
                 aria-label={`Input of ${logicNodeTitle(node)}`}
                 className={`absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 bg-surface ${
@@ -319,7 +336,8 @@ export function LogicGraphCanvas({
                       )
                     : undefined
                 }
-                onClick={() => connectionSource && requestConnection(connectionSource, node.id)}
+                data-input-port="in"
+                onClick={() => connectionSource && requestConnection(connectionSource, node.id, 'in')}
                 onPointerDown={(event) => event.stopPropagation()}
                 type="button"
               />
@@ -338,7 +356,7 @@ export function LogicGraphCanvas({
               </span>
             </button>
 
-            {outputPortsFor(node).map((port) => (
+            {canvasControlOutputPorts(node).map((port) => (
               <button
                 aria-label={`${port} output of ${logicNodeTitle(node)}`}
                 className={`absolute -right-2 h-4 w-4 rounded-full border-2 bg-surface ${
@@ -357,8 +375,8 @@ export function LogicGraphCanvas({
                 <span className="sr-only">{port}</span>
               </button>
             ))}
-            {outputPortsFor(node).length > 1
-              ? outputPortsFor(node).map((port) => (
+            {canvasControlOutputPorts(node).length > 1
+              ? canvasControlOutputPorts(node).map((port) => (
                   <span
                     className="absolute right-3 text-[10px] font-medium text-ink-muted"
                     key={`label-${port}`}
@@ -368,6 +386,68 @@ export function LogicGraphCanvas({
                   </span>
                 ))
               : null}
+
+            {resourceInputPortsFor(node).map((port, index, ports) => (
+              <span
+                className="absolute bottom-0"
+                data-resource-port-anchor={port}
+                key={`resource-input-${port}`}
+                style={{ left: resourcePortLeft(index, ports.length, nodeWidth(node)) }}
+              >
+                <button
+                  aria-label={`${port} resource input of ${logicNodeTitle(node)}`}
+                  className={`absolute -bottom-2 h-4 w-4 -translate-x-1/2 rounded-full border-2 bg-surface ${
+                    connectionSource
+                      ? canConnectLogicPorts(graph, connectionSource.nodeId, connectionSource.port, node.id, port)
+                        ? 'border-cyan-500 ring-2 ring-cyan-200'
+                        : 'border-red-500'
+                      : 'border-cyan-600'
+                  }`}
+                  data-input-node={node.id}
+                  data-input-port={port}
+                  onClick={() => connectionSource && requestConnection(connectionSource, node.id, port)}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  type="button"
+                />
+                <span
+                  className="pointer-events-none absolute top-3 w-20 -translate-x-1/2 truncate text-center text-[9px] text-ink-muted"
+                  data-resource-port-label={port}
+                  title={port}
+                >
+                  {port}
+                </span>
+              </span>
+            ))}
+
+            {resourceOutputPortsFor(node).map((port, index, ports) => (
+              <span
+                className="absolute top-0"
+                data-resource-port-anchor={port}
+                key={`resource-output-${port}`}
+                style={{ left: resourcePortLeft(index, ports.length, nodeWidth(node)) }}
+              >
+                <button
+                  aria-label={`${port} resource output of ${logicNodeTitle(node)}`}
+                  className={`absolute -top-2 h-4 w-4 -translate-x-1/2 rounded-full border-2 bg-surface ${
+                    connectionSource?.nodeId === node.id && connectionSource.port === port
+                      ? 'border-cyan-600 bg-cyan-100'
+                      : 'border-cyan-600'
+                  }`}
+                  data-output-node={node.id}
+                  data-output-port={port}
+                  onClick={() => setConnectionSource({ nodeId: node.id, port })}
+                  onPointerDown={(event) => beginConnection(event, { nodeId: node.id, port })}
+                  type="button"
+                />
+                <span
+                  className="pointer-events-none absolute bottom-3 w-20 -translate-x-1/2 truncate text-center text-[9px] text-ink-muted"
+                  data-resource-port-label={port}
+                  title={port}
+                >
+                  {port}
+                </span>
+              </span>
+            ))}
           </div>
         ))}
       </div>
@@ -391,8 +471,14 @@ function LogicEdgePath({ edge, graph, isSelected, onSelect }: { edge: LogicEdge;
   if (!from || !to) {
     return null;
   }
-  const start = outputPoint(from, edge.fromPort)!;
-  const end = { x: to.position.x, y: to.position.y + nodeHeight(to) / 2 };
+  const isResource = edge.kind === 'resource' || edge.toPort !== 'in';
+  const start = isResource
+    ? resourceOutputPoint(from, edge.fromPort as LogicResourcePort)
+    : outputPoint(from, edge.fromPort);
+  const end = isResource
+    ? resourceInputPoint(to, edge.toPort as LogicResourcePort)
+    : { x: to.position.x, y: to.position.y + nodeHeight(to) / 2 };
+  if (!start || !end) return null;
   return (
     <path
       aria-label={`Connection from ${logicNodeTitle(from)} ${edge.fromPort} to ${logicNodeTitle(to)}`}
@@ -403,6 +489,7 @@ function LogicEdgePath({ edge, graph, isSelected, onSelect }: { edge: LogicEdge;
       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelect(); }}
       role="button"
       stroke="currentColor"
+      strokeDasharray={isResource ? '5 4' : undefined}
       strokeLinecap="round"
       strokeWidth={isSelected ? 4 : 2}
       tabIndex={0}
@@ -431,9 +518,22 @@ function detailFor(node: LogicNode, targetLabelFor: (nodeId: string) => string |
     case 'refresh-collection': return node.payload.collectionId ? `Refresh ${node.payload.collectionId}` : 'Collection not set';
     case 'set-variable': return node.payload.name ? `Set ${node.payload.name}` : 'Variable not set';
     case 'set-component-value': return node.payload.targetNodeId ? `Set ${node.payload.targetNodeId}` : 'Component not set';
-    case 'rag-index': return node.payload.documentId ? `Index ${node.payload.documentId}` : 'Document not set';
-    case 'rag-query': return node.payload.query ? `Ask “${truncate(node.payload.query)}”` : 'Query not set';
-    case 'rag-remove': return node.payload.documentId ? `Remove ${node.payload.documentId}` : 'Document not set';
+    case 'document-load': return `${node.payload.source} document source`;
+    case 'text-split': return `${node.payload.chunkSize} size · ${node.payload.chunkOverlap} overlap`;
+    case 'embedding-generate': return node.payload.connectionProfileId || 'Embedding profile not set';
+    case 'vector-upsert': return node.payload.indexName || 'Vector index not set';
+    case 'vector-delete': return node.payload.documentId || 'Document not set';
+    case 'chat-input': return node.payload.componentId ? `Read ${targetLabelFor(node.payload.componentId) ?? node.payload.componentId}` : 'Input not set';
+    case 'query-embedding': return node.payload.connectionProfileId || 'Embedding profile not set';
+    case 'vector-retrieve': return `Top ${node.payload.topK} · score ≥ ${node.payload.minimumScore}`;
+    case 'rerank': return `Top ${node.payload.topN} · score ≥ ${node.payload.minimumScore}`;
+    case 'prompt-template': return truncate(node.payload.template);
+    case 'llm-generate': return node.payload.connectionProfileId || 'LLM profile not set';
+    case 'chat-output': return node.payload.targetNodeId ? `Render to ${targetLabelFor(node.payload.targetNodeId) ?? node.payload.targetNodeId}` : 'Output target not set';
+    case 'memory': return `${node.payload.operation} · ${node.payload.scope}`;
+    case 'vector-store': return `${node.payload.operation} · ${node.payload.indexName || 'index not set'}`;
+    case 'chat-model': return node.payload.connectionProfileId || 'Chat model profile not set';
+    case 'ai-agent': return `${node.payload.maxIterations} max iterations`;
     case 'cv-liveness': return 'Check liveness';
     case 'cv-enroll': return 'Enroll biometric';
     case 'cv-verify': return 'Verify biometric';
@@ -442,7 +542,33 @@ function detailFor(node: LogicNode, targetLabelFor: (nodeId: string) => string |
 }
 
 function outputPoint(node: LogicNode | undefined, port: LogicOutputPort): { x: number; y: number } | null {
-  return node ? { x: node.position.x + CARD.w, y: node.position.y + outputPortTop(node, port) + 8 } : null;
+  return node ? { x: node.position.x + nodeWidth(node), y: node.position.y + outputPortTop(node, port) + 8 } : null;
+}
+
+function connectionSourcePoint(node: LogicNode | undefined, port: LogicOutputPort): { x: number; y: number } | null {
+  if (!node) return null;
+  return resourceOutputPortsFor(node).includes(port as LogicResourcePort)
+    ? resourceOutputPoint(node, port as LogicResourcePort)
+    : outputPoint(node, port);
+}
+
+function resourceOutputPoint(node: LogicNode | undefined, port: LogicResourcePort): { x: number; y: number } | null {
+  if (!node) return null;
+  const ports = resourceOutputPortsFor(node);
+  const index = ports.indexOf(port);
+  return index === -1 ? null : {
+    x: node.position.x + resourcePortLeft(index, ports.length, nodeWidth(node)),
+    y: node.position.y,
+  };
+}
+
+function resourceInputPoint(node: LogicNode, port: LogicResourcePort): { x: number; y: number } | null {
+  const ports = resourceInputPortsFor(node);
+  const index = ports.indexOf(port);
+  return index === -1 ? null : {
+    x: node.position.x + resourcePortLeft(index, ports.length, nodeWidth(node)),
+    y: node.position.y + nodeHeight(node),
+  };
 }
 
 function outputPortTop(node: LogicNode, port: LogicOutputPort): number {
@@ -452,7 +578,38 @@ function outputPortTop(node: LogicNode, port: LogicOutputPort): number {
 }
 
 function nodeHeight(node: LogicNode): number {
+  if (isResourceOnlyNode(node)) return RESOURCE_CARD.h;
   return outputPortsFor(node).length > 1 ? CONDITION_HEIGHT : CARD.h;
+}
+
+function nodeWidth(node: LogicNode): number {
+  const baseWidth = isResourceOnlyNode(node) ? RESOURCE_CARD.w : CARD.w;
+  const resourcePortCount = Math.max(
+    resourceInputPortsFor(node).length,
+    resourceOutputPortsFor(node).length,
+  );
+  return Math.max(baseWidth, resourcePortCount * RESOURCE_PORT_SLOT_WIDTH);
+}
+
+function resourcePortLeft(index: number, count: number, width: number): number {
+  const slotWidth = width / count;
+  return (index + 0.5) * slotWidth;
+}
+
+function isResourceOnlyNode(node: LogicNode): boolean {
+  if (node.kind !== 'action') return false;
+  return node.payload.type === 'document-load' ||
+    node.payload.type === 'text-split' ||
+    node.payload.type === 'embedding-generate' ||
+    node.payload.type === 'chat-model' ||
+    node.payload.type === 'memory' ||
+    node.payload.type === 'rerank' ||
+    node.payload.type === 'prompt-template' ||
+    (node.payload.type === 'vector-store' && node.payload.operation === 'retrieve-tool');
+}
+
+function canvasControlOutputPorts(node: LogicNode): readonly LogicOutputPort[] {
+  return isResourceOnlyNode(node) ? [] : outputPortsFor(node);
 }
 
 function bezierPath(from: { x: number; y: number }, to: { x: number; y: number }): string {

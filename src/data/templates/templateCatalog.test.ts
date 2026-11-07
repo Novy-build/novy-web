@@ -37,6 +37,7 @@ describe('templateCatalog', () => {
       'Unlock',
       'Notes',
       'Note Editor',
+      'Ask Notes',
     ]);
     expect(unlock?.path).toBe('/');
     expect(unlock?.nodes.some((node) => node.type === 'camera')).toBe(true);
@@ -45,5 +46,12 @@ describe('templateCatalog', () => {
       (node) => node.kind === 'action' && node.payload.type === 'cv-verify',
     )).toBe(true);
     expect(unlock?.logicGraphs.some((graph) => graph.name === 'Standard sign-in fallback')).toBe(true);
+    const ask = notes?.screens.find((candidate) => candidate.name === 'Ask Notes');
+    expect(ask?.logicGraphs.find((graph) => graph.purpose === 'ingestion')?.nodes.some(
+      (node) => node.kind === 'action' && node.payload.type === 'vector-store' && node.payload.operation === 'upsert',
+    )).toBe(true);
+    expect(ask?.logicGraphs.find((graph) => graph.purpose === 'chat')?.nodes.some(
+      (node) => node.kind === 'action' && node.payload.type === 'ai-agent',
+    )).toBe(true);
   });
 });

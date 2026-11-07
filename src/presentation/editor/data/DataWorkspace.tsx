@@ -7,6 +7,7 @@ import { CollectionSchemaEditor } from './CollectionSchemaEditor';
 import { RecordDialog } from './RecordDialog';
 import { RecordsTable } from './RecordsTable';
 import type { ProjectDataController } from './useProjectData';
+import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
 
 type DataTab = 'schema' | 'records';
 
@@ -21,6 +22,7 @@ export function DataWorkspace({ data }: { data: ProjectDataController }) {
   const [recordTarget, setRecordTarget] = useState<DataRecord | 'new' | null>(null);
   const [deleteRecordTarget, setDeleteRecordTarget] = useState<DataRecord | null>(null);
   const [deleteCollectionOpen, setDeleteCollectionOpen] = useState(false);
+  const [isCollectionsCollapsed, setIsCollectionsCollapsed] = useState(false);
 
   useEffect(() => {
     if (selectedId && data.collections.some((collection) => collection.id === selectedId)) return;
@@ -91,9 +93,26 @@ export function DataWorkspace({ data }: { data: ProjectDataController }) {
 
   return (
     <section aria-label="Data workspace" className="flex min-h-0 flex-1 bg-canvas">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-hairline bg-surface" aria-label="Collections">
+      {isCollectionsCollapsed ? (
+        <CollapsedPanelRail
+          controls="data-collections-panel"
+          label="collections panel"
+          onExpand={() => setIsCollectionsCollapsed(false)}
+          side="left"
+        />
+      ) : (
+      <aside className="flex w-64 shrink-0 flex-col border-r border-hairline bg-surface" aria-label="Collections" id="data-collections-panel">
         <div className="border-b border-hairline p-3">
-          <h2 className="text-sm font-semibold text-ink">Collections</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink">Collections</h2>
+            <PanelCollapseButton
+              controls="data-collections-panel"
+              isCollapsed={false}
+              label="collections panel"
+              onToggle={() => setIsCollectionsCollapsed(true)}
+              side="left"
+            />
+          </div>
           <label className="sr-only" htmlFor="collection-search">Search collections</label>
           <input className="mt-2 h-8 w-full rounded-md border border-hairline px-2 text-sm" id="collection-search" onChange={(event) => setSearch(event.target.value)} placeholder="Search…" type="search" value={search} />
         </div>
@@ -119,6 +138,7 @@ export function DataWorkspace({ data }: { data: ProjectDataController }) {
           <Button className="mt-2" disabled={!newName.trim()} isBlock isLoading={creating} type="submit">Create collection</Button>
         </form>
       </aside>
+      )}
 
       {collection ? (
         <div className="flex min-w-0 flex-1 flex-col">

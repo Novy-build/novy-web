@@ -9,6 +9,8 @@ import {
   normalizeLogicGraph,
   orderChain,
   outputPortsFor,
+  resourceInputPortsFor,
+  resourceOutputPortsFor,
   removeConnection,
   removeLogicNodes,
   updateAction,
@@ -261,5 +263,26 @@ describe('typed graph ports and conditions', () => {
 
     expect(moved.nodes[0]!.position).toEqual({ x: 144, y: 88 });
     expect(moveLogicNode(moved, trigger.id, { x: 144, y: 88 })).toBe(moved);
+  });
+
+  it('connects compatible resource ports without consuming control ports', () => {
+    const splitter = createActionNode({ type: 'text-split', strategy: 'recursive-character', chunkSize: 700, chunkOverlap: 100, separators: [] });
+    const loader = createActionNode({ type: 'document-load', source: 'inline', sourceReference: '', documentId: 'doc', title: '', text: 'Hello', metadata: {} });
+    const vectorStore = createActionNode({ type: 'vector-store', operation: 'upsert', connectionProfileId: 'vector', indexName: 'notes', namespace: '', documentInputMode: 'document-loader', conflictMode: 'upsert', documentId: '', topK: 5, minimumScore: 0 });
+    const graph: ReturnType<typeof buildGraph>['graph'] = {
+      ...buildGraph().graph,
+      nodes: [splitter, loader, vectorStore],
+      edges: [],
+    };
+
+    expect(resourceOutputPortsFor(splitter)).toEqual(['text-splitter']);
+    expect(resourceInputPortsFor(loader)).toEqual(['text-splitter']);
+    const connected = connectLogicPorts(graph, splitter.id, 'text-splitter', loader.id, 'text-splitter');
+    expect(connected?.edges[0]).toMatchObject({
+      fromPort: 'text-splitter',
+      toPort: 'text-splitter',
+      kind: 'resource',
+    });
+    expect(connectLogicPorts(graph, splitter.id, 'text-splitter', vectorStore.id, 'embeddings')).toBeNull();
   });
 });

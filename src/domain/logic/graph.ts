@@ -8,6 +8,7 @@ import type {
   LogicNode,
   LogicNodePosition,
   LogicOutputPort,
+  LogicResourcePort,
   TriggerEvent,
 } from '../entities/logic';
 import {
@@ -41,7 +42,7 @@ export function orderChain(graph: LogicGraph): LogicNode[] {
     visited.add(id);
     ordered.push(node);
     graph.edges
-      .filter((edge) => edge.fromNodeId === id)
+      .filter((edge) => edge.fromNodeId === id && edge.kind !== 'resource')
       .sort((left, right) => portOrder(left.fromPort) - portOrder(right.fromPort))
       .forEach((edge) => queue.push(edge.toNodeId));
   }
@@ -62,7 +63,14 @@ export function connectLogicPorts(
     ...graph,
     edges: [
       ...graph.edges,
-      { id: generateId('edge'), fromNodeId, fromPort, toNodeId, toPort },
+      {
+        id: generateId('edge'),
+        fromNodeId,
+        fromPort,
+        toNodeId,
+        toPort,
+        kind: toPort === 'in' ? 'control' : 'resource',
+      },
     ],
   };
 }
@@ -76,16 +84,23 @@ export function canConnectLogicPorts(
 ): boolean {
   const from = graph.nodes.find((node) => node.id === fromNodeId);
   const to = graph.nodes.find((node) => node.id === toNodeId);
-  if (!from || !to || fromNodeId === toNodeId || to.kind === 'trigger' || toPort !== 'in') {
+  if (!from || !to || fromNodeId === toNodeId || to.kind === 'trigger') {
     return false;
+  }
+  if (toPort !== 'in') {
+    if (fromPort !== toPort) return false;
+    if (!resourceOutputPortsFor(from).includes(fromPort as LogicResourcePort)) return false;
+    if (!resourceInputPortsFor(to).includes(toPort as LogicResourcePort)) return false;
+    if (toPort !== 'tool' && graph.edges.some((edge) => edge.toNodeId === toNodeId && edge.toPort === toPort)) return false;
+    return !wouldCreateCycle(graph, fromNodeId, toNodeId);
   }
   if (!outputPortsFor(from).includes(fromPort)) {
     return false;
   }
-  if (graph.edges.some((edge) => edge.fromNodeId === fromNodeId && edge.fromPort === fromPort)) {
+  if (graph.edges.some((edge) => edge.kind !== 'resource' && edge.fromNodeId === fromNodeId && edge.fromPort === fromPort)) {
     return false;
   }
-  if (graph.edges.some((edge) => edge.toNodeId === toNodeId && edge.toPort === toPort)) {
+  if (graph.edges.some((edge) => edge.kind !== 'resource' && edge.toNodeId === toNodeId && edge.toPort === toPort)) {
     return false;
   }
   if (wouldCreateCycle(graph, fromNodeId, toNodeId)) {
@@ -188,10 +203,12 @@ export function normalizeLogicGraph(graph: LogicGraph, fallbackEvent: TriggerEve
   const edges = graph.edges.map((edge, index) => {
     const legacy = edge as LogicEdge & Partial<LogicEdge>;
     const source = nodeById.get(edge.fromNodeId);
-    const migratedPort = source?.kind === 'action' && isAsyncActionPayload(source.payload) && (legacy.fromPort ?? 'next') === 'next'
+    const inferredKind = legacy.kind ?? (legacy.toPort && legacy.toPort !== 'in' ? 'resource' : 'control');
+    const migratedPort = inferredKind === 'control' && source?.kind === 'action' && isAsyncActionPayload(source.payload) && (legacy.fromPort ?? 'next') === 'next'
       ? 'success'
       : legacy.fromPort ?? 'next';
-    if (!legacy.id || !legacy.fromPort || !legacy.toPort || migratedPort !== legacy.fromPort) {
+    const needsResourceKind = inferredKind === 'resource' && legacy.kind !== 'resource';
+    if (!legacy.id || !legacy.fromPort || !legacy.toPort || needsResourceKind || migratedPort !== legacy.fromPort) {
       changed = true;
       return {
         id: legacy.id ?? `edge_${graph.id}_${index + 1}`,
@@ -199,6 +216,7 @@ export function normalizeLogicGraph(graph: LogicGraph, fallbackEvent: TriggerEve
         fromPort: migratedPort,
         toNodeId: edge.toNodeId,
         toPort: legacy.toPort ?? 'in',
+        ...(inferredKind === 'resource' ? { kind: 'resource' as const } : {}),
       } satisfies LogicEdge;
     }
     return edge;
@@ -221,8 +239,8 @@ export function updateAction(
   const edges = wasAsync === isAsync
     ? graph.edges
     : graph.edges
-        .filter((edge) => !(edge.fromNodeId === nodeId && edge.fromPort === 'error' && !isAsync))
-        .map((edge) => edge.fromNodeId !== nodeId
+        .filter((edge) => !(edge.kind !== 'resource' && edge.fromNodeId === nodeId && edge.fromPort === 'error' && !isAsync))
+        .map((edge) => edge.fromNodeId !== nodeId || edge.kind === 'resource'
           ? edge
           : { ...edge, fromPort: isAsync ? 'success' as const : 'next' as const });
   return {
@@ -316,15 +334,53 @@ export function outputPortsFor(node: LogicNode): readonly LogicOutputPort[] {
   return ['next'];
 }
 
+export function resourceOutputPortsFor(node: LogicNode): readonly LogicResourcePort[] {
+  if (node.kind !== 'action') return [];
+  switch (node.payload.type) {
+    case 'document-load': return ['documents'];
+    case 'text-split': return ['text-splitter'];
+    case 'embedding-generate': return ['embeddings'];
+    case 'chat-model': return ['chat-model'];
+    case 'memory': return ['memory'];
+    case 'rerank': return ['reranker'];
+    case 'prompt-template': return ['prompt-template'];
+    case 'vector-store': return node.payload.operation === 'retrieve-tool' ? ['tool'] : [];
+    default: return [];
+  }
+}
+
+export function resourceInputPortsFor(node: LogicNode): readonly LogicResourcePort[] {
+  if (node.kind !== 'action') return [];
+  switch (node.payload.type) {
+    case 'document-load': return ['text-splitter'];
+    case 'vector-store':
+      return node.payload.operation === 'upsert'
+        ? ['documents', 'embeddings']
+        : node.payload.operation === 'retrieve-tool'
+          ? ['embeddings', 'reranker']
+          : [];
+    case 'ai-agent': return ['chat-model', 'memory', 'tool', 'prompt-template'];
+    default: return [];
+  }
+}
+
 export function isAsyncActionPayload(payload: ActionPayload): boolean {
   return payload.type === 'get-records' || payload.type === 'get-record' ||
     payload.type === 'insert-record' ||
     payload.type === 'update-record' ||
     payload.type === 'delete-record' ||
     payload.type === 'send-email' ||
-    payload.type === 'rag-index' ||
-    payload.type === 'rag-query' ||
-    payload.type === 'rag-remove' ||
+    payload.type === 'document-load' ||
+    payload.type === 'embedding-generate' ||
+    payload.type === 'vector-upsert' ||
+    payload.type === 'vector-delete' ||
+    payload.type === 'query-embedding' ||
+    payload.type === 'vector-retrieve' ||
+    payload.type === 'rerank' ||
+    payload.type === 'llm-generate' ||
+    payload.type === 'memory' ||
+    payload.type === 'vector-store' ||
+    payload.type === 'ai-agent' ||
     payload.type === 'cv-liveness' ||
     payload.type === 'cv-enroll' ||
     payload.type === 'cv-verify';

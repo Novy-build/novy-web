@@ -111,7 +111,7 @@ event binding, and its referenced logic graph:
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 5,
   "id": "project_notes",
   "name": "Notes App",
   "createdAt": "2026-11-07T08:00:00.000Z",
@@ -337,6 +337,7 @@ Implemented component types:
 - [x] Select components from the canvas or Layers panel.
 - [x] Drag components to move them.
 - [x] Resize components with selection handles.
+- [x] Non-wrapping selection actions positioned outside the selected component bounds.
 - [x] Position and size editing through the Inspector.
 - [x] Duplicate and delete selected components.
 - [x] Bring components forward or send them backward.
@@ -353,8 +354,11 @@ Implemented component types:
 - [x] Eight-pixel snap grid with a user-controlled snap toggle.
 - [x] Zoom in, zoom out, and fit-to-viewport controls.
 - [x] Ctrl/Cmd + wheel canvas zoom.
+- [x] Non-passive Design and Logic canvas wheel interception prevents browser page zoom while the
+  pointer is over a canvas.
 - [x] Space-drag and middle-button canvas panning.
 - [x] Responsive web viewport presets for mobile, tablet, and desktop widths.
+- [x] Independently minimizable Design, Logic, and Data side panels with narrow restore rails.
 - [x] Mobile/base component geometry with optional tablet and desktop overrides.
 - [x] Breakpoint-specific visibility plus a mobile-first cascade for layout and visibility.
 - [x] Field-level responsive overrides that preserve inheritance when a breakpoint is edited.
@@ -425,11 +429,18 @@ Production execution remains a generated-app/backend responsibility.
 
 - [x] Full Logic workspace with a searchable node library, graph canvas, and configuration
   inspector.
+- [x] Independently scrollable Logic node catalog with a non-overlapping minimize control.
+- [x] Independently collapsible Logic node groups, including consolidated RAG Nodes and Computer
+  Vision sections.
 - [x] Pannable and zoomable dotted graph canvas.
 - [x] Fit-view and zoom controls.
 - [x] Add nodes by clicking or dragging from the node library.
 - [x] Drag graph nodes and persist their positions.
 - [x] Typed input and output ports.
+- [x] Solid execution edges plus dashed, typed AI resource edges for documents, splitters,
+  embeddings, chat models, memory, tools, rerankers, and prompt templates.
+- [x] Resource-port labels use non-overlapping fixed-width slots, with multi-port nodes expanding
+  to preserve label readability.
 - [x] Drag/click connection workflow with connection feedback.
 - [x] Delete graph edges.
 - [x] If/Else conditions with true and false branches.
@@ -468,8 +479,19 @@ Production execution remains a generated-app/backend responsibility.
 
 ### AI and Computer Vision nodes
 
-- [x] RAG Index, RAG Query, and RAG Remove provider-agnostic payloads.
-- [x] RAG answer/citation outputs with preview-only simulation.
+- [x] Separate granular ingestion and chat workflow purposes.
+- [x] Document Loader, Text Splitter, Embedding Model, Vector Store Upsert/Delete, Chat Input,
+  Query Embedding, Retriever, Prompt Template, LLM Model, and Chat Output nodes.
+- [x] Reranker and Conversation Memory nodes.
+- [x] Structured document/chunk/embedding/match/answer/citation outputs with preview-only
+  simulation and dynamic node-output mappings.
+- [x] Schema-v3 RAG Index/Query/Remove migration into deterministic schema-v4 granular chains.
+- [x] Note-taking Ask Notes screen with separate Index Notes and Ask Indexed Notes workflows.
+- [x] Vector Store main node with upsert, delete, and retrieval-tool modes.
+- [x] AI Agent main node with attached generic Chat Model, Memory, Vector Store Tool, Prompt,
+  Embeddings, and optional Reranker resources.
+- [x] Note create/update write-through indexing from database action output, plus vector cleanup on
+  note deletion with non-blocking failure feedback.
 - [x] CV Liveness, CV Enroll, and CV Verify provider-agnostic payloads.
 - [x] Camera media input mapping, consent validation, liveness/verification output mapping, and
   preview-only biometric simulation.
@@ -558,7 +580,8 @@ No external AI model or AI SDK is connected.
 - [x] Isolated preview copies of collection records.
 - [x] Simulated get, insert, update, and delete data effects.
 - [x] Simulated collection refresh/refetch and Send Email success effects.
-- [x] Simulated RAG indexing/query/removal and biometric liveness/enrollment/verification effects.
+- [x] Simulated granular document loading, chunking, embeddings, isolated vector indexing/search,
+  reranking, prompt compilation, generation, citations, memory, and biometric effects.
 - [x] Camera capture remains in isolated preview component state and is never written into Project
   JSON or project collections implicitly.
 - [x] Bound forms create isolated preview records.
@@ -609,7 +632,7 @@ The repository includes automated coverage for:
 Verification completed on 2026-11-07:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 70 test files and 526 tests passed.
+- `npm test -- --run` — 71 test files and 542 tests passed.
 - `npm run build` — passed.
 - `git diff --check` — passed.
 

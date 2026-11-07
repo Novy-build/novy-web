@@ -51,6 +51,20 @@ beforeEach(() => {
 });
 
 describe('LogicWorkspace without a workflow', () => {
+  it('independently minimizes and restores the Nodes and Details panels', () => {
+    renderWorkspace();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse nodes panel' }));
+    expect(screen.queryByRole('complementary', { name: 'Logic nodes' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse details panel' }));
+    expect(screen.queryByText('Select a step in the graph to configure it.')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand nodes panel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand details panel' }));
+    expect(screen.getByRole('complementary', { name: 'Logic nodes' })).toBeInTheDocument();
+    expect(screen.getByText('Select a step in the graph to configure it.')).toBeInTheDocument();
+  });
+
   it('shows the Nodes library and dotted canvas without the old empty-state card', () => {
     renderWorkspace();
 

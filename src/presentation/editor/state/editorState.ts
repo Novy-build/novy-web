@@ -141,6 +141,7 @@ export type EditorLogicAction =
       fromNodeId: string;
       fromPort: LogicOutputPort;
       toNodeId: string;
+      toPort?: import('@domain/entities/logic').LogicInputPort;
     }
   | { type: 'graph/edge-delete'; graphId: string; edgeId: string }
   | { type: 'graph/connect'; graphId: string; fromNodeId: string; toNodeId: string }

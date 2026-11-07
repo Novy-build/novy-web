@@ -72,4 +72,19 @@ describe('SelectionOverlay', () => {
     expect(props.onDelete).toHaveBeenCalledTimes(1);
     expect(props.onAddBehavior).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps the single-line toolbar clear of the selected component', () => {
+    renderOverlay({
+      geometry: { x: 16, y: 48, w: 96, h: 32 },
+      zoom: 1,
+    });
+
+    const toolbar = screen.getByRole('group', { name: 'Selection actions' });
+    expect(toolbar).toHaveStyle({ top: '10px' });
+    expect(toolbar).toHaveClass('w-max', 'flex-nowrap', 'whitespace-nowrap');
+    expect(screen.getByLabelText('Add behavior to selected component')).toHaveClass(
+      'shrink-0',
+      'whitespace-nowrap',
+    );
+  });
 });

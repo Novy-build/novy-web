@@ -21,7 +21,7 @@ import { normalizeLogicGraph } from '@domain/logic/graph';
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
-    schemaVersion: 3,
+    schemaVersion: 5,
     id: project.id,
     name: project.name,
     createdAt: project.createdAt.toISOString(),
@@ -549,18 +549,21 @@ function mapLogicGraphToDto(graph: LogicGraph): LogicGraphDTO {
     id: graph.id,
     name: graph.name,
     sourceNodeId: graph.sourceNodeId,
+    ...(graph.purpose ? { purpose: graph.purpose } : {}),
     nodes: graph.nodes.map(mapLogicNodeToDto),
     edges: graph.edges.map(mapEdgeToDto),
   };
 }
 
 function mapLogicGraphFromDto(dto: LogicGraphDTO): LogicGraph {
+  const migratedDto = migrateLegacyRagGraphDto(dto);
   const graph: LogicGraph = {
-    id: dto.id,
-    name: dto.name,
-    sourceNodeId: dto.sourceNodeId,
-    nodes: dto.nodes.map((node, index) => mapLogicNodeFromDto(node, index)),
-    edges: dto.edges.map((edge, index) => mapEdgeFromDto(edge, dto.id, index)),
+    id: migratedDto.id,
+    name: migratedDto.name,
+    sourceNodeId: migratedDto.sourceNodeId,
+    ...(migratedDto.purpose ? { purpose: migratedDto.purpose } : {}),
+    nodes: migratedDto.nodes.map((node, index) => mapLogicNodeFromDto(node, index)),
+    edges: migratedDto.edges.map((edge, index) => mapEdgeFromDto(edge, migratedDto.id, index)),
   };
   const trigger = graph.nodes.find((node) => node.kind === 'trigger');
   return normalizeLogicGraph(graph, trigger?.event ?? 'click');
@@ -572,7 +575,88 @@ function mapLogicNodeToDto(node: LogicNode): LogicNodeDTO {
 
 function mapLogicNodeFromDto(dto: LogicNodeDTO, index: number): LogicNode {
   const position = dto.position ?? { x: 80 + index * 232, y: 160 };
-  return { ...structuredClone(dto), position };
+  return { ...structuredClone(dto), position } as unknown as LogicNode;
+}
+
+function migrateLegacyRagGraphDto(dto: LogicGraphDTO): LogicGraphDTO {
+  const replacements = new Map<string, { firstId: string; lastId: string }>();
+  const nodes: LogicNodeDTO[] = [];
+  const internalEdges: LogicEdgeDTO[] = [];
+  let inferredPurpose = dto.purpose;
+
+  for (const node of dto.nodes) {
+    if (node.kind !== 'action' || !isLegacyRagType(node.payload.type)) {
+      nodes.push(node);
+      continue;
+    }
+    const base = node.position ?? { x: 312, y: 160 };
+    const chain = legacyRagReplacementNodes(node, base);
+    nodes.push(...chain);
+    replacements.set(node.id, { firstId: chain[0]!.id, lastId: chain.at(-1)!.id });
+    inferredPurpose = node.payload.type === 'rag-query' ? 'chat' : inferredPurpose ?? 'ingestion';
+    for (let index = 0; index < chain.length - 1; index += 1) {
+      const current = chain[index]!;
+      const next = chain[index + 1]!;
+      internalEdges.push({
+        id: `edge_${node.id}_migration_${index + 1}`,
+        fromNodeId: current.id,
+        fromPort: migratedOutputPort(current),
+        toNodeId: next.id,
+        toPort: 'in',
+      });
+    }
+  }
+
+  if (replacements.size === 0) return dto;
+  const edges = dto.edges.map((edge) => ({
+    ...edge,
+    fromNodeId: replacements.get(edge.fromNodeId)?.lastId ?? edge.fromNodeId,
+    toNodeId: replacements.get(edge.toNodeId)?.firstId ?? edge.toNodeId,
+  }));
+  return { ...dto, purpose: inferredPurpose, nodes, edges: [...edges, ...internalEdges] };
+}
+
+function isLegacyRagType(type: string): type is 'rag-index' | 'rag-query' | 'rag-remove' {
+  return type === 'rag-index' || type === 'rag-query' || type === 'rag-remove';
+}
+
+function legacyRagReplacementNodes(
+  node: Extract<LogicNodeDTO, { kind: 'action' }>,
+  base: { x: number; y: number },
+): Array<Extract<LogicNodeDTO, { kind: 'action' }>> {
+  const position = (offset: number) => ({ x: base.x + offset * 232, y: base.y });
+  if (node.payload.type === 'rag-index') {
+    const splitId = `${node.id}__split`;
+    const embeddingId = `${node.id}__embedding`;
+    return [
+      { kind: 'action', id: node.id, position: position(0), payload: { type: 'document-load', source: 'inline', sourceReference: '', documentId: node.payload.documentId, title: node.payload.title, text: node.payload.content, metadata: {} }, inputMappings: node.inputMappings },
+      { kind: 'action', id: splitId, position: position(1), payload: { type: 'text-split', strategy: 'recursive-character', chunkSize: 700, chunkOverlap: 100, separators: ['\n\n', '\n', '. ', ' '] }, inputMappings: { documents: { source: 'node-output', nodeId: node.id, path: 'documents' } } },
+      { kind: 'action', id: embeddingId, position: position(2), payload: { type: 'embedding-generate', connectionProfileId: '', model: '', batchSize: 32 }, inputMappings: { chunks: { source: 'node-output', nodeId: splitId, path: 'chunks' } } },
+      { kind: 'action', id: `${node.id}__upsert`, position: position(3), payload: { type: 'vector-upsert', connectionProfileId: node.payload.knowledgeBaseId ?? '', indexName: node.payload.knowledgeBaseId ?? '', namespace: '', conflictMode: 'upsert' }, inputMappings: { chunks: { source: 'node-output', nodeId: splitId, path: 'chunks' }, embeddings: { source: 'node-output', nodeId: embeddingId, path: 'embeddings' } } },
+    ];
+  }
+  if (node.payload.type === 'rag-query') {
+    const queryEmbeddingId = `${node.id}__query_embedding`;
+    const retrieverId = `${node.id}__retriever`;
+    const promptId = `${node.id}__prompt`;
+    return [
+      { kind: 'action', id: node.id, position: position(0), payload: { type: 'chat-input', componentId: '', staticQuestion: node.payload.query }, inputMappings: node.inputMappings?.query ? { question: node.inputMappings.query } : undefined },
+      { kind: 'action', id: queryEmbeddingId, position: position(1), payload: { type: 'query-embedding', connectionProfileId: '', model: '' }, inputMappings: { question: { source: 'node-output', nodeId: node.id, path: 'question' } } },
+      { kind: 'action', id: retrieverId, position: position(2), payload: { type: 'vector-retrieve', connectionProfileId: node.payload.knowledgeBaseId ?? '', indexName: node.payload.knowledgeBaseId ?? '', namespace: '', topK: node.payload.topK ?? 5, minimumScore: 0, metadataFilter: {} }, inputMappings: { question: { source: 'node-output', nodeId: node.id, path: 'question' }, queryEmbedding: { source: 'node-output', nodeId: queryEmbeddingId, path: 'embeddingReference' } } },
+      { kind: 'action', id: promptId, position: position(3), payload: { type: 'prompt-template', template: 'Answer the question using only the supplied context.\n\nContext:\n{context}\n\nQuestion:\n{question}', contextSeparator: '\n\n---\n\n', emptyContextBehavior: 'return-empty' }, inputMappings: { question: { source: 'node-output', nodeId: node.id, path: 'question' }, matches: { source: 'node-output', nodeId: retrieverId, path: 'matches' } } },
+      { kind: 'action', id: `${node.id}__llm`, position: position(4), payload: { type: 'llm-generate', connectionProfileId: '', model: '', systemPrompt: '', temperature: 0.2, maxTokens: 800 }, inputMappings: { prompt: { source: 'node-output', nodeId: promptId, path: 'prompt' }, matches: { source: 'node-output', nodeId: retrieverId, path: 'matches' } } },
+    ];
+  }
+  if (node.payload.type === 'rag-remove') {
+    return [{ kind: 'action', id: node.id, position: position(0), payload: { type: 'vector-delete', connectionProfileId: node.payload.knowledgeBaseId ?? '', indexName: node.payload.knowledgeBaseId ?? '', namespace: '', documentId: node.payload.documentId }, inputMappings: node.inputMappings }];
+  }
+  throw new Error(`Unsupported legacy RAG payload in node ${node.id}.`);
+}
+
+function migratedOutputPort(node: Extract<LogicNodeDTO, { kind: 'action' }>): 'next' | 'success' {
+  return node.payload.type === 'text-split' || node.payload.type === 'chat-input' || node.payload.type === 'prompt-template'
+    ? 'next'
+    : 'success';
 }
 
 function mapEdgeToDto(edge: LogicEdge): LogicEdgeDTO {
@@ -586,5 +670,8 @@ function mapEdgeFromDto(dto: LogicEdgeDTO, graphId: string, index: number): Logi
     fromPort: dto.fromPort ?? 'next',
     toNodeId: dto.toNodeId,
     toPort: dto.toPort ?? 'in',
+    ...(dto.kind || (dto.toPort && dto.toPort !== 'in')
+      ? { kind: dto.kind ?? 'resource' as const }
+      : {}),
   };
 }

@@ -30,6 +30,10 @@ export function InputMappingEditor({
     node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' ||
     node.type === 'camera' || node.type === 'repeater');
   const outputSources = logicNodes.filter((node) => node.id !== currentNodeId && node.kind === 'action');
+  const selectedOutputNode = mapping?.source === 'node-output'
+    ? outputSources.find((node) => node.id === mapping.nodeId)
+    : undefined;
+  const outputPaths = selectedOutputNode?.kind === 'action' ? knownOutputPaths(selectedOutputNode.payload.type) : [];
 
   function changeSource(next: MappingSource): void {
     switch (next) {
@@ -127,12 +131,42 @@ export function InputMappingEditor({
           <input
             aria-label={`${label} output path`}
             className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-xs text-ink"
+            list={`mapping-paths-${currentNodeId}-${inputKey}`}
             onChange={(event) => onChange({ ...mapping, path: event.target.value })}
             placeholder="result.id"
             value={mapping.path}
           />
+          <datalist id={`mapping-paths-${currentNodeId}-${inputKey}`}>
+            {outputPaths.map((path) => <option key={path} value={path} />)}
+          </datalist>
         </div>
       ) : null}
     </fieldset>
   );
+}
+
+function knownOutputPaths(type: Extract<LogicNode, { kind: 'action' }>['payload']['type']): string[] {
+  switch (type) {
+    case 'document-load': return ['documents'];
+    case 'text-split': return ['chunks'];
+    case 'embedding-generate': return ['chunks', 'embeddings'];
+    case 'vector-upsert': return ['insertedCount', 'updatedCount', 'indexName', 'namespace'];
+    case 'vector-delete': return ['removedCount', 'documentId'];
+    case 'chat-input': return ['question', 'conversationId'];
+    case 'query-embedding': return ['question', 'embeddingReference'];
+    case 'vector-retrieve':
+    case 'rerank': return ['matches'];
+    case 'prompt-template': return ['prompt', 'question', 'matches'];
+    case 'llm-generate': return ['answer', 'citations', 'finishReason'];
+    case 'chat-output': return ['answer', 'citations'];
+    case 'memory': return ['conversationId', 'messages'];
+    case 'vector-store': return ['insertedCount', 'updatedCount', 'removedCount', 'toolName'];
+    case 'ai-agent': return ['answer', 'citations', 'toolCalls', 'messages', 'finishReason'];
+    case 'chat-model': return ['chat-model'];
+    case 'cv-liveness': return ['isLive', 'confidence', 'reason'];
+    case 'cv-enroll': return ['credentialId', 'enrolledAt', 'qualityScore'];
+    case 'cv-verify': return ['verified', 'confidence', 'credentialId', 'reason'];
+    case 'get-record': return ['record', 'record.id', 'record.values'];
+    default: return [];
+  }
 }

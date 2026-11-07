@@ -149,6 +149,7 @@ export function ComponentRenderer({
           onItemSelect={(recordId) => runtimeEvent?.(node.id, 'click', recordId)}
           props={node.props}
           renderStatic={renderStatic}
+          runtimeValue={componentValues?.get(node.id)}
         />,
       );
     case 'checkbox':

@@ -65,6 +65,8 @@ export function PreviewOverlay({
   const [previewRecords, setPreviewRecords] = useState<ReadonlyMap<string, readonly DataRecord[]>>(
     () => new Map(recordsByCollection),
   );
+  const knowledgeRef = useRef<Map<string, Record<string, unknown>>>(new Map());
+  const memoryRef = useRef<Map<string, unknown[]>>(new Map());
   const [toast, setToast] = useState<Toast | null>(null);
   const [zoom, setZoom] = useState(1);
 
@@ -72,6 +74,69 @@ export function PreviewOverlay({
   zoomRef.current = zoom;
 
   const screen: Screen | null = screens.find((candidate) => candidate.id === screenId) ?? screens[0] ?? null;
+
+  function previewRuntimeData() {
+    return {
+      getRecord: (collectionId: string, recordId: string) =>
+        (previewRecords.get(collectionId) ?? []).find((record) => record.id === recordId) ?? null,
+      loadCollectionDocuments: (
+        collectionId: string,
+        contentFieldId: string,
+        titleFieldId?: string,
+        documentIdFieldId?: string,
+      ) => (previewRecords.get(collectionId) ?? []).map((record) => ({
+        id: String(documentIdFieldId ? record.values[documentIdFieldId] ?? record.id : record.id),
+        title: String(titleFieldId ? record.values[titleFieldId] ?? '' : ''),
+        text: String(record.values[contentFieldId] ?? ''),
+        metadata: { recordId: record.id, collectionId },
+      })),
+      vectorUpsert: (chunks: readonly unknown[]) => {
+        let insertedCount = 0;
+        let updatedCount = 0;
+        for (const chunk of chunks) {
+          if (typeof chunk !== 'object' || chunk === null) continue;
+          const record = chunk as Record<string, unknown>;
+          const id = String(record.id ?? `chunk-${knowledgeRef.current.size + 1}`);
+          if (knowledgeRef.current.has(id)) updatedCount += 1;
+          else insertedCount += 1;
+          knowledgeRef.current.set(id, record);
+        }
+        return { insertedCount, updatedCount };
+      },
+      vectorDelete: (documentId: string) => {
+        let removedCount = 0;
+        for (const [id, chunk] of knowledgeRef.current) {
+          if (String(chunk.documentId ?? '') !== documentId) continue;
+          knowledgeRef.current.delete(id);
+          removedCount += 1;
+        }
+        return { removedCount };
+      },
+      vectorRetrieve: (question: string, topK: number, minimumScore: number) => {
+        const terms = question.toLowerCase().split(/\W+/).filter(Boolean);
+        return [...knowledgeRef.current.values()]
+          .map((chunk) => {
+            const text = String(chunk.text ?? '');
+            const haystack = text.toLowerCase();
+            const hits = terms.filter((term) => haystack.includes(term)).length;
+            const score = terms.length === 0 ? 0 : hits / terms.length;
+            return { ...chunk, score };
+          })
+          .filter((chunk) => Number(chunk.score) >= minimumScore)
+          .sort((left, right) => Number(right.score) - Number(left.score))
+          .slice(0, topK);
+      },
+      memoryLoad: (conversationId: string, windowSize: number) =>
+        (memoryRef.current.get(conversationId) ?? []).slice(-windowSize),
+      memoryAppend: (conversationId: string, messages: readonly unknown[]) => {
+        memoryRef.current.set(conversationId, [...messages]);
+        return messages.length;
+      },
+      memoryClear: (conversationId: string) => {
+        memoryRef.current.delete(conversationId);
+      },
+    };
+  }
 
   const handleNodeEvent = useCallback(
     (nodeId: string, event: TriggerEvent, value?: string): void => {
@@ -90,10 +155,7 @@ export function PreviewOverlay({
         {
           componentValues: nextValues,
           variables,
-          data: {
-            getRecord: (collectionId, recordId) =>
-              (previewRecords.get(collectionId) ?? []).find((record) => record.id === recordId) ?? null,
-          },
+          data: previewRuntimeData(),
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
       );
@@ -131,14 +193,21 @@ export function PreviewOverlay({
           case 'set-component-value':
             setComponentValues((previous) => new Map([...previous, [effect.nodeId, effect.value]]));
             break;
-          case 'rag-indexed':
-            setToast({ id: Date.now(), message: `Indexed ${effect.documentId} (${effect.chunkCount} chunks, simulated).` });
+          case 'vector-indexed':
+            setToast({ id: Date.now(), message: `Indexed ${effect.insertedCount} chunks (simulated).` });
             break;
-          case 'rag-removed':
+          case 'vector-deleted':
             setToast({ id: Date.now(), message: `Removed ${effect.documentId} from the knowledge base (simulated).` });
             break;
-          case 'rag-answer':
-            setToast({ id: Date.now(), message: effect.answer });
+          case 'chat-response':
+            setTextOverrides((previous) => new Map([...previous, [effect.nodeId, effect.answer]]));
+            if (effect.citationsNodeId) {
+              setComponentValues((previous) => new Map([
+                ...previous,
+                [effect.citationsNodeId!, JSON.stringify(effect.citations)],
+              ]));
+            }
+            setToast({ id: Date.now(), message: effect.answer || 'No answer was generated.' });
             break;
           case 'cv-result': {
             const message = effect.operation === 'liveness'
@@ -172,10 +241,7 @@ export function PreviewOverlay({
         {
           componentValues,
           variables,
-          data: {
-            getRecord: (collectionId, recordId) =>
-              (previewRecords.get(collectionId) ?? []).find((record) => record.id === recordId) ?? null,
-          },
+          data: previewRuntimeData(),
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
       );

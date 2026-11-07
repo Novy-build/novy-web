@@ -196,8 +196,10 @@ produce typed runtime effects such as:
 - database operations — get, insert, update, or delete records.
 - `refresh-collection` — refetch/reload collection-backed views after a mutation.
 - `send-email` — request backend email delivery.
-- `rag-index`, `rag-query`, and `rag-remove` — maintain and query a provider-agnostic knowledge
-  index.
+- granular ingestion — `document-load`, `text-split`, `embedding-generate`, `vector-upsert`, and
+  `vector-delete`;
+- granular chat/retrieval — `chat-input`, `query-embedding`, `vector-retrieve`, `rerank`,
+  `prompt-template`, `llm-generate`, `chat-output`, and `memory`;
 - `cv-liveness`, `cv-enroll`, and `cv-verify` — request protected Computer Vision/biometric
   processing using a temporary media reference.
 
@@ -245,7 +247,7 @@ native mobile or desktop application targets.
 
 ## 8. Versioning and Compatibility
 
-The current Project DTO is `schemaVersion: 3`. Loading older documents must preserve all existing
+The current Project DTO is `schemaVersion: 5`. Loading older documents must preserve all existing
 components, behaviors, graph nodes, data references, and deployment history. Current migration rules
 include:
 
@@ -253,6 +255,13 @@ include:
 - supplying deterministic positions and edge metadata for legacy graph nodes/edges;
 - converting legacy async `next` edges to `success`;
 - treating missing appearance, responsive geometry, and input mappings as inherited/default values.
+- expanding schema-v3 `rag-index`, `rag-query`, and `rag-remove` nodes into deterministic granular
+  ingestion, retrieval/generation, and vector-delete chains while preserving external edges.
+
+Schema v5 distinguishes solid control edges from dashed typed resource edges. Vector Store actions
+consume attached Document Loader and Embedding resources for upsert, or expose a retrieval `tool`
+to an AI Agent. The Agent consumes generic Chat Model, Memory, Vector Store Tool, Prompt Template,
+and optional Reranker resources. Provider API keys remain backend-owned profile configuration.
 
 Never silently drop unknown saved work merely to satisfy the newest editor shape.
 

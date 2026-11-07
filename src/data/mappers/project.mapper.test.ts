@@ -114,7 +114,7 @@ describe('project mapper', () => {
 
     expect(dto.createdAt).toBe('2026-01-01T10:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-02T12:30:00.000Z');
-    expect(dto.schemaVersion).toBe(3);
+    expect(dto.schemaVersion).toBe(5);
   });
 
   it('round-trips projects losslessly', () => {
@@ -226,6 +226,51 @@ describe('screen mapper', () => {
 
     const dto = roundTrip(mapScreenToDto(biometricScreen));
     expect(mapScreenFromDto(dto as ScreenDTO)).toEqual(biometricScreen);
+  });
+
+  it('migrates schema-v3 monolithic RAG nodes into deterministic granular chains', () => {
+    const legacy: ScreenDTO = {
+      id: 'screen_legacy_rag',
+      name: 'Legacy RAG',
+      path: '/legacy-rag',
+      nodes: [],
+      behaviors: [],
+      logicGraphs: [{
+        id: 'graph_legacy_rag',
+        name: 'Legacy RAG',
+        sourceNodeId: '',
+        nodes: [
+          { kind: 'trigger', id: 'trigger_legacy', event: 'load', position: { x: 80, y: 160 } },
+          { kind: 'action', id: 'legacy_index', payload: { type: 'rag-index', knowledgeBaseId: 'notes-index', documentId: 'note-1', title: 'First', content: 'Hello' }, position: { x: 312, y: 160 } },
+          { kind: 'action', id: 'after_index', payload: { type: 'show-message', message: 'Done' }, position: { x: 544, y: 160 } },
+        ],
+        edges: [
+          { id: 'edge_legacy_1', fromNodeId: 'trigger_legacy', fromPort: 'next', toNodeId: 'legacy_index', toPort: 'in' },
+          { id: 'edge_legacy_2', fromNodeId: 'legacy_index', fromPort: 'success', toNodeId: 'after_index', toPort: 'in' },
+        ],
+      }],
+    };
+
+    const migrated = mapScreenFromDto(legacy);
+    const graph = migrated.logicGraphs[0]!;
+    const actionTypes = graph.nodes.flatMap((node) => node.kind === 'action' ? [node.payload.type] : []);
+
+    expect(graph.purpose).toBe('ingestion');
+    expect(actionTypes).toEqual([
+      'document-load',
+      'text-split',
+      'embedding-generate',
+      'vector-upsert',
+      'show-message',
+    ]);
+    expect(graph.nodes.map((node) => node.id)).toEqual(expect.arrayContaining([
+      'legacy_index',
+      'legacy_index__split',
+      'legacy_index__embedding',
+      'legacy_index__upsert',
+    ]));
+    expect(graph.edges.some((edge) =>
+      edge.fromNodeId === 'legacy_index__upsert' && edge.toNodeId === 'after_index')).toBe(true);
   });
 
   it('migrates legacy positionless nodes and untyped edges deterministically', () => {

@@ -28,6 +28,7 @@ import { DataWorkspace } from '../data/DataWorkspace';
 import { useProjectData } from '../data/useProjectData';
 import { useProjectValidation } from '../validation/useProjectValidation';
 import { ValidationPanel } from '../validation/ValidationPanel';
+import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
 
 interface EditorWorkspaceProps {
   project: Project;
@@ -42,6 +43,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isValidationOpen, setIsValidationOpen] = useState(false);
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
 
   const activeScreen = getActiveScreen(state);
   const selectedNode = state.selectedNodeId ? findNodeInScreen(activeScreen, state.selectedNodeId) : undefined;
@@ -174,7 +176,23 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
             />
           </div>
 
-          <aside className="flex w-72 shrink-0 flex-col overflow-hidden border-l border-hairline bg-surface">
+          {isInspectorCollapsed ? (
+            <CollapsedPanelRail
+              controls="design-inspector-panel"
+              label="inspector panel"
+              onExpand={() => setIsInspectorCollapsed(false)}
+              side="right"
+            />
+          ) : (
+          <aside className="relative flex w-72 shrink-0 flex-col overflow-hidden border-l border-hairline bg-surface" id="design-inspector-panel">
+            <PanelCollapseButton
+              className="absolute right-0 top-0 z-30 bg-surface"
+              controls="design-inspector-panel"
+              isCollapsed={false}
+              label="inspector panel"
+              onToggle={() => setIsInspectorCollapsed(true)}
+              side="right"
+            />
             <Inspector
               behaviors={activeScreen.behaviors}
               collections={projectData.collections}
@@ -215,6 +233,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
               />
             </div>
           </aside>
+          )}
         </div>
       ) : mode === 'logic' ? (
         <div className="flex min-h-0 flex-1 overflow-hidden">

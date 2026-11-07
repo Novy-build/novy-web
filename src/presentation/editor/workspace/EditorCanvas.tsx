@@ -4,7 +4,6 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
   type PointerEvent as ReactPointerEvent,
-  type WheelEvent as ReactWheelEvent,
 } from 'react';
 import type { ComponentNode, ComponentType, NodeGeometry, ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import { geometryAtBreakpoint, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
@@ -255,6 +254,25 @@ export function EditorCanvas({
   }, [bounds]);
 
   useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    function handleCanvasWheel(event: WheelEvent): void {
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+      event.preventDefault();
+      autoFitRef.current = false;
+      onZoomChange(
+        zoomRef.current + (event.deltaY < 0 ? ZOOM_LIMITS.step : -ZOOM_LIMITS.step),
+      );
+    }
+    viewport.addEventListener('wheel', handleCanvasWheel, { passive: false });
+    return () => viewport.removeEventListener('wheel', handleCanvasWheel);
+  }, [onZoomChange]);
+
+  useEffect(() => {
     function isTypingTarget(target: EventTarget | null): boolean {
       return (
         target instanceof HTMLInputElement ||
@@ -325,15 +343,6 @@ export function EditorCanvas({
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', finish);
     window.addEventListener('pointercancel', finish);
-  }
-
-  function handleCanvasWheel(event: ReactWheelEvent<HTMLDivElement>): void {
-    if (!event.ctrlKey && !event.metaKey) {
-      return;
-    }
-    event.preventDefault();
-    autoFitRef.current = false;
-    onZoomChange(zoom + (event.deltaY < 0 ? ZOOM_LIMITS.step : -ZOOM_LIMITS.step));
   }
 
   function beginNodeInteraction(event: ReactPointerEvent<HTMLDivElement>, target: InteractionTarget): void {
@@ -503,7 +512,6 @@ export function EditorCanvas({
         className={`h-full w-full overflow-auto overscroll-contain ${isPanning ? 'cursor-grabbing select-none' : ''}`}
         data-testid="canvas-viewport"
         onPointerDown={beginCanvasPan}
-        onWheel={handleCanvasWheel}
         ref={viewportRef}
       >
         <div

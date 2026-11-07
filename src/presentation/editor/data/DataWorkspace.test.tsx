@@ -28,6 +28,17 @@ async function renderEditor() {
 }
 
 describe('DataWorkspace', () => {
+  it('minimizes and restores the Collections panel', async () => {
+    await renderEditor();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse collections panel' }));
+    expect(screen.queryByRole('heading', { name: 'Collections' })).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'collections panel minimized' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand collections panel' }));
+    expect(screen.getByRole('heading', { name: 'Collections' })).toBeInTheDocument();
+  });
+
   it('creates a collection, edits schema, and performs record CRUD', async () => {
     await renderEditor();
 

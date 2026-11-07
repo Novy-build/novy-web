@@ -75,25 +75,137 @@ export interface RefreshCollectionPayload {
   collectionId: string;
 }
 
-export interface RagIndexPayload {
-  type: 'rag-index';
-  knowledgeBaseId?: string;
+export interface DocumentLoadPayload {
+  type: 'document-load';
+  source: 'inline' | 'url' | 'collection' | 'file-reference' | 'previous-output';
+  sourceReference: string;
+  collectionId?: string;
   documentId: string;
   title: string;
-  content: string;
+  text: string;
+  contentFieldId?: string;
+  titleFieldId?: string;
+  documentIdFieldId?: string;
+  metadata: Record<string, string>;
 }
 
-export interface RagQueryPayload {
-  type: 'rag-query';
-  knowledgeBaseId?: string;
-  query: string;
-  topK?: number;
+export interface TextSplitPayload {
+  type: 'text-split';
+  strategy: 'recursive-character' | 'token';
+  chunkSize: number;
+  chunkOverlap: number;
+  separators: string[];
 }
 
-export interface RagRemovePayload {
-  type: 'rag-remove';
-  knowledgeBaseId?: string;
+export interface EmbeddingGeneratePayload {
+  type: 'embedding-generate';
+  connectionProfileId: string;
+  model: string;
+  batchSize: number;
+}
+
+export interface VectorUpsertPayload {
+  type: 'vector-upsert';
+  connectionProfileId: string;
+  indexName: string;
+  namespace: string;
+  conflictMode: 'upsert' | 'replace';
+}
+
+export interface VectorDeletePayload {
+  type: 'vector-delete';
+  connectionProfileId: string;
+  indexName: string;
+  namespace: string;
   documentId: string;
+}
+
+export interface ChatInputPayload {
+  type: 'chat-input';
+  componentId: string;
+  staticQuestion: string;
+}
+
+export interface QueryEmbeddingPayload {
+  type: 'query-embedding';
+  connectionProfileId: string;
+  model: string;
+}
+
+export interface VectorRetrievePayload {
+  type: 'vector-retrieve';
+  connectionProfileId: string;
+  indexName: string;
+  namespace: string;
+  topK: number;
+  minimumScore: number;
+  metadataFilter: Record<string, string>;
+}
+
+export interface RerankPayload {
+  type: 'rerank';
+  connectionProfileId: string;
+  model: string;
+  topN: number;
+  minimumScore: number;
+}
+
+export interface PromptTemplatePayload {
+  type: 'prompt-template';
+  template: string;
+  contextSeparator: string;
+  emptyContextBehavior: 'answer-without-context' | 'return-empty';
+}
+
+export interface LlmGeneratePayload {
+  type: 'llm-generate';
+  connectionProfileId: string;
+  model: string;
+  systemPrompt: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+export interface ChatOutputPayload {
+  type: 'chat-output';
+  targetNodeId: string;
+  citationsNodeId?: string;
+}
+
+export interface MemoryPayload {
+  type: 'memory';
+  operation: 'load' | 'append' | 'clear';
+  connectionProfileId: string;
+  scope: 'session' | 'user' | 'conversation';
+  windowSize: number;
+}
+
+export interface VectorStorePayload {
+  type: 'vector-store';
+  operation: 'upsert' | 'delete' | 'retrieve-tool';
+  connectionProfileId: string;
+  indexName: string;
+  namespace: string;
+  documentInputMode: 'previous-output' | 'document-loader';
+  conflictMode: 'upsert' | 'replace';
+  documentId: string;
+  topK: number;
+  minimumScore: number;
+}
+
+export interface ChatModelPayload {
+  type: 'chat-model';
+  connectionProfileId: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+export interface AiAgentPayload {
+  type: 'ai-agent';
+  instructions: string;
+  maxIterations: number;
+  returnIntermediateSteps: boolean;
 }
 
 export interface CvLivenessPayload {
@@ -141,9 +253,22 @@ export type ActionPayload =
   | RefreshCollectionPayload
   | SetVariablePayload
   | SetComponentValuePayload
-  | RagIndexPayload
-  | RagQueryPayload
-  | RagRemovePayload
+  | DocumentLoadPayload
+  | TextSplitPayload
+  | EmbeddingGeneratePayload
+  | VectorUpsertPayload
+  | VectorDeletePayload
+  | ChatInputPayload
+  | QueryEmbeddingPayload
+  | VectorRetrievePayload
+  | RerankPayload
+  | PromptTemplatePayload
+  | LlmGeneratePayload
+  | ChatOutputPayload
+  | MemoryPayload
+  | VectorStorePayload
+  | ChatModelPayload
+  | AiAgentPayload
   | CvLivenessPayload
   | CvEnrollPayload
   | CvVerifyPayload;
@@ -194,8 +319,19 @@ export interface ConditionNode {
 
 export type LogicNode = TriggerNode | ConditionNode | ActionNode;
 
-export type LogicInputPort = 'in';
-export type LogicOutputPort = 'next' | 'true' | 'false' | 'success' | 'error';
+export type LogicControlInputPort = 'in';
+export type LogicControlOutputPort = 'next' | 'true' | 'false' | 'success' | 'error';
+export type LogicResourcePort =
+  | 'documents'
+  | 'text-splitter'
+  | 'embeddings'
+  | 'chat-model'
+  | 'memory'
+  | 'tool'
+  | 'reranker'
+  | 'prompt-template';
+export type LogicInputPort = LogicControlInputPort | LogicResourcePort;
+export type LogicOutputPort = LogicControlOutputPort | LogicResourcePort;
 
 export interface LogicEdge {
   id: string;
@@ -203,6 +339,7 @@ export interface LogicEdge {
   fromPort: LogicOutputPort;
   toNodeId: string;
   toPort: LogicInputPort;
+  kind?: 'control' | 'resource';
 }
 
 export interface LogicGraph {
@@ -210,6 +347,7 @@ export interface LogicGraph {
   name: string;
   /** Id of the screen component this graph was opened from. */
   sourceNodeId: string;
+  purpose?: 'ui' | 'ingestion' | 'chat';
   nodes: LogicNode[];
   edges: LogicEdge[];
 }

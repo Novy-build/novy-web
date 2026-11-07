@@ -5,22 +5,27 @@ export function RepeaterNodeView({
   props,
   dataContext,
   componentValues,
+  runtimeValue,
   onItemSelect,
   renderStatic = false,
 }: {
   props: RepeaterProps;
   dataContext?: RendererDataContext;
   componentValues?: ReadonlyMap<string, string>;
+  runtimeValue?: string;
   onItemSelect?: (recordId: string) => void;
   renderStatic?: boolean;
 }) {
   const source = props.dataSource;
+  const runtimeItems = source?.kind === 'static'
+    ? parseRuntimeItems(runtimeValue ?? '')
+    : [];
   const collection = source?.kind === 'collection'
     ? dataContext?.collections.find((item) => item.id === source.collectionId)
     : undefined;
   const records = source?.kind === 'collection'
     ? dataContext?.recordsByCollection.get(source.collectionId) ?? []
-    : [];
+    : runtimeItems;
 
   const searchQuery = source?.kind === 'collection' && source.searchComponentId
     ? (componentValues?.get(source.searchComponentId) ?? '').trim().toLowerCase()
@@ -55,7 +60,7 @@ export function RepeaterNodeView({
           onClick={renderStatic ? undefined : () => onItemSelect?.(record.id)}
           type="button"
         >
-          {(source?.kind === 'collection' ? source.displayFieldIds : []).map((fieldId) => {
+          {(source?.kind === 'collection' ? source.displayFieldIds : ['title', 'snippet']).map((fieldId) => {
             const field = collection?.fields.find((item) => item.id === fieldId);
             const value = record.values[fieldId];
             return (
@@ -68,4 +73,24 @@ export function RepeaterNodeView({
       ))}
     </div>
   );
+}
+
+function parseRuntimeItems(value: string): Array<{ id: string; values: Record<string, string> }> {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item, index) => {
+      const record = typeof item === 'object' && item !== null ? item as Record<string, unknown> : {};
+      return {
+        id: String(record.documentId ?? index),
+        values: {
+          title: String(record.title ?? ''),
+          snippet: String(record.snippet ?? ''),
+        },
+      };
+    });
+  } catch {
+    return [];
+  }
 }

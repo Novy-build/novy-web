@@ -189,6 +189,7 @@ const STUDENT_LIST: Template = {
 const NOTES_SCREEN_ID = 'screen_notes_home';
 const EDITOR_SCREEN_ID = 'screen_note_editor';
 const UNLOCK_SCREEN_ID = 'screen_notes_unlock';
+const ASK_NOTES_SCREEN_ID = 'screen_ask_notes';
 
 const notesScreen = screen(NOTES_SCREEN_ID, 'Notes', [
   {
@@ -238,6 +239,15 @@ const notesScreen = screen(NOTES_SCREEN_ID, 'Notes', [
         searchComponentId: 'notes_search',
       },
     },
+  },
+  {
+    id: 'notes_ask',
+    type: 'button',
+    x: 24,
+    y: 560,
+    w: 320,
+    h: 44,
+    props: { label: 'Ask your notes', variant: 'outline' },
   },
 ]);
 
@@ -296,6 +306,16 @@ const editorScreen = screen(EDITOR_SCREEN_ID, 'Note Editor', [
     h: 24,
     props: { text: 'Save your note.', level: 'body' },
   },
+]);
+
+const askNotesScreen = screen(ASK_NOTES_SCREEN_ID, 'Ask Notes', [
+  { id: 'ask_title', type: 'text', x: 24, y: 24, w: 320, h: 36, props: { text: 'Ask your notes', level: 'display' } },
+  { id: 'ask_question', type: 'input', x: 24, y: 72, w: 320, h: 80, props: { label: 'Question', placeholder: 'What do my notes say about…?', inputType: 'text', multiline: true } },
+  { id: 'ask_submit', type: 'button', x: 24, y: 168, w: 152, h: 44, props: { label: 'Ask', variant: 'solid' } },
+  { id: 'ask_index', type: 'button', x: 192, y: 168, w: 152, h: 44, props: { label: 'Index notes', variant: 'outline' } },
+  { id: 'ask_answer', type: 'text', x: 24, y: 232, w: 320, h: 120, props: { text: 'Your answer will appear here.', level: 'body' } },
+  { id: 'ask_citations', type: 'repeater', x: 24, y: 368, w: 320, h: 160, props: { emptyText: 'No citations yet.', showDividers: true, dataSource: { kind: 'static', items: [] } } },
+  { id: 'ask_back', type: 'button', x: 24, y: 544, w: 320, h: 44, props: { label: 'Back to notes', variant: 'text' } },
 ]);
 
 const unlockScreen = screen(UNLOCK_SCREEN_ID, 'Unlock', [
@@ -368,6 +388,7 @@ unlockScreen.path = '/';
 notesScreen.behaviors = [
   { id: 'behavior_notes_new', name: 'Create note', event: 'click', graphId: 'graph_notes_create', targetNodeId: 'notes_new' },
   { id: 'behavior_notes_open', name: 'Open note', event: 'click', graphId: 'graph_notes_open', targetNodeId: 'notes_list' },
+  { id: 'behavior_notes_ask', name: 'Ask notes', event: 'click', graphId: 'graph_notes_ask', targetNodeId: 'notes_ask' },
 ];
 
 editorScreen.behaviors = [
@@ -375,6 +396,67 @@ editorScreen.behaviors = [
   { id: 'behavior_editor_delete', name: 'Delete note', event: 'click', graphId: 'graph_editor_delete', targetNodeId: 'editor_delete' },
   { id: 'behavior_editor_cancel', name: 'Cancel edit', event: 'click', graphId: 'graph_editor_cancel', targetNodeId: 'editor_cancel' },
   { id: 'behavior_editor_load', name: 'Prefill note', event: 'load', graphId: 'graph_editor_load', targetNodeId: 'editor_body' },
+];
+
+askNotesScreen.behaviors = [
+  { id: 'behavior_ask_submit', name: 'Ask indexed notes', event: 'click', graphId: 'graph_ask_submit', targetNodeId: 'ask_submit' },
+  { id: 'behavior_ask_index', name: 'Index notes', event: 'click', graphId: 'graph_ask_index', targetNodeId: 'ask_index' },
+  { id: 'behavior_ask_back', name: 'Back to notes', event: 'click', graphId: 'graph_ask_back', targetNodeId: 'ask_back' },
+];
+
+askNotesScreen.logicGraphs = [
+  {
+    id: 'graph_ask_index', name: 'Index notes', sourceNodeId: 'ask_index', purpose: 'ingestion',
+    nodes: [
+      { kind: 'trigger', id: 'trigger_ask_index', event: 'click', position: { x: 80, y: 160 } },
+      { kind: 'action', id: 'upsert_notes_vectors', position: { x: 312, y: 160 }, payload: { type: 'vector-store', operation: 'upsert', connectionProfileId: '', indexName: 'notes', namespace: '', documentInputMode: 'document-loader', conflictMode: 'upsert', documentId: '', topK: 5, minimumScore: 0 } },
+      { kind: 'action', id: 'show_notes_indexed', position: { x: 544, y: 160 }, payload: { type: 'show-message', message: 'Notes indexed successfully.' } },
+      { kind: 'action', id: 'load_notes_documents', position: { x: 260, y: 360 }, payload: { type: 'document-load', source: 'collection', sourceReference: '', collectionId: '', documentId: '', title: '', text: '', contentFieldId: '', titleFieldId: '', documentIdFieldId: '', metadata: {} } },
+      { kind: 'action', id: 'split_notes_documents', position: { x: 40, y: 500 }, payload: { type: 'text-split', strategy: 'recursive-character', chunkSize: 700, chunkOverlap: 100, separators: ['\n\n', '\n', '. ', ' '] } },
+      { kind: 'action', id: 'embed_notes_documents', position: { x: 480, y: 360 }, payload: { type: 'embedding-generate', connectionProfileId: '', model: '', batchSize: 32 } },
+    ],
+    edges: [
+      { id: 'edge_ask_index_1', fromNodeId: 'trigger_ask_index', fromPort: 'next', toNodeId: 'upsert_notes_vectors', toPort: 'in', kind: 'control' },
+      { id: 'edge_ask_index_2', fromNodeId: 'upsert_notes_vectors', fromPort: 'success', toNodeId: 'show_notes_indexed', toPort: 'in', kind: 'control' },
+      { id: 'resource_index_loader', fromNodeId: 'load_notes_documents', fromPort: 'documents', toNodeId: 'upsert_notes_vectors', toPort: 'documents', kind: 'resource' },
+      { id: 'resource_index_splitter', fromNodeId: 'split_notes_documents', fromPort: 'text-splitter', toNodeId: 'load_notes_documents', toPort: 'text-splitter', kind: 'resource' },
+      { id: 'resource_index_embeddings', fromNodeId: 'embed_notes_documents', fromPort: 'embeddings', toNodeId: 'upsert_notes_vectors', toPort: 'embeddings', kind: 'resource' },
+    ],
+  },
+  {
+    id: 'graph_ask_submit', name: 'Ask indexed notes', sourceNodeId: 'ask_submit', purpose: 'chat',
+    nodes: [
+      { kind: 'trigger', id: 'trigger_ask_submit', event: 'click', position: { x: 80, y: 160 } },
+      { kind: 'action', id: 'read_chat_question', position: { x: 312, y: 160 }, payload: { type: 'chat-input', componentId: 'ask_question', staticQuestion: '' } },
+      { kind: 'action', id: 'notes_ai_agent', position: { x: 544, y: 160 }, payload: { type: 'ai-agent', instructions: 'Answer using the attached notes tool and cite the notes used.', maxIterations: 4, returnIntermediateSteps: false }, inputMappings: { question: { source: 'node-output', nodeId: 'read_chat_question', path: 'question' }, conversationId: { source: 'node-output', nodeId: 'read_chat_question', path: 'conversationId' } } },
+      { kind: 'action', id: 'render_chat_answer', position: { x: 776, y: 160 }, payload: { type: 'chat-output', targetNodeId: 'ask_answer', citationsNodeId: 'ask_citations' }, inputMappings: { answer: { source: 'node-output', nodeId: 'notes_ai_agent', path: 'answer' }, citations: { source: 'node-output', nodeId: 'notes_ai_agent', path: 'citations' } } },
+      { kind: 'action', id: 'notes_chat_model', position: { x: 400, y: 360 }, payload: { type: 'chat-model', connectionProfileId: '', model: '', temperature: 0.2, maxTokens: 800 } },
+      { kind: 'action', id: 'notes_chat_memory', position: { x: 580, y: 360 }, payload: { type: 'memory', operation: 'load', connectionProfileId: '', scope: 'session', windowSize: 10 } },
+      { kind: 'action', id: 'notes_vector_tool', position: { x: 760, y: 360 }, payload: { type: 'vector-store', operation: 'retrieve-tool', connectionProfileId: '', indexName: 'notes', namespace: '', documentInputMode: 'document-loader', conflictMode: 'upsert', documentId: '', topK: 8, minimumScore: 0.3 } },
+      { kind: 'action', id: 'notes_tool_embeddings', position: { x: 720, y: 500 }, payload: { type: 'embedding-generate', connectionProfileId: '', model: '', batchSize: 32 } },
+      { kind: 'action', id: 'notes_tool_reranker', position: { x: 900, y: 500 }, payload: { type: 'rerank', connectionProfileId: '', model: '', topN: 5, minimumScore: 0.3 } },
+      { kind: 'action', id: 'notes_agent_prompt', position: { x: 940, y: 360 }, payload: { type: 'prompt-template', template: 'Answer the question using only the supplied context.\n\nContext:\n{context}\n\nQuestion:\n{question}', contextSeparator: '\n\n---\n\n', emptyContextBehavior: 'return-empty' } },
+    ],
+    edges: [
+      { id: 'edge_ask_chat_1', fromNodeId: 'trigger_ask_submit', fromPort: 'next', toNodeId: 'read_chat_question', toPort: 'in', kind: 'control' },
+      { id: 'edge_ask_chat_2', fromNodeId: 'read_chat_question', fromPort: 'next', toNodeId: 'notes_ai_agent', toPort: 'in', kind: 'control' },
+      { id: 'edge_ask_chat_3', fromNodeId: 'notes_ai_agent', fromPort: 'success', toNodeId: 'render_chat_answer', toPort: 'in', kind: 'control' },
+      { id: 'resource_agent_model', fromNodeId: 'notes_chat_model', fromPort: 'chat-model', toNodeId: 'notes_ai_agent', toPort: 'chat-model', kind: 'resource' },
+      { id: 'resource_agent_memory', fromNodeId: 'notes_chat_memory', fromPort: 'memory', toNodeId: 'notes_ai_agent', toPort: 'memory', kind: 'resource' },
+      { id: 'resource_agent_tool', fromNodeId: 'notes_vector_tool', fromPort: 'tool', toNodeId: 'notes_ai_agent', toPort: 'tool', kind: 'resource' },
+      { id: 'resource_agent_prompt', fromNodeId: 'notes_agent_prompt', fromPort: 'prompt-template', toNodeId: 'notes_ai_agent', toPort: 'prompt-template', kind: 'resource' },
+      { id: 'resource_tool_embeddings', fromNodeId: 'notes_tool_embeddings', fromPort: 'embeddings', toNodeId: 'notes_vector_tool', toPort: 'embeddings', kind: 'resource' },
+      { id: 'resource_tool_reranker', fromNodeId: 'notes_tool_reranker', fromPort: 'reranker', toNodeId: 'notes_vector_tool', toPort: 'reranker', kind: 'resource' },
+    ],
+  },
+  {
+    id: 'graph_ask_back', name: 'Back to notes', sourceNodeId: 'ask_back', purpose: 'ui',
+    nodes: [
+      { kind: 'trigger', id: 'trigger_ask_back', event: 'click', position: { x: 80, y: 160 } },
+      { kind: 'action', id: 'navigate_ask_back', payload: { type: 'navigate', targetScreenId: NOTES_SCREEN_ID }, position: { x: 312, y: 160 } },
+    ],
+    edges: [{ id: 'edge_ask_back_1', fromNodeId: 'trigger_ask_back', fromPort: 'next', toNodeId: 'navigate_ask_back', toPort: 'in' }],
+  },
 ];
 
 unlockScreen.behaviors = [
@@ -487,6 +569,14 @@ notesScreen.logicGraphs = [
       { id: 'edge_open_3', fromNodeId: 'set_selected_open', fromPort: 'next', toNodeId: 'navigate_open', toPort: 'in' },
     ],
   },
+  {
+    id: 'graph_notes_ask', name: 'Ask notes', sourceNodeId: 'notes_ask', purpose: 'ui',
+    nodes: [
+      { kind: 'trigger', id: 'trigger_notes_ask', event: 'click', position: { x: 80, y: 160 } },
+      { kind: 'action', id: 'navigate_notes_ask', payload: { type: 'navigate', targetScreenId: ASK_NOTES_SCREEN_ID }, position: { x: 312, y: 160 } },
+    ],
+    edges: [{ id: 'edge_notes_ask_1', fromNodeId: 'trigger_notes_ask', fromPort: 'next', toNodeId: 'navigate_notes_ask', toPort: 'in' }],
+  },
 ];
 
 editorScreen.logicGraphs = [
@@ -500,9 +590,16 @@ editorScreen.logicGraphs = [
       { kind: 'condition', id: 'condition_mode_edit', position: { x: 544, y: 80 }, left: { source: 'variable', name: 'editorMode' }, operator: 'equals', compareValue: 'edit' },
       { kind: 'action', id: 'update_note', payload: { type: 'update-record', collectionId: '', recordId: '', values: { title: '', content: '' } }, inputMappings: { '$recordId': { source: 'variable', name: 'selectedNoteId' }, title: { source: 'component', nodeId: 'editor_title', property: 'value' }, content: { source: 'component', nodeId: 'editor_body', property: 'value' } }, position: { x: 776, y: 40 } },
       { kind: 'action', id: 'insert_note', payload: { type: 'insert-record', collectionId: '', values: { title: '', content: '', ownerId: '' } }, inputMappings: { title: { source: 'component', nodeId: 'editor_title', property: 'value' }, content: { source: 'component', nodeId: 'editor_body', property: 'value' }, ownerId: { source: 'session', path: 'user.id' } }, position: { x: 776, y: 200 } },
-      { kind: 'action', id: 'navigate_after_update', payload: { type: 'navigate', targetScreenId: NOTES_SCREEN_ID }, position: { x: 1008, y: 40 } },
-      { kind: 'action', id: 'navigate_after_insert', payload: { type: 'navigate', targetScreenId: NOTES_SCREEN_ID }, position: { x: 1008, y: 200 } },
+      { kind: 'action', id: 'index_updated_note', payload: { type: 'vector-store', operation: 'upsert', connectionProfileId: '', indexName: 'notes', namespace: '', documentInputMode: 'document-loader', conflictMode: 'replace', documentId: '', topK: 5, minimumScore: 0 }, position: { x: 1008, y: 40 } },
+      { kind: 'action', id: 'index_inserted_note', payload: { type: 'vector-store', operation: 'upsert', connectionProfileId: '', indexName: 'notes', namespace: '', documentInputMode: 'document-loader', conflictMode: 'upsert', documentId: '', topK: 5, minimumScore: 0 }, position: { x: 1008, y: 200 } },
+      { kind: 'action', id: 'navigate_after_update', payload: { type: 'navigate', targetScreenId: NOTES_SCREEN_ID }, position: { x: 1240, y: 40 } },
+      { kind: 'action', id: 'navigate_after_insert', payload: { type: 'navigate', targetScreenId: NOTES_SCREEN_ID }, position: { x: 1240, y: 200 } },
+      { kind: 'action', id: 'show_update_index_failed', payload: { type: 'show-message', message: 'Note saved. Vector indexing will retry.' }, position: { x: 1240, y: 320 } },
+      { kind: 'action', id: 'show_insert_index_failed', payload: { type: 'show-message', message: 'Note saved. Vector indexing will retry.' }, position: { x: 1240, y: 440 } },
       { kind: 'action', id: 'show_title_required', payload: { type: 'show-message', message: 'Title is required.' }, position: { x: 544, y: 280 } },
+      { kind: 'action', id: 'map_saved_note_document', position: { x: 880, y: 520 }, payload: { type: 'document-load', source: 'previous-output', sourceReference: '', documentId: '', title: '', text: '', metadata: {} } },
+      { kind: 'action', id: 'split_saved_note', position: { x: 660, y: 660 }, payload: { type: 'text-split', strategy: 'recursive-character', chunkSize: 700, chunkOverlap: 100, separators: ['\n\n', '\n', '. ', ' '] } },
+      { kind: 'action', id: 'embed_saved_note', position: { x: 1100, y: 520 }, payload: { type: 'embedding-generate', connectionProfileId: '', model: '', batchSize: 32 } },
     ],
     edges: [
       { id: 'edge_save_1', fromNodeId: 'trigger_editor_save', fromPort: 'next', toNodeId: 'condition_title_present', toPort: 'in' },
@@ -510,8 +607,17 @@ editorScreen.logicGraphs = [
       { id: 'edge_save_3', fromNodeId: 'condition_title_present', fromPort: 'false', toNodeId: 'show_title_required', toPort: 'in' },
       { id: 'edge_save_4', fromNodeId: 'condition_mode_edit', fromPort: 'true', toNodeId: 'update_note', toPort: 'in' },
       { id: 'edge_save_5', fromNodeId: 'condition_mode_edit', fromPort: 'false', toNodeId: 'insert_note', toPort: 'in' },
-      { id: 'edge_save_6', fromNodeId: 'update_note', fromPort: 'success', toNodeId: 'navigate_after_update', toPort: 'in' },
-      { id: 'edge_save_7', fromNodeId: 'insert_note', fromPort: 'success', toNodeId: 'navigate_after_insert', toPort: 'in' },
+      { id: 'edge_save_6', fromNodeId: 'update_note', fromPort: 'success', toNodeId: 'index_updated_note', toPort: 'in', kind: 'control' },
+      { id: 'edge_save_7', fromNodeId: 'insert_note', fromPort: 'success', toNodeId: 'index_inserted_note', toPort: 'in', kind: 'control' },
+      { id: 'edge_save_8', fromNodeId: 'index_updated_note', fromPort: 'success', toNodeId: 'navigate_after_update', toPort: 'in', kind: 'control' },
+      { id: 'edge_save_9', fromNodeId: 'index_inserted_note', fromPort: 'success', toNodeId: 'navigate_after_insert', toPort: 'in', kind: 'control' },
+      { id: 'edge_save_10', fromNodeId: 'index_updated_note', fromPort: 'error', toNodeId: 'show_update_index_failed', toPort: 'in', kind: 'control' },
+      { id: 'edge_save_11', fromNodeId: 'index_inserted_note', fromPort: 'error', toNodeId: 'show_insert_index_failed', toPort: 'in', kind: 'control' },
+      { id: 'resource_saved_splitter', fromNodeId: 'split_saved_note', fromPort: 'text-splitter', toNodeId: 'map_saved_note_document', toPort: 'text-splitter', kind: 'resource' },
+      { id: 'resource_update_loader', fromNodeId: 'map_saved_note_document', fromPort: 'documents', toNodeId: 'index_updated_note', toPort: 'documents', kind: 'resource' },
+      { id: 'resource_insert_loader', fromNodeId: 'map_saved_note_document', fromPort: 'documents', toNodeId: 'index_inserted_note', toPort: 'documents', kind: 'resource' },
+      { id: 'resource_update_embeddings', fromNodeId: 'embed_saved_note', fromPort: 'embeddings', toNodeId: 'index_updated_note', toPort: 'embeddings', kind: 'resource' },
+      { id: 'resource_insert_embeddings', fromNodeId: 'embed_saved_note', fromPort: 'embeddings', toNodeId: 'index_inserted_note', toPort: 'embeddings', kind: 'resource' },
     ],
   },
   {
@@ -522,16 +628,20 @@ editorScreen.logicGraphs = [
       { kind: 'trigger', id: 'trigger_editor_delete', event: 'click', position: { x: 80, y: 160 } },
       { kind: 'condition', id: 'condition_has_selected', position: { x: 312, y: 160 }, left: { source: 'variable', name: 'selectedNoteId' }, operator: 'is-not-empty', compareValue: '' },
       { kind: 'action', id: 'delete_note', payload: { type: 'delete-record', collectionId: '', recordId: '' }, inputMappings: { '$recordId': { source: 'variable', name: 'selectedNoteId' } }, position: { x: 544, y: 120 } },
-      { kind: 'action', id: 'clear_selected', payload: { type: 'set-variable', name: 'selectedNoteId', value: '' }, position: { x: 776, y: 120 } },
-      { kind: 'action', id: 'navigate_after_delete', payload: { type: 'navigate', targetScreenId: NOTES_SCREEN_ID }, position: { x: 1008, y: 120 } },
+      { kind: 'action', id: 'delete_note_vectors', payload: { type: 'vector-store', operation: 'delete', connectionProfileId: '', indexName: 'notes', namespace: '', documentInputMode: 'previous-output', conflictMode: 'upsert', documentId: '' , topK: 5, minimumScore: 0 }, inputMappings: { documentId: { source: 'variable', name: 'selectedNoteId' } }, position: { x: 776, y: 120 } },
+      { kind: 'action', id: 'clear_selected', payload: { type: 'set-variable', name: 'selectedNoteId', value: '' }, position: { x: 1008, y: 120 } },
+      { kind: 'action', id: 'navigate_after_delete', payload: { type: 'navigate', targetScreenId: NOTES_SCREEN_ID }, position: { x: 1240, y: 120 } },
+      { kind: 'action', id: 'show_vector_cleanup_pending', payload: { type: 'show-message', message: 'Note deleted. Vector cleanup will retry.' }, position: { x: 1008, y: 280 } },
       { kind: 'action', id: 'show_nothing_to_delete', payload: { type: 'show-message', message: 'No note selected.' }, position: { x: 544, y: 260 } },
     ],
     edges: [
       { id: 'edge_delete_1', fromNodeId: 'trigger_editor_delete', fromPort: 'next', toNodeId: 'condition_has_selected', toPort: 'in' },
       { id: 'edge_delete_2', fromNodeId: 'condition_has_selected', fromPort: 'true', toNodeId: 'delete_note', toPort: 'in' },
       { id: 'edge_delete_3', fromNodeId: 'condition_has_selected', fromPort: 'false', toNodeId: 'show_nothing_to_delete', toPort: 'in' },
-      { id: 'edge_delete_4', fromNodeId: 'delete_note', fromPort: 'success', toNodeId: 'clear_selected', toPort: 'in' },
-      { id: 'edge_delete_5', fromNodeId: 'clear_selected', fromPort: 'next', toNodeId: 'navigate_after_delete', toPort: 'in' },
+      { id: 'edge_delete_4', fromNodeId: 'delete_note', fromPort: 'success', toNodeId: 'delete_note_vectors', toPort: 'in', kind: 'control' },
+      { id: 'edge_delete_5', fromNodeId: 'delete_note_vectors', fromPort: 'success', toNodeId: 'clear_selected', toPort: 'in', kind: 'control' },
+      { id: 'edge_delete_6', fromNodeId: 'delete_note_vectors', fromPort: 'error', toNodeId: 'show_vector_cleanup_pending', toPort: 'in', kind: 'control' },
+      { id: 'edge_delete_7', fromNodeId: 'clear_selected', fromPort: 'next', toNodeId: 'navigate_after_delete', toPort: 'in', kind: 'control' },
     ],
   },
   {
@@ -570,7 +680,7 @@ const NOTES: Template = {
   id: 'template_notes',
   name: 'Note taking app',
   description: 'A starter notes app with CRUD, search, RAG-ready data, and optional biometric unlock.',
-  screens: [unlockScreen, notesScreen, editorScreen],
+  screens: [unlockScreen, notesScreen, editorScreen, askNotesScreen],
 };
 
 export const TEMPLATE_CATALOG: readonly Template[] = [BLANK, LANDING, LOGIN_FORM, STUDENT_LIST, NOTES];

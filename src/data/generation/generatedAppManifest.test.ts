@@ -47,7 +47,7 @@ const project: Project = {
         sourceNodeId: 'camera_face',
         nodes: [
           { kind: 'trigger', id: 'trigger', event: 'change', position: { x: 80, y: 160 } },
-          { kind: 'action', id: 'query', payload: { type: 'rag-query', query: 'What did I write?' }, position: { x: 312, y: 80 } },
+          { kind: 'action', id: 'query', payload: { type: 'vector-retrieve', connectionProfileId: 'vector-profile', indexName: 'notes', namespace: '', topK: 5, minimumScore: 0, metadataFilter: {} }, position: { x: 312, y: 80 } },
           { kind: 'action', id: 'verify', payload: { type: 'cv-verify', mediaReference: '' }, position: { x: 312, y: 200 } },
           { kind: 'action', id: 'email', payload: { type: 'send-email', to: '', subject: 'Note', body: '' }, position: { x: 544, y: 80 } },
         ],
@@ -69,7 +69,7 @@ describe('generated app manifest', () => {
     expect(manifest).toMatchObject({
       manifestVersion: 1,
       generatedAt: '2026-11-07T12:00:00.000Z',
-      project: { schemaVersion: 3, id: 'project_notes' },
+      project: { schemaVersion: 5, id: 'project_notes' },
       appData: {
         database: { id: 'database_notes' },
         recordsIncluded: false,

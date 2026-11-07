@@ -6,9 +6,6 @@ import type {
   CvVerifyPayload,
   LogicGraph,
   LogicOutputPort,
-  RagIndexPayload,
-  RagQueryPayload,
-  RagRemovePayload,
   TriggerEvent,
   ValueExpression,
 } from '../entities/logic';
@@ -36,9 +33,9 @@ export type PreviewEffect =
   | { kind: 'email-simulated'; to: string; subject: string }
   | { kind: 'set-variable'; name: string; value: string }
   | { kind: 'set-component-value'; nodeId: string; value: string }
-  | { kind: 'rag-indexed'; documentId: string; chunkCount: number }
-  | { kind: 'rag-removed'; documentId: string }
-  | { kind: 'rag-answer'; answer: string; citations: RagCitation[] }
+  | { kind: 'vector-indexed'; insertedCount: number }
+  | { kind: 'vector-deleted'; documentId: string }
+  | { kind: 'chat-response'; nodeId: string; citationsNodeId?: string; answer: string; citations: RagCitation[] }
   | { kind: 'cv-result'; operation: string; isLive?: boolean; verified?: boolean; credentialId?: string; reason?: string };
 
 export interface RagCitation {
@@ -55,9 +52,13 @@ export interface PreviewRuntimeContext {
   variables?: ReadonlyMap<string, string>;
   data?: {
     getRecord: (collectionId: string, recordId: string) => unknown;
-    ragIndex?: (payload: RagIndexPayload) => { documentId: string; chunkCount: number };
-    ragQuery?: (payload: RagQueryPayload) => { answer: string; citations: RagCitation[] };
-    ragRemove?: (payload: RagRemovePayload) => { documentId: string; removed: boolean };
+    loadCollectionDocuments?: (collectionId: string, contentFieldId: string, titleFieldId?: string, documentIdFieldId?: string) => readonly unknown[];
+    vectorUpsert?: (chunks: readonly unknown[]) => { insertedCount: number; updatedCount: number };
+    vectorDelete?: (documentId: string) => { removedCount: number };
+    vectorRetrieve?: (question: string, topK: number, minimumScore: number) => readonly unknown[];
+    memoryLoad?: (conversationId: string, windowSize: number) => readonly unknown[];
+    memoryAppend?: (conversationId: string, messages: readonly unknown[]) => number;
+    memoryClear?: (conversationId: string) => void;
     cvLiveness?: (payload: CvLivenessPayload) => { isLive: boolean; confidence: number; reason: string };
     cvEnroll?: (payload: CvEnrollPayload) => { credentialId: string; enrolledAt: string; qualityScore: number };
     cvVerify?: (payload: CvVerifyPayload) => { verified: boolean; confidence: number; credentialId?: string; reason: string };
@@ -117,11 +118,8 @@ export function runBehavior(
     }
     let output: LogicOutputPort = 'next';
     if (node.kind === 'action') {
+      const inputs = resolveInputMappings(node.inputMappings, document, runtimeContext);
       const payload = applyActionInputMappings(node.payload, node.inputMappings, document, runtimeContext);
-      const effect = effectFor(payload, document, runtimeContext);
-      if (effect) {
-        effects.push(effect);
-      }
       if (payload.type === 'set-variable') {
         variables.set(payload.name, payload.value);
         outputs.set(node.id, { name: payload.name, value: payload.value });
@@ -130,15 +128,24 @@ export function runBehavior(
       } else if (payload.type === 'get-record') {
         const record = runtimeContext.data?.getRecord(payload.collectionId, payload.recordId) ?? { id: payload.recordId };
         outputs.set(node.id, { record });
-      } else if (payload.type === 'rag-index') {
-        const result = runtimeContext.data?.ragIndex?.(payload) ?? { documentId: payload.documentId, chunkCount: 1 };
-        outputs.set(node.id, result);
-      } else if (payload.type === 'rag-query') {
-        const result = runtimeContext.data?.ragQuery?.(payload) ?? { answer: `Simulated answer for “${payload.query}”.`, citations: [] };
-        outputs.set(node.id, result);
-      } else if (payload.type === 'rag-remove') {
-        const result = runtimeContext.data?.ragRemove?.(payload) ?? { documentId: payload.documentId, removed: true };
-        outputs.set(node.id, result);
+      } else if (payload.type === 'insert-record' || payload.type === 'update-record') {
+        outputs.set(node.id, {
+          record: {
+            id: payload.type === 'update-record' ? payload.recordId : `preview-record-${node.id}`,
+            collectionId: payload.collectionId,
+            values: { ...payload.values },
+          },
+        });
+      } else if (payload.type === 'delete-record') {
+        outputs.set(node.id, { deletedRecordId: payload.recordId, collectionId: payload.collectionId });
+      } else if (payload.type === 'vector-store') {
+        outputs.set(node.id, executeVectorStore(node.id, payload, graph, inputs, outputs, runtimeContext));
+      } else if (payload.type === 'ai-agent') {
+        outputs.set(node.id, executeAiAgent(node.id, payload, graph, inputs, outputs, runtimeContext));
+      } else if (payload.type === 'chat-model') {
+        outputs.set(node.id, { model: payload.model, profileId: payload.connectionProfileId });
+      } else if (isGranularRagPayload(payload)) {
+        outputs.set(node.id, executeGranularRagAction(payload, inputs, runtimeContext));
       } else if (payload.type === 'cv-liveness') {
         const result = runtimeContext.data?.cvLiveness?.(payload) ?? { isLive: true, confidence: 0.99, reason: 'simulated' };
         outputs.set(node.id, result);
@@ -151,6 +158,8 @@ export function runBehavior(
       } else {
         outputs.set(node.id, payload);
       }
+      const effect = effectFor(payload, document, runtimeContext, inputs, outputs.get(node.id));
+      if (effect) effects.push(effect);
       if (payload.type === 'cv-liveness' || payload.type === 'cv-verify') {
         output = payload.mediaReference ? 'success' : 'error';
       } else if (payload.type === 'cv-enroll') {
@@ -162,7 +171,7 @@ export function runBehavior(
       output = evaluateCondition(node, document, runtimeContext) ? 'true' : 'false';
     }
     currentId = graph.edges.find(
-      (edge) => edge.fromNodeId === node.id && edge.fromPort === output,
+      (edge) => edge.kind !== 'resource' && edge.toPort === 'in' && edge.fromNodeId === node.id && edge.fromPort === output,
     )?.toNodeId;
   }
   return effects;
@@ -172,7 +181,7 @@ export function resolveValueExpression(
   expression: ValueExpression,
   document: ProjectDocument,
   context: PreviewRuntimeContext,
-): string {
+): unknown {
   switch (expression.source) {
     case 'literal':
       return expression.value;
@@ -206,29 +215,21 @@ function applyActionInputMappings(
 ): ActionPayload {
   if (!mappings || Object.keys(mappings).length === 0) return payload;
   const resolve = (key: string, fallback: string): string =>
-    mappings[key] ? resolveValueExpression(mappings[key], document, context) : fallback;
+    mappings[key] ? runtimeText(resolveValueExpression(mappings[key], document, context)) : fallback;
   switch (payload.type) {
     case 'change-text': return { ...payload, text: resolve('text', payload.text) };
     case 'show-message': return { ...payload, message: resolve('message', payload.message) };
     case 'set-variable': return { ...payload, value: resolve('value', payload.value) };
     case 'set-component-value': return { ...payload, value: resolve('value', payload.value) };
-    case 'rag-index': return {
+    case 'document-load': return {
       ...payload,
+      sourceReference: resolve('sourceReference', payload.sourceReference),
       documentId: resolve('documentId', payload.documentId),
       title: resolve('title', payload.title),
-      content: resolve('content', payload.content),
-      knowledgeBaseId: resolve('knowledgeBaseId', payload.knowledgeBaseId ?? ''),
+      text: resolve('text', payload.text),
     };
-    case 'rag-query': return {
-      ...payload,
-      query: resolve('query', payload.query),
-      knowledgeBaseId: resolve('knowledgeBaseId', payload.knowledgeBaseId ?? ''),
-    };
-    case 'rag-remove': return {
-      ...payload,
-      documentId: resolve('documentId', payload.documentId),
-      knowledgeBaseId: resolve('knowledgeBaseId', payload.knowledgeBaseId ?? ''),
-    };
+    case 'vector-delete': return { ...payload, documentId: resolve('documentId', payload.documentId) };
+    case 'chat-input': return { ...payload, staticQuestion: resolve('question', payload.staticQuestion) };
     case 'cv-liveness': return { ...payload, mediaReference: resolve('mediaReference', payload.mediaReference) };
     case 'cv-enroll': return {
       ...payload,
@@ -270,8 +271,376 @@ function applyActionInputMappings(
     case 'navigate':
     case 'get-records':
     case 'refresh-collection':
+    case 'text-split':
+    case 'embedding-generate':
+    case 'vector-upsert':
+    case 'query-embedding':
+    case 'vector-retrieve':
+    case 'rerank':
+    case 'prompt-template':
+    case 'llm-generate':
+    case 'chat-output':
+    case 'memory':
+    case 'vector-store':
+    case 'chat-model':
+    case 'ai-agent':
       return payload;
   }
+}
+
+type GranularRagPayload = Extract<ActionPayload, {
+  type:
+    | 'document-load'
+    | 'text-split'
+    | 'embedding-generate'
+    | 'vector-upsert'
+    | 'vector-delete'
+    | 'chat-input'
+    | 'query-embedding'
+    | 'vector-retrieve'
+    | 'rerank'
+    | 'prompt-template'
+    | 'llm-generate'
+    | 'chat-output'
+    | 'memory';
+}>;
+
+function isGranularRagPayload(payload: ActionPayload): payload is GranularRagPayload {
+  return [
+    'document-load', 'text-split', 'embedding-generate', 'vector-upsert', 'vector-delete',
+    'chat-input', 'query-embedding', 'vector-retrieve', 'rerank', 'prompt-template',
+    'llm-generate', 'chat-output', 'memory',
+  ].includes(payload.type);
+}
+
+function resolveInputMappings(
+  mappings: ActionInputMappings | undefined,
+  document: ProjectDocument,
+  context: PreviewRuntimeContext,
+): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(mappings ?? {}).map(([key, expression]) => [
+    key,
+    resolveValueExpression(expression, document, context),
+  ]));
+}
+
+function executeGranularRagAction(
+  payload: GranularRagPayload,
+  inputs: Readonly<Record<string, unknown>>,
+  context: PreviewRuntimeContext,
+): unknown {
+  switch (payload.type) {
+    case 'document-load': {
+      const supplied = runtimeArray(inputs.documents);
+      if (supplied.length > 0) return { documents: supplied };
+      if (payload.source === 'collection' && payload.collectionId && payload.contentFieldId) {
+        return {
+          documents: [...(context.data?.loadCollectionDocuments?.(
+            payload.collectionId,
+            payload.contentFieldId,
+            payload.titleFieldId,
+            payload.documentIdFieldId,
+          ) ?? [])],
+        };
+      }
+      return {
+        documents: [{
+          id: payload.documentId || 'preview-document',
+          title: payload.title || 'Preview document',
+          text: payload.text || `Simulated content from ${payload.sourceReference || payload.source}.`,
+          metadata: { ...payload.metadata },
+        }],
+      };
+    }
+    case 'text-split': {
+      const documents = runtimeArray(inputs.documents);
+      const chunks = documents.flatMap((document, documentIndex) => {
+        const record = runtimeRecord(document);
+        const text = runtimeText(record.text);
+        const documentId = runtimeText(record.id) || `document-${documentIndex + 1}`;
+        return splitText(text, payload.chunkSize, payload.chunkOverlap).map((chunk, index) => ({
+          id: `${documentId}-chunk-${index + 1}`,
+          documentId,
+          text: chunk,
+          tokenCount: Math.max(1, Math.ceil(chunk.length / 4)),
+          title: runtimeText(record.title),
+          metadata: runtimeRecord(record.metadata),
+        }));
+      });
+      return { chunks };
+    }
+    case 'embedding-generate': {
+      const chunks = runtimeArray(inputs.chunks);
+      return {
+        chunks,
+        embeddings: chunks.map((chunk, index) => {
+          const record = runtimeRecord(chunk);
+          const chunkId = runtimeText(record.id) || `chunk-${index + 1}`;
+          return { chunkId, embeddingReference: `preview-embedding:${chunkId}`, dimensions: 0 };
+        }),
+      };
+    }
+    case 'vector-upsert': {
+      const chunks = runtimeArray(inputs.chunks);
+      const result = context.data?.vectorUpsert?.(chunks) ?? { insertedCount: chunks.length, updatedCount: 0 };
+      return { ...result, indexName: payload.indexName, namespace: payload.namespace };
+    }
+    case 'vector-delete':
+      return { ...(context.data?.vectorDelete?.(payload.documentId) ?? { removedCount: payload.documentId ? 1 : 0 }), documentId: payload.documentId };
+    case 'chat-input': {
+      const question = runtimeText(inputs.question) ||
+        (payload.componentId ? context.componentValues.get(payload.componentId) ?? '' : '') ||
+        payload.staticQuestion;
+      return { question, conversationId: runtimeText(inputs.conversationId) || 'preview-conversation' };
+    }
+    case 'query-embedding': {
+      const question = runtimeText(inputs.question);
+      return { question, embeddingReference: `preview-query:${stableHash(question)}`, dimensions: 0 };
+    }
+    case 'vector-retrieve': {
+      const providedMatches = runtimeArray(inputs.matches);
+      const question = runtimeText(inputs.question);
+      const matches = providedMatches.length > 0
+        ? providedMatches
+        : [...(context.data?.vectorRetrieve?.(question, payload.topK, payload.minimumScore) ?? [])];
+      return { matches: matches.slice(0, payload.topK), topK: payload.topK };
+    }
+    case 'rerank': {
+      const matches = runtimeArray(inputs.matches)
+        .map(runtimeRecord)
+        .filter((match) => runtimeNumber(match.score) >= payload.minimumScore)
+        .sort((left, right) => runtimeNumber(right.score) - runtimeNumber(left.score))
+        .slice(0, payload.topN);
+      return { matches };
+    }
+    case 'prompt-template': {
+      const question = runtimeText(inputs.question);
+      const matches = runtimeArray(inputs.matches).map(runtimeRecord);
+      const contextText = matches.map((match) => runtimeText(match.text)).filter(Boolean).join(payload.contextSeparator);
+      if (!contextText && payload.emptyContextBehavior === 'return-empty') return { prompt: '', question, matches };
+      return {
+        prompt: payload.template.replaceAll('{context}', contextText).replaceAll('{question}', question),
+        question,
+        matches,
+      };
+    }
+    case 'llm-generate': {
+      const prompt = runtimeText(inputs.prompt);
+      const matches = runtimeArray(inputs.matches).map(runtimeRecord);
+      const citations = matches.map((match, index): RagCitation => ({
+        documentId: runtimeText(match.documentId) || runtimeText(match.id) || `document-${index + 1}`,
+        title: runtimeText(match.title) || `Source ${index + 1}`,
+        snippet: runtimeText(match.text),
+        score: runtimeNumber(match.score),
+      }));
+      return {
+        answer: prompt ? `Simulated answer based on the compiled prompt.` : 'No relevant context was found.',
+        citations,
+        finishReason: 'simulated',
+      };
+    }
+    case 'chat-output':
+      return { answer: runtimeText(inputs.answer), citations: runtimeArray(inputs.citations) };
+    case 'memory': {
+      const conversationId = runtimeText(inputs.conversationId) || 'preview-conversation';
+      if (payload.operation === 'clear') {
+        context.data?.memoryClear?.(conversationId);
+        return { operation: payload.operation, conversationId, messages: [] };
+      }
+      if (payload.operation === 'load') {
+        const messages = context.data?.memoryLoad?.(conversationId, payload.windowSize) ?? runtimeArray(inputs.messages).slice(-payload.windowSize);
+        return { operation: payload.operation, conversationId, messages };
+      }
+      const messages = [
+        ...runtimeArray(inputs.messages),
+        ...(runtimeText(inputs.question) ? [{ role: 'user', content: runtimeText(inputs.question) }] : []),
+        ...(runtimeText(inputs.answer) ? [{ role: 'assistant', content: runtimeText(inputs.answer) }] : []),
+      ].slice(-payload.windowSize);
+      context.data?.memoryAppend?.(conversationId, messages);
+      return { operation: payload.operation, conversationId, messages };
+    }
+  }
+}
+
+function executeVectorStore(
+  nodeId: string,
+  payload: Extract<ActionPayload, { type: 'vector-store' }>,
+  graph: LogicGraph,
+  inputs: Readonly<Record<string, unknown>>,
+  outputs: ReadonlyMap<string, unknown>,
+  context: PreviewRuntimeContext,
+): unknown {
+  const previous = previousControlOutput(graph, nodeId, outputs);
+  if (payload.operation === 'delete') {
+    const previousRecord = runtimeRecord(previous);
+    const documentId = runtimeText(inputs.documentId) || payload.documentId ||
+      runtimeText(previousRecord.deletedRecordId) || runtimeText(runtimeRecord(previousRecord.record).id);
+    const result = context.data?.vectorDelete?.(documentId) ?? { removedCount: documentId ? 1 : 0 };
+    return { ...result, documentId };
+  }
+  if (payload.operation === 'retrieve-tool') {
+    return { toolName: `vector:${payload.indexName}`, operation: payload.operation };
+  }
+
+  let documents: unknown[] = [];
+  let chunks: unknown[] = [];
+  if (payload.documentInputMode === 'previous-output') {
+    const previousRecord = runtimeRecord(previous);
+    const record = runtimeRecord(previousRecord.record);
+    const values = runtimeRecord(record.values);
+    documents = [{
+      id: runtimeText(record.id) || `document-${nodeId}`,
+      title: runtimeText(values.title),
+      text: runtimeText(values.content) || runtimeText(values.text),
+      metadata: { collectionId: runtimeText(record.collectionId) },
+    }];
+    chunks = documents;
+  } else {
+    const loader = attachedAction(graph, nodeId, 'documents');
+    if (loader?.payload.type === 'document-load') {
+      const previousRecord = runtimeRecord(previous);
+      const record = runtimeRecord(previousRecord.record);
+      const values = runtimeRecord(record.values);
+      const inheritedDocuments = loader.payload.source === 'previous-output' && Object.keys(record).length > 0
+        ? [{
+            id: runtimeText(record.id) || `document-${nodeId}`,
+            title: runtimeText(values.title),
+            text: runtimeText(values.content) || runtimeText(values.text),
+            metadata: { collectionId: runtimeText(record.collectionId) },
+          }]
+        : [];
+      const loaded = runtimeRecord(executeGranularRagAction(loader.payload, { documents: inheritedDocuments }, context));
+      documents = runtimeArray(loaded.documents);
+      const splitter = attachedAction(graph, loader.id, 'text-splitter');
+      if (splitter?.payload.type === 'text-split') {
+        const split = runtimeRecord(executeGranularRagAction(splitter.payload, { documents }, context));
+        chunks = runtimeArray(split.chunks);
+      } else {
+        chunks = documents;
+      }
+    }
+  }
+  const result = context.data?.vectorUpsert?.(chunks) ?? { insertedCount: chunks.length, updatedCount: 0 };
+  return { ...result, documents, chunks, indexName: payload.indexName, namespace: payload.namespace };
+}
+
+function executeAiAgent(
+  nodeId: string,
+  payload: Extract<ActionPayload, { type: 'ai-agent' }>,
+  graph: LogicGraph,
+  inputs: Readonly<Record<string, unknown>>,
+  outputs: ReadonlyMap<string, unknown>,
+  context: PreviewRuntimeContext,
+): unknown {
+  const previous = runtimeRecord(previousControlOutput(graph, nodeId, outputs));
+  const question = runtimeText(inputs.question) || runtimeText(previous.question);
+  const conversationId = runtimeText(inputs.conversationId) || runtimeText(previous.conversationId) || 'preview-conversation';
+  const tool = attachedAction(graph, nodeId, 'tool');
+  let matches: Record<string, unknown>[] = [];
+  if (tool?.payload.type === 'vector-store' && tool.payload.operation === 'retrieve-tool') {
+    matches = [...(context.data?.vectorRetrieve?.(question, tool.payload.topK, tool.payload.minimumScore) ?? [])].map(runtimeRecord);
+    const reranker = attachedAction(graph, tool.id, 'reranker');
+    if (reranker?.payload.type === 'rerank') {
+      const rerankerPayload = reranker.payload;
+      matches = matches
+        .filter((match) => runtimeNumber(match.score) >= rerankerPayload.minimumScore)
+        .sort((left, right) => runtimeNumber(right.score) - runtimeNumber(left.score))
+        .slice(0, rerankerPayload.topN);
+    }
+  }
+  const memoryNode = attachedAction(graph, nodeId, 'memory');
+  const messages = memoryNode?.payload.type === 'memory'
+    ? [...(context.data?.memoryLoad?.(conversationId, memoryNode.payload.windowSize) ?? [])]
+    : [];
+  const promptNode = attachedAction(graph, nodeId, 'prompt-template');
+  const contextText = matches.map((match) => runtimeText(match.text)).filter(Boolean).join('\n\n---\n\n');
+  const prompt = promptNode?.payload.type === 'prompt-template'
+    ? promptNode.payload.template.replaceAll('{context}', contextText).replaceAll('{question}', question)
+    : `${payload.instructions}\n\nContext:\n${contextText}\n\nQuestion:\n${question}`;
+  const citations = matches.map((match, index): RagCitation => ({
+    documentId: runtimeText(match.documentId) || runtimeText(match.id) || `document-${index + 1}`,
+    title: runtimeText(match.title) || `Source ${index + 1}`,
+    snippet: runtimeText(match.text),
+    score: runtimeNumber(match.score),
+  }));
+  const answer = contextText
+    ? 'Simulated agent answer based on the attached vector-store tool.'
+    : 'No relevant context was found by the attached tools.';
+  if (memoryNode?.payload.type === 'memory') {
+    context.data?.memoryAppend?.(conversationId, [
+      ...messages,
+      { role: 'user', content: question },
+      { role: 'assistant', content: answer },
+    ].slice(-memoryNode.payload.windowSize));
+  }
+  return {
+    answer,
+    citations,
+    conversationId,
+    prompt,
+    toolCalls: tool ? [{ tool: `vector:${tool.payload.type === 'vector-store' ? tool.payload.indexName : ''}` }] : [],
+    finishReason: 'simulated',
+  };
+}
+
+function attachedAction(
+  graph: LogicGraph,
+  targetNodeId: string,
+  toPort: import('../entities/logic').LogicResourcePort,
+): Extract<LogicGraph['nodes'][number], { kind: 'action' }> | undefined {
+  const edge = graph.edges.find((candidate) =>
+    (candidate.kind === 'resource' || candidate.toPort !== 'in') &&
+    candidate.toNodeId === targetNodeId && candidate.toPort === toPort);
+  const node = edge ? graph.nodes.find((candidate) => candidate.id === edge.fromNodeId) : undefined;
+  return node?.kind === 'action' ? node : undefined;
+}
+
+function previousControlOutput(
+  graph: LogicGraph,
+  targetNodeId: string,
+  outputs: ReadonlyMap<string, unknown>,
+): unknown {
+  const edge = graph.edges.find((candidate) =>
+    candidate.kind !== 'resource' && candidate.toNodeId === targetNodeId && candidate.toPort === 'in');
+  return edge ? outputs.get(edge.fromNodeId) : undefined;
+}
+
+function runtimeText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return typeof value === 'string' ? value : String(value);
+}
+
+function runtimeNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function runtimeArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function runtimeRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function splitText(text: string, chunkSize: number, overlap: number): string[] {
+  if (!text) return [];
+  const size = Math.max(1, chunkSize);
+  const step = Math.max(1, size - Math.max(0, overlap));
+  const chunks: string[] = [];
+  for (let start = 0; start < text.length; start += step) {
+    chunks.push(text.slice(start, start + size));
+    if (start + size >= text.length) break;
+  }
+  return chunks;
+}
+
+function stableHash(value: string): string {
+  let hash = 0;
+  for (const character of value) hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
+  return Math.abs(hash).toString(36);
 }
 
 function mappedRecordValues(
@@ -286,13 +655,13 @@ function mappedRecordValues(
   return Object.fromEntries([...keys].map((key) => [key, resolve(key, values[key] ?? '')]));
 }
 
-function readOutputPath(value: unknown, path: string): string {
+function readOutputPath(value: unknown, path: string): unknown {
   let current: unknown = value;
   for (const segment of path.split('.').filter(Boolean)) {
     if (typeof current !== 'object' || current === null || !(segment in current)) return '';
     current = (current as Record<string, unknown>)[segment];
   }
-  return current === null || current === undefined ? '' : String(current);
+  return current ?? '';
 }
 
 function evaluateCondition(
@@ -300,7 +669,7 @@ function evaluateCondition(
   document: ProjectDocument,
   context: PreviewRuntimeContext,
 ): boolean {
-  const actual = resolveValueExpression(condition.left, document, context);
+  const actual = runtimeText(resolveValueExpression(condition.left, document, context));
   switch (condition.operator) {
     case 'equals':
       return actual === condition.compareValue;
@@ -323,7 +692,13 @@ function flattenNodes(nodes: readonly ComponentNode[]): ComponentNode[] {
   );
 }
 
-function effectFor(payload: ActionPayload, document: ProjectDocument, context: PreviewRuntimeContext = { componentValues: new Map() }): PreviewEffect | null {
+function effectFor(
+  payload: ActionPayload,
+  document: ProjectDocument,
+  context: PreviewRuntimeContext = { componentValues: new Map() },
+  inputs: Readonly<Record<string, unknown>> = {},
+  output?: unknown,
+): PreviewEffect | null {
   switch (payload.type) {
     case 'change-text': {
       return payload.targetNodeId.length > 0
@@ -352,14 +727,38 @@ function effectFor(payload: ActionPayload, document: ProjectDocument, context: P
       return payload.collectionId ? { kind: 'refresh-collection', collectionId: payload.collectionId } : null;
     case 'send-email':
       return payload.to ? { kind: 'email-simulated', to: payload.to, subject: payload.subject } : null;
-    case 'rag-index':
-      return payload.documentId ? { kind: 'rag-indexed', documentId: payload.documentId, chunkCount: 1 } : null;
-    case 'rag-query': {
-      const result = context.data?.ragQuery?.(payload) ?? { answer: `Simulated answer for “${payload.query}”.`, citations: [] };
-      return payload.query ? { kind: 'rag-answer', answer: result.answer, citations: result.citations } : null;
+    case 'vector-upsert':
+      return { kind: 'vector-indexed', insertedCount: runtimeNumber(runtimeRecord(output).insertedCount) };
+    case 'vector-delete':
+      return payload.documentId ? { kind: 'vector-deleted', documentId: payload.documentId } : null;
+    case 'vector-store': {
+      const result = runtimeRecord(output);
+      if (payload.operation === 'upsert') return { kind: 'vector-indexed', insertedCount: runtimeNumber(result.insertedCount) };
+      if (payload.operation === 'delete') return runtimeText(result.documentId)
+        ? { kind: 'vector-deleted', documentId: runtimeText(result.documentId) }
+        : null;
+      return null;
     }
-    case 'rag-remove':
-      return payload.documentId ? { kind: 'rag-removed', documentId: payload.documentId } : null;
+    case 'chat-output': {
+      const result = runtimeRecord(output);
+      const citations = runtimeArray(result.citations).map((citation) => {
+        const value = runtimeRecord(citation);
+        return {
+          documentId: runtimeText(value.documentId),
+          title: runtimeText(value.title),
+          snippet: runtimeText(value.snippet),
+          score: runtimeNumber(value.score),
+        };
+      });
+      const answer = runtimeText(result.answer) || runtimeText(inputs.answer);
+      return payload.targetNodeId ? {
+        kind: 'chat-response',
+        nodeId: payload.targetNodeId,
+        ...(payload.citationsNodeId ? { citationsNodeId: payload.citationsNodeId } : {}),
+        answer,
+        citations,
+      } : null;
+    }
     case 'cv-liveness': {
       if (!payload.mediaReference) return null;
       const result = context.data?.cvLiveness?.(payload) ?? {
@@ -408,6 +807,19 @@ function effectFor(payload: ActionPayload, document: ProjectDocument, context: P
       return payload.name ? { kind: 'set-variable', name: payload.name, value: payload.value } : null;
     case 'set-component-value':
       return payload.targetNodeId ? { kind: 'set-component-value', nodeId: payload.targetNodeId, value: payload.value } : null;
+    case 'document-load':
+    case 'text-split':
+    case 'embedding-generate':
+    case 'chat-input':
+    case 'query-embedding':
+    case 'vector-retrieve':
+    case 'rerank':
+    case 'prompt-template':
+    case 'llm-generate':
+    case 'memory':
+    case 'chat-model':
+    case 'ai-agent':
+      return null;
     default: {
       const exhaustive: never = payload;
       void exhaustive;

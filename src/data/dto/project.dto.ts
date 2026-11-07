@@ -220,7 +220,8 @@ export interface RefreshCollectionPayloadDTO {
   collectionId: string;
 }
 
-export interface RagIndexPayloadDTO {
+/** Schema-v3 compatibility only; migrated to granular schema-v4 nodes on load. */
+export interface LegacyRagIndexPayloadDTO {
   type: 'rag-index';
   knowledgeBaseId?: string;
   documentId: string;
@@ -228,17 +229,150 @@ export interface RagIndexPayloadDTO {
   content: string;
 }
 
-export interface RagQueryPayloadDTO {
+export interface LegacyRagQueryPayloadDTO {
   type: 'rag-query';
   knowledgeBaseId?: string;
   query: string;
   topK?: number;
 }
 
-export interface RagRemovePayloadDTO {
+export interface LegacyRagRemovePayloadDTO {
   type: 'rag-remove';
   knowledgeBaseId?: string;
   documentId: string;
+}
+
+export interface DocumentLoadPayloadDTO {
+  type: 'document-load';
+  source: 'inline' | 'url' | 'collection' | 'file-reference' | 'previous-output';
+  sourceReference: string;
+  collectionId?: string;
+  documentId: string;
+  title: string;
+  text: string;
+  contentFieldId?: string;
+  titleFieldId?: string;
+  documentIdFieldId?: string;
+  metadata: Record<string, string>;
+}
+
+export interface TextSplitPayloadDTO {
+  type: 'text-split';
+  strategy: 'recursive-character' | 'token';
+  chunkSize: number;
+  chunkOverlap: number;
+  separators: string[];
+}
+
+export interface EmbeddingGeneratePayloadDTO {
+  type: 'embedding-generate';
+  connectionProfileId: string;
+  model: string;
+  batchSize: number;
+}
+
+export interface VectorUpsertPayloadDTO {
+  type: 'vector-upsert';
+  connectionProfileId: string;
+  indexName: string;
+  namespace: string;
+  conflictMode: 'upsert' | 'replace';
+}
+
+export interface VectorDeletePayloadDTO {
+  type: 'vector-delete';
+  connectionProfileId: string;
+  indexName: string;
+  namespace: string;
+  documentId: string;
+}
+
+export interface ChatInputPayloadDTO {
+  type: 'chat-input';
+  componentId: string;
+  staticQuestion: string;
+}
+
+export interface QueryEmbeddingPayloadDTO {
+  type: 'query-embedding';
+  connectionProfileId: string;
+  model: string;
+}
+
+export interface VectorRetrievePayloadDTO {
+  type: 'vector-retrieve';
+  connectionProfileId: string;
+  indexName: string;
+  namespace: string;
+  topK: number;
+  minimumScore: number;
+  metadataFilter: Record<string, string>;
+}
+
+export interface RerankPayloadDTO {
+  type: 'rerank';
+  connectionProfileId: string;
+  model: string;
+  topN: number;
+  minimumScore: number;
+}
+
+export interface PromptTemplatePayloadDTO {
+  type: 'prompt-template';
+  template: string;
+  contextSeparator: string;
+  emptyContextBehavior: 'answer-without-context' | 'return-empty';
+}
+
+export interface LlmGeneratePayloadDTO {
+  type: 'llm-generate';
+  connectionProfileId: string;
+  model: string;
+  systemPrompt: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+export interface ChatOutputPayloadDTO {
+  type: 'chat-output';
+  targetNodeId: string;
+  citationsNodeId?: string;
+}
+
+export interface MemoryPayloadDTO {
+  type: 'memory';
+  operation: 'load' | 'append' | 'clear';
+  connectionProfileId: string;
+  scope: 'session' | 'user' | 'conversation';
+  windowSize: number;
+}
+
+export interface VectorStorePayloadDTO {
+  type: 'vector-store';
+  operation: 'upsert' | 'delete' | 'retrieve-tool';
+  connectionProfileId: string;
+  indexName: string;
+  namespace: string;
+  documentInputMode: 'previous-output' | 'document-loader';
+  conflictMode: 'upsert' | 'replace';
+  documentId: string;
+  topK: number;
+  minimumScore: number;
+}
+
+export interface ChatModelPayloadDTO {
+  type: 'chat-model';
+  connectionProfileId: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+export interface AiAgentPayloadDTO {
+  type: 'ai-agent';
+  instructions: string;
+  maxIterations: number;
+  returnIntermediateSteps: boolean;
 }
 
 export interface CvLivenessPayloadDTO {
@@ -286,9 +420,25 @@ export type ActionPayloadDTO =
   | RefreshCollectionPayloadDTO
   | SetVariablePayloadDTO
   | SetComponentValuePayloadDTO
-  | RagIndexPayloadDTO
-  | RagQueryPayloadDTO
-  | RagRemovePayloadDTO
+  | LegacyRagIndexPayloadDTO
+  | LegacyRagQueryPayloadDTO
+  | LegacyRagRemovePayloadDTO
+  | DocumentLoadPayloadDTO
+  | TextSplitPayloadDTO
+  | EmbeddingGeneratePayloadDTO
+  | VectorUpsertPayloadDTO
+  | VectorDeletePayloadDTO
+  | ChatInputPayloadDTO
+  | QueryEmbeddingPayloadDTO
+  | VectorRetrievePayloadDTO
+  | RerankPayloadDTO
+  | PromptTemplatePayloadDTO
+  | LlmGeneratePayloadDTO
+  | ChatOutputPayloadDTO
+  | MemoryPayloadDTO
+  | VectorStorePayloadDTO
+  | ChatModelPayloadDTO
+  | AiAgentPayloadDTO
   | CvLivenessPayloadDTO
   | CvEnrollPayloadDTO
   | CvVerifyPayloadDTO;
@@ -322,15 +472,17 @@ export type LogicNodeDTO = TriggerNodeDTO | ConditionNodeDTO | ActionNodeDTO;
 export interface LogicEdgeDTO {
   id?: string;
   fromNodeId: string;
-  fromPort?: 'next' | 'true' | 'false' | 'success' | 'error';
+  fromPort?: 'next' | 'true' | 'false' | 'success' | 'error' | 'documents' | 'text-splitter' | 'embeddings' | 'chat-model' | 'memory' | 'tool' | 'reranker' | 'prompt-template';
   toNodeId: string;
-  toPort?: 'in';
+  toPort?: 'in' | 'documents' | 'text-splitter' | 'embeddings' | 'chat-model' | 'memory' | 'tool' | 'reranker' | 'prompt-template';
+  kind?: 'control' | 'resource';
 }
 
 export interface LogicGraphDTO {
   id: string;
   name: string;
   sourceNodeId: string;
+  purpose?: 'ui' | 'ingestion' | 'chat';
   nodes: LogicNodeDTO[];
   edges: LogicEdgeDTO[];
 }

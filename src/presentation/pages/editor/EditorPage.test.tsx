@@ -42,6 +42,21 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(screen.getByRole('main', { name: 'Editor' })).toBeInTheDocument();
   });
 
+  it('minimizes and restores the design Inspector panel', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    await screen.findByTestId('canvas-frame');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse inspector panel' }));
+    expect(screen.queryByRole('region', { name: 'Inspector' })).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'inspector panel minimized' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand inspector panel' }));
+    expect(screen.getByRole('region', { name: 'Inspector' })).toBeInTheDocument();
+  });
+
   it('switches to the Logic workspace and back to design', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);

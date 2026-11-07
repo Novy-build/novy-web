@@ -133,9 +133,22 @@ function detectActionCapabilities(
     case 'send-email':
       requireCapability('email', source);
       return;
-    case 'rag-index':
-    case 'rag-query':
-    case 'rag-remove':
+    case 'document-load':
+    case 'text-split':
+    case 'embedding-generate':
+    case 'vector-upsert':
+    case 'vector-delete':
+    case 'chat-input':
+    case 'query-embedding':
+    case 'vector-retrieve':
+    case 'rerank':
+    case 'prompt-template':
+    case 'llm-generate':
+    case 'chat-output':
+    case 'memory':
+    case 'vector-store':
+    case 'chat-model':
+    case 'ai-agent':
       requireCapability('rag', source);
       return;
     case 'cv-liveness':

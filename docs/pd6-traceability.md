@@ -70,8 +70,10 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/domain/logic/runtime.test.ts`
 - Evidence: typed workflow ports, node positioning, If/Else branches, node dragging, connection
   validation, cycle prevention, searchable node library, component/data node configuration,
-  project-scoped collection CRUD, records, schema editing, List/Form bindings, and preview data
-  effects.
+  project-scoped collection CRUD, records, schema editing, List/Form bindings, granular RAG
+  ingestion/chat nodes, solid control and dashed typed resource edges, AI Agent/Vector Store
+  composition, write-through indexing, structured output mappings, schema migration, and preview
+  data effects.
 
 ## UC-05 Generate UI Component with AI
 

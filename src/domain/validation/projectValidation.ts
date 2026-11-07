@@ -1,7 +1,7 @@
 import type { DataCollection } from '../entities/appData';
 import type { ComponentNode } from '../entities/componentNode';
 import type { ActionPayload, LogicGraph } from '../entities/logic';
-import { outputPortsFor } from '../logic/graph';
+import { outputPortsFor, resourceInputPortsFor, resourceOutputPortsFor } from '../logic/graph';
 import type { ProjectDocument, Screen } from '../entities/screen';
 
 export type ValidationSeverity = 'error' | 'warning';
@@ -223,10 +223,17 @@ function validateLogic(
         issues.push(issue('logic-self-loop', 'error', 'logic', 'Workflow cannot connect a node to itself.', { screenId: screen.id, graphId: graph.id }));
       }
       const source = graph.nodes.find((node) => node.id === edge.fromNodeId);
-      if (source && !outputPortsFor(source).includes(edge.fromPort)) {
+      const target = graph.nodes.find((node) => node.id === edge.toNodeId);
+      const isResource = edge.kind === 'resource' || edge.toPort !== 'in';
+      if (source && isResource && !resourceOutputPortsFor(source).includes(edge.fromPort as import('../entities/logic').LogicResourcePort)) {
+        issues.push(issue('logic-invalid-resource-output', 'error', 'logic', 'Workflow resource connection uses an invalid output port.', { screenId: screen.id, graphId: graph.id }));
+      } else if (source && !isResource && !outputPortsFor(source).includes(edge.fromPort)) {
         issues.push(issue('logic-invalid-output-port', 'error', 'logic', 'Workflow connection uses an invalid output port.', { screenId: screen.id, graphId: graph.id }));
       }
-      incomingCounts.set(edge.toNodeId, (incomingCounts.get(edge.toNodeId) ?? 0) + 1);
+      if (target && isResource && !resourceInputPortsFor(target).includes(edge.toPort as import('../entities/logic').LogicResourcePort)) {
+        issues.push(issue('logic-invalid-resource-input', 'error', 'logic', 'Workflow resource connection uses an invalid input port.', { screenId: screen.id, graphId: graph.id }));
+      }
+      if (!isResource) incomingCounts.set(edge.toNodeId, (incomingCounts.get(edge.toNodeId) ?? 0) + 1);
     }
     if (wouldCreateCycle(graph)) {
       issues.push(issue('logic-cycle', 'error', 'logic', 'Workflow contains a cycle.', { screenId: screen.id, graphId: graph.id }));
@@ -261,6 +268,30 @@ function validateLogic(
           issues.push(issue('logic-missing-condition-source', 'error', 'logic', 'Condition source node is missing.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
         }
       }
+    }
+    validateRequiredResources(graph, screen.id, issues);
+  }
+}
+
+function validateRequiredResources(graph: LogicGraph, screenId: string, issues: ValidationIssue[]): void {
+  const hasResource = (nodeId: string, port: import('../entities/logic').LogicResourcePort): boolean =>
+    graph.edges.some((edge) =>
+      (edge.kind === 'resource' || edge.toPort !== 'in') && edge.toNodeId === nodeId && edge.toPort === port);
+  for (const node of graph.nodes) {
+    if (node.kind !== 'action') continue;
+    if (node.payload.type === 'ai-agent' && !hasResource(node.id, 'chat-model')) {
+      issues.push(issue('logic-missing-agent-model', 'error', 'logic', 'AI Agent requires an attached Chat Model.', { screenId, graphId: graph.id, logicNodeId: node.id }));
+    }
+    if (node.payload.type === 'vector-store' && node.payload.operation === 'upsert') {
+      if (node.payload.documentInputMode === 'document-loader' && !hasResource(node.id, 'documents')) {
+        issues.push(issue('logic-missing-document-loader', 'error', 'logic', 'Vector Store Upsert requires an attached Document Loader.', { screenId, graphId: graph.id, logicNodeId: node.id }));
+      }
+      if (!hasResource(node.id, 'embeddings')) {
+        issues.push(issue('logic-missing-embedding-model', 'error', 'logic', 'Vector Store Upsert requires an attached Embedding Model.', { screenId, graphId: graph.id, logicNodeId: node.id }));
+      }
+    }
+    if (node.payload.type === 'vector-store' && node.payload.operation === 'retrieve-tool' && !hasResource(node.id, 'embeddings')) {
+      issues.push(issue('logic-missing-embedding-model', 'error', 'logic', 'Vector Store Tool requires an attached Embedding Model.', { screenId, graphId: graph.id, logicNodeId: node.id }));
     }
   }
 }
@@ -319,15 +350,61 @@ function validateActionPayload(
       if (!payload.targetNodeId) issues.push(issue('logic-empty-target', 'warning', 'logic', 'Component target is not set.', base));
       else if (!screen.nodes.flatMap(flattenNodeIds).includes(payload.targetNodeId)) issues.push(issue('logic-missing-target', 'error', 'logic', 'Component target is missing.', base));
       break;
-    case 'rag-index':
-      if (!payload.documentId.trim()) issues.push(issue('logic-empty-document', 'warning', 'logic', 'RAG document ID is empty.', base));
-      if (!payload.title.trim() && !payload.content.trim()) issues.push(issue('logic-empty-rag-content', 'warning', 'logic', 'RAG document has no title or content.', base));
+    case 'document-load':
+      if (payload.source === 'inline' && !payload.text.trim()) issues.push(issue('logic-empty-document', 'warning', 'logic', 'Inline document text is empty.', base));
+      if ((payload.source === 'url' || payload.source === 'file-reference') && !payload.sourceReference.trim()) issues.push(issue('logic-empty-document-source', 'warning', 'logic', 'Document source reference is empty.', base));
+      if (payload.source === 'collection' && (!payload.collectionId || !collections.has(payload.collectionId))) issues.push(issue('data-missing-collection', 'error', 'logic', 'Document Loader references a missing collection.', base));
       break;
-    case 'rag-query':
-      if (!payload.query.trim()) issues.push(issue('logic-empty-query', 'warning', 'logic', 'RAG query is empty.', base));
+    case 'text-split':
+      if (payload.chunkSize <= 0) issues.push(issue('logic-invalid-chunk-size', 'error', 'logic', 'Chunk size must be positive.', base));
+      if (payload.chunkOverlap < 0 || payload.chunkOverlap >= payload.chunkSize) issues.push(issue('logic-invalid-chunk-overlap', 'error', 'logic', 'Chunk overlap must be non-negative and smaller than chunk size.', base));
       break;
-    case 'rag-remove':
-      if (!payload.documentId.trim()) issues.push(issue('logic-empty-document', 'warning', 'logic', 'RAG document ID is empty.', base));
+    case 'embedding-generate':
+    case 'query-embedding':
+      if (!payload.connectionProfileId.trim()) issues.push(issue('logic-missing-model-profile', 'error', 'logic', 'Embedding connection profile is required.', base));
+      break;
+    case 'vector-upsert':
+    case 'vector-delete':
+    case 'vector-retrieve':
+      if (!payload.connectionProfileId.trim()) issues.push(issue('logic-missing-vector-profile', 'error', 'logic', 'Vector-store connection profile is required.', base));
+      if (!payload.indexName.trim()) issues.push(issue('logic-missing-vector-index', 'error', 'logic', 'Vector-store index name is required.', base));
+      if (payload.type === 'vector-delete' && !payload.documentId.trim()) issues.push(issue('logic-empty-document', 'warning', 'logic', 'Vector delete document ID is empty.', base));
+      if (payload.type === 'vector-retrieve' && (payload.topK <= 0 || payload.minimumScore < 0 || payload.minimumScore > 1)) issues.push(issue('logic-invalid-retrieval-config', 'error', 'logic', 'Retriever top K must be positive and minimum score must be between 0 and 1.', base));
+      break;
+    case 'rerank':
+      if (!payload.connectionProfileId.trim()) issues.push(issue('logic-missing-reranker-profile', 'error', 'logic', 'Reranker connection profile is required.', base));
+      if (payload.topN <= 0 || payload.minimumScore < 0 || payload.minimumScore > 1) issues.push(issue('logic-invalid-reranker-config', 'error', 'logic', 'Reranker top N must be positive and minimum score must be between 0 and 1.', base));
+      break;
+    case 'prompt-template':
+      if (!payload.template.includes('{context}') || !payload.template.includes('{question}')) issues.push(issue('logic-invalid-prompt-template', 'warning', 'logic', 'Prompt template should include {context} and {question}.', base));
+      break;
+    case 'llm-generate':
+      if (!payload.connectionProfileId.trim()) issues.push(issue('logic-missing-llm-profile', 'error', 'logic', 'LLM connection profile is required.', base));
+      if (payload.temperature < 0 || payload.temperature > 2 || payload.maxTokens <= 0) issues.push(issue('logic-invalid-llm-config', 'error', 'logic', 'LLM temperature must be between 0 and 2 and max tokens must be positive.', base));
+      break;
+    case 'chat-input':
+      if (!payload.componentId && !payload.staticQuestion.trim()) issues.push(issue('logic-empty-chat-input', 'warning', 'logic', 'Chat Input needs a component or static question.', base));
+      else if (payload.componentId && !screen.nodes.flatMap(flattenNodeIds).includes(payload.componentId)) issues.push(issue('logic-missing-target', 'error', 'logic', 'Chat Input component is missing.', base));
+      break;
+    case 'chat-output':
+      if (!payload.targetNodeId) issues.push(issue('logic-empty-target', 'warning', 'logic', 'Chat Output target is not set.', base));
+      else if (!screen.nodes.flatMap(flattenNodeIds).includes(payload.targetNodeId)) issues.push(issue('logic-missing-target', 'error', 'logic', 'Chat Output target is missing.', base));
+      break;
+    case 'memory':
+      if (payload.windowSize <= 0) issues.push(issue('logic-invalid-memory-window', 'error', 'logic', 'Memory window size must be positive.', base));
+      break;
+    case 'vector-store':
+      if (!payload.connectionProfileId.trim()) issues.push(issue('logic-missing-vector-profile', 'error', 'logic', 'Vector-store connection profile is required.', base));
+      if (!payload.indexName.trim()) issues.push(issue('logic-missing-vector-index', 'error', 'logic', 'Vector-store index name is required.', base));
+      if (payload.operation === 'retrieve-tool' && (payload.topK <= 0 || payload.minimumScore < 0 || payload.minimumScore > 1)) issues.push(issue('logic-invalid-retrieval-config', 'error', 'logic', 'Vector-store tool top K must be positive and minimum score must be between 0 and 1.', base));
+      break;
+    case 'chat-model':
+      if (!payload.connectionProfileId.trim()) issues.push(issue('logic-missing-model-profile', 'error', 'logic', 'Chat-model connection profile is required.', base));
+      if (payload.temperature < 0 || payload.temperature > 2 || payload.maxTokens <= 0) issues.push(issue('logic-invalid-llm-config', 'error', 'logic', 'Chat-model temperature must be between 0 and 2 and max tokens must be positive.', base));
+      break;
+    case 'ai-agent':
+      if (!payload.instructions.trim()) issues.push(issue('logic-empty-agent-instructions', 'warning', 'logic', 'AI Agent instructions are empty.', base));
+      if (payload.maxIterations <= 0) issues.push(issue('logic-invalid-agent-iterations', 'error', 'logic', 'AI Agent max iterations must be positive.', base));
       break;
     case 'cv-liveness':
     case 'cv-enroll':

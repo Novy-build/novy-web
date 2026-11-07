@@ -1,6 +1,13 @@
 import type { ActionPayload, TriggerEvent } from '@domain/entities/logic';
 
-export type LogicNodeCategory = 'Triggers' | 'Flow' | 'UI' | 'Database' | 'Actions' | 'AI' | 'Vision';
+export type LogicNodeCategory =
+  | 'Triggers'
+  | 'Flow'
+  | 'UI'
+  | 'Database'
+  | 'Actions'
+  | 'RAG Nodes'
+  | 'Computer Vision';
 
 export type LogicLibraryNode =
   | { kind: 'trigger'; event: TriggerEvent }
@@ -147,26 +154,63 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
     create: () => ({ kind: 'action', payload: { type: 'send-email', to: '', subject: '', body: '' } }),
   },
   {
-    id: 'rag-index',
-    category: 'AI',
-    label: 'RAG Index',
-    description: 'Index a document for retrieval',
-    icon: 'I',
-    keywords: ['rag', 'index', 'embedding', 'knowledge'],
-    create: () => ({ kind: 'action', payload: { type: 'rag-index', documentId: '', title: '', content: '' } }),
+    id: 'document-load', category: 'RAG Nodes', label: 'Document Loader', icon: 'D',
+    description: 'Load text, URL, file, or collection documents', keywords: ['document', 'load', 'url', 'file'],
+    create: () => ({ kind: 'action', payload: { type: 'document-load', source: 'inline', sourceReference: '', documentId: '', title: '', text: '', metadata: {} } }),
   },
   {
-    id: 'rag-query',
-    category: 'AI',
-    label: 'RAG Query',
-    description: 'Answer a question from indexed knowledge',
-    icon: '?',
-    keywords: ['rag', 'query', 'answer', 'search'],
-    create: () => ({ kind: 'action', payload: { type: 'rag-query', query: '', topK: 5 } }),
+    id: 'text-split', category: 'RAG Nodes', label: 'Text Splitter', icon: 'S',
+    description: 'Split documents into overlapping chunks', keywords: ['chunk', 'split', 'token', 'recursive'],
+    create: () => ({ kind: 'action', payload: { type: 'text-split', strategy: 'recursive-character', chunkSize: 700, chunkOverlap: 100, separators: ['\n\n', '\n', '. ', ' '] } }),
+  },
+  {
+    id: 'embedding-generate', category: 'RAG Nodes', label: 'Embedding Model', icon: 'E',
+    description: 'Convert chunks into embedding references', keywords: ['embedding', 'model', 'vector'],
+    create: () => ({ kind: 'action', payload: { type: 'embedding-generate', connectionProfileId: '', model: '', batchSize: 32 } }),
+  },
+  {
+    id: 'vector-store', category: 'RAG Nodes', label: 'Vector Store', icon: 'V',
+    description: 'Upsert, delete, or expose retrieval as an Agent tool', keywords: ['vector', 'store', 'upsert', 'retrieve', 'tool'],
+    create: () => ({ kind: 'action', payload: { type: 'vector-store', operation: 'upsert', connectionProfileId: '', indexName: '', namespace: '', documentInputMode: 'document-loader', conflictMode: 'upsert', documentId: '', topK: 5, minimumScore: 0 } }),
+  },
+  {
+    id: 'chat-input', category: 'RAG Nodes', label: 'Chat Input', icon: 'Q',
+    description: 'Read a question from a component', keywords: ['chat', 'question', 'input'],
+    create: () => ({ kind: 'action', payload: { type: 'chat-input', componentId: '', staticQuestion: '' } }),
+  },
+  {
+    id: 'rerank', category: 'RAG Nodes', label: 'Reranker', icon: '↕',
+    description: 'Reorder retrieved chunks by relevance', keywords: ['rerank', 'relevance', 'score'],
+    create: () => ({ kind: 'action', payload: { type: 'rerank', connectionProfileId: '', model: '', topN: 5, minimumScore: 0 } }),
+  },
+  {
+    id: 'prompt-template', category: 'RAG Nodes', label: 'Prompt Template', icon: 'P',
+    description: 'Combine question and retrieved context', keywords: ['prompt', 'template', 'context'],
+    create: () => ({ kind: 'action', payload: { type: 'prompt-template', template: 'Answer the question using only the supplied context.\n\nContext:\n{context}\n\nQuestion:\n{question}', contextSeparator: '\n\n---\n\n', emptyContextBehavior: 'return-empty' } }),
+  },
+  {
+    id: 'chat-model', category: 'RAG Nodes', label: 'Chat Model', icon: 'M',
+    description: 'Attach a provider-neutral chat model to an Agent', keywords: ['chat', 'model', 'llm', 'agent'],
+    create: () => ({ kind: 'action', payload: { type: 'chat-model', connectionProfileId: '', model: '', temperature: 0.2, maxTokens: 800 } }),
+  },
+  {
+    id: 'ai-agent', category: 'RAG Nodes', label: 'AI Agent', icon: 'A',
+    description: 'Use a model, memory, and retrieval tools to answer', keywords: ['agent', 'tool', 'chat', 'rag'],
+    create: () => ({ kind: 'action', payload: { type: 'ai-agent', instructions: 'Answer using the attached knowledge tools and cite relevant sources.', maxIterations: 4, returnIntermediateSteps: false } }),
+  },
+  {
+    id: 'chat-output', category: 'RAG Nodes', label: 'Chat Output', icon: 'A',
+    description: 'Render an answer and citations', keywords: ['chat', 'answer', 'output', 'citation'],
+    create: () => ({ kind: 'action', payload: { type: 'chat-output', targetNodeId: '' } }),
+  },
+  {
+    id: 'memory', category: 'RAG Nodes', label: 'Conversation Memory', icon: 'H',
+    description: 'Load, append, or clear chat history', keywords: ['memory', 'history', 'conversation'],
+    create: () => ({ kind: 'action', payload: { type: 'memory', operation: 'load', connectionProfileId: '', scope: 'session', windowSize: 10 } }),
   },
   {
     id: 'cv-liveness',
-    category: 'Vision',
+    category: 'Computer Vision',
     label: 'CV Liveness',
     description: 'Check whether a captured image is live',
     icon: 'L',
@@ -175,7 +219,7 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
   },
   {
     id: 'cv-enroll',
-    category: 'Vision',
+    category: 'Computer Vision',
     label: 'CV Enroll',
     description: 'Enroll a biometric credential',
     icon: 'E',
@@ -184,21 +228,12 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
   },
   {
     id: 'cv-verify',
-    category: 'Vision',
+    category: 'Computer Vision',
     label: 'CV Verify',
     description: 'Verify a captured face',
     icon: 'V',
     keywords: ['vision', 'verify', 'face', 'biometric'],
     create: () => ({ kind: 'action', payload: { type: 'cv-verify', mediaReference: '' } }),
-  },
-  {
-    id: 'rag-remove',
-    category: 'AI',
-    label: 'RAG Remove',
-    description: 'Remove an indexed document',
-    icon: '-',
-    keywords: ['rag', 'remove', 'delete', 'index'],
-    create: () => ({ kind: 'action', payload: { type: 'rag-remove', documentId: '' } }),
   },
   {
     id: 'refresh-collection',

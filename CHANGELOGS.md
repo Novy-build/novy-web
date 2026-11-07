@@ -5,6 +5,151 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-07 — Collapsible Logic node groups
+
+#### Changed
+- Turned every Logic node category into an independently collapsible, keyboard-accessible group
+  with an expanded state, directional indicator, and visible node count.
+- Consolidated document, model, vector, chat, agent, prompt, and memory tools under **RAG Nodes**.
+- Consolidated biometric liveness, enrollment, and verification tools under **Computer Vision**.
+
+#### Tests
+- Added group-name, default-expanded, independent collapse, and restore coverage for the node
+  library.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 71 test files and 542 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Logic Nodes sidebar scrolling and header layout
+
+#### Fixed
+- Moved the Logic Nodes minimize control into the header layout so it no longer covers the node
+  search field.
+- Restored the sidebar's bounded full-height flex layout so the node catalog scrolls independently
+  when its categories exceed the available workspace height.
+
+#### Tests
+- Added focused coverage for the non-overlapping header structure and scroll-container constraints.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 71 test files and 542 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Canvas trackpad zoom interception
+
+#### Fixed
+- Replaced React wheel handlers with native non-passive listeners on the Design and Logic canvases
+  so Ctrl/Cmd + mouse-wheel or trackpad gestures zoom the canvas instead of the browser page.
+- Preserved ordinary unmodified wheel scrolling by cancelling only modifier-assisted zoom gestures.
+
+#### Tests
+- Added regression assertions that canvas zoom wheel events are cancelled while normal wheel events
+  remain available to the scroll container.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 71 test files and 541 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Minimizable editor side panels
+
+#### Added
+- Added independent collapse and restore controls for the Design Assets/Layers and Inspector rails,
+  Logic Nodes and Details rails, and Data Collections rail.
+- Added narrow labeled restore rails so minimized panels remain discoverable and keyboard
+  accessible while giving more space to the active canvas or data view.
+
+#### Tests
+- Added focused coverage for minimizing and restoring all five side panels.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 71 test files and 541 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Canvas selection toolbar clearance
+
+#### Fixed
+- Prevented the floating Duplicate/Delete/Behavior toolbar from wrapping onto two lines and
+  intruding into the selected canvas component.
+- Replaced the toolbar's approximate offset with an explicit height and gap so it remains fully
+  outside the selection border and flips below components near the frame's top edge.
+
+#### Tests
+- Added Selection overlay coverage for single-line toolbar sizing and component clearance.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 71 test files and 537 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Logic resource-port label spacing
+
+#### Fixed
+- Prevented resource-port labels from overlapping by widening multi-port Logic nodes as needed and
+  centering every label in its own fixed-width slot.
+- Kept long port names bounded with truncation and a full-name tooltip instead of allowing them to
+  paint over adjacent labels.
+
+#### Tests
+- Added Logic canvas coverage for the four resource labels on an AI Agent node.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 71 test files and 536 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Schema v5 n8n-style AI resources and write-through indexing
+
+#### Added
+- Added typed resource ports and dashed resource edges alongside existing solid control-flow edges.
+- Added one configurable Vector Store node for upsert, delete, and retrieval-tool operations.
+- Added an AI Agent node that composes generic Chat Model, Memory, Vector Store Tool, Prompt
+  Template, Embedding Model, and optional Reranker resources.
+- Added compact resource-node rendering, typed connection validation, resource-port labels, and
+  dashed connection paths in the Logic canvas.
+- Added note create/update write-through vector indexing and note-delete vector cleanup workflows.
+- Added isolated preview execution for Agent tool retrieval, memory, citations, and previous-record
+  document mapping.
+
+#### Changed
+- Raised Project DTO output to `schemaVersion: 5` and added resource-edge transport metadata.
+- Reworked the Note template ingestion and chatbot graphs around primary Vector Store and AI Agent
+  nodes rather than long linear model/retrieval chains.
+- Kept providers generic through backend-owned connection profile IDs.
+
+#### Tests
+- Added resource connection, dashed-canvas edge, AI Agent composition, and database-to-vector
+  write-through runtime coverage.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 71 test files and 535 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Schema v4 granular RAG pipelines
+
+#### Added
+- Added Document Loader, Text Splitter, Embedding Model, Vector Store Upsert/Delete, Chat Input,
+  Query Embedding, Retriever, Prompt Template, LLM Model, Chat Output, Reranker, and Conversation
+  Memory nodes.
+- Added provider-neutral configuration inspectors and structured input mappings for documents,
+  chunks, embeddings, matches, prompts, answers, citations, and messages.
+- Added deterministic preview execution for chunking, opaque embedding references, isolated vector
+  indexing/search, reranking, prompt compilation, answer generation, citation rendering, and memory.
+- Added separate editable ingestion and chat workflows to the Note taking app's Ask Notes screen.
+
+#### Changed
+- Raised Project DTO output to `schemaVersion: 4`.
+- Removed monolithic RAG nodes from the node palette and current domain action union.
+- Added backward-compatible schema-v3 migration that expands RAG Index/Query/Remove nodes into
+  deterministic granular chains while preserving incoming/outgoing connections and positions.
+- Kept provider credentials behind connection-profile IDs and the backend handoff boundary.
+
+#### Tests
+- Added schema migration, structured runtime-chain, granular Inspector, node-library, and Note
+  template coverage.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 71 test files and 530 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
 ### 2026-11-07 — Template modal and editor dark-mode UI fixes
 
 #### Fixed

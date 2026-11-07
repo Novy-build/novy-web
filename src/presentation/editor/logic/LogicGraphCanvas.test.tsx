@@ -28,8 +28,8 @@ function renderCanvas(graph: LogicGraph = graphWithOrphan()) {
     targetLabelFor: vi.fn(() => 'Input'),
     screenNameFor: vi.fn(() => 'About'),
   };
-  render(<LogicGraphCanvas {...props} />);
-  return props;
+  const view = render(<LogicGraphCanvas {...props} />);
+  return { ...props, ...view };
 }
 
 describe('LogicGraphCanvas', () => {
@@ -44,7 +44,7 @@ describe('LogicGraphCanvas', () => {
     expect(input).toHaveAttribute('data-connection-valid', 'true');
     fireEvent.click(input);
 
-    expect(props.onConnect).toHaveBeenCalledWith(trigger.id, 'next', action.id);
+    expect(props.onConnect).toHaveBeenCalledWith(trigger.id, 'next', action.id, 'in');
     expect(screen.getAllByText('Connection created.')).toHaveLength(2);
   });
 
@@ -58,7 +58,56 @@ describe('LogicGraphCanvas', () => {
     fireEvent.pointerDown(output, { clientX: 270, clientY: 208 });
     fireEvent.pointerUp(input, { clientX: 360, clientY: 228 });
 
-    expect(props.onConnect).toHaveBeenCalledWith(graph.nodes[0]!.id, 'next', action.id);
+    expect(props.onConnect).toHaveBeenCalledWith(graph.nodes[0]!.id, 'next', action.id, 'in');
+  });
+
+  it('renders and creates dashed typed resource connections', () => {
+    const embedding = createActionNode({ type: 'embedding-generate', connectionProfileId: 'embed', model: 'model', batchSize: 32 }, { x: 120, y: 360 });
+    const vectorStore = createActionNode({ type: 'vector-store', operation: 'upsert', connectionProfileId: 'vector', indexName: 'notes', namespace: '', documentInputMode: 'document-loader', conflictMode: 'upsert', documentId: '', topK: 5, minimumScore: 0 }, { x: 360, y: 160 });
+    const graph: LogicGraph = {
+      id: 'resource_graph', name: 'Resources', sourceNodeId: '', purpose: 'ingestion',
+      nodes: [embedding, vectorStore],
+      edges: [{ id: 'resource_edge', fromNodeId: embedding.id, fromPort: 'embeddings', toNodeId: vectorStore.id, toPort: 'embeddings', kind: 'resource' }],
+    };
+    const connectedView = renderCanvas(graph);
+
+    expect(screen.getByRole('button', { name: 'embeddings resource output of Embedding model' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'embeddings resource input of Vector store' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Connection from Embedding model embeddings to Vector store/ })).toHaveAttribute('stroke-dasharray', '5 4');
+    connectedView.unmount();
+
+    const props = renderCanvas({ ...graph, edges: [] });
+    fireEvent.click(screen.getByRole('button', { name: 'embeddings resource output of Embedding model' }));
+    fireEvent.click(screen.getByRole('button', { name: 'embeddings resource input of Vector store' }));
+    expect(props.onConnect).toHaveBeenCalledWith(embedding.id, 'embeddings', vectorStore.id, 'embeddings');
+  });
+
+  it('reserves a non-overlapping slot for every resource-port label', () => {
+    const agent = createActionNode(
+      {
+        type: 'ai-agent',
+        instructions: 'Answer from the connected resources.',
+        maxIterations: 4,
+        returnIntermediateSteps: false,
+      },
+      { x: 120, y: 160 },
+    );
+    const graph: LogicGraph = {
+      id: 'agent_graph',
+      name: 'Agent',
+      sourceNodeId: '',
+      purpose: 'chat',
+      nodes: [agent],
+      edges: [],
+    };
+    const view = renderCanvas(graph);
+
+    expect(screen.getByTestId(`logic-node-${agent.id}`).parentElement).toHaveStyle({ width: '320px' });
+    const anchors = [...view.container.querySelectorAll<HTMLElement>('[data-resource-port-anchor]')];
+    expect(anchors.map((anchor) => anchor.style.left)).toEqual(['40px', '120px', '200px', '280px']);
+    for (const label of view.container.querySelectorAll('[data-resource-port-label]')) {
+      expect(label).toHaveClass('w-20', 'truncate', 'text-center');
+    }
   });
 
   it('moves a node with one drag-start transaction', () => {
@@ -107,7 +156,14 @@ describe('LogicGraphCanvas', () => {
       { x: 320, y: 240 },
     );
 
-    fireEvent.wheel(screen.getByTestId('logic-stage'), { ctrlKey: true, deltaY: -100 });
+    const zoomWheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+      deltaY: -100,
+    });
+    act(() => screen.getByTestId('logic-stage').dispatchEvent(zoomWheel));
+    expect(zoomWheel.defaultPrevented).toBe(true);
     expect(screen.getByText('110%')).toBeInTheDocument();
 
     fireEvent.keyDown(window, { code: 'Space' });

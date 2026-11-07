@@ -4,18 +4,48 @@ import { LogicNodeLibrary } from './LogicNodeLibrary';
 import { LOGIC_NODE_MIME } from './logicNodeRegistry';
 
 describe('LogicNodeLibrary', () => {
-  it('lists core, AI, and Vision node categories', () => {
+  it('keeps its collapse control above a bounded, scrollable node list', () => {
+    const onCollapse = vi.fn();
+    render(<LogicNodeLibrary onAdd={vi.fn()} onCollapse={onCollapse} />);
+
+    const panel = screen.getByRole('complementary', { name: 'Logic nodes' });
+    expect(panel).toHaveClass('h-full', 'min-h-0', 'overflow-hidden');
+    expect(screen.getByTestId('logic-node-list')).toHaveClass('min-h-0', 'overflow-y-auto');
+
+    const heading = screen.getByRole('heading', { name: 'Nodes' });
+    const collapse = screen.getByRole('button', { name: 'Collapse nodes panel' });
+    expect(heading.parentElement).toContainElement(collapse);
+    expect(heading.parentElement).not.toContainElement(screen.getByRole('searchbox', { name: 'Search nodes' }));
+
+    fireEvent.click(collapse);
+    expect(onCollapse).toHaveBeenCalledTimes(1);
+  });
+
+  it('groups related nodes into collapsible categories', () => {
     render(<LogicNodeLibrary onAdd={vi.fn()} />);
 
-    for (const category of ['Triggers', 'Flow', 'UI', 'Database', 'AI', 'Vision']) {
+    for (const category of ['Triggers', 'Flow', 'UI', 'Database', 'Actions', 'RAG Nodes', 'Computer Vision']) {
       expect(screen.getByRole('heading', { name: category })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: `${category} group` })).toHaveAttribute('aria-expanded', 'true');
     }
     expect(screen.getByRole('button', { name: 'If / Else' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change Text' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert to DB' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete from DB' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'RAG Query' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Document Loader' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vector Store' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chat Model' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'AI Agent' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'RAG Query' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'CV Verify' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'RAG Nodes group' }));
+    expect(screen.getByRole('button', { name: 'RAG Nodes group' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Document Loader' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'CV Verify' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'RAG Nodes group' }));
+    expect(screen.getByRole('button', { name: 'Document Loader' })).toBeInTheDocument();
   });
 
   it('searches node labels, descriptions, and keywords', () => {

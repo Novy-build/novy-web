@@ -11,6 +11,7 @@ import type {
 import { logicNodeTitle } from './logicLabels';
 import { nodeDisplayLabel, nodeLayerName } from '../workspace/nodeLabels';
 import { InputMappingEditor } from './InputMappingEditor';
+import { isGranularRagPayload, RagNodeConfig } from './RagNodeConfig';
 
 interface LogicNodeConfigProps {
   node: LogicNode | null;
@@ -328,46 +329,13 @@ export function LogicNodeConfig({
         </>
       ) : null}
 
-      {actionPayload.type === 'rag-index' && actionPayload.type === 'rag-index' ? (
-        <div className="mt-4 grid gap-3">
-          <label className="text-xs font-medium text-ink-muted">Knowledge base ID
-            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, knowledgeBaseId: event.target.value })} value={actionPayload.knowledgeBaseId ?? ''} />
-          </label>
-          <label className="text-xs font-medium text-ink-muted">Document ID
-            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, documentId: event.target.value })} value={actionPayload.documentId} />
-          </label>
-          <label className="text-xs font-medium text-ink-muted">Title
-            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, title: event.target.value })} value={actionPayload.title} />
-          </label>
-          <label className="text-xs font-medium text-ink-muted">Content
-            <textarea className="mt-1 min-h-20 w-full rounded-tile border border-hairline bg-surface px-2 py-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, content: event.target.value })} value={actionPayload.content} />
-          </label>
-        </div>
-      ) : null}
-
-      {actionPayload.type === 'rag-query' ? (
-        <div className="mt-4 grid gap-3">
-          <label className="text-xs font-medium text-ink-muted">Knowledge base ID
-            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, knowledgeBaseId: event.target.value })} value={actionPayload.knowledgeBaseId ?? ''} />
-          </label>
-          <label className="text-xs font-medium text-ink-muted">Query
-            <textarea className="mt-1 min-h-20 w-full rounded-tile border border-hairline bg-surface px-2 py-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, query: event.target.value })} value={actionPayload.query} />
-          </label>
-          <label className="text-xs font-medium text-ink-muted">Top results
-            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, topK: Number(event.target.value) || 0 })} type="number" value={actionPayload.topK ?? 0} />
-          </label>
-        </div>
-      ) : null}
-
-      {actionPayload.type === 'rag-remove' ? (
-        <div className="mt-4 grid gap-3">
-          <label className="text-xs font-medium text-ink-muted">Knowledge base ID
-            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, knowledgeBaseId: event.target.value })} value={actionPayload.knowledgeBaseId ?? ''} />
-          </label>
-          <label className="text-xs font-medium text-ink-muted">Document ID
-            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, documentId: event.target.value })} value={actionPayload.documentId} />
-          </label>
-        </div>
+      {isGranularRagPayload(actionPayload) ? (
+        <RagNodeConfig
+          collections={collections}
+          onChange={(next) => configure(next)}
+          payload={actionPayload}
+          screenNodes={screenNodes}
+        />
       ) : null}
 
       {actionPayload.type === 'cv-liveness' || actionPayload.type === 'cv-enroll' || actionPayload.type === 'cv-verify' ? (
@@ -490,11 +458,64 @@ function actionInputDefinitions(
       { key: 'userId', label: 'User ID' },
       { key: 'credentialId', label: 'Credential ID' },
     ];
+    case 'document-load': return [
+      { key: 'sourceReference', label: 'Source reference' },
+      { key: 'documentId', label: 'Document ID' },
+      { key: 'title', label: 'Title' },
+      { key: 'text', label: 'Document text' },
+    ];
+    case 'text-split': return [{ key: 'documents', label: 'Documents' }];
+    case 'embedding-generate': return [{ key: 'chunks', label: 'Text chunks' }];
+    case 'vector-upsert': return [
+      { key: 'chunks', label: 'Text chunks' },
+      { key: 'embeddings', label: 'Embeddings' },
+    ];
+    case 'vector-delete': return [{ key: 'documentId', label: 'Document ID' }];
+    case 'chat-input': return [
+      { key: 'question', label: 'Question' },
+      { key: 'conversationId', label: 'Conversation ID' },
+    ];
+    case 'query-embedding': return [{ key: 'question', label: 'Question' }];
+    case 'vector-retrieve': return [
+      { key: 'question', label: 'Question' },
+      { key: 'queryEmbedding', label: 'Query embedding' },
+    ];
+    case 'rerank': return [
+      { key: 'question', label: 'Question' },
+      { key: 'matches', label: 'Retrieved matches' },
+    ];
+    case 'prompt-template': return [
+      { key: 'question', label: 'Question' },
+      { key: 'matches', label: 'Context matches' },
+    ];
+    case 'llm-generate': return [
+      { key: 'prompt', label: 'Compiled prompt' },
+      { key: 'matches', label: 'Citation matches' },
+      { key: 'messages', label: 'Memory messages' },
+    ];
+    case 'chat-output': return [
+      { key: 'answer', label: 'Generated answer' },
+      { key: 'citations', label: 'Citations' },
+    ];
+    case 'memory': return [
+      { key: 'conversationId', label: 'Conversation ID' },
+      { key: 'messages', label: 'Messages' },
+      { key: 'question', label: 'Question' },
+      { key: 'answer', label: 'Answer' },
+    ];
+    case 'vector-store': return payload.operation === 'delete'
+      ? [{ key: 'documentId', label: 'Document ID' }]
+      : [];
+    case 'ai-agent': return [
+      { key: 'question', label: 'Question' },
+      { key: 'conversationId', label: 'Conversation ID' },
+    ];
+    case 'chat-model': return [];
+    case 'set-variable': return [{ key: 'value', label: 'Variable value' }];
+    case 'set-component-value': return [{ key: 'value', label: 'Component value' }];
     case 'navigate':
     case 'get-records':
     case 'refresh-collection':
-    case 'set-variable':
-    case 'set-component-value':
       return [];
     default:
       return [];

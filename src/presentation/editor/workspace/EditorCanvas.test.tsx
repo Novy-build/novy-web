@@ -289,9 +289,22 @@ describe('EditorCanvas', () => {
     const props = canvasProps({ zoom: 1 });
     render(<EditorCanvas {...props} />);
 
-    fireEvent.wheel(screen.getByTestId('canvas-viewport'), { ctrlKey: true, deltaY: -100 });
+    const viewport = screen.getByTestId('canvas-viewport');
+    const zoomWheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+      deltaY: -100,
+    });
+    act(() => viewport.dispatchEvent(zoomWheel));
 
+    expect(zoomWheel.defaultPrevented).toBe(true);
     expect(props.onZoomChange).toHaveBeenCalledWith(1.25);
+
+    const scrollWheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 100 });
+    act(() => viewport.dispatchEvent(scrollWheel));
+    expect(scrollWheel.defaultPrevented).toBe(false);
+    expect(props.onZoomChange).toHaveBeenCalledTimes(1);
   });
 
   it('ignores drops that carry no Novy component payload', () => {

@@ -3,6 +3,7 @@ import type {
   ActionPayload,
   ConditionNode,
   LogicGraph,
+  LogicInputPort,
   LogicOutputPort,
   TriggerEvent,
 } from '@domain/entities/logic';
@@ -22,6 +23,7 @@ import { LogicNodeConfig } from './LogicNodeConfig';
 import { LogicNodeLibrary } from './LogicNodeLibrary';
 import type { LogicLibraryNode } from './logicNodeRegistry';
 import { nodeDisplayLabel } from '../workspace/nodeLabels';
+import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
 
 interface LogicWorkspaceProps {
   state: EditorState;
@@ -42,6 +44,8 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
   const screen = getActiveScreen(state);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [libraryMessage, setLibraryMessage] = useState('');
+  const [isNodesCollapsed, setIsNodesCollapsed] = useState(false);
+  const [isDetailsCollapsed, setIsDetailsCollapsed] = useState(false);
 
   const active = getActiveLogic(state);
   const behavior = active?.behavior ??
@@ -126,9 +130,9 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
     if (graph) dispatch({ type: 'graph/condition-update', graphId: graph.id, nodeId, patch });
   }
 
-  function connectNodes(fromNodeId: string, fromPort: LogicOutputPort, toNodeId: string): void {
+  function connectNodes(fromNodeId: string, fromPort: LogicOutputPort, toNodeId: string, toPort: LogicInputPort = 'in'): void {
     if (graph) {
-      dispatch({ type: 'graph/connect-ports', graphId: graph.id, fromNodeId, fromPort, toNodeId });
+      dispatch({ type: 'graph/connect-ports', graphId: graph.id, fromNodeId, fromPort, toNodeId, toPort });
     }
   }
 
@@ -152,7 +156,21 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
       />
 
       <div className="flex min-h-0 flex-1">
-        <LogicNodeLibrary onAdd={addLibraryNode} />
+        {isNodesCollapsed ? (
+          <CollapsedPanelRail
+            controls="logic-nodes-panel"
+            label="nodes panel"
+            onExpand={() => setIsNodesCollapsed(false)}
+            side="left"
+          />
+        ) : (
+          <div className="min-h-0 shrink-0 self-stretch" id="logic-nodes-panel">
+            <LogicNodeLibrary
+              onAdd={addLibraryNode}
+              onCollapse={() => setIsNodesCollapsed(true)}
+            />
+          </div>
+        )}
         <div className="relative flex min-w-0 flex-1">
           <LogicGraphCanvas
             graph={renderedGraph}
@@ -185,7 +203,23 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
           ) : null}
         </div>
 
-        <aside className="w-72 shrink-0 overflow-y-auto border-l border-hairline bg-surface p-4">
+        {isDetailsCollapsed ? (
+          <CollapsedPanelRail
+            controls="logic-details-panel"
+            label="details panel"
+            onExpand={() => setIsDetailsCollapsed(false)}
+            side="right"
+          />
+        ) : (
+        <aside className="relative w-72 shrink-0 overflow-y-auto border-l border-hairline bg-surface p-4" id="logic-details-panel">
+          <PanelCollapseButton
+            className="absolute right-0 top-0 z-30 bg-surface"
+            controls="logic-details-panel"
+            isCollapsed={false}
+            label="details panel"
+            onToggle={() => setIsDetailsCollapsed(true)}
+            side="right"
+          />
           <LogicNodeConfig
             behavior={behavior}
             collections={collections}
@@ -202,6 +236,7 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
             screens={state.document.screens.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
           />
         </aside>
+        )}
       </div>
     </section>
   );

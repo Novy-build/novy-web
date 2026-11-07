@@ -33,4 +33,15 @@ describe('EditorLeftPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Button' }));
     expect(onAddByType).toHaveBeenCalledWith('button');
   });
+
+  it('minimizes to a restore rail and expands again', () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse editor sidebar' }));
+    expect(screen.queryByRole('tab', { name: 'layers' })).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'editor sidebar minimized' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand editor sidebar' }));
+    expect(screen.getByRole('tab', { name: 'layers', selected: true })).toBeInTheDocument();
+  });
 });

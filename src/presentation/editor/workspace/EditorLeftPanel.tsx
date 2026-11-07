@@ -3,6 +3,7 @@ import type { ComponentNode, ComponentType } from '@domain/entities/componentNod
 import type { LayerDropPosition } from '@domain/componentTree';
 import { ComponentsPalette } from './ComponentsPalette';
 import { LayersPanel } from './LayersPanel';
+import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
 
 type LeftPanelTab = 'layers' | 'assets';
 
@@ -31,26 +32,47 @@ export function EditorLeftPanel({
   onMove,
 }: EditorLeftPanelProps) {
   const [activeTab, setActiveTab] = useState<LeftPanelTab>('layers');
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  if (isCollapsed) {
+    return (
+      <CollapsedPanelRail
+        controls="editor-sidebar-content"
+        label="editor sidebar"
+        onExpand={() => setIsCollapsed(false)}
+        side="left"
+      />
+    );
+  }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface" aria-label="Editor sidebar">
-      <div aria-label="Editor sidebar views" className="grid grid-cols-2 border-b border-hairline p-1" role="tablist">
-        {(['layers', 'assets'] as const).map((tab) => (
-          <button
-            aria-controls={`editor-${tab}-panel`}
-            aria-selected={activeTab === tab}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
-              activeTab === tab ? 'bg-canvas text-ink' : 'text-ink-muted hover:text-ink'
-            }`}
-            id={`editor-${tab}-tab`}
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            role="tab"
-            type="button"
-          >
-            {tab}
-          </button>
-        ))}
+    <aside className="flex w-64 shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface" aria-label="Editor sidebar" id="editor-sidebar-content">
+      <div className="flex border-b border-hairline">
+        <div aria-label="Editor sidebar views" className="grid min-w-0 flex-1 grid-cols-2 p-1" role="tablist">
+          {(['layers', 'assets'] as const).map((tab) => (
+            <button
+              aria-controls={`editor-${tab}-panel`}
+              aria-selected={activeTab === tab}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                activeTab === tab ? 'bg-canvas text-ink' : 'text-ink-muted hover:text-ink'
+              }`}
+              id={`editor-${tab}-tab`}
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              role="tab"
+              type="button"
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        <PanelCollapseButton
+          controls="editor-sidebar-content"
+          isCollapsed={false}
+          label="editor sidebar"
+          onToggle={() => setIsCollapsed(true)}
+          side="left"
+        />
       </div>
 
       <div

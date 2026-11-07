@@ -24,6 +24,8 @@ interface SelectionOverlayProps {
 }
 
 const HANDLE_SIZE = 10;
+const TOOLBAR_HEIGHT = 30;
+const TOOLBAR_GAP = 8;
 
 const HANDLE_POSITIONS: Record<ResizeHandle, { left: string; top: string }> = {
   nw: { left: '0%', top: '0%' },
@@ -100,8 +102,11 @@ export function SelectionOverlay({
     width: geometry.w * zoom,
     height: geometry.h * zoom,
   };
-  // Flip the toolbar below the node when it hugs the top edge.
-  const toolbarTop = scaled.top < 40 ? scaled.top + scaled.height + 8 : scaled.top - 36;
+  // Keep the toolbar outside the selection, flipping it below near the frame's top edge.
+  const toolbarOffset = TOOLBAR_HEIGHT + TOOLBAR_GAP;
+  const toolbarTop = scaled.top < toolbarOffset
+    ? scaled.top + scaled.height + TOOLBAR_GAP
+    : scaled.top - toolbarOffset;
 
   return (
     <>
@@ -131,7 +136,7 @@ export function SelectionOverlay({
 
       <div
         aria-label="Selection actions"
-        className="pointer-events-auto absolute z-20 flex items-center gap-1 rounded-tile border border-hairline bg-surface px-1 py-0.5 shadow-md"
+        className="pointer-events-auto absolute z-20 flex w-max flex-nowrap items-center gap-1 whitespace-nowrap rounded-tile border border-hairline bg-surface px-1 py-0.5 shadow-md"
         role="group"
         style={{ left: scaled.left, top: toolbarTop }}
       >
@@ -163,7 +168,7 @@ function OverlayAction({
   return (
     <button
       aria-label={label}
-      className={`rounded-tile px-2 py-1 text-xs font-medium transition-colors hover:bg-canvas ${
+      className={`shrink-0 whitespace-nowrap rounded-tile px-2 py-1 text-xs font-medium transition-colors hover:bg-canvas ${
         tone === 'danger' ? 'text-red-600 hover:text-red-700' : 'text-ink'
       }`}
       onPointerDown={(event) => event.stopPropagation()}
