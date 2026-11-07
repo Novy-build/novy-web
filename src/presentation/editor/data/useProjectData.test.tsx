@@ -16,6 +16,9 @@ describe('useProjectData', () => {
     const { result } = renderHook(() => useProjectData('project_1'), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
+    await act(async () => {
+      await result.current.createDatabase({ name: 'Project database' });
+    });
     let collectionId = '';
     await act(async () => {
       collectionId = (await result.current.createCollection({ name: 'Students' })).id;

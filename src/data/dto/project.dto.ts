@@ -61,6 +61,17 @@ export interface ListNodeDTO extends ComponentNodeDTOBase {
   };
 }
 
+export interface RepeaterNodeDTO extends ComponentNodeDTOBase {
+  type: 'repeater';
+  props: {
+    emptyText?: string;
+    showDividers?: boolean;
+    dataSource?:
+      | { kind: 'static'; items: string[] }
+      | { kind: 'collection'; collectionId: string; displayFieldIds: string[]; sortFieldId?: string; sortDirection?: 'asc' | 'desc'; searchFieldId?: string; searchComponentId?: string };
+  };
+}
+
 export interface FormNodeDTO extends ComponentNodeDTOBase {
   type: 'form';
   props: {
@@ -113,6 +124,11 @@ export interface DividerNodeDTO extends ComponentNodeDTOBase {
   props: { orientation: 'horizontal' | 'vertical'; thickness: number };
 }
 
+export interface CameraNodeDTO extends ComponentNodeDTOBase {
+  type: 'camera';
+  props: { label: string; facingMode: 'user' | 'environment'; captureLabel: string };
+}
+
 export type ComponentNodeDTO =
   | ButtonNodeDTO
   | TextNodeDTO
@@ -120,6 +136,7 @@ export type ComponentNodeDTO =
   | ImageNodeDTO
   | ContainerNodeDTO
   | ListNodeDTO
+  | RepeaterNodeDTO
   | FormNodeDTO
   | CheckboxNodeDTO
   | RadioNodeDTO
@@ -127,7 +144,8 @@ export type ComponentNodeDTO =
   | DropdownNodeDTO
   | SliderNodeDTO
   | ProgressNodeDTO
-  | DividerNodeDTO;
+  | DividerNodeDTO
+  | CameraNodeDTO;
 
 export interface BehaviorDTO {
   id: string;
@@ -165,6 +183,12 @@ export interface GetRecordsPayloadDTO {
   collectionId: string;
 }
 
+export interface GetRecordPayloadDTO {
+  type: 'get-record';
+  collectionId: string;
+  recordId: string;
+}
+
 export interface InsertRecordPayloadDTO {
   type: 'insert-record';
   collectionId: string;
@@ -196,21 +220,84 @@ export interface RefreshCollectionPayloadDTO {
   collectionId: string;
 }
 
+export interface RagIndexPayloadDTO {
+  type: 'rag-index';
+  knowledgeBaseId?: string;
+  documentId: string;
+  title: string;
+  content: string;
+}
+
+export interface RagQueryPayloadDTO {
+  type: 'rag-query';
+  knowledgeBaseId?: string;
+  query: string;
+  topK?: number;
+}
+
+export interface RagRemovePayloadDTO {
+  type: 'rag-remove';
+  knowledgeBaseId?: string;
+  documentId: string;
+}
+
+export interface CvLivenessPayloadDTO {
+  type: 'cv-liveness';
+  mediaReference: string;
+}
+
+export interface CvEnrollPayloadDTO {
+  type: 'cv-enroll';
+  mediaReference: string;
+  userId: string;
+  consent: boolean;
+}
+
+export interface CvVerifyPayloadDTO {
+  type: 'cv-verify';
+  mediaReference: string;
+  userId?: string;
+  credentialId?: string;
+  threshold?: number;
+}
+
+export interface SetVariablePayloadDTO {
+  type: 'set-variable';
+  name: string;
+  value: string;
+}
+
+export interface SetComponentValuePayloadDTO {
+  type: 'set-component-value';
+  targetNodeId: string;
+  value: string;
+}
+
 export type ActionPayloadDTO =
   | ChangeTextPayloadDTO
   | ShowMessagePayloadDTO
   | NavigatePayloadDTO
   | GetRecordsPayloadDTO
+  | GetRecordPayloadDTO
   | InsertRecordPayloadDTO
   | UpdateRecordPayloadDTO
   | DeleteRecordPayloadDTO
   | SendEmailPayloadDTO
-  | RefreshCollectionPayloadDTO;
+  | RefreshCollectionPayloadDTO
+  | SetVariablePayloadDTO
+  | SetComponentValuePayloadDTO
+  | RagIndexPayloadDTO
+  | RagQueryPayloadDTO
+  | RagRemovePayloadDTO
+  | CvLivenessPayloadDTO
+  | CvEnrollPayloadDTO
+  | CvVerifyPayloadDTO;
 
 export type ValueExpressionDTO =
   | { source: 'literal'; value: string }
   | { source: 'component'; nodeId: string; property: 'value' | 'text' }
   | { source: 'session'; path: 'user.id' | 'user.name' | 'user.email' }
+  | { source: 'variable'; name: string }
   | { source: 'node-output'; nodeId: string; path: string };
 
 export interface ActionNodeDTO {
@@ -225,11 +312,7 @@ export interface ConditionNodeDTO {
   kind: 'condition';
   id: string;
   position?: { x: number; y: number };
-  left: {
-    source: 'component';
-    nodeId: string;
-    property: 'value' | 'text';
-  };
+  left: ValueExpressionDTO;
   operator: 'equals' | 'not-equals' | 'contains' | 'not-contains' | 'is-empty' | 'is-not-empty';
   compareValue: string;
 }

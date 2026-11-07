@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ButtonNode, ComponentNode, ContainerNode, FormNode, ImageNode, InputNode, ListNode } from '@domain/entities/componentNode';
+import type { ButtonNode, CameraNode, ComponentNode, ContainerNode, FormNode, ImageNode, InputNode, ListNode } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
 import { ComponentRenderer } from './ComponentRenderer';
@@ -283,7 +283,7 @@ describe('ComponentRenderer', () => {
 
   it('resolves collection-bound List items from renderer data context', () => {
     const collection: DataCollection = {
-      id: 'students', projectId: 'project', name: 'Students',
+      id: 'students', projectId: 'project', databaseId: 'database', name: 'Students',
       fields: [{ id: 'name', key: 'name', label: 'Name', type: 'text', required: true }],
       createdAt: new Date(), updatedAt: new Date(),
     };
@@ -348,6 +348,25 @@ describe('ComponentRenderer', () => {
 
     expect(screen.getByText('Add an image')).toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('keeps camera access inactive on canvas and requires an explicit preview action', () => {
+    const camera: CameraNode = {
+      id: 'node_camera',
+      type: 'camera',
+      x: 0,
+      y: 0,
+      w: 320,
+      h: 220,
+      props: { label: 'Face camera', facingMode: 'user', captureLabel: 'Capture face' },
+    };
+    const canvas = render(<ComponentRenderer mode="canvas" node={camera} selected={false} />);
+    expect(screen.getByText('Camera activates only in Preview.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Enable camera' })).not.toBeInTheDocument();
+
+    canvas.unmount();
+    render(<ComponentRenderer mode="preview" node={camera} selected={false} />);
+    expect(screen.getByRole('button', { name: 'Enable camera' })).toBeInTheDocument();
   });
 });
 

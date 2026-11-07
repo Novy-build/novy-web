@@ -14,6 +14,7 @@ describe('Modal', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Dialog title' });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveClass('max-h-[calc(100dvh-2rem)]', 'overflow-y-auto', 'overscroll-contain');
     expect(screen.getByText('Dialog body')).toBeInTheDocument();
   });
 

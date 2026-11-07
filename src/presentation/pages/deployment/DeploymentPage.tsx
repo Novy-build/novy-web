@@ -1,5 +1,10 @@
 import { useNavigate, useParams } from 'react-router';
+import type { ProjectDatabase } from '@domain/entities/appData';
 import type { DeploymentEnvironment } from '@domain/entities/deployment';
+import {
+  buildGeneratedAppManifest,
+  generatedAppManifestFilename,
+} from '@data/generation/generatedAppManifest';
 import { Button } from '@presentation/components/ui/Button';
 import { useRepositories } from '@main/providers/RepositoriesProvider';
 import { useState, useEffect } from 'react';
@@ -7,6 +12,7 @@ import { LoadingScreen } from '@presentation/components/system/LoadingScreen';
 import { DeploymentHistory } from './DeploymentHistory';
 import { PublishStepper } from './PublishStepper';
 import { PublishSuccessModal } from './PublishSuccessModal';
+import { RuntimeReadinessPanel } from './RuntimeReadinessPanel';
 import { useDeployment } from './useDeployment';
 
 /** Per-project publish screen with mock environments, pipeline, and history. */
@@ -15,8 +21,22 @@ export function DeploymentPage() {
   const navigate = useNavigate();
   const { appData } = useRepositories();
   const [collections, setCollections] = useState<import('@domain/entities/appData').DataCollection[]>([]);
+  const [database, setDatabase] = useState<ProjectDatabase | null>(null);
   useEffect(() => {
-    void appData.listCollections(projectId).then(setCollections).catch(() => setCollections([]));
+    let active = true;
+    void Promise.all([
+      appData.listDatabases(projectId),
+      appData.listCollections(projectId),
+    ]).then(([databases, loadedCollections]) => {
+      if (!active) return;
+      setDatabase(databases[0] ?? null);
+      setCollections(loadedCollections);
+    }).catch(() => {
+      if (!active) return;
+      setDatabase(null);
+      setCollections([]);
+    });
+    return () => { active = false; };
   }, [appData, projectId]);
   const deployment = useDeployment(projectId, { collections });
 
@@ -41,6 +61,20 @@ export function DeploymentPage() {
   }
 
   const project = deployment.project;
+  const handoff = buildGeneratedAppManifest(project, database, collections);
+
+  function exportBackendHandoff(): void {
+    const blob = new Blob([JSON.stringify(handoff, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = generatedAppManifestFilename(project.name);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="flex min-h-full flex-col bg-canvas">
       <header className="border-b border-hairline bg-surface px-6 py-3">
@@ -109,7 +143,13 @@ export function DeploymentPage() {
               onRedeploy={() => void deployment.publish()}
             />
           </div>
-          <CustomDomainStub />
+          <div className="space-y-6">
+            <RuntimeReadinessPanel
+              onExport={exportBackendHandoff}
+              requirements={handoff.runtime.requirements}
+            />
+            <CustomDomainStub />
+          </div>
         </div>
       </main>
 

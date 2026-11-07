@@ -61,6 +61,7 @@ export function PreviewOverlay({
   });
   const [textOverrides, setTextOverrides] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [componentValues, setComponentValues] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const [variables, setVariables] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [previewRecords, setPreviewRecords] = useState<ReadonlyMap<string, readonly DataRecord[]>>(
     () => new Map(recordsByCollection),
   );
@@ -88,12 +89,17 @@ export function PreviewOverlay({
         event,
         {
           componentValues: nextValues,
+          variables,
+          data: {
+            getRecord: (collectionId, recordId) =>
+              (previewRecords.get(collectionId) ?? []).find((record) => record.id === recordId) ?? null,
+          },
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
       );
       applyPreviewEffects(effects);
     },
-    [componentValues, previewRecords, screens, screen],
+    [componentValues, previewRecords, screens, screen, variables],
   );
 
   function applyPreviewEffects(effects: readonly PreviewEffect[]): void {
@@ -119,6 +125,32 @@ export function PreviewOverlay({
           case 'email-simulated':
             setToast({ id: Date.now(), message: `Preview email to ${effect.to} was simulated.` });
             break;
+          case 'set-variable':
+            setVariables((previous) => new Map([...previous, [effect.name, effect.value]]));
+            break;
+          case 'set-component-value':
+            setComponentValues((previous) => new Map([...previous, [effect.nodeId, effect.value]]));
+            break;
+          case 'rag-indexed':
+            setToast({ id: Date.now(), message: `Indexed ${effect.documentId} (${effect.chunkCount} chunks, simulated).` });
+            break;
+          case 'rag-removed':
+            setToast({ id: Date.now(), message: `Removed ${effect.documentId} from the knowledge base (simulated).` });
+            break;
+          case 'rag-answer':
+            setToast({ id: Date.now(), message: effect.answer });
+            break;
+          case 'cv-result': {
+            const message = effect.operation === 'liveness'
+              ? effect.isLive ? 'Live face detected (simulated).' : 'Live face was not detected.'
+              : effect.operation === 'enroll'
+                ? `Biometric credential ${effect.credentialId ?? ''} enrolled (simulated).`
+                : effect.verified
+                  ? 'Biometric verification succeeded (simulated).'
+                  : 'Biometric verification was rejected.';
+            setToast({ id: Date.now(), message });
+            break;
+          }
           default: {
             const exhaustive: never = effect;
             void exhaustive;
@@ -139,6 +171,11 @@ export function PreviewOverlay({
         'load',
         {
           componentValues,
+          variables,
+          data: {
+            getRecord: (collectionId, recordId) =>
+              (previewRecords.get(collectionId) ?? []).find((record) => record.id === recordId) ?? null,
+          },
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
       );
@@ -149,7 +186,7 @@ export function PreviewOverlay({
   }, [screen?.id]);
 
   function applyDataOperation(
-    payload: Extract<ActionPayload, { type: 'get-records' | 'insert-record' | 'update-record' | 'delete-record' }>,
+    payload: Extract<ActionPayload, { type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record' }>,
   ): void {
     const current = previewRecords.get(payload.collectionId) ?? [];
     if (payload.type === 'get-records') {
@@ -338,6 +375,7 @@ export function PreviewOverlay({
         <div className="m-auto shrink-0">
           <ScreenFrame
             breakpoint={previewDevice}
+            componentValues={componentValues}
             dataContext={{ collections, recordsByCollection: previewRecords }}
             mode="preview"
             onNodeEvent={handleNodeEvent}

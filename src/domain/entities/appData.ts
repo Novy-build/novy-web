@@ -1,6 +1,22 @@
 export type DataFieldType = 'text' | 'number' | 'boolean' | 'date';
 export type DataValue = string | number | boolean | null;
 
+export interface ProjectDatabase {
+  id: string;
+  projectId: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateDatabaseInput {
+  name: string;
+}
+
+export interface UpdateDatabaseInput {
+  name: string;
+}
+
 export interface DataField {
   id: string;
   key: string;
@@ -12,6 +28,7 @@ export interface DataField {
 export interface DataCollection {
   id: string;
   projectId: string;
+  databaseId: string;
   name: string;
   fields: DataField[];
   createdAt: Date;
@@ -29,6 +46,7 @@ export interface DataRecord {
 
 export interface CreateCollectionInput {
   name: string;
+  databaseId?: string;
   fields?: DataField[];
 }
 

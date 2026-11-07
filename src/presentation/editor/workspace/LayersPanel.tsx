@@ -30,6 +30,7 @@ const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
   image: '◇',
   container: '#',
   list: '☷',
+  repeater: '☰',
   form: '▤',
   checkbox: '☑',
   radio: '◉',
@@ -38,6 +39,7 @@ const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
   slider: '═',
   progress: ' ',
   divider: '—',
+  camera: '◉',
 };
 
 /** Figma-inspired hierarchical layer tree with persisted layer controls. */
@@ -157,7 +159,7 @@ export function LayersPanel({
                 aria-expanded={node.type === 'container' ? !isCollapsed : undefined}
                 aria-level={depth + 1}
                 className={`group flex min-h-8 items-center gap-0.5 rounded-md border border-transparent pr-1 transition-colors ${
-                  isSelected ? 'border-brand-200 bg-brand-50' : 'hover:bg-canvas'
+                  isSelected ? 'border-brand-500/60 bg-brand-500/15' : 'hover:bg-canvas'
                 } ${isHiddenAtBreakpoint(node, device) ? 'opacity-55' : ''} ${
                   dropTarget?.id === node.id && dropTarget.position === 'inside'
                     ? 'ring-2 ring-brand-500'
@@ -245,24 +247,28 @@ export function LayersPanel({
                   <LayerControl
                     label={`${isHiddenAtBreakpoint(node, device) ? 'Show' : 'Hide'} ${nodeLayerName(node)}`}
                     onClick={() => onToggleVisibility(node.id)}
+                    tooltip={isHiddenAtBreakpoint(node, device) ? 'Show layer' : 'Hide layer'}
                   >
                     {isHiddenAtBreakpoint(node, device) ? '○' : '◉'}
                   </LayerControl>
                   <LayerControl
                     label={`${node.isLocked ? 'Unlock' : 'Lock'} ${nodeLayerName(node)}`}
                     onClick={() => onToggleLock(node.id)}
+                    tooltip={node.isLocked ? 'Unlock layer' : 'Lock layer'}
                   >
                     {node.isLocked ? '◆' : '◇'}
                   </LayerControl>
                   <LayerControl
                     label={`Bring ${nodeLayerName(node)} forward`}
                     onClick={() => onOrder(node.id, 'forward')}
+                    tooltip="Bring forward"
                   >
                     ↑
                   </LayerControl>
                   <LayerControl
                     label={`Send ${nodeLayerName(node)} backward`}
                     onClick={() => onOrder(node.id, 'backward')}
+                    tooltip="Send backward"
                   >
                     ↓
                   </LayerControl>
@@ -283,22 +289,33 @@ export function LayersPanel({
 
 function LayerControl({
   label,
+  tooltip,
   onClick,
   children,
 }: {
   label: string;
+  tooltip: string;
   onClick: () => void;
   children: string;
 }) {
   return (
-    <button
-      aria-label={label}
-      className="flex h-6 w-5 items-center justify-center rounded text-[10px] text-ink-muted hover:bg-surface hover:text-ink"
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
+    <span className="group/layer-control relative flex">
+      <button
+        aria-label={label}
+        className="flex h-7 w-7 items-center justify-center rounded text-[10px] text-ink-muted transition-colors hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-brand-500"
+        onClick={onClick}
+        title={tooltip}
+        type="button"
+      >
+        {children}
+      </button>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute right-0 top-full z-50 mt-1 whitespace-nowrap rounded bg-ink px-2 py-1 text-[10px] font-medium text-surface opacity-0 shadow-lg transition-opacity group-hover/layer-control:opacity-100 group-focus-within/layer-control:opacity-100"
+      >
+        {tooltip}
+      </span>
+    </span>
   );
 }
 

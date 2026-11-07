@@ -29,7 +29,7 @@ export function ValidationPanel({
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
           {report.issues.map((issue) => (
             <button
-              className="mb-2 block w-full rounded-tile border border-hairline px-3 py-2 text-left text-xs"
+              className="mb-2 block w-full rounded-tile border border-hairline bg-surface px-3 py-2 text-left text-xs transition-colors hover:border-brand-500/60 hover:bg-brand-500/10 focus-visible:outline-2 focus-visible:outline-brand-500"
               key={issue.id}
               onClick={() => onIssueSelect?.(issue)}
               type="button"

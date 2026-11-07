@@ -1,5 +1,21 @@
-import type { DataCollection, DataRecord } from '@domain/entities/appData';
-import type { DataCollectionDTO, DataRecordDTO } from '../dto/appData.dto';
+import type { DataCollection, DataRecord, ProjectDatabase } from '@domain/entities/appData';
+import type { DataCollectionDTO, DataRecordDTO, ProjectDatabaseDTO } from '../dto/appData.dto';
+
+export function mapDatabaseToDto(database: ProjectDatabase): ProjectDatabaseDTO {
+  return {
+    ...database,
+    createdAt: database.createdAt.toISOString(),
+    updatedAt: database.updatedAt.toISOString(),
+  };
+}
+
+export function mapDatabaseFromDto(dto: ProjectDatabaseDTO): ProjectDatabase {
+  return {
+    ...dto,
+    createdAt: new Date(dto.createdAt),
+    updatedAt: new Date(dto.updatedAt),
+  };
+}
 
 export function mapCollectionToDto(collection: DataCollection): DataCollectionDTO {
   return {
@@ -13,6 +29,7 @@ export function mapCollectionToDto(collection: DataCollection): DataCollectionDT
 export function mapCollectionFromDto(dto: DataCollectionDTO): DataCollection {
   return {
     ...dto,
+    databaseId: dto.databaseId,
     fields: dto.fields.map((field) => ({ ...field })),
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),

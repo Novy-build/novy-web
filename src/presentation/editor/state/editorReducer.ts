@@ -251,6 +251,16 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         node.type === 'list' ? { ...node, props: { ...node.props, ...action.props } } : node,
       );
 
+    case 'node/props-repeater':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'repeater' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-camera':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'camera' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
     case 'node/props-form':
       return updateNodeWithHistory(state, action.nodeId, (node) =>
         node.type === 'form' ? { ...node, props: { ...node.props, ...action.props } } : node,

@@ -8,6 +8,7 @@ import type { DataCollection } from '@domain/entities/appData';
 const COLLECTION: DataCollection = {
   id: 'collection_students',
   projectId: 'project_1',
+  databaseId: 'database',
   name: 'Students',
   fields: [
     { id: 'field_name', key: 'name', label: 'Name', type: 'text', required: true },

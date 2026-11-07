@@ -39,6 +39,20 @@ describe('createComponentNode', () => {
     }
   });
 
+  it('creates a camera that starts inactive and faces the user', () => {
+    const node = createComponentNode('camera');
+
+    expect(node.type).toBe('camera');
+    if (node.type === 'camera') {
+      expect(node.props).toEqual({
+        label: 'Camera',
+        facingMode: 'user',
+        captureLabel: 'Capture',
+      });
+      expect(node).toMatchObject({ w: 320, h: 220 });
+    }
+  });
+
   it('generates unique ids', () => {
     const a = createComponentNode('button');
     const b = createComponentNode('button');

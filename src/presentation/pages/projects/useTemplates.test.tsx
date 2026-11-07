@@ -20,7 +20,7 @@ describe('useTemplates', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const names = result.current.templates.map((template) => template.name);
-    expect(names).toEqual(['Blank', 'Landing page', 'Login form', 'Student list']);
+    expect(names).toEqual(['Blank', 'Landing page', 'Login form', 'Student list', 'Note taking app']);
   });
 
   it('exposes each template with a first screen to preview', async () => {

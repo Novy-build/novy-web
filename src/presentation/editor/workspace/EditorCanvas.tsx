@@ -46,6 +46,7 @@ const COMPONENT_TYPES: readonly ComponentType[] = [
   'slider',
   'progress',
   'divider',
+  'camera',
 ];
 
 function isComponentType(value: string): value is ComponentType {

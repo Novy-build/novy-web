@@ -413,7 +413,10 @@ function LogicEdgePath({ edge, graph, isSelected, onSelect }: { edge: LogicEdge;
 function detailFor(node: LogicNode, targetLabelFor: (nodeId: string) => string | null, screenNameFor: (screenId: string) => string | null): string {
   if (node.kind === 'trigger') return 'Starts the workflow';
   if (node.kind === 'condition') {
-    const target = targetLabelFor(node.left.nodeId) ?? 'Choose a component';
+    const leftNodeId = node.left.source === 'component' || node.left.source === 'node-output'
+      ? node.left.nodeId
+      : '';
+    const target = leftNodeId ? targetLabelFor(leftNodeId) ?? 'Choose a component' : node.left.source;
     return `${target} · ${node.operator}${node.compareValue ? ` · “${truncate(node.compareValue)}”` : ''}`;
   }
   switch (node.payload.type) {
@@ -426,6 +429,15 @@ function detailFor(node: LogicNode, targetLabelFor: (nodeId: string) => string |
     case 'delete-record': return node.payload.collectionId ? `Delete from ${node.payload.collectionId}` : 'Collection not set';
     case 'send-email': return node.payload.to ? `Email ${node.payload.to}` : 'Recipient not set';
     case 'refresh-collection': return node.payload.collectionId ? `Refresh ${node.payload.collectionId}` : 'Collection not set';
+    case 'set-variable': return node.payload.name ? `Set ${node.payload.name}` : 'Variable not set';
+    case 'set-component-value': return node.payload.targetNodeId ? `Set ${node.payload.targetNodeId}` : 'Component not set';
+    case 'rag-index': return node.payload.documentId ? `Index ${node.payload.documentId}` : 'Document not set';
+    case 'rag-query': return node.payload.query ? `Ask “${truncate(node.payload.query)}”` : 'Query not set';
+    case 'rag-remove': return node.payload.documentId ? `Remove ${node.payload.documentId}` : 'Document not set';
+    case 'cv-liveness': return 'Check liveness';
+    case 'cv-enroll': return 'Enroll biometric';
+    case 'cv-verify': return 'Verify biometric';
+    default: return '';
   }
 }
 

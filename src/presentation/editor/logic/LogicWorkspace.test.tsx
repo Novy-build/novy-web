@@ -16,6 +16,7 @@ const DOCUMENT: ProjectDocument = { screens: [SCREEN] };
 const COLLECTION: DataCollection = {
   id: 'students',
   projectId: 'project',
+  databaseId: 'database',
   name: 'Students',
   fields: [{ id: 'student_name', key: 'name', label: 'Student name', type: 'text', required: true }],
   createdAt: new Date('2026-01-01'),

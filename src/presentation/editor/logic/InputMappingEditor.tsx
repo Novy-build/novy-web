@@ -27,7 +27,8 @@ export function InputMappingEditor({
   const source: MappingSource = mapping?.source ?? 'static';
   const componentSources = screenNodes.filter((node) =>
     node.type === 'input' || node.type === 'text' || node.type === 'checkbox' ||
-    node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider');
+    node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' ||
+    node.type === 'camera' || node.type === 'repeater');
   const outputSources = logicNodes.filter((node) => node.id !== currentNodeId && node.kind === 'action');
 
   function changeSource(next: MappingSource): void {
@@ -40,6 +41,7 @@ export function InputMappingEditor({
         break;
       }
       case 'session': onChange({ source: 'session', path: 'user.email' }); break;
+      case 'variable': onChange({ source: 'variable', name: '' }); break;
       case 'node-output': onChange({ source: 'node-output', nodeId: outputSources[0]?.id ?? '', path: 'result' }); break;
     }
   }
@@ -60,6 +62,7 @@ export function InputMappingEditor({
         <option value="literal">Mapped literal</option>
         <option value="component">Component value</option>
         <option value="session">Session value</option>
+        <option value="variable">Application variable</option>
         <option value="node-output">Previous node output</option>
       </select>
 
@@ -98,6 +101,16 @@ export function InputMappingEditor({
           <option value="user.name">User name</option>
           <option value="user.id">User ID</option>
         </select>
+      ) : null}
+
+      {mapping?.source === 'variable' ? (
+        <input
+          aria-label={`${label} variable name`}
+          className="mt-2 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-xs text-ink"
+          onChange={(event) => onChange({ source: 'variable', name: event.target.value })}
+          placeholder="selectedNoteId"
+          value={mapping.name}
+        />
       ) : null}
 
       {mapping?.source === 'node-output' ? (

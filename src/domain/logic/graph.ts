@@ -317,11 +317,17 @@ export function outputPortsFor(node: LogicNode): readonly LogicOutputPort[] {
 }
 
 export function isAsyncActionPayload(payload: ActionPayload): boolean {
-  return payload.type === 'get-records' ||
+  return payload.type === 'get-records' || payload.type === 'get-record' ||
     payload.type === 'insert-record' ||
     payload.type === 'update-record' ||
     payload.type === 'delete-record' ||
-    payload.type === 'send-email';
+    payload.type === 'send-email' ||
+    payload.type === 'rag-index' ||
+    payload.type === 'rag-query' ||
+    payload.type === 'rag-remove' ||
+    payload.type === 'cv-liveness' ||
+    payload.type === 'cv-enroll' ||
+    payload.type === 'cv-verify';
 }
 
 function firstFreeOutput(graph: LogicGraph, node: LogicNode): LogicOutputPort | null {

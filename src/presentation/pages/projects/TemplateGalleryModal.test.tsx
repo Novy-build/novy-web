@@ -42,6 +42,17 @@ describe('TemplateGalleryModal', () => {
     ).toHaveLength(4);
   });
 
+  it('uses a viewport-safe responsive gallery layout', () => {
+    renderGallery();
+
+    expect(screen.getByRole('dialog')).toHaveClass('max-h-[calc(100dvh-2rem)]', 'max-w-4xl');
+    expect(screen.getByTestId('template-grid')).toHaveClass(
+      'grid-cols-1',
+      'sm:grid-cols-2',
+      'lg:grid-cols-3',
+    );
+  });
+
   it('starts with the first template selected', () => {
     renderGallery();
 

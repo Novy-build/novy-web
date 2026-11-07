@@ -1,4 +1,17 @@
-import type { ActionInputMappings, ActionPayload, LogicGraph, LogicOutputPort, TriggerEvent, ValueExpression } from '../entities/logic';
+import type {
+  ActionInputMappings,
+  ActionPayload,
+  CvEnrollPayload,
+  CvLivenessPayload,
+  CvVerifyPayload,
+  LogicGraph,
+  LogicOutputPort,
+  RagIndexPayload,
+  RagQueryPayload,
+  RagRemovePayload,
+  TriggerEvent,
+  ValueExpression,
+} from '../entities/logic';
 import type { ProjectDocument, Screen } from '../entities/screen';
 import type { ComponentNode } from '../entities/componentNode';
 import { removeLogicNodes } from './graph';
@@ -17,15 +30,38 @@ export type PreviewEffect =
   | { kind: 'navigate'; screenId: string }
   | {
       kind: 'data-operation';
-      payload: Extract<ActionPayload, { type: 'get-records' | 'insert-record' | 'update-record' | 'delete-record' }>;
+      payload: Extract<ActionPayload, { type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record' }>;
     }
   | { kind: 'refresh-collection'; collectionId: string }
-  | { kind: 'email-simulated'; to: string; subject: string };
+  | { kind: 'email-simulated'; to: string; subject: string }
+  | { kind: 'set-variable'; name: string; value: string }
+  | { kind: 'set-component-value'; nodeId: string; value: string }
+  | { kind: 'rag-indexed'; documentId: string; chunkCount: number }
+  | { kind: 'rag-removed'; documentId: string }
+  | { kind: 'rag-answer'; answer: string; citations: RagCitation[] }
+  | { kind: 'cv-result'; operation: string; isLive?: boolean; verified?: boolean; credentialId?: string; reason?: string };
+
+export interface RagCitation {
+  documentId: string;
+  title: string;
+  snippet: string;
+  score: number;
+}
 
 export interface PreviewRuntimeContext {
   componentValues: ReadonlyMap<string, string>;
   session?: { user?: { id?: string; name?: string; email?: string } };
   nodeOutputs?: ReadonlyMap<string, unknown>;
+  variables?: ReadonlyMap<string, string>;
+  data?: {
+    getRecord: (collectionId: string, recordId: string) => unknown;
+    ragIndex?: (payload: RagIndexPayload) => { documentId: string; chunkCount: number };
+    ragQuery?: (payload: RagQueryPayload) => { answer: string; citations: RagCitation[] };
+    ragRemove?: (payload: RagRemovePayload) => { documentId: string; removed: boolean };
+    cvLiveness?: (payload: CvLivenessPayload) => { isLive: boolean; confidence: number; reason: string };
+    cvEnroll?: (payload: CvEnrollPayload) => { credentialId: string; enrolledAt: string; qualityScore: number };
+    cvVerify?: (payload: CvVerifyPayload) => { verified: boolean; confidence: number; credentialId?: string; reason: string };
+  };
 }
 
 const EMPTY_RUNTIME_CONTEXT: PreviewRuntimeContext = { componentValues: new Map() };
@@ -64,6 +100,13 @@ export function runBehavior(
   }
   const byId = new Map(graph.nodes.map((node) => [node.id, node]));
   const effects: PreviewEffect[] = [];
+  const outputs = new Map<string, unknown>(context.nodeOutputs ?? []);
+  const variables = new Map<string, string>(context.variables ?? []);
+  const runtimeContext: PreviewRuntimeContext = {
+    ...context,
+    nodeOutputs: outputs,
+    variables,
+  };
   let currentId: string | undefined = trigger.id;
   let steps = 0;
   while (currentId && steps < MAX_RUNTIME_STEPS) {
@@ -74,14 +117,49 @@ export function runBehavior(
     }
     let output: LogicOutputPort = 'next';
     if (node.kind === 'action') {
-      const payload = applyActionInputMappings(node.payload, node.inputMappings, document, context);
-      const effect = effectFor(payload, document);
+      const payload = applyActionInputMappings(node.payload, node.inputMappings, document, runtimeContext);
+      const effect = effectFor(payload, document, runtimeContext);
       if (effect) {
         effects.push(effect);
       }
-      output = isAsyncActionPayload(payload) ? 'success' : 'next';
+      if (payload.type === 'set-variable') {
+        variables.set(payload.name, payload.value);
+        outputs.set(node.id, { name: payload.name, value: payload.value });
+      } else if (payload.type === 'set-component-value') {
+        outputs.set(node.id, { nodeId: payload.targetNodeId, value: payload.value });
+      } else if (payload.type === 'get-record') {
+        const record = runtimeContext.data?.getRecord(payload.collectionId, payload.recordId) ?? { id: payload.recordId };
+        outputs.set(node.id, { record });
+      } else if (payload.type === 'rag-index') {
+        const result = runtimeContext.data?.ragIndex?.(payload) ?? { documentId: payload.documentId, chunkCount: 1 };
+        outputs.set(node.id, result);
+      } else if (payload.type === 'rag-query') {
+        const result = runtimeContext.data?.ragQuery?.(payload) ?? { answer: `Simulated answer for “${payload.query}”.`, citations: [] };
+        outputs.set(node.id, result);
+      } else if (payload.type === 'rag-remove') {
+        const result = runtimeContext.data?.ragRemove?.(payload) ?? { documentId: payload.documentId, removed: true };
+        outputs.set(node.id, result);
+      } else if (payload.type === 'cv-liveness') {
+        const result = runtimeContext.data?.cvLiveness?.(payload) ?? { isLive: true, confidence: 0.99, reason: 'simulated' };
+        outputs.set(node.id, result);
+      } else if (payload.type === 'cv-enroll') {
+        const result = runtimeContext.data?.cvEnroll?.(payload) ?? { credentialId: `credential_${payload.userId}`, enrolledAt: new Date().toISOString(), qualityScore: 0.95 };
+        outputs.set(node.id, result);
+      } else if (payload.type === 'cv-verify') {
+        const result = runtimeContext.data?.cvVerify?.(payload) ?? { verified: true, confidence: 0.98, credentialId: payload.credentialId, reason: 'simulated' };
+        outputs.set(node.id, result);
+      } else {
+        outputs.set(node.id, payload);
+      }
+      if (payload.type === 'cv-liveness' || payload.type === 'cv-verify') {
+        output = payload.mediaReference ? 'success' : 'error';
+      } else if (payload.type === 'cv-enroll') {
+        output = payload.mediaReference && payload.userId && payload.consent ? 'success' : 'error';
+      } else {
+        output = isAsyncActionPayload(payload) ? 'success' : 'next';
+      }
     } else if (node.kind === 'condition') {
-      output = evaluateCondition(node, document, context) ? 'true' : 'false';
+      output = evaluateCondition(node, document, runtimeContext) ? 'true' : 'false';
     }
     currentId = graph.edges.find(
       (edge) => edge.fromNodeId === node.id && edge.fromPort === output,
@@ -113,6 +191,8 @@ export function resolveValueExpression(
       if (expression.path === 'user.name') return user?.name ?? '';
       return user?.email ?? '';
     }
+    case 'variable':
+      return context.variables?.get(expression.name) ?? '';
     case 'node-output':
       return readOutputPath(context.nodeOutputs?.get(expression.nodeId), expression.path);
   }
@@ -130,6 +210,37 @@ function applyActionInputMappings(
   switch (payload.type) {
     case 'change-text': return { ...payload, text: resolve('text', payload.text) };
     case 'show-message': return { ...payload, message: resolve('message', payload.message) };
+    case 'set-variable': return { ...payload, value: resolve('value', payload.value) };
+    case 'set-component-value': return { ...payload, value: resolve('value', payload.value) };
+    case 'rag-index': return {
+      ...payload,
+      documentId: resolve('documentId', payload.documentId),
+      title: resolve('title', payload.title),
+      content: resolve('content', payload.content),
+      knowledgeBaseId: resolve('knowledgeBaseId', payload.knowledgeBaseId ?? ''),
+    };
+    case 'rag-query': return {
+      ...payload,
+      query: resolve('query', payload.query),
+      knowledgeBaseId: resolve('knowledgeBaseId', payload.knowledgeBaseId ?? ''),
+    };
+    case 'rag-remove': return {
+      ...payload,
+      documentId: resolve('documentId', payload.documentId),
+      knowledgeBaseId: resolve('knowledgeBaseId', payload.knowledgeBaseId ?? ''),
+    };
+    case 'cv-liveness': return { ...payload, mediaReference: resolve('mediaReference', payload.mediaReference) };
+    case 'cv-enroll': return {
+      ...payload,
+      mediaReference: resolve('mediaReference', payload.mediaReference),
+      userId: resolve('userId', payload.userId),
+    };
+    case 'cv-verify': return {
+      ...payload,
+      mediaReference: resolve('mediaReference', payload.mediaReference),
+      userId: resolve('userId', payload.userId ?? ''),
+      credentialId: resolve('credentialId', payload.credentialId ?? ''),
+    };
     case 'send-email': return {
       ...payload,
       to: resolve('to', payload.to),
@@ -148,6 +259,14 @@ function applyActionInputMappings(
         values: mappedRecordValues(payload.values, mappings, resolve),
       };
     case 'delete-record': return { ...payload, recordId: resolve('$recordId', payload.recordId) };
+    case 'get-record': {
+      const recordId = mappings?.['$recordId']
+        ? resolve('$recordId', payload.recordId)
+        : mappings?.recordId
+          ? resolve('recordId', payload.recordId)
+          : payload.recordId;
+      return { ...payload, recordId };
+    }
     case 'navigate':
     case 'get-records':
     case 'refresh-collection':
@@ -181,16 +300,7 @@ function evaluateCondition(
   document: ProjectDocument,
   context: PreviewRuntimeContext,
 ): boolean {
-  const reference = condition.left;
-  let actual = context.componentValues.get(reference.nodeId) ?? '';
-  if (reference.property === 'text') {
-    const target = document.screens
-      .flatMap((candidate) => flattenNodes(candidate.nodes))
-      .find((node) => node.id === reference.nodeId);
-    if (target?.type === 'text') {
-      actual = target.props.text;
-    }
-  }
+  const actual = resolveValueExpression(condition.left, document, context);
   switch (condition.operator) {
     case 'equals':
       return actual === condition.compareValue;
@@ -213,7 +323,7 @@ function flattenNodes(nodes: readonly ComponentNode[]): ComponentNode[] {
   );
 }
 
-function effectFor(payload: ActionPayload, document: ProjectDocument): PreviewEffect | null {
+function effectFor(payload: ActionPayload, document: ProjectDocument, context: PreviewRuntimeContext = { componentValues: new Map() }): PreviewEffect | null {
   switch (payload.type) {
     case 'change-text': {
       return payload.targetNodeId.length > 0
@@ -228,6 +338,7 @@ function effectFor(payload: ActionPayload, document: ProjectDocument): PreviewEf
       return exists ? { kind: 'navigate', screenId: payload.targetScreenId } : null;
     }
     case 'get-records':
+    case 'get-record':
     case 'insert-record':
     case 'update-record':
     case 'delete-record':
@@ -241,6 +352,62 @@ function effectFor(payload: ActionPayload, document: ProjectDocument): PreviewEf
       return payload.collectionId ? { kind: 'refresh-collection', collectionId: payload.collectionId } : null;
     case 'send-email':
       return payload.to ? { kind: 'email-simulated', to: payload.to, subject: payload.subject } : null;
+    case 'rag-index':
+      return payload.documentId ? { kind: 'rag-indexed', documentId: payload.documentId, chunkCount: 1 } : null;
+    case 'rag-query': {
+      const result = context.data?.ragQuery?.(payload) ?? { answer: `Simulated answer for “${payload.query}”.`, citations: [] };
+      return payload.query ? { kind: 'rag-answer', answer: result.answer, citations: result.citations } : null;
+    }
+    case 'rag-remove':
+      return payload.documentId ? { kind: 'rag-removed', documentId: payload.documentId } : null;
+    case 'cv-liveness': {
+      if (!payload.mediaReference) return null;
+      const result = context.data?.cvLiveness?.(payload) ?? {
+        isLive: true,
+        confidence: 0.99,
+        reason: 'simulated',
+      };
+      return {
+        kind: 'cv-result',
+        operation: 'liveness',
+        isLive: result.isLive,
+        reason: result.reason,
+      };
+    }
+    case 'cv-enroll': {
+      if (!payload.mediaReference || !payload.consent || !payload.userId) return null;
+      const result = context.data?.cvEnroll?.(payload) ?? {
+        credentialId: `credential_${payload.userId}`,
+        enrolledAt: new Date(0).toISOString(),
+        qualityScore: 0.95,
+      };
+      return {
+        kind: 'cv-result',
+        operation: 'enroll',
+        credentialId: result.credentialId,
+        reason: 'simulated',
+      };
+    }
+    case 'cv-verify': {
+      if (!payload.mediaReference) return null;
+      const result = context.data?.cvVerify?.(payload) ?? {
+        verified: true,
+        confidence: 0.98,
+        credentialId: payload.credentialId,
+        reason: 'simulated',
+      };
+      return {
+        kind: 'cv-result',
+        operation: 'verify',
+        verified: result.verified,
+        credentialId: result.credentialId || undefined,
+        reason: result.reason,
+      };
+    }
+    case 'set-variable':
+      return payload.name ? { kind: 'set-variable', name: payload.name, value: payload.value } : null;
+    case 'set-component-value':
+      return payload.targetNodeId ? { kind: 'set-component-value', nodeId: payload.targetNodeId, value: payload.value } : null;
     default: {
       const exhaustive: never = payload;
       void exhaustive;

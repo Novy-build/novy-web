@@ -194,6 +194,48 @@ describe('runClickBehavior', () => {
     ]);
     expect(runBehavior({ screens: [changed] }, changed, 'node_input', 'load')).toEqual([]);
   });
+
+  it('maps captured media into biometric verification and exposes a simulated result', () => {
+    const { screen, graphId } = buildScreen();
+    let graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'cv-verify',
+      mediaReference: '',
+      userId: 'preview-user',
+      threshold: 0.9,
+    });
+    const verify = graph.nodes[1]!;
+    if (verify.kind !== 'action') throw new Error('Expected action node');
+    graph = {
+      ...graph,
+      nodes: graph.nodes.map((node) => node.id === verify.id ? {
+        ...verify,
+        inputMappings: {
+          mediaReference: { source: 'component', nodeId: 'node_input', property: 'value' },
+        },
+      } : node),
+    };
+    graph = appendAction(graph, { type: 'show-message', message: 'Unlocked' });
+    const withGraph = {
+      ...screen,
+      logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item),
+    };
+
+    expect(runClickBehavior(
+      { screens: [withGraph] },
+      withGraph,
+      'node_button',
+      { componentValues: new Map([['node_input', 'data:image/jpeg;base64,preview']]) },
+    )).toEqual([
+      {
+        kind: 'cv-result',
+        operation: 'verify',
+        verified: true,
+        credentialId: undefined,
+        reason: 'simulated',
+      },
+      { kind: 'show-message', message: 'Unlocked' },
+    ]);
+  });
 });
 
 describe('resolveValueExpression', () => {

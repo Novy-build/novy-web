@@ -4,6 +4,7 @@ import type {
   ComponentNode,
   ComponentType,
   ContainerNode,
+  CameraNode,
   DividerNode,
   DropdownNode,
   FormNode,
@@ -11,6 +12,7 @@ import type {
   InputNode,
   ListNode,
   ProgressNode,
+  RepeaterNode,
   RadioNode,
   SliderNode,
   SwitchNode,
@@ -93,6 +95,18 @@ function createListNode(): ListNode {
     w: 280,
     h: 180,
     props: { items: [], scrollable: true, showDividers: true },
+  };
+}
+
+function createRepeaterNode(): RepeaterNode {
+  return {
+    id: generateId('node'),
+    type: 'repeater',
+    x: 24,
+    y: 24,
+    w: 320,
+    h: 180,
+    props: { emptyText: 'No records yet', showDividers: true, dataSource: { kind: 'static', items: [] } },
   };
 }
 
@@ -187,6 +201,18 @@ function createProgressNode(): ProgressNode {
   };
 }
 
+function createCameraNode(): CameraNode {
+  return {
+    id: generateId('node'),
+    type: 'camera',
+    x: 24,
+    y: 24,
+    w: 320,
+    h: 220,
+    props: { label: 'Camera', facingMode: 'user', captureLabel: 'Capture' },
+  };
+}
+
 function createDividerNode(): DividerNode {
   return {
     id: generateId('node'),
@@ -210,6 +236,7 @@ const factories: Record<ComponentType, NodeFactory> = {
   image: createImageNode,
   container: createContainerNode,
   list: createListNode,
+  repeater: createRepeaterNode,
   form: createFormNode,
   checkbox: createCheckboxNode,
   radio: createRadioNode,
@@ -217,6 +244,7 @@ const factories: Record<ComponentType, NodeFactory> = {
   dropdown: createDropdownNode,
   slider: createSliderNode,
   progress: createProgressNode,
+  camera: createCameraNode,
   divider: createDividerNode,
 };
 

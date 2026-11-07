@@ -210,6 +210,17 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         h: node.h,
         props: { orientation: node.props.orientation, thickness: node.props.thickness },
       };
+    case 'camera':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'camera',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { label: node.props.label, facingMode: node.props.facingMode, captureLabel: node.props.captureLabel },
+      };
     case 'image':
       return {
         id: node.id,
@@ -233,6 +244,21 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         props: {
           items: [...node.props.items],
           scrollable: node.props.scrollable,
+          showDividers: node.props.showDividers,
+          ...(node.props.dataSource ? { dataSource: structuredClone(node.props.dataSource) } : {}),
+        },
+      };
+    case 'repeater':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'repeater',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: {
+          emptyText: node.props.emptyText,
           showDividers: node.props.showDividers,
           ...(node.props.dataSource ? { dataSource: structuredClone(node.props.dataSource) } : {}),
         },
@@ -386,6 +412,17 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         h: dto.h,
         props: { orientation: dto.props.orientation, thickness: dto.props.thickness },
       };
+    case 'camera':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'camera',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { label: dto.props.label, facingMode: dto.props.facingMode, captureLabel: dto.props.captureLabel },
+      };
     case 'image':
       return {
         id: dto.id,
@@ -409,6 +446,21 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         props: {
           items: [...dto.props.items],
           scrollable: dto.props.scrollable ?? true,
+          showDividers: dto.props.showDividers ?? true,
+          ...(dto.props.dataSource ? { dataSource: structuredClone(dto.props.dataSource) } : {}),
+        },
+      };
+    case 'repeater':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'repeater',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: {
+          emptyText: dto.props.emptyText ?? 'No records yet',
           showDividers: dto.props.showDividers ?? true,
           ...(dto.props.dataSource ? { dataSource: structuredClone(dto.props.dataSource) } : {}),
         },

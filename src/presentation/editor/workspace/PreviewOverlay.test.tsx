@@ -210,6 +210,7 @@ describe('PreviewOverlay', () => {
     const collection: DataCollection = {
       id: 'students',
       projectId: 'project',
+      databaseId: 'database',
       name: 'Students',
       fields: [
         { id: 'name', key: 'name', label: 'Name', type: 'text', required: true },
@@ -265,7 +266,7 @@ describe('PreviewOverlay', () => {
 
   it('applies database-node effects to isolated preview records', () => {
     const collection: DataCollection = {
-      id: 'students', projectId: 'project', name: 'Students',
+      id: 'students', projectId: 'project', databaseId: 'database', name: 'Students',
       fields: [{ id: 'name', key: 'name', label: 'Name', type: 'text', required: true }],
       createdAt: new Date(), updatedAt: new Date(),
     };

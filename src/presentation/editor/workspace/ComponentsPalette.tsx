@@ -16,6 +16,7 @@ export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
   { type: 'text', label: 'Text', description: 'Heading or body copy', category: 'Basic' },
   { type: 'button', label: 'Button', description: 'Tap target with a label', category: 'Basic' },
   { type: 'image', label: 'Image', description: 'Picture with alt text', category: 'Basic' },
+  { type: 'camera', label: 'Camera', description: 'Capture a live image', category: 'Basic' },
   { type: 'divider', label: 'Divider', description: 'Horizontal or vertical separator', category: 'Basic' },
   { type: 'input', label: 'Text field', description: 'Labelled text input', category: 'Form controls' },
   { type: 'checkbox', label: 'Checkbox', description: 'Toggle a single option', category: 'Form controls' },
@@ -25,6 +26,7 @@ export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
   { type: 'slider', label: 'Slider', description: 'Pick a value from a range', category: 'Form controls' },
   { type: 'progress', label: 'Progress', description: 'Show completion status', category: 'Form controls' },
   { type: 'list', label: 'List', description: 'Rows of repeating data', category: 'Data' },
+  { type: 'repeater', label: 'Repeater', description: 'Repeat a template for each record', category: 'Data' },
   { type: 'form', label: 'Form', description: 'Fields with a submit action', category: 'Data' },
 ];
 

@@ -101,17 +101,20 @@ Administration is intentionally excluded because Novy currently targets one appl
 ## UC-07 Deploy Application
 
 - Route: `/project/:id/deploy`
-- Domain/data: `DeploymentRepository`, `DeploymentRecord`, `deploymentUrl`, `validateProject`
+- Domain/data: `DeploymentRepository`, `DeploymentRecord`, `deploymentUrl`, `validateProject`,
+  `GeneratedAppManifestDTO`, `buildGeneratedAppManifest`
 - Presentation: `DeploymentPage`, `useDeployment`, `PublishStepper`, `DeploymentHistory`,
-  `PublishSuccessModal`
+  `PublishSuccessModal`, `RuntimeReadinessPanel`
 - Tests:
   - `src/presentation/pages/deployment/DeploymentPage.test.tsx`
   - `src/presentation/pages/deployment/useDeployment.test.tsx`
   - `src/data/repositories/local/LocalStorageDeploymentRepository.test.ts`
   - `src/domain/deployment/deploymentUrl.test.ts`
+  - `src/data/generation/generatedAppManifest.test.ts`
+  - `src/presentation/pages/deployment/RuntimeReadinessPanel.test.tsx`
 - Evidence: environment selection, animated publish pipeline, fake live URLs, copy action,
-  deployment history, View/Redeploy, custom-domain stub, validation blocking, and failure
-  preservation.
+  deployment history, View/Redeploy, custom-domain stub, validation blocking, failure preservation,
+  inferred runtime requirements, and exportable backend handoff without records or secrets.
 
 ## UC-08 Platform Administration
 
@@ -148,6 +151,7 @@ Administration is intentionally excluded because Novy currently targets one appl
 - `DeploymentRepository`
 - `AssistantProposal` generation boundary
 - `ValidationReport` producer boundary
+- `GeneratedAppManifestDTO` project/schema/runtime handoff boundary
 
 Presentation code consumes these interfaces exclusively. Backend integration should replace
 implementations under `src/data` without changing presentation contracts.

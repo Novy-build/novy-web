@@ -1,13 +1,22 @@
 import type {
   CreateCollectionInput,
+  CreateDatabaseInput,
   DataCollection,
   DataRecord,
   DataValue,
+  ProjectDatabase,
   UpdateCollectionInput,
+  UpdateDatabaseInput,
 } from '../entities/appData';
 
 export interface AppDataRepository {
-  listCollections(projectId: string): Promise<DataCollection[]>;
+  listDatabases(projectId: string): Promise<ProjectDatabase[]>;
+  getDatabase(projectId: string, databaseId?: string): Promise<ProjectDatabase | null>;
+  createDatabase(projectId: string, input: CreateDatabaseInput): Promise<ProjectDatabase>;
+  updateDatabase(projectId: string, databaseId: string, input: UpdateDatabaseInput): Promise<ProjectDatabase>;
+  deleteDatabase(projectId: string, databaseId: string): Promise<void>;
+
+  listCollections(projectId: string, databaseId?: string): Promise<DataCollection[]>;
   getCollection(projectId: string, collectionId: string): Promise<DataCollection | null>;
   createCollection(projectId: string, input: CreateCollectionInput): Promise<DataCollection>;
   updateCollection(projectId: string, collectionId: string, input: UpdateCollectionInput): Promise<DataCollection>;

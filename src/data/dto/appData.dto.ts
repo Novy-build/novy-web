@@ -8,9 +8,18 @@ export interface DataFieldDTO {
   required: boolean;
 }
 
+export interface ProjectDatabaseDTO {
+  id: string;
+  projectId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DataCollectionDTO {
   id: string;
   projectId: string;
+  databaseId: string;
   name: string;
   fields: DataFieldDTO[];
   createdAt: string;
@@ -27,6 +36,7 @@ export interface DataRecordDTO {
 }
 
 export interface AppDataStoreDTO {
+  databases: ProjectDatabaseDTO[];
   collections: DataCollectionDTO[];
   records: DataRecordDTO[];
 }

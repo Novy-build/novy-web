@@ -177,6 +177,57 @@ describe('screen mapper', () => {
     expect(mapScreenFromDto(dto as ScreenDTO)).toEqual(FIXTURE_SCREEN);
   });
 
+  it('round-trips camera components and biometric action payloads', () => {
+    const biometricScreen: Screen = {
+      id: 'screen_biometric',
+      name: 'Unlock',
+      path: '/unlock',
+      nodes: [{
+        id: 'camera_face',
+        type: 'camera',
+        x: 24,
+        y: 24,
+        w: 320,
+        h: 220,
+        props: { label: 'Face camera', facingMode: 'user', captureLabel: 'Capture face' },
+      }],
+      behaviors: [{
+        id: 'behavior_capture',
+        name: 'Verify face',
+        event: 'change',
+        graphId: 'graph_capture',
+        targetNodeId: 'camera_face',
+      }],
+      logicGraphs: [{
+        id: 'graph_capture',
+        name: 'Verify face',
+        sourceNodeId: 'camera_face',
+        nodes: [
+          { kind: 'trigger', id: 'trigger_capture', event: 'change', position: { x: 80, y: 160 } },
+          {
+            kind: 'action',
+            id: 'verify_capture',
+            position: { x: 312, y: 160 },
+            payload: { type: 'cv-verify', mediaReference: '', userId: 'preview-user', threshold: 0.9 },
+            inputMappings: {
+              mediaReference: { source: 'component', nodeId: 'camera_face', property: 'value' },
+            },
+          },
+        ],
+        edges: [{
+          id: 'edge_capture',
+          fromNodeId: 'trigger_capture',
+          fromPort: 'next',
+          toNodeId: 'verify_capture',
+          toPort: 'in',
+        }],
+      }],
+    };
+
+    const dto = roundTrip(mapScreenToDto(biometricScreen));
+    expect(mapScreenFromDto(dto as ScreenDTO)).toEqual(biometricScreen);
+  });
+
   it('migrates legacy positionless nodes and untyped edges deterministically', () => {
     const legacy = {
       id: 'legacy_screen',

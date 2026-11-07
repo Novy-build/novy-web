@@ -1,5 +1,5 @@
 import type { ChangeEvent } from 'react';
-import type { ComponentNode, DividerProps, InputProps, ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import type { CameraProps, ComponentNode, DividerProps, InputProps, ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import { geometryAtBreakpoint } from '@domain/entities/componentNode';
 import type { DataCollection } from '@domain/entities/appData';
 import type { Behavior } from '@domain/entities/logic';
@@ -197,6 +197,39 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-image', nodeId: node.id, props: { alt: event.target.value } })}
             value={node.props.alt}
           />
+        </div>
+      ) : null}
+
+      {node.type === 'camera' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Camera</p>
+          <TextInput
+            label="Camera label"
+            name="inspector-camera-label"
+            onChange={(event) => onAction({ type: 'node/props-camera', nodeId: node.id, props: { label: event.target.value } })}
+            value={node.props.label}
+          />
+          <TextInput
+            label="Capture button label"
+            name="inspector-camera-capture-label"
+            onChange={(event) => onAction({ type: 'node/props-camera', nodeId: node.id, props: { captureLabel: event.target.value } })}
+            value={node.props.captureLabel}
+          />
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-camera-facing-mode">Facing camera</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-camera-facing-mode"
+            onChange={(event) => onAction({
+              type: 'node/props-camera',
+              nodeId: node.id,
+              props: { facingMode: event.target.value as CameraProps['facingMode'] },
+            })}
+            value={node.props.facingMode}
+          >
+            <option value="user">Front camera</option>
+            <option value="environment">Rear camera</option>
+          </select>
+          <p className="text-xs text-ink-muted">The camera activates only after an explicit action in Preview or the generated app.</p>
         </div>
       ) : null}
 
@@ -722,7 +755,7 @@ export function Inspector({
             value={node.props.fit}
           />
         ) : null}
-        {node.type === 'input' || node.type === 'container' || node.type === 'list' || node.type === 'form' || node.type === 'checkbox' || node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' || node.type === 'progress' || node.type === 'divider' ? (
+        {node.type === 'input' || node.type === 'container' || node.type === 'list' || node.type === 'form' || node.type === 'checkbox' || node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' || node.type === 'progress' || node.type === 'divider' || node.type === 'camera' ? (
           <p className="text-sm text-ink-muted">Fixed for the MVP.</p>
         ) : null}
       </div>

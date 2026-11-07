@@ -77,4 +77,41 @@ describe('createProjectFromTemplate', () => {
     (screen.nodes[0] as TextNode).props.text = 'Mutated';
     expect((TEMPLATE.screens[0].nodes[0] as ComponentNode & { props: { text: string } }).props.text).toBe('Sample');
   });
+
+  it('remaps navigation actions to fresh screen ids', () => {
+    const navigationTemplate: Template = {
+      ...TEMPLATE,
+      screens: [
+        {
+          ...TEMPLATE.screens[0]!,
+          logicGraphs: [{
+            id: 'graph_nav',
+            name: 'Navigate',
+            sourceNodeId: 'node_fixed',
+            nodes: [
+              { kind: 'trigger', id: 'trigger_nav', event: 'click', position: { x: 80, y: 160 } },
+              { kind: 'action', id: 'action_nav', payload: { type: 'navigate', targetScreenId: 'screen_target' }, position: { x: 312, y: 160 } },
+            ],
+            edges: [{ id: 'edge_nav', fromNodeId: 'trigger_nav', fromPort: 'next', toNodeId: 'action_nav', toPort: 'in' }],
+          }],
+        },
+        {
+          id: 'screen_target',
+          name: 'Target',
+          path: '/target',
+          nodes: [],
+          behaviors: [],
+          logicGraphs: [],
+        },
+      ],
+    };
+
+    const project = createProjectFromTemplate(navigationTemplate, 'My App', now);
+    const targetId = project.document.screens[1]!.id;
+    const action = project.document.screens[0]!.logicGraphs[0]!.nodes.find((node) => node.kind === 'action');
+
+    expect(action?.kind === 'action' && action.payload.type === 'navigate'
+      ? action.payload.targetScreenId
+      : null).toBe(targetId);
+  });
 });

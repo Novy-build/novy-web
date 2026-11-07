@@ -68,6 +68,8 @@ describe('LayersPanel', () => {
       name: 'Button — Click me',
     });
     expect(row).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('layer-row-node_button')).toHaveClass('bg-brand-500/15');
+    expect(screen.getByTestId('layer-row-node_button')).not.toHaveClass('bg-brand-50');
   });
 
   it('collapses and expands frame children', () => {
@@ -100,6 +102,17 @@ describe('LayersPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Lock Button — Click me' }));
     expect(props.onToggleLock).toHaveBeenCalledWith('node_button');
+  });
+
+  it('provides visible hover/focus labels for icon controls', () => {
+    renderLayers([makeButton('node_button')], 'node_button');
+
+    expect(screen.getByRole('button', { name: 'Hide Button — Click me' })).toHaveAttribute('title', 'Hide layer');
+    expect(screen.getByRole('button', { name: 'Lock Button — Click me' })).toHaveAttribute('title', 'Lock layer');
+    expect(screen.getByText('Hide layer')).toHaveClass(
+      'group-hover/layer-control:opacity-100',
+      'group-focus-within/layer-control:opacity-100',
+    );
   });
 
   it('drags a layer into a frame and supports keyboard nesting', () => {

@@ -38,6 +38,12 @@ export interface GetRecordsPayload {
   collectionId: string;
 }
 
+export interface GetRecordPayload {
+  type: 'get-record';
+  collectionId: string;
+  recordId: string;
+}
+
 export interface InsertRecordPayload {
   type: 'insert-record';
   collectionId: string;
@@ -69,16 +75,78 @@ export interface RefreshCollectionPayload {
   collectionId: string;
 }
 
+export interface RagIndexPayload {
+  type: 'rag-index';
+  knowledgeBaseId?: string;
+  documentId: string;
+  title: string;
+  content: string;
+}
+
+export interface RagQueryPayload {
+  type: 'rag-query';
+  knowledgeBaseId?: string;
+  query: string;
+  topK?: number;
+}
+
+export interface RagRemovePayload {
+  type: 'rag-remove';
+  knowledgeBaseId?: string;
+  documentId: string;
+}
+
+export interface CvLivenessPayload {
+  type: 'cv-liveness';
+  mediaReference: string;
+}
+
+export interface CvEnrollPayload {
+  type: 'cv-enroll';
+  mediaReference: string;
+  userId: string;
+  consent: boolean;
+}
+
+export interface CvVerifyPayload {
+  type: 'cv-verify';
+  mediaReference: string;
+  userId?: string;
+  credentialId?: string;
+  threshold?: number;
+}
+
+export interface SetVariablePayload {
+  type: 'set-variable';
+  name: string;
+  value: string;
+}
+
+export interface SetComponentValuePayload {
+  type: 'set-component-value';
+  targetNodeId: string;
+  value: string;
+}
+
 export type ActionPayload =
   | ChangeTextPayload
   | ShowMessagePayload
   | NavigatePayload
   | GetRecordsPayload
+  | GetRecordPayload
   | InsertRecordPayload
   | UpdateRecordPayload
   | DeleteRecordPayload
   | SendEmailPayload
-  | RefreshCollectionPayload;
+  | RefreshCollectionPayload
+  | SetVariablePayload
+  | SetComponentValuePayload
+  | RagIndexPayload
+  | RagQueryPayload
+  | RagRemovePayload
+  | CvLivenessPayload
+  | CvEnrollPayload
+  | CvVerifyPayload;
 
 export type SessionValuePath = 'user.id' | 'user.name' | 'user.email';
 
@@ -87,6 +155,7 @@ export type ValueExpression =
   | { source: 'literal'; value: string }
   | { source: 'component'; nodeId: string; property: 'value' | 'text' }
   | { source: 'session'; path: SessionValuePath }
+  | { source: 'variable'; name: string }
   | { source: 'node-output'; nodeId: string; path: string };
 
 export type ActionInputMappings = Record<string, ValueExpression>;
@@ -118,7 +187,7 @@ export interface ConditionNode {
   kind: 'condition';
   id: string;
   position: LogicNodePosition;
-  left: ComponentValueReference;
+  left: ValueExpression;
   operator: ConditionOperator;
   compareValue: string;
 }

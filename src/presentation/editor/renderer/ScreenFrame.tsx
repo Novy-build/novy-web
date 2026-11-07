@@ -32,6 +32,7 @@ export interface ScreenFrameProps {
   onNodeEvent?: (nodeId: string, event: TriggerEvent, value?: string) => void;
   onNodeValueChange?: (nodeId: string, value: string) => void;
   dataContext?: RendererDataContext;
+  componentValues?: ReadonlyMap<string, string>;
   onFormSubmit?: (nodeId: string, values: string[]) => void;
 }
 
@@ -51,6 +52,7 @@ export function ScreenFrame({
   onNodeAction,
   onNodeEvent,
   onNodeValueChange,
+  componentValues,
   dataContext,
   onFormSubmit,
 }: ScreenFrameProps) {
@@ -81,6 +83,7 @@ export function ScreenFrame({
           <ComponentRenderer
             key={node.id}
             breakpoint={resolvedBreakpoint}
+            componentValues={componentValues}
             mode={mode}
             node={node}
             onNodeAction={onNodeAction}

@@ -5,6 +5,164 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-07 — Template modal and editor dark-mode UI fixes
+
+#### Fixed
+- Constrained all modal panels to the viewport and enabled contained scrolling so the template
+  gallery heading, choices, project-name field, and actions remain reachable.
+- Expanded the template gallery to a responsive one/two/three-column layout with shorter previews,
+  preventing the fifth template from pushing form actions below the viewport.
+- Replaced the selected Layers row's light-only background with a translucent, theme-safe brand
+  state.
+- Added theme-safe backgrounds and hover/focus states to Validation issue cards.
+
+#### Added
+- Added visible tooltips on hover and keyboard focus for layer visibility, locking, forward, and
+  backward icon controls while preserving descriptive accessible names.
+- Added focused Modal, template gallery, Layers, and Validation tests.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 70 test files and 526 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Milestone 6 frontend backend-handoff contract
+
+#### Added
+- Added a versioned generated-app handoff manifest containing Project JSON, database/collection
+  schemas, routes, responsive thresholds, and inferred runtime capabilities.
+- Added capability detection for authentication, database, email, RAG, Computer Vision, camera
+  permission, and deployment requirements.
+- Added a Deployment-page readiness panel and JSON handoff export.
+- Added security exclusions proving that records, secrets, camera captures, and biometric templates
+  are not exported.
+
+#### Changed
+- Documented the backend boundary explicitly: this frontend repository exports validated contracts
+  but does not implement persistence services, provider secrets, React generation, or real cloud
+  deployment.
+- Updated PD6 traceability and backend handoff documentation.
+
+#### Tests
+- Added manifest generation and readiness-panel coverage.
+- Focused generation/deployment tests — passed.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 69 test files and 523 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Note-app milestone 5: Computer Vision and biometric unlock
+
+#### Added
+- Added a Camera component with explicit permission, live preview, capture, retake, error, and
+  cleanup states.
+- Added provider-agnostic CV Liveness, CV Enroll, and CV Verify payloads, DTOs, Logic nodes,
+  Inspector controls, dynamic input mappings, validation, runtime outputs, and preview simulation.
+- Added biometric consent, liveness, enrollment, verification, rejection, error, and standard
+  sign-in fallback workflows to the Note taking app template.
+- Added focused factory, mapper, renderer, node-library, runtime, template, and navigation-remapping
+  tests.
+
+#### Changed
+- Remapped template Navigate targets when projects receive fresh screen IDs.
+- Kept captured images in isolated preview component state; Project JSON stores only camera
+  configuration and never raw camera images or biometric templates.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 67 test files and 520 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (only LF/CRLF warnings).
+
+### 2026-11-07 — Note-app milestone 4: RAG logic nodes
+
+#### Added
+- Added RAG index, query, and remove action payloads and DTOs.
+- Added an AI category with RAG node definitions in the Logic library.
+- Added RAG inspector configuration and Logic canvas details.
+- Added simulated RAG preview effects and resolver support.
+
+#### Changed
+- Updated validation, runtime, and preview handling for RAG actions.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 67 test files and 513 tests passed.
+- `npm run build` — passed.
+
+### 2026-11-07 — Note-app milestone 3: wired note template
+
+#### Added
+- Added note create/open/save/delete/cancel/prefill logic graphs to the Note taking app template.
+- Added repeater search and sort support.
+- Added RepeaterProps and DTO support for search/sort fields.
+
+#### Changed
+- Updated the template catalog note app to include wired CRUD flows.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 67 test files and 513 tests passed.
+- `npm run build` — passed.
+
+### 2026-11-07 — Note-app milestone 2: note-taking starter template
+
+#### Added
+- Added a Note taking app starter template with Notes and Note Editor screens.
+- Added get-record logic payload for loading a selected note into the editor.
+- Added preview data resolution for get-record effects.
+
+#### Changed
+- Updated starter template tests for the new catalog entry.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 67 test files and 513 tests passed.
+- `npm run build` — passed.
+
+### 2026-11-07 — Note-app milestone 1: data repeater and logic primitives
+
+#### Added
+- Added a Repeater component for rendering database records with multiple display fields.
+- Added set-variable and set-component-value logic actions with runtime effects and preview handling.
+- Generalized logic conditions to use typed value expressions.
+- Added runtime node outputs and variable context for downstream logic.
+- Added controlled input values for component-value bindings.
+
+#### Changed
+- Updated DTOs, mappers, validation, renderer, preview, and logic configuration for the new primitives.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 67 test files and 513 tests passed.
+- `npm run build` — passed.
+
+### 2026-11-07 — Per-project databases for app data
+
+#### Added
+
+- Added a `ProjectDatabase` domain entity and repository lifecycle methods for creating, listing,
+  renaming, and deleting project databases.
+- Added a database gate to the Data workspace: collections can be created only after a project
+  database exists.
+- Added `databaseId` to data collections and DTOs, with backward-compatible migration that creates
+  one database for legacy projects that already contain collections.
+- Added database identity display in the Data workspace header.
+
+#### Changed
+
+- Updated local app-data storage to persist databases alongside collections and records.
+- Updated project data loading to expose the active database and database list.
+- Updated existing app-data tests for the explicit database creation flow.
+
+#### Tests
+
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 67 test files and 513 tests passed.
+- `npm run build` — passed.
+- `git diff --check` — passed.
+
 ### 2026-11-07 — Mobile-first responsive cascade and breakpoint visibility
 
 #### Added

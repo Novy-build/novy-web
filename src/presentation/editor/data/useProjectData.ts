@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import type {
   CreateCollectionInput,
+  CreateDatabaseInput,
   DataCollection,
   DataRecord,
   DataValue,
+  ProjectDatabase,
   UpdateCollectionInput,
+  UpdateDatabaseInput,
 } from '@domain/entities/appData';
 import { useRepositories } from '@main/providers/RepositoriesProvider';
 
@@ -12,10 +15,15 @@ export type ProjectDataStatus = 'loading' | 'ready' | 'error';
 
 export interface ProjectDataController {
   status: ProjectDataStatus;
+  database: ProjectDatabase | null;
+  databases: ProjectDatabase[];
   collections: DataCollection[];
   recordsByCollection: ReadonlyMap<string, DataRecord[]>;
   error: string | null;
   reload: () => void;
+  createDatabase: (input: CreateDatabaseInput) => Promise<ProjectDatabase>;
+  updateDatabase: (databaseId: string, input: UpdateDatabaseInput) => Promise<ProjectDatabase>;
+  deleteDatabase: (databaseId: string) => Promise<void>;
   createCollection: (input: CreateCollectionInput) => Promise<DataCollection>;
   updateCollection: (collectionId: string, input: UpdateCollectionInput) => Promise<DataCollection>;
   deleteCollection: (collectionId: string) => Promise<void>;
@@ -27,6 +35,8 @@ export interface ProjectDataController {
 export function useProjectData(projectId: string): ProjectDataController {
   const { appData } = useRepositories();
   const [status, setStatus] = useState<ProjectDataStatus>('loading');
+  const [database, setDatabase] = useState<ProjectDatabase | null>(null);
+  const [databases, setDatabases] = useState<ProjectDatabase[]>([]);
   const [collections, setCollections] = useState<DataCollection[]>([]);
   const [recordsByCollection, setRecordsByCollection] = useState<ReadonlyMap<string, DataRecord[]>>(() => new Map());
   const [error, setError] = useState<string | null>(null);
@@ -36,11 +46,15 @@ export function useProjectData(projectId: string): ProjectDataController {
     let active = true;
     setStatus('loading');
     setError(null);
-    void appData.listCollections(projectId).then(async (loaded) => {
+    void appData.listDatabases(projectId).then(async (loadedDatabases) => {
+      const primary = loadedDatabases[0] ?? null;
+      const loaded = primary ? await appData.listCollections(projectId, primary.id) : await appData.listCollections(projectId);
       const recordLists = await Promise.all(
         loaded.map(async (collection) => [collection.id, await appData.listRecords(projectId, collection.id)] as const),
       );
       if (!active) return;
+      setDatabases(loadedDatabases);
+      setDatabase(primary);
       setCollections(loaded);
       setRecordsByCollection(new Map(recordLists));
       setStatus('ready');
@@ -52,12 +66,43 @@ export function useProjectData(projectId: string): ProjectDataController {
     return () => { active = false; };
   }, [appData, projectId, reloadToken]);
 
+  const createDatabase = useCallback(async (input: CreateDatabaseInput): Promise<ProjectDatabase> => {
+    const created = await appData.createDatabase(projectId, input);
+    setDatabases((current) => [...current, created]);
+    setDatabase((current) => current ?? created);
+    return created;
+  }, [appData, projectId]);
+
+  const updateDatabase = useCallback(async (databaseId: string, input: UpdateDatabaseInput): Promise<ProjectDatabase> => {
+    const updated = await appData.updateDatabase(projectId, databaseId, input);
+    setDatabases((current) => current.map((item) => item.id === databaseId ? updated : item));
+    setDatabase((current) => current?.id === databaseId ? updated : current);
+    return updated;
+  }, [appData, projectId]);
+
+  const deleteDatabase = useCallback(async (databaseId: string): Promise<void> => {
+    await appData.deleteDatabase(projectId, databaseId);
+    setDatabases((current) => current.filter((item) => item.id !== databaseId));
+    setDatabase((current) => current?.id === databaseId ? null : current);
+    setCollections((current) => current.filter((item) => item.databaseId !== databaseId));
+    setRecordsByCollection((current) => {
+      const next = new Map(current);
+      for (const collection of collections) {
+        if (collection.databaseId === databaseId) next.delete(collection.id);
+      }
+      return next;
+    });
+  }, [appData, collections, projectId]);
+
   const createCollection = useCallback(async (input: CreateCollectionInput): Promise<DataCollection> => {
-    const created = await appData.createCollection(projectId, input);
+    const created = await appData.createCollection(projectId, {
+      ...input,
+      databaseId: input.databaseId ?? database?.id,
+    });
     setCollections((current) => [...current, created]);
     setRecordsByCollection((current) => new Map([...current, [created.id, []]]));
     return created;
-  }, [appData, projectId]);
+  }, [appData, database, projectId]);
 
   const updateCollection = useCallback(async (
     collectionId: string,
@@ -115,10 +160,15 @@ export function useProjectData(projectId: string): ProjectDataController {
 
   return {
     status,
+    database,
+    databases,
     collections,
     recordsByCollection,
     error,
     reload: () => setReloadToken((current) => current + 1),
+    createDatabase,
+    updateDatabase,
+    deleteDatabase,
     createCollection,
     updateCollection,
     deleteCollection,

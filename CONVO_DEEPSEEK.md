@@ -196,8 +196,12 @@ produce typed runtime effects such as:
 - database operations — get, insert, update, or delete records.
 - `refresh-collection` — refetch/reload collection-backed views after a mutation.
 - `send-email` — request backend email delivery.
+- `rag-index`, `rag-query`, and `rag-remove` — maintain and query a provider-agnostic knowledge
+  index.
+- `cv-liveness`, `cv-enroll`, and `cv-verify` — request protected Computer Vision/biometric
+  processing using a temporary media reference.
 
-Database and email actions expose `success` and `error` ports. The frontend preview safely assumes
+Database, email, RAG, and Computer Vision actions expose `success` and `error` ports. The frontend preview safely assumes
 the success branch for simulated async actions; production runtime code must choose the branch from
 the real result and expose structured outputs for downstream `node-output` mappings.
 
@@ -215,10 +219,13 @@ Preview must never:
 - mutate a production database;
 - call protected third-party services;
 - expose credentials or provider tokens;
+- persist raw camera captures or biometric templates in Project JSON or normal app collections;
 - deploy generated code.
 
-For example, Send Email produces a clearly labeled simulated-delivery message in preview. Real
-delivery belongs to the generated-app backend/runtime.
+For example, Send Email produces a clearly labeled simulated-delivery message in preview. RAG and
+Computer Vision nodes likewise return deterministic simulated results. Real delivery, model
+execution, vector storage, liveness checks, face matching, encrypted biometric-template storage,
+retention, and deletion belong to the generated-app backend/runtime.
 
 ---
 
@@ -253,14 +260,18 @@ Never silently drop unknown saved work merely to satisfy the newest editor shape
 
 ## 9. Backend Handoff
 
-The frontend saves the versioned Project JSON through repository interfaces. A future backend is
+The frontend saves the versioned Project JSON through repository interfaces. The Deployment page
+can also export a generated-app handoff manifest containing that Project JSON, app-data schemas,
+routes, responsive thresholds, and inferred runtime capabilities. The manifest never contains app
+records, provider secrets, raw camera images, or biometric templates. A future backend is
 responsible for:
 
 1. validating IDs, routes, mappings, graph topology, data references, and supported action types;
 2. generating the React web project and route configuration;
 3. implementing authenticated data access and session-value resolution;
 4. executing async actions and selecting `success` or `error` branches;
-5. performing real email, database, deployment, and other protected side effects;
+5. performing real email, database, RAG, Computer Vision, biometric, deployment, and other
+   protected side effects;
 6. returning deployment status and preserving the previous successful deployment after a failure.
 
 Provider-specific SDK details must remain behind backend/domain contracts. The editor must not

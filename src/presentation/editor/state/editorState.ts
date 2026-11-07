@@ -4,6 +4,8 @@ import type {
   ComponentNode,
   ComponentType,
   ComponentAppearance,
+  CameraProps,
+  RepeaterProps,
   DividerProps,
   DropdownProps,
   FormProps,
@@ -58,6 +60,8 @@ export type EditorNodeAction =
   | { type: 'node/props-input'; nodeId: string; props: Partial<InputProps> }
   | { type: 'node/props-image'; nodeId: string; props: Partial<ImageProps> }
   | { type: 'node/props-list'; nodeId: string; props: Partial<ListProps> }
+  | { type: 'node/props-repeater'; nodeId: string; props: Partial<RepeaterProps> }
+  | { type: 'node/props-camera'; nodeId: string; props: Partial<CameraProps> }
   | { type: 'node/props-form'; nodeId: string; props: Partial<FormProps> }
   | { type: 'node/props-checkbox'; nodeId: string; props: Partial<CheckboxProps> }
   | { type: 'node/props-radio'; nodeId: string; props: Partial<RadioProps> }

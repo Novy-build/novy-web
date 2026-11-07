@@ -67,6 +67,7 @@ describe('validateProject', () => {
     const collection: DataCollection = {
       id: 'students',
       projectId: 'project',
+      databaseId: 'database',
       name: '',
       fields: [
         { id: 'name', key: 'name', label: '', type: 'text', required: false },

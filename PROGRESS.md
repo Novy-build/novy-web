@@ -71,6 +71,8 @@ tokens, password recovery, and remote sessions are not connected.
 - [x] Login form.
 - [x] Student list.
 - [x] Template gallery with previews.
+- [x] Viewport-safe, internally scrollable template modal with a responsive one/two/three-column
+  gallery.
 
 Project persistence is currently local to the browser.
 
@@ -91,6 +93,7 @@ The serialized project model currently contains:
 - Project identity and timestamps.
 - Screens.
 - Component geometry, properties, hierarchy, and editor metadata.
+- Project database identity and collection-to-database association.
 - Typed appearance and tablet/desktop geometry/visibility overrides with mobile-first cascade
   (Tablet inherits Mobile; Desktop inherits resolved Tablet) and field-level compaction.
 - Behaviors/event bindings.
@@ -253,6 +256,8 @@ event binding, and its referenced logic graph:
   omitted values from the resolved Tablet layout. Breakpoint overrides may also set `isHidden`.
 - Optional typed `appearance` values are shared by editor, preview, thumbnails, and generated JSON.
 - `type` selects the renderer/generator component and `props` stores its typed configuration.
+- Camera components serialize only labels and `facingMode`; captured media is transient runtime
+  state and is never embedded in the project document.
 - Optional `name`, `isHidden`, and `isLocked` fields preserve editor-facing layer metadata.
 - A container stores nested components in `children`; child coordinates are relative to that
   container.
@@ -268,12 +273,24 @@ event binding, and its referenced logic graph:
 - Action payloads reference other components, screens, records, or collections by stable ID.
 - Optional `inputMappings` resolve named action inputs from literals, component state, session user
   values, or previous-node outputs.
+- RAG and Computer Vision actions use provider-agnostic payloads. Their generated runtime inputs may
+  reference temporary camera media, while outputs expose document IDs, answers/citations,
+  liveness, credential IDs, verification results, confidence, and reason fields.
 - Async database and email actions branch through `success` and `error`; synchronous actions use
   `next` and conditions use `true`/`false`.
 
 The IDs form the contract between layout and behavior. The backend generator must validate these
 references and input mappings before generating React code. Static action configuration remains in
 the typed `payload`; optional `inputMappings` override named fields at runtime.
+
+### Generated-app backend handoff manifest
+
+The Deployment page can export a versioned generated-app handoff manifest. It contains the complete
+`ProjectDTO`, project database and collection schemas, routes, responsive media-query thresholds,
+and inferred runtime requirements for authentication, data, email, RAG, Computer Vision, camera
+permissions, and deployment. The manifest deliberately excludes app records, secrets, raw camera
+captures, and biometric templates. It is a frontend-to-backend contract, not generated React code
+or a deployable application bundle.
 
 ## 5. Design editor
 
@@ -311,6 +328,7 @@ Implemented component types:
 - [x] Slider.
 - [x] Progress indicator.
 - [x] Divider.
+- [x] Camera Capture with explicit permission, capture/retake states, and no Project JSON image persistence.
 
 ### Layout and direct manipulation
 
@@ -358,6 +376,8 @@ The viewport presets represent responsive web layouts; they do not generate nati
 - [x] Canvas and Layers selection synchronization.
 - [x] Inline layer renaming by double-click or `F2`.
 - [x] Visibility and lock controls.
+- [x] Theme-safe selected-layer treatment in light and dark mode.
+- [x] Hover and keyboard-focus tooltips for visibility, lock, forward, and backward layer controls.
 - [x] Bring-forward and send-backward controls.
 - [x] Drag-to-reorder and drag-to-reparent.
 - [x] Visual insertion and nesting feedback.
@@ -414,10 +434,10 @@ Production execution remains a generated-app/backend responsibility.
 - [x] Delete graph edges.
 - [x] If/Else conditions with true and false branches.
 - [x] Condition operators for equals, not equals, contains, not contains, empty, and not empty.
-- [x] Component value and text references in conditions.
-- [x] Dynamic action input mappings from literals, component values/text, session user values, and
-  previous-node output paths.
-- [x] Success/error output ports for async database and email actions, including legacy-port
+- [x] Component, variable, and previous-node output references in conditions.
+- [x] Dynamic action input mappings from literals, component values/text/media, application
+  variables, session user values, and previous-node output paths.
+- [x] Success/error output ports for async database, email, RAG, and Computer Vision actions, including legacy-port
   migration.
 - [x] Connection validation, cycle prevention, self-loop prevention, and incoming-edge limits.
 - [x] Graph normalization and repair for older or incomplete saved workflows.
@@ -446,11 +466,22 @@ Production execution remains a generated-app/backend responsibility.
 
 - [x] Send Email configuration with preview-only simulated delivery.
 
+### AI and Computer Vision nodes
+
+- [x] RAG Index, RAG Query, and RAG Remove provider-agnostic payloads.
+- [x] RAG answer/citation outputs with preview-only simulation.
+- [x] CV Liveness, CV Enroll, and CV Verify provider-agnostic payloads.
+- [x] Camera media input mapping, consent validation, liveness/verification output mapping, and
+  preview-only biometric simulation.
+- [x] Note-taking template Unlock screen with explicit consent and standard sign-in fallback.
+
 Production execution of logic graphs is not implemented in the frontend. The preview simulates safe
 effects against isolated state.
 
 ## 8. Project data workspace
 
+- [x] One project-scoped database per project, created explicitly before collections.
+- [x] Database lifecycle management (create, rename, delete with collection cascade).
 - [x] Project-scoped data collections.
 - [x] Search collections.
 - [x] Create, rename/update, and delete collections.
@@ -464,6 +495,8 @@ effects against isolated state.
 - [x] Confirmation before destructive data operations.
 - [x] Loading, empty, and retryable error states.
 - [x] List-to-collection data binding.
+- [x] Repeater component for record-driven UI with multiple display fields.
+- [x] Logic variables, component-value actions, typed node outputs, and generalized conditions.
 - [x] Form-to-collection and form-field-to-data-field binding.
 - [x] Logic data nodes can target project collections.
 
@@ -503,6 +536,8 @@ No external AI model or AI SDK is connected.
 - [x] Action target validation for components, screens, records, and collections.
 - [x] Screen route, dynamic mapping source, async output-port, Send Email, and Refresh Collection
   validation.
+- [x] RAG document/query validation plus Computer Vision media, user, and biometric-consent
+  validation.
 - [x] Validation badge and issue panel in the editor.
 - [x] Preview and deployment blocking when project validation contains errors.
 
@@ -523,6 +558,9 @@ No external AI model or AI SDK is connected.
 - [x] Isolated preview copies of collection records.
 - [x] Simulated get, insert, update, and delete data effects.
 - [x] Simulated collection refresh/refetch and Send Email success effects.
+- [x] Simulated RAG indexing/query/removal and biometric liveness/enrollment/verification effects.
+- [x] Camera capture remains in isolated preview component state and is never written into Project
+  JSON or project collections implicitly.
 - [x] Bound forms create isolated preview records.
 - [x] Preview state does not write real databases or invoke external services.
 
@@ -539,6 +577,8 @@ No external AI model or AI SDK is connected.
 - [x] Failure feedback that states the previous successful deployment remains live.
 - [x] Loading, not-found, and retryable error states.
 - [x] Disabled custom-domain control labeled as coming soon.
+- [x] Backend handoff readiness panel with inferred runtime capability requirements.
+- [x] Downloadable provider-agnostic handoff manifest containing Project JSON and app-data schemas.
 
 This is a frontend simulation. React project generation, build orchestration, Vercel API calls, and
 real live deployments are not implemented.
@@ -551,6 +591,7 @@ real live deployments are not implemented.
 - [x] Skip-to-content link.
 - [x] Application error boundary with recovery UI.
 - [x] Explicit loading, error, empty, and not-found states.
+- [x] Theme-safe validation issue cards and visible labels for compact layer icon controls.
 - [x] Accessible button, text-input, password-input, and modal primitives.
 - [x] Light and dark design tokens.
 
@@ -568,7 +609,7 @@ The repository includes automated coverage for:
 Verification completed on 2026-11-07:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 67 test files and 513 tests passed.
+- `npm test -- --run` — 70 test files and 526 tests passed.
 - `npm run build` — passed.
 - `git diff --check` — passed.
 
@@ -580,12 +621,15 @@ features:
 - Real backend authentication and remote project persistence.
 - Uploading the Project JSON to the Novy backend.
 - Backend React project/code generation.
+- Backend consumption of the generated-app handoff manifest and production runtime implementation.
 - Generated-app runtime client and authenticated runtime API calls.
 - Production workflow execution and external side effects such as email delivery.
 - Real database persistence for generated applications.
 - Actual Vercel deployment and deployment-status polling.
 - Real custom domains.
 - Real AI model integration.
+- Real vector storage, RAG model execution, biometric template storage, and Computer Vision
+  processing. Current RAG and biometric behavior is explicit frontend simulation only.
 - Live collaboration, multi-user project access, or platform-administration screens.
 - Auto-layout/flex-layout containers.
 

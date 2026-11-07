@@ -24,6 +24,7 @@ export interface ComponentRendererProps {
   onNodeEvent?: (nodeId: string, event: TriggerEvent, value?: string) => void;
   /** Preview-only input value updates consumed by condition nodes. */
   onNodeValueChange?: (nodeId: string, value: string) => void;
+  componentValues?: ReadonlyMap<string, string>;
   dataContext?: RendererDataContext;
   onFormSubmit?: (nodeId: string, values: string[]) => void;
 }

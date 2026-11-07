@@ -8,11 +8,13 @@ import type { InputProps } from '@domain/entities/componentNode';
  */
 export function InputNodeView({
   props,
+  value,
   renderStatic = false,
   isPreview = false,
   onValueChange,
 }: {
   props: InputProps;
+  value?: string;
   renderStatic?: boolean;
   isPreview?: boolean;
   onValueChange?: (value: string) => void;
@@ -40,6 +42,7 @@ export function InputNodeView({
           placeholder={props.placeholder}
           readOnly={!isPreview}
           tabIndex={isPreview ? 0 : -1}
+          value={value ?? ''}
         />
       ) : (
         <input
@@ -50,6 +53,7 @@ export function InputNodeView({
           readOnly={!isPreview}
           tabIndex={isPreview ? 0 : -1}
           type={props.inputType}
+          value={value ?? ''}
         />
       )}
     </div>

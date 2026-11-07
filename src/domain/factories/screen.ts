@@ -39,11 +39,29 @@ export function createProjectDocument(screens: Screen[]): ProjectDocument {
  * copy with fresh screen ids as well.
  */
 export function createProjectFromTemplate(template: Template, name: string, now: Date): Project {
-  const screens: Screen[] = template.screens.map((screen, index) => ({
-    ...structuredClone(screen),
-    id: generateId('screen'),
-    path: screen.path || (index === 0 ? '/' : screenPathFromName(screen.name)),
-  }));
+  const screenIds = new Map(template.screens.map((screen) => [screen.id, generateId('screen')]));
+  const screens: Screen[] = template.screens.map((screen, index) => {
+    const cloned = structuredClone(screen);
+    return {
+      ...cloned,
+      id: screenIds.get(screen.id)!,
+      path: screen.path || (index === 0 ? '/' : screenPathFromName(screen.name)),
+      logicGraphs: cloned.logicGraphs.map((graph) => ({
+        ...graph,
+        nodes: graph.nodes.map((node) =>
+          node.kind === 'action' && node.payload.type === 'navigate'
+            ? {
+                ...node,
+                payload: {
+                  ...node.payload,
+                  targetScreenId: screenIds.get(node.payload.targetScreenId) ?? node.payload.targetScreenId,
+                },
+              }
+            : node,
+        ),
+      })),
+    };
+  });
 
   return {
     id: generateId('project'),

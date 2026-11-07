@@ -12,6 +12,7 @@ export type ComponentType =
   | 'image'
   | 'container'
   | 'list'
+  | 'repeater'
   | 'form'
   | 'checkbox'
   | 'radio'
@@ -19,7 +20,8 @@ export type ComponentType =
   | 'dropdown'
   | 'slider'
   | 'progress'
-  | 'divider';
+  | 'divider'
+  | 'camera';
 
 export interface ButtonProps {
   label: string;
@@ -55,6 +57,22 @@ export interface ListProps {
   dataSource?:
     | { kind: 'static' }
     | { kind: 'collection'; collectionId: string; displayFieldId: string };
+}
+
+export interface RepeaterProps {
+  emptyText: string;
+  showDividers: boolean;
+  dataSource?:
+    | { kind: 'static'; items: string[] }
+    | {
+        kind: 'collection';
+        collectionId: string;
+        displayFieldIds: string[];
+        sortFieldId?: string;
+        sortDirection?: 'asc' | 'desc';
+        searchFieldId?: string;
+        searchComponentId?: string;
+      };
 }
 
 export interface CheckboxProps {
@@ -97,6 +115,12 @@ export interface ProgressProps {
 export interface DividerProps {
   orientation: 'horizontal' | 'vertical';
   thickness: number;
+}
+
+export interface CameraProps {
+  label: string;
+  facingMode: 'user' | 'environment';
+  captureLabel: string;
 }
 
 export interface FormField {
@@ -246,6 +270,11 @@ export interface ListNode extends NodeBase {
   props: ListProps;
 }
 
+export interface RepeaterNode extends NodeBase {
+  type: 'repeater';
+  props: RepeaterProps;
+}
+
 export interface FormNode extends NodeBase {
   type: 'form';
   props: FormProps;
@@ -286,6 +315,11 @@ export interface DividerNode extends NodeBase {
   props: DividerProps;
 }
 
+export interface CameraNode extends NodeBase {
+  type: 'camera';
+  props: CameraProps;
+}
+
 export type ComponentNode =
   | ButtonNode
   | TextNode
@@ -293,6 +327,7 @@ export type ComponentNode =
   | ImageNode
   | ContainerNode
   | ListNode
+  | RepeaterNode
   | FormNode
   | CheckboxNode
   | RadioNode
@@ -300,7 +335,8 @@ export type ComponentNode =
   | DropdownNode
   | SliderNode
   | ProgressNode
-  | DividerNode;
+  | DividerNode
+  | CameraNode;
 
 /** Frames may nest any supported component, including another frame. */
 export const CONTAINER_CHILD_TYPES: readonly ComponentType[] = [
@@ -309,6 +345,7 @@ export const CONTAINER_CHILD_TYPES: readonly ComponentType[] = [
   'input',
   'image',
   'list',
+  'repeater',
   'container',
   'form',
   'checkbox',
@@ -318,4 +355,5 @@ export const CONTAINER_CHILD_TYPES: readonly ComponentType[] = [
   'slider',
   'progress',
   'divider',
+  'camera',
 ];

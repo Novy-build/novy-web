@@ -254,8 +254,11 @@ function validateLogic(
         }
       }
       if (node.kind === 'condition') {
-        if (!componentIds.has(node.left.nodeId)) {
+        if (node.left.source === 'component' && !componentIds.has(node.left.nodeId)) {
           issues.push(issue('logic-missing-condition-source', 'error', 'logic', 'Condition source component is missing.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
+        }
+        if (node.left.source === 'node-output' && !nodeIds.has(node.left.nodeId)) {
+          issues.push(issue('logic-missing-condition-source', 'error', 'logic', 'Condition source node is missing.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
         }
       }
     }
@@ -286,6 +289,10 @@ function validateActionPayload(
       else if (!screenIds.has(payload.targetScreenId)) issues.push(issue('logic-missing-screen', 'error', 'logic', 'Navigate target screen is missing.', base));
       break;
     case 'get-records':
+      break;
+    case 'get-record':
+      if (!payload.recordId) issues.push(issue('logic-empty-record', 'warning', 'logic', 'Record ID is not set.', base));
+      break;
     case 'insert-record':
     case 'update-record':
     case 'delete-record':
@@ -304,6 +311,30 @@ function validateActionPayload(
     case 'send-email':
       if (!payload.to.trim()) issues.push(issue('logic-empty-email', 'warning', 'logic', 'Send Email recipient is empty.', base));
       if (!payload.subject.trim()) issues.push(issue('logic-empty-email-subject', 'warning', 'logic', 'Send Email subject is empty.', base));
+      break;
+    case 'set-variable':
+      if (!payload.name.trim()) issues.push(issue('logic-empty-variable', 'warning', 'logic', 'Variable name is empty.', base));
+      break;
+    case 'set-component-value':
+      if (!payload.targetNodeId) issues.push(issue('logic-empty-target', 'warning', 'logic', 'Component target is not set.', base));
+      else if (!screen.nodes.flatMap(flattenNodeIds).includes(payload.targetNodeId)) issues.push(issue('logic-missing-target', 'error', 'logic', 'Component target is missing.', base));
+      break;
+    case 'rag-index':
+      if (!payload.documentId.trim()) issues.push(issue('logic-empty-document', 'warning', 'logic', 'RAG document ID is empty.', base));
+      if (!payload.title.trim() && !payload.content.trim()) issues.push(issue('logic-empty-rag-content', 'warning', 'logic', 'RAG document has no title or content.', base));
+      break;
+    case 'rag-query':
+      if (!payload.query.trim()) issues.push(issue('logic-empty-query', 'warning', 'logic', 'RAG query is empty.', base));
+      break;
+    case 'rag-remove':
+      if (!payload.documentId.trim()) issues.push(issue('logic-empty-document', 'warning', 'logic', 'RAG document ID is empty.', base));
+      break;
+    case 'cv-liveness':
+    case 'cv-enroll':
+    case 'cv-verify':
+      if (!payload.mediaReference.trim()) issues.push(issue('logic-empty-media', 'warning', 'logic', 'Media reference is empty.', base));
+      if (payload.type === 'cv-enroll' && !payload.consent) issues.push(issue('logic-missing-consent', 'warning', 'logic', 'Biometric consent is required.', base));
+      if (payload.type === 'cv-enroll' && !payload.userId.trim()) issues.push(issue('logic-empty-user', 'warning', 'logic', 'User ID is required.', base));
       break;
     default: {
       const exhaustive: never = payload;

@@ -58,7 +58,7 @@ export function TemplateGalleryModal({ templates, onCancel, onCreate }: Template
   }
 
   return (
-    <Modal labelledBy="template-gallery-title" onClose={onCancel} panelClassName="max-w-2xl">
+    <Modal labelledBy="template-gallery-title" onClose={onCancel} panelClassName="max-w-4xl">
       <h2 className="text-lg font-semibold text-ink" id="template-gallery-title">
         Choose a starting template
       </h2>
@@ -74,7 +74,7 @@ export function TemplateGalleryModal({ templates, onCancel, onCreate }: Template
           </button>
         </p>
       ) : (
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="template-grid">
           {templates.map((template) => (
             <TemplateTile
               isSelected={selectedTemplateId === template.id}
@@ -123,7 +123,7 @@ function TemplateTile({
   return (
     <button
       aria-pressed={isSelected}
-      className={`rounded-panel border p-3 text-left transition-colors ${
+      className={`flex min-h-0 flex-col rounded-panel border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
         isSelected
           ? 'border-brand-600 bg-canvas ring-1 ring-brand-600'
           : 'border-hairline hover:bg-canvas'
@@ -131,11 +131,11 @@ function TemplateTile({
       onClick={onSelect}
       type="button"
     >
-      <div className="flex h-32 justify-center overflow-hidden bg-surface">
+      <div className="flex h-28 shrink-0 justify-center overflow-hidden rounded-tile bg-surface">
         <ScreenFrame mode="thumbnail" scale={0.16} screen={template.screens[0] ?? null} />
       </div>
       <h3 className="mt-2 text-sm font-semibold text-ink">{template.name}</h3>
-      <p className="mt-0.5 text-xs text-ink-muted">{template.description}</p>
+      <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">{template.description}</p>
     </button>
   );
 }

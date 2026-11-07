@@ -13,6 +13,8 @@ type DataTab = 'schema' | 'records';
 export function DataWorkspace({ data }: { data: ProjectDataController }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<DataTab>('schema');
+  const [newDatabaseName, setNewDatabaseName] = useState('');
+  const [creatingDatabase, setCreatingDatabase] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
@@ -30,11 +32,49 @@ export function DataWorkspace({ data }: { data: ProjectDataController }) {
     return <div className="flex flex-1 items-center justify-center p-8"><div className="text-center"><p className="text-sm text-red-600">{data.error}</p><Button className="mt-4" onClick={data.reload}>Retry</Button></div></div>;
   }
 
+  if (!data.database) {
+    return (
+      <section aria-label="Data workspace" className="flex min-h-0 flex-1 items-center justify-center bg-canvas p-8">
+        <div className="w-full max-w-md rounded-panel border border-hairline bg-surface p-6">
+          <h2 className="text-lg font-semibold text-ink">Create your project database</h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            Collections and records for this project are stored in an isolated database. Create it before adding collections.
+          </p>
+          <form className="mt-5 grid gap-3" onSubmit={(event) => void createDatabase(event)}>
+            <label className="text-xs font-medium text-ink-muted" htmlFor="new-database">Database name</label>
+            <input
+              className="h-9 rounded-md border border-hairline px-3 text-sm"
+              id="new-database"
+              onChange={(event) => setNewDatabaseName(event.target.value)}
+              placeholder="Project database"
+              value={newDatabaseName}
+            />
+            <Button disabled={!newDatabaseName.trim()} isBlock isLoading={creatingDatabase} type="submit">
+              Create database
+            </Button>
+          </form>
+        </div>
+      </section>
+    );
+  }
+
   const collection = data.collections.find((item) => item.id === selectedId) ?? null;
   const records = collection ? data.recordsByCollection.get(collection.id) ?? [] : [];
   const visibleCollections = data.collections.filter((item) =>
     item.name.toLowerCase().includes(search.trim().toLowerCase()),
   );
+
+  async function createDatabase(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!newDatabaseName.trim()) return;
+    setCreatingDatabase(true);
+    try {
+      const created = await data.createDatabase({ name: newDatabaseName });
+      setNewDatabaseName(created.name);
+    } finally {
+      setCreatingDatabase(false);
+    }
+  }
 
   async function createCollection(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -83,7 +123,7 @@ export function DataWorkspace({ data }: { data: ProjectDataController }) {
       {collection ? (
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between border-b border-hairline bg-surface px-5 py-3">
-            <div><h2 className="font-semibold text-ink">{collection.name}</h2><p className="text-xs text-ink-muted">Project-scoped app data</p></div>
+            <div><h2 className="font-semibold text-ink">{collection.name}</h2><p className="text-xs text-ink-muted">Database: {data.database?.name ?? 'Project database'}</p></div>
             <button className="text-sm font-medium text-red-600" onClick={() => setDeleteCollectionOpen(true)} type="button">Delete collection</button>
           </header>
           <div className="flex gap-1 border-b border-hairline bg-surface px-5 py-2" role="tablist" aria-label="Data view">

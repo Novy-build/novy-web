@@ -3,6 +3,7 @@ import { geometryAtBreakpoint, isHiddenAtBreakpoint } from '@domain/entities/com
 import { type CSSProperties, type PropsWithChildren } from 'react';
 import type { ComponentRendererProps } from './renderer';
 import { ButtonNodeView } from './nodes/ButtonNodeView';
+import { CameraNodeView } from './nodes/CameraNodeView';
 import { CheckboxNodeView } from './nodes/CheckboxNodeView';
 import { ContainerNodeView } from './nodes/ContainerNodeView';
 import { DividerNodeView } from './nodes/DividerNodeView';
@@ -10,6 +11,7 @@ import { DropdownNodeView } from './nodes/DropdownNodeView';
 import { ImageNodeView } from './nodes/ImageNodeView';
 import { InputNodeView } from './nodes/InputNodeView';
 import { ListNodeView } from './nodes/ListNodeView';
+import { RepeaterNodeView } from './nodes/RepeaterNodeView';
 import { ProgressNodeView } from './nodes/ProgressNodeView';
 import { RadioNodeView } from './nodes/RadioNodeView';
 import { SliderNodeView } from './nodes/SliderNodeView';
@@ -81,6 +83,7 @@ export function ComponentRenderer({
   onNodeAction,
   onNodeEvent,
   onNodeValueChange,
+  componentValues,
   dataContext,
   onFormSubmit,
 }: ComponentRendererProps) {
@@ -119,6 +122,7 @@ export function ComponentRenderer({
       return frame(
         <InputNodeView
           isPreview={mode === 'preview'}
+          value={componentValues?.get(node.id)}
           onValueChange={(value) => {
             onNodeValueChange?.(node.id, value);
             runtimeEvent?.(node.id, 'change', value);
@@ -135,6 +139,16 @@ export function ComponentRenderer({
           items={resolveListItems(node.props.items, node.props.dataSource, dataContext)}
           scrollable={node.props.scrollable}
           showDividers={node.props.showDividers}
+        />,
+      );
+    case 'repeater':
+      return frame(
+        <RepeaterNodeView
+          componentValues={componentValues}
+          dataContext={dataContext}
+          onItemSelect={(recordId) => runtimeEvent?.(node.id, 'click', recordId)}
+          props={node.props}
+          renderStatic={renderStatic}
         />,
       );
     case 'checkbox':
@@ -186,12 +200,25 @@ export function ComponentRenderer({
       return frame(<ProgressNodeView props={node.props} />);
     case 'divider':
       return frame(<DividerNodeView props={node.props} renderStatic={renderStatic} />);
+    case 'camera':
+      return frame(
+        <CameraNodeView
+          isPreview={mode === 'preview'}
+          onCapture={(mediaReference) => {
+            onNodeValueChange?.(node.id, mediaReference);
+            runtimeEvent?.(node.id, 'change', mediaReference);
+          }}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
     case 'container':
       return frame(
         <ContainerNodeView>
           {node.children.map((child) => (
             <ComponentRenderer
               key={child.id}
+              componentValues={componentValues}
               breakpoint={breakpoint}
               mode={mode}
               node={child}

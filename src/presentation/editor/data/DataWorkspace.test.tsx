@@ -13,6 +13,7 @@ async function renderEditor() {
   const repositories = createStubRepositories({ sessionUser: STUB_USER });
   await ensureDemoProject(repositories);
   const project = (await repositories.projects.listProjects())[0]!;
+  await repositories.appData.createDatabase(project.id, { name: 'Project database' });
   render(
     <RepositoriesProvider repositories={repositories}>
       <MemoryRouter initialEntries={[`/project/${project.id}/editor`]}>
@@ -79,8 +80,10 @@ describe('DataWorkspace', () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);
     const project = (await repositories.projects.listProjects())[0]!;
+    const database = await repositories.appData.createDatabase(project.id, { name: 'Project database' });
     const collection = await repositories.appData.createCollection(project.id, {
       name: 'Students',
+      databaseId: database.id,
       fields: [{ id: 'student_name', key: 'name', label: 'Name', type: 'text', required: true }],
     });
     await repositories.appData.createRecord(project.id, collection.id, { student_name: 'Ada Lovelace' });

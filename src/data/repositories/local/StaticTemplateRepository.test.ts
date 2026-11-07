@@ -15,6 +15,7 @@ describe('StaticTemplateRepository', () => {
       'template_landing',
       'template_login',
       'template_students',
+       'template_notes',
     ]);
   });
 

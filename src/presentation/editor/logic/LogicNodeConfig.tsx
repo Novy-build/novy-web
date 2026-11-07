@@ -125,7 +125,7 @@ export function LogicNodeConfig({
               },
             });
           }}
-          value={node.left.nodeId}
+          value={node.left.source === 'component' ? node.left.nodeId : ''}
         >
           <option value="">Choose a component…</option>
           {screenNodes
@@ -328,6 +328,81 @@ export function LogicNodeConfig({
         </>
       ) : null}
 
+      {actionPayload.type === 'rag-index' && actionPayload.type === 'rag-index' ? (
+        <div className="mt-4 grid gap-3">
+          <label className="text-xs font-medium text-ink-muted">Knowledge base ID
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, knowledgeBaseId: event.target.value })} value={actionPayload.knowledgeBaseId ?? ''} />
+          </label>
+          <label className="text-xs font-medium text-ink-muted">Document ID
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, documentId: event.target.value })} value={actionPayload.documentId} />
+          </label>
+          <label className="text-xs font-medium text-ink-muted">Title
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, title: event.target.value })} value={actionPayload.title} />
+          </label>
+          <label className="text-xs font-medium text-ink-muted">Content
+            <textarea className="mt-1 min-h-20 w-full rounded-tile border border-hairline bg-surface px-2 py-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, content: event.target.value })} value={actionPayload.content} />
+          </label>
+        </div>
+      ) : null}
+
+      {actionPayload.type === 'rag-query' ? (
+        <div className="mt-4 grid gap-3">
+          <label className="text-xs font-medium text-ink-muted">Knowledge base ID
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, knowledgeBaseId: event.target.value })} value={actionPayload.knowledgeBaseId ?? ''} />
+          </label>
+          <label className="text-xs font-medium text-ink-muted">Query
+            <textarea className="mt-1 min-h-20 w-full rounded-tile border border-hairline bg-surface px-2 py-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, query: event.target.value })} value={actionPayload.query} />
+          </label>
+          <label className="text-xs font-medium text-ink-muted">Top results
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, topK: Number(event.target.value) || 0 })} type="number" value={actionPayload.topK ?? 0} />
+          </label>
+        </div>
+      ) : null}
+
+      {actionPayload.type === 'rag-remove' ? (
+        <div className="mt-4 grid gap-3">
+          <label className="text-xs font-medium text-ink-muted">Knowledge base ID
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, knowledgeBaseId: event.target.value })} value={actionPayload.knowledgeBaseId ?? ''} />
+          </label>
+          <label className="text-xs font-medium text-ink-muted">Document ID
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, documentId: event.target.value })} value={actionPayload.documentId} />
+          </label>
+        </div>
+      ) : null}
+
+      {actionPayload.type === 'cv-liveness' || actionPayload.type === 'cv-enroll' || actionPayload.type === 'cv-verify' ? (
+        <div className="mt-4 grid gap-3">
+          <label className="text-xs font-medium text-ink-muted">Media reference
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, mediaReference: event.target.value })} value={actionPayload.mediaReference} />
+          </label>
+          {actionPayload.type === 'cv-enroll' ? (
+            <>
+              <label className="text-xs font-medium text-ink-muted">User ID
+                <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, userId: event.target.value })} value={actionPayload.userId} />
+              </label>
+              <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+                <input checked={actionPayload.consent} onChange={(event) => configure({ ...actionPayload, consent: event.target.checked })} type="checkbox" />
+                Consent granted
+              </label>
+            </>
+          ) : null}
+          {actionPayload.type === 'cv-verify' ? (
+            <>
+              <label className="text-xs font-medium text-ink-muted">User ID
+                <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, userId: event.target.value })} value={actionPayload.userId ?? ''} />
+              </label>
+              <label className="text-xs font-medium text-ink-muted">Credential ID
+                <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, credentialId: event.target.value })} value={actionPayload.credentialId ?? ''} />
+              </label>
+              <label className="text-xs font-medium text-ink-muted">Threshold
+                <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, threshold: Number(event.target.value) || 0 })} type="number" value={actionPayload.threshold ?? 0} />
+              </label>
+            </>
+          ) : null}
+          <p className="text-xs text-ink-muted">Preview simulates biometric processing; raw images and templates stay in the protected backend.</p>
+        </div>
+      ) : null}
+
       {emailPayload ? (
         <div className="mt-4 grid gap-3">
           <label className="text-xs font-medium text-ink-muted">Recipient
@@ -405,9 +480,23 @@ function actionInputDefinitions(
       ...(collection?.fields.map((field) => ({ key: field.id, label: field.label })) ?? []),
     ];
     case 'delete-record': return [{ key: '$recordId', label: 'Record ID' }];
+    case 'cv-liveness': return [{ key: 'mediaReference', label: 'Camera media' }];
+    case 'cv-enroll': return [
+      { key: 'mediaReference', label: 'Camera media' },
+      { key: 'userId', label: 'User ID' },
+    ];
+    case 'cv-verify': return [
+      { key: 'mediaReference', label: 'Camera media' },
+      { key: 'userId', label: 'User ID' },
+      { key: 'credentialId', label: 'Credential ID' },
+    ];
     case 'navigate':
     case 'get-records':
     case 'refresh-collection':
+    case 'set-variable':
+    case 'set-component-value':
+      return [];
+    default:
       return [];
   }
 }

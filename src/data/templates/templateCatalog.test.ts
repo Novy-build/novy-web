@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { TEMPLATE_CATALOG } from './templateCatalog';
 
 describe('templateCatalog', () => {
-  it('contains exactly four starter templates', () => {
-    expect(TEMPLATE_CATALOG).toHaveLength(4);
+  it('contains exactly five starter templates', () => {
+    expect(TEMPLATE_CATALOG).toHaveLength(5);
   });
 
   it('uses unique ids', () => {
@@ -27,5 +27,23 @@ describe('templateCatalog', () => {
     expect(students).toBeDefined();
     const listNode = students?.screens[0].nodes.find((node) => node.type === 'list');
     expect(listNode).toBeDefined();
+  });
+
+  it('provides a wired note app with biometric consent and fallback', () => {
+    const notes = TEMPLATE_CATALOG.find((template) => template.id === 'template_notes');
+    const unlock = notes?.screens.find((candidate) => candidate.name === 'Unlock');
+
+    expect(notes?.screens.map((candidate) => candidate.name)).toEqual([
+      'Unlock',
+      'Notes',
+      'Note Editor',
+    ]);
+    expect(unlock?.path).toBe('/');
+    expect(unlock?.nodes.some((node) => node.type === 'camera')).toBe(true);
+    expect(unlock?.nodes.some((node) => node.type === 'checkbox')).toBe(true);
+    expect(unlock?.logicGraphs.flatMap((graph) => graph.nodes).some(
+      (node) => node.kind === 'action' && node.payload.type === 'cv-verify',
+    )).toBe(true);
+    expect(unlock?.logicGraphs.some((graph) => graph.name === 'Standard sign-in fallback')).toBe(true);
   });
 });

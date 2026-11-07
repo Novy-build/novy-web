@@ -44,7 +44,7 @@ export function Modal({
       <div
         aria-labelledby={labelledBy}
         aria-modal="true"
-        className={`${panelFitContent ? 'w-auto' : 'w-full'} rounded-panel border border-hairline bg-surface p-6 shadow-lg outline-none ${panelScrollable ? 'overflow-y-auto' : 'overflow-hidden'} ${panelClassName}`}
+        className={`${panelFitContent ? 'w-auto' : 'w-full'} max-h-[calc(100dvh-2rem)] rounded-panel border border-hairline bg-surface p-6 shadow-lg outline-none ${panelScrollable ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden'} ${panelClassName}`}
         ref={panelRef}
         role="dialog"
         tabIndex={-1}

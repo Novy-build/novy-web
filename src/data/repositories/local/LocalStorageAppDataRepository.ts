@@ -1,10 +1,13 @@
 import type {
   CreateCollectionInput,
+  CreateDatabaseInput,
   DataCollection,
   DataField,
   DataRecord,
   DataValue,
+  ProjectDatabase,
   UpdateCollectionInput,
+  UpdateDatabaseInput,
 } from '@domain/entities/appData';
 import type { AppDataRepository } from '@domain/repositories/appData.repository';
 import { validateFields, validateRecordValues } from '@domain/appData/validation';
@@ -13,6 +16,8 @@ import type { AppDataStoreDTO } from '../../dto/appData.dto';
 import {
   mapCollectionFromDto,
   mapCollectionToDto,
+  mapDatabaseFromDto,
+  mapDatabaseToDto,
   mapRecordFromDto,
   mapRecordToDto,
 } from '../../mappers/appData.mapper';
@@ -32,11 +37,94 @@ export class LocalStorageAppDataRepository implements AppDataRepository {
     this.now = options?.now ?? (() => new Date());
   }
 
-  async listCollections(projectId: string): Promise<DataCollection[]> {
+  async listDatabases(projectId: string): Promise<ProjectDatabase[]> {
+    await sleep(this.latencyMs);
+    return this.read().databases
+      .map(mapDatabaseFromDto)
+      .filter((database) => database.projectId === projectId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+  }
+
+  async getDatabase(projectId: string, databaseId?: string): Promise<ProjectDatabase | null> {
+    await sleep(this.latencyMs);
+    const store = this.read();
+    const dto = databaseId
+      ? store.databases.find((database) => database.id === databaseId && database.projectId === projectId)
+      : store.databases.find((database) => database.projectId === projectId);
+    return dto ? mapDatabaseFromDto(dto) : null;
+  }
+
+  async createDatabase(projectId: string, input: CreateDatabaseInput): Promise<ProjectDatabase> {
+    await sleep(this.latencyMs);
+    const name = input.name.trim();
+    if (!name) throw new Error('Database name is required.');
+    const now = this.now();
+    const database: ProjectDatabase = {
+      id: generateId('database'),
+      projectId,
+      name,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const store = this.read();
+    store.databases.push(mapDatabaseToDto(database));
+    this.write(store);
+    return database;
+  }
+
+  async updateDatabase(
+    projectId: string,
+    databaseId: string,
+    input: UpdateDatabaseInput,
+  ): Promise<ProjectDatabase> {
+    await sleep(this.latencyMs);
+    const store = this.read();
+    const index = store.databases.findIndex(
+      (database) => database.id === databaseId && database.projectId === projectId,
+    );
+    if (index === -1) throw new Error('Database not found.');
+    const name = input.name.trim();
+    if (!name) throw new Error('Database name is required.');
+    const previous = mapDatabaseFromDto(store.databases[index]!);
+    const updated: ProjectDatabase = {
+      ...previous,
+      name,
+      updatedAt: this.now(),
+    };
+    store.databases[index] = mapDatabaseToDto(updated);
+    this.write(store);
+    return updated;
+  }
+
+  async deleteDatabase(projectId: string, databaseId: string): Promise<void> {
+    await sleep(this.latencyMs);
+    const store = this.read();
+    const exists = store.databases.some(
+      (database) => database.id === databaseId && database.projectId === projectId,
+    );
+    if (!exists) throw new Error('Database not found.');
+    store.databases = store.databases.filter(
+      (database) => !(database.id === databaseId && database.projectId === projectId),
+    );
+    store.collections = store.collections.filter(
+      (collection) => !(collection.databaseId === databaseId && collection.projectId === projectId),
+    );
+    const collectionIds = new Set(
+      store.collections
+        .filter((collection) => collection.projectId === projectId && collection.databaseId === databaseId)
+        .map((collection) => collection.id),
+    );
+    store.records = store.records.filter(
+      (record) => !(record.projectId === projectId && collectionIds.has(record.collectionId)),
+    );
+    this.write(store);
+  }
+
+  async listCollections(projectId: string, databaseId?: string): Promise<DataCollection[]> {
     await sleep(this.latencyMs);
     return this.read().collections
       .map(mapCollectionFromDto)
-      .filter((collection) => collection.projectId === projectId)
+      .filter((collection) => collection.projectId === projectId && (databaseId === undefined || collection.databaseId === databaseId))
       .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
   }
 
@@ -55,16 +143,21 @@ export class LocalStorageAppDataRepository implements AppDataRepository {
     const fields = (input.fields ?? [defaultField()]).map((field) => ({ ...field }));
     const fieldError = validateFields(fields);
     if (fieldError) throw new Error(fieldError);
+    const store = this.read();
+    const database = input.databaseId
+      ? store.databases.find((candidate) => candidate.id === input.databaseId && candidate.projectId === projectId)
+      : store.databases.find((candidate) => candidate.projectId === projectId);
+    if (!database) throw new Error('Create a database first.');
     const now = this.now();
     const collection: DataCollection = {
       id: generateId('collection'),
       projectId,
+      databaseId: database.id,
       name,
       fields,
       createdAt: now,
       updatedAt: now,
     };
-    const store = this.read();
     store.collections.push(mapCollectionToDto(collection));
     this.write(store);
     return collection;
@@ -198,7 +291,40 @@ export class LocalStorageAppDataRepository implements AppDataRepository {
   }
 
   private read(): AppDataStoreDTO {
-    return readJson<AppDataStoreDTO>(this.storage, APP_DATA_KEY) ?? { collections: [], records: [] };
+    const raw = readJson<Partial<AppDataStoreDTO> & { collections?: unknown[]; records?: unknown[] }>(
+      this.storage,
+      APP_DATA_KEY,
+    );
+    const store: AppDataStoreDTO = {
+      databases: Array.isArray(raw?.databases) ? (raw.databases as AppDataStoreDTO['databases']) : [],
+      collections: Array.isArray(raw?.collections) ? (raw.collections as AppDataStoreDTO['collections']) : [],
+      records: Array.isArray(raw?.records) ? (raw.records as AppDataStoreDTO['records']) : [],
+    };
+
+    // Backward compatibility: projects that already contain collections receive
+    // one database so existing component bindings and records keep working.
+    const projectIds = new Set(store.collections.map((collection) => collection.projectId));
+    for (const projectId of projectIds) {
+      if (!store.databases.some((database) => database.projectId === projectId)) {
+        const now = this.now().toISOString();
+        store.databases.push({
+          id: generateId('database'),
+          projectId,
+          name: 'Project database',
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+    for (const collection of store.collections) {
+      if (!collection.databaseId) {
+        const database = store.databases.find((candidate) => candidate.projectId === collection.projectId);
+        if (database) collection.databaseId = database.id;
+      }
+    }
+
+    this.write(store);
+    return store;
   }
 
   private write(store: AppDataStoreDTO): void {

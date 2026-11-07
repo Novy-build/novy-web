@@ -14,6 +14,8 @@ beforeEach(() => window.localStorage.clear());
 describe('LocalStorageAppDataRepository', () => {
   it('creates, updates, lists, and deletes project-scoped collections', async () => {
     const repo = repository();
+    await repo.createDatabase('project_1', { name: 'Project database' });
+    await repo.createDatabase('project_2', { name: 'Project database' });
     const created = await repo.createCollection('project_1', { name: 'Students' });
     await repo.createCollection('project_2', { name: 'Private' });
 
@@ -32,6 +34,7 @@ describe('LocalStorageAppDataRepository', () => {
 
   it('performs record CRUD with typed schema validation', async () => {
     const repo = repository();
+    await repo.createDatabase('project_1', { name: 'Project database' });
     const collection = await repo.createCollection('project_1', {
       name: 'Students',
       fields: [
@@ -58,6 +61,7 @@ describe('LocalStorageAppDataRepository', () => {
 
   it('rejects cross-project access and persists across instances', async () => {
     const repo = repository();
+    await repo.createDatabase('project_1', { name: 'Project database' });
     const collection = await repo.createCollection('project_1', { name: 'Students' });
     await expect(repo.listRecords('project_2', collection.id)).rejects.toThrow('Collection not found');
     await expect(repo.updateCollection('project_2', collection.id, { name: 'Hack', fields: [] })).rejects.toThrow('Collection not found');
@@ -68,6 +72,7 @@ describe('LocalStorageAppDataRepository', () => {
 
   it('removes deleted field values and cascades collection record deletion', async () => {
     const repo = repository();
+    await repo.createDatabase('project_1', { name: 'Project database' });
     const collection = await repo.createCollection('project_1', {
       name: 'Students',
       fields: [
