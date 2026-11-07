@@ -234,9 +234,71 @@ When assisting or auto-generating code for this project, AI agents MUST follow t
 
 6. **Consistency:** Match the established code format, naming conventions, and export styles (named exports preferred over default exports).
 
-## 9. Product Baseline & UX References
+7. **Mandatory Changelog Maintenance:** Every repository addition, update, fix, removal,
+   configuration change, test change, or documentation change **MUST** append a corresponding
+   entry to the root `CHANGELOGS.md` before the task is considered complete. Add entries under
+   **Unreleased**, use the current date, keep the newest entry first, describe user-visible and
+   technical effects, and never delete or rewrite prior history merely to simplify the file.
 
-### 9.1 Canonical Product Baseline
+8. **Mandatory MCP Usage:** AI agents **MUST** use the Context7 and Repomix MCP tools as part of
+   repository work:
+
+   * Use **Repomix** to inspect and analyze relevant repository structure and implementation
+     context before non-trivial implementations, refactors, reviews, or bug fixes.
+   * Use **Context7** to retrieve current official documentation before writing or changing code
+     that depends on a library, framework, SDK, API, CLI, or cloud service. Do not rely only on
+     model memory when current documentation can be queried.
+
+## 9. Progress Tracking & Backend Handoff
+
+These rules apply to every contributor and AI agent working with this repository.
+
+### 9.1 Mandatory Progress Maintenance
+
+Every repository addition, update, fix, removal, configuration change, test change, or
+documentation change **MUST** update the root `PROGRESS.md` in the same task before the work is
+considered complete.
+
+* Update the **Last reviewed** date when the inventory is reviewed or changed.
+* Add, revise, or remove feature entries so they match the current implementation.
+* Keep local mocks, preview simulations, deferred work, and production integrations clearly
+  distinguished; never mark planned or simulated behavior as production-complete.
+* Update the generated Project JSON documentation whenever screens, component DTOs, layout,
+  behaviors, logic graphs, data bindings, schema versions, or mapper contracts change.
+* Keep the verification summary synchronized with the commands and results from the current task.
+* `PROGRESS.md` is a current-state inventory, while `CHANGELOGS.md` is append-only history. Update
+  both files; do not use one as a substitute for the other.
+
+### 9.2 Required Reading for Backend Handoff
+
+Before designing or implementing backend persistence, API endpoints, authentication, generated-app
+runtime execution, React project generation, or deployment integration, backend contributors
+**MUST** review the following files:
+
+1. `AGENTS.md` — repository scope, architecture, tests, migration rules, and product baseline.
+2. `PROGRESS.md` — implemented frontend capabilities, current limitations, and a representative
+   Project JSON payload for screens, component layout, behaviors, and logic graphs.
+3. `project_information/PD6_A-04.pdf` — canonical product requirements.
+4. `docs/pd6-traceability.md` — mapping from product use cases to current frontend code and tests.
+5. `CONVO_DEEPSEEK.md` — supplemental frontend/backend handoff context only; it does not override
+   the canonical contracts or product baseline.
+6. `src/data/dto/project.dto.ts`, `src/data/dto/appData.dto.ts`, and
+   `src/data/dto/deployment.dto.ts` — serialized transport shapes.
+7. `src/data/mappers/` — domain/DTO conversion, schema-version handling, and migration behavior.
+8. `src/domain/entities/`, `src/domain/repositories/`, and `src/domain/validation/` — domain models,
+   integration contracts, and validation rules.
+9. Relevant repository, mapper, migration, validation, logic-runtime, preview, and deployment tests
+   that define expected behavior and backward compatibility.
+
+When documentation conflicts, use this priority order: the canonical PD6 product baseline and
+explicit scope decisions; domain/repository contracts, DTOs, mappers, validation, and tests;
+`PROGRESS.md`; then supplemental discussion documents. Coordinate contract changes with the
+frontend, preserve schema-version compatibility, and add migrations and tests before changing data
+that existing saved projects or generated applications consume.
+
+## 10. Product Baseline & UX References
+
+### 10.1 Canonical Product Baseline
 
 `project_information/PD6_A-04.pdf` is the canonical functional baseline for Novy. Frontend work
 must remain traceable to its builder-facing use cases and domain model:
@@ -255,7 +317,7 @@ multi-user account management, audit dashboards, and service-health screens are 
 current frontend scope. Keep repository and authorization boundaries compatible with a future
 backend, but do not create administrator UI unless the scope is explicitly changed.
 
-### 9.2 Figma-Inspired Visual Editor
+### 10.2 Figma-Inspired Visual Editor
 
 Use Figma as an **interaction reference, not a visual or branded clone**. Keep Novy's own tokens
 and visual identity. The editor should provide:
@@ -268,7 +330,7 @@ and visual identity. The editor should provide:
 * Keyboard-accessible alternatives for selection, reorder, nesting, and all pointer interactions.
 * Undo/redo and autosave coverage for every persisted editor mutation.
 
-### 9.3 n8n-Inspired Logic Builder
+### 10.3 n8n-Inspired Logic Builder
 
 Use n8n as the interaction reference for the Logic workspace while retaining Novy branding:
 
@@ -279,7 +341,7 @@ Use n8n as the interaction reference for the Logic workspace while retaining Nov
 * A focused node configuration inspector plus fit-view and zoom controls.
 * Explicit empty, invalid, and runtime-feedback states.
 
-### 9.4 Baseline Evolution Rules
+### 10.4 Baseline Evolution Rules
 
 * Existing local project documents must migrate safely; do not silently discard saved nodes,
   rules, or deployment history.

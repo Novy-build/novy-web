@@ -8,6 +8,8 @@ import type { Behavior, LogicGraph } from './logic';
 export interface Screen {
   id: string;
   name: string;
+  /** Generated-app route, unique within the project (for example `/` or `/settings`). */
+  path: string;
   nodes: ComponentNode[];
   behaviors: Behavior[];
   logicGraphs: LogicGraph[];

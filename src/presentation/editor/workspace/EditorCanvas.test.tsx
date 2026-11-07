@@ -237,7 +237,7 @@ describe('EditorCanvas', () => {
       window.dispatchEvent(new MouseEvent('pointerup'));
     });
 
-    expect(props.onReparentNode).toHaveBeenCalledWith('button', 'frame', { x: 80, y: 80 });
+    expect(props.onReparentNode).toHaveBeenCalledWith('button', 'frame', { x: 84, y: 80 });
   });
 
   it('positions selection handles for a nested frame child', () => {
@@ -379,5 +379,37 @@ describe('EditorCanvas', () => {
     expect(props.onDeleteSelected).toHaveBeenCalledTimes(1);
     expect(props.onDuplicateSelected).toHaveBeenCalledTimes(1);
     expect(props.onAddBehavior).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows alignment and pixel-distance feedback while dragging and clears it on release', () => {
+    const peer = makeText('node_peer', {
+      x: 400,
+      y: 300,
+      w: 160,
+      props: { text: 'Peer', level: 'body' },
+    });
+    const props = canvasProps({
+      screen: makeScreen('screen_1', [makeText('node_text'), peer]),
+    });
+    render(<EditorCanvas {...props} />);
+
+    fireEvent.pointerDown(screen.getByTestId('interaction-node_text'), {
+      clientX: 100,
+      clientY: 100,
+    });
+    act(() => {
+      // Candidate left is 403; the peer's left edge is at 400 (delta -3).
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 415, clientY: 100 }));
+    });
+
+    expect(props.onNodeMove).toHaveBeenLastCalledWith('node_text', 400, 96);
+    expect(screen.getByTestId('alignment-guide')).toHaveAttribute('data-guide-axis', 'x');
+    expect(screen.getByTestId('distance-indicator')).toHaveAttribute('data-distance-axis', 'y');
+    expect(screen.getByTestId('distance-label')).toHaveTextContent('168 px');
+
+    act(() => window.dispatchEvent(new MouseEvent('pointerup')));
+
+    expect(screen.queryByTestId('alignment-guides')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('distance-indicators')).not.toBeInTheDocument();
   });
 });

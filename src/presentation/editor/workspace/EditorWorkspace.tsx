@@ -17,6 +17,7 @@ import { EditorTopBar, type AutosaveStatus } from './EditorTopBar';
 import { EditorLeftPanel } from './EditorLeftPanel';
 import { EditorCanvas } from './EditorCanvas';
 import { ScreenTabs } from './ScreenTabs';
+import { ScreenRouteEditor } from './ScreenRouteEditor';
 import { PreviewOverlay } from './PreviewOverlay';
 import { Inspector } from './Inspector';
 import { LayersPanel } from './LayersPanel';
@@ -115,7 +116,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       {mode === 'design' ? (
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <EditorLeftPanel
-            nodes={activeScreen.nodes}
+                 nodes={activeScreen.nodes}
             onAddByType={addFromPalette}
             onMove={(nodeId, targetId, position) => dispatch({ type: 'node/layer-move', nodeId, targetId, position })}
             onOrder={(nodeId, direction) => dispatch({ type: 'node/order', nodeId, direction })}
@@ -134,6 +135,10 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
               onRenameScreen={(screenId, name) => dispatch({ type: 'screen/rename', screenId, name })}
               onSelectScreen={(screenId) => dispatch({ type: 'screen/select', screenId })}
               screens={state.document.screens}
+            />
+            <ScreenRouteEditor
+              onChange={(path) => dispatch({ type: 'screen/path', screenId: activeScreen.id, path })}
+              path={activeScreen.path}
             />
             <EditorCanvas
               dataContext={{ collections: projectData.collections, recordsByCollection: projectData.recordsByCollection }}
@@ -173,6 +178,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
             <Inspector
               behaviors={activeScreen.behaviors}
               collections={projectData.collections}
+              device={state.device}
               node={selectedNode ?? null}
               onAction={(action: EditorAction) => dispatch(action)}
               onOpenLogic={() => setMode('logic')}
@@ -197,7 +203,8 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
             <div className="border-t border-hairline">
               <LayersPanel
                 isEmbedded
-                nodes={activeScreen.nodes}
+                device={state.device}
+                 nodes={activeScreen.nodes}
                 onMove={(nodeId, targetId, position) => dispatch({ type: 'node/layer-move', nodeId, targetId, position })}
                 onOrder={(nodeId, direction) => dispatch({ type: 'node/order', nodeId, direction })}
                 onRename={(nodeId, name) => dispatch({ type: 'node/layer-rename', nodeId, name })}

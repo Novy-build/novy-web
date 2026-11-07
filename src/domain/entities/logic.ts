@@ -57,6 +57,18 @@ export interface DeleteRecordPayload {
   recordId: string;
 }
 
+export interface SendEmailPayload {
+  type: 'send-email';
+  to: string;
+  subject: string;
+  body: string;
+}
+
+export interface RefreshCollectionPayload {
+  type: 'refresh-collection';
+  collectionId: string;
+}
+
 export type ActionPayload =
   | ChangeTextPayload
   | ShowMessagePayload
@@ -64,12 +76,27 @@ export type ActionPayload =
   | GetRecordsPayload
   | InsertRecordPayload
   | UpdateRecordPayload
-  | DeleteRecordPayload;
+  | DeleteRecordPayload
+  | SendEmailPayload
+  | RefreshCollectionPayload;
+
+export type SessionValuePath = 'user.id' | 'user.name' | 'user.email';
+
+/** Serializable expression used to construct action inputs in the generated app/runtime. */
+export type ValueExpression =
+  | { source: 'literal'; value: string }
+  | { source: 'component'; nodeId: string; property: 'value' | 'text' }
+  | { source: 'session'; path: SessionValuePath }
+  | { source: 'node-output'; nodeId: string; path: string };
+
+export type ActionInputMappings = Record<string, ValueExpression>;
 
 export interface ActionNode {
   kind: 'action';
   id: string;
   payload: ActionPayload;
+  /** Named inputs override matching static payload fields at runtime. */
+  inputMappings?: ActionInputMappings;
   position: LogicNodePosition;
 }
 
@@ -99,7 +126,7 @@ export interface ConditionNode {
 export type LogicNode = TriggerNode | ConditionNode | ActionNode;
 
 export type LogicInputPort = 'in';
-export type LogicOutputPort = 'next' | 'true' | 'false';
+export type LogicOutputPort = 'next' | 'true' | 'false' | 'success' | 'error';
 
 export interface LogicEdge {
   id: string;

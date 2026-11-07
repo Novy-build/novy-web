@@ -122,6 +122,27 @@ export interface NodeGeometry {
   h: number;
 }
 
+export type ResponsiveBreakpoint = 'mobile' | 'tablet' | 'desktop';
+
+/** Typed, provider-agnostic visual overrides persisted with a component. */
+export interface ComponentAppearance {
+  backgroundColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  borderRadius?: number;
+  opacity?: number;
+}
+
+/** Mobile uses the base geometry; larger web breakpoints may override individual values. */
+export interface ResponsiveNodeOverrides extends Partial<NodeGeometry> {
+  /** Optional breakpoint-specific visibility; omitted values inherit the previous breakpoint. */
+  isHidden?: boolean;
+}
+
+export type ResponsiveGeometry = Partial<
+  Record<Exclude<ResponsiveBreakpoint, 'mobile'>, ResponsiveNodeOverrides>
+>;
+
 export interface NodeBase extends NodeGeometry {
   id: string;
   /** Optional editor-facing name; old documents derive a label from content. */
@@ -130,7 +151,69 @@ export interface NodeBase extends NodeGeometry {
   isHidden?: boolean;
   /** Locked layers remain selectable from Layers but ignore direct canvas manipulation. */
   isLocked?: boolean;
+  /** Optional visual overrides shared by editor, preview, thumbnails, and generated-app JSON. */
+  appearance?: ComponentAppearance;
+  /** Optional tablet/desktop geometry; omitted values inherit the mobile/base geometry. */
+  responsive?: ResponsiveGeometry;
 }
+
+export function geometryAtBreakpoint(
+  node: NodeBase,
+  breakpoint: ResponsiveBreakpoint,
+): NodeGeometry {
+  const base = { x: node.x, y: node.y, w: node.w, h: node.h };
+  if (breakpoint === 'mobile') {
+    return base;
+  }
+  const tabletOverride = node.responsive?.tablet ?? {};
+  const tablet = {
+    x: tabletOverride.x ?? base.x,
+    y: tabletOverride.y ?? base.y,
+    w: tabletOverride.w ?? base.w,
+    h: tabletOverride.h ?? base.h,
+  };
+  if (breakpoint === 'tablet') {
+    return tablet;
+  }
+  const desktopOverride = node.responsive?.desktop ?? {};
+  return {
+    x: desktopOverride.x ?? tablet.x,
+    y: desktopOverride.y ?? tablet.y,
+    w: desktopOverride.w ?? tablet.w,
+    h: desktopOverride.h ?? tablet.h,
+  };
+}
+
+/** Cascading visibility: Mobile base → Tablet override → Desktop override. */
+export function isHiddenAtBreakpoint(
+  node: NodeBase,
+  breakpoint: ResponsiveBreakpoint,
+): boolean {
+  const mobileHidden = node.isHidden === true;
+  if (breakpoint === 'mobile') {
+    return mobileHidden;
+  }
+  const tabletHidden = node.responsive?.tablet?.isHidden;
+  const tabletResolved = tabletHidden ?? mobileHidden;
+  if (breakpoint === 'tablet') {
+    return tabletResolved;
+  }
+  const desktopHidden = node.responsive?.desktop?.isHidden;
+  return desktopHidden ?? tabletResolved;
+}
+
+/** Alias kept for callers that phrase visibility as “visible”. */
+export function isVisibleAtBreakpoint(
+  node: NodeBase,
+  breakpoint: ResponsiveBreakpoint,
+): boolean {
+  return !isHiddenAtBreakpoint(node, breakpoint);
+}
+
+/** Alias for tests/docs that use a shorter visibility resolver name. */
+export const hiddenAtBreakpoint = isHiddenAtBreakpoint;
+/** Alias for callers that expect a generic visibility resolver. Returns hidden state. */
+export const visibilityAtBreakpoint = isHiddenAtBreakpoint;
 
 export interface ButtonNode extends NodeBase {
   type: 'button';

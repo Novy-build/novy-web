@@ -21,6 +21,7 @@ const TEMPLATE: Template = {
     {
       id: 'screen_template',
       name: 'Home',
+      path: '/',
       nodes: [SAMPLE_NODE],
       behaviors: [],
       logicGraphs: [],

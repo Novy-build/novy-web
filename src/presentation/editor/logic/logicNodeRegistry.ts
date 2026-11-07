@@ -1,6 +1,6 @@
 import type { ActionPayload, TriggerEvent } from '@domain/entities/logic';
 
-export type LogicNodeCategory = 'Triggers' | 'Flow' | 'UI' | 'Database';
+export type LogicNodeCategory = 'Triggers' | 'Flow' | 'UI' | 'Database' | 'Actions';
 
 export type LogicLibraryNode =
   | { kind: 'trigger'; event: TriggerEvent }
@@ -118,6 +118,24 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
     icon: '×',
     keywords: ['remove', 'record', 'database'],
     create: () => ({ kind: 'action', payload: { type: 'delete-record', collectionId: '', recordId: '' } }),
+  },
+  {
+    id: 'send-email',
+    category: 'Actions',
+    label: 'Send Email',
+    description: 'Send an email through the Novy runtime',
+    icon: '✉',
+    keywords: ['email', 'message', 'notification'],
+    create: () => ({ kind: 'action', payload: { type: 'send-email', to: '', subject: '', body: '' } }),
+  },
+  {
+    id: 'refresh-collection',
+    category: 'Database',
+    label: 'Refresh Collection',
+    description: 'Refetch a collection after an action succeeds',
+    icon: '↻',
+    keywords: ['refresh', 'refetch', 'reload', 'query'],
+    create: () => ({ kind: 'action', payload: { type: 'refresh-collection', collectionId: '' } }),
   },
 ];
 

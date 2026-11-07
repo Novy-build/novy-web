@@ -26,6 +26,7 @@ const BUTTON_NODE: ButtonNode = {
 const SCREEN: Screen = {
   id: 'screen_1',
   name: 'Home',
+  path: '/',
   nodes: [TEXT_NODE, BUTTON_NODE],
   behaviors: [],
   logicGraphs: [],

@@ -31,6 +31,7 @@ function buildDemoScreen(): Screen {
   return {
     id: generateId('screen'),
     name: 'Home',
+    path: '/',
     nodes: [
       {
         id: generateId('node'),

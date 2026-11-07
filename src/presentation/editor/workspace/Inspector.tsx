@@ -1,5 +1,6 @@
 import type { ChangeEvent } from 'react';
-import type { ComponentNode, DividerProps, InputProps } from '@domain/entities/componentNode';
+import type { ComponentNode, DividerProps, InputProps, ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint } from '@domain/entities/componentNode';
 import type { DataCollection } from '@domain/entities/appData';
 import type { Behavior } from '@domain/entities/logic';
 import { TextInput } from '@presentation/components/ui/TextInput';
@@ -14,6 +15,7 @@ interface InspectorProps {
   onAction: (action: EditorAction) => void;
   onOpenLogic: () => void;
   collections?: readonly DataCollection[];
+  device?: ResponsiveBreakpoint;
 }
 
 interface SegmentOption<T extends string> {
@@ -62,6 +64,7 @@ export function Inspector({
   onAction,
   onOpenLogic,
   collections = [],
+  device = 'mobile',
 }: InspectorProps) {
   if (candidate === null) {
     return (
@@ -75,6 +78,7 @@ export function Inspector({
   }
 
   const node: ComponentNode = candidate;
+  const effectiveGeometry = geometryAtBreakpoint(node, device);
   const listCollectionSource = node.type === 'list' && node.props.dataSource?.kind === 'collection'
     ? node.props.dataSource
     : null;
@@ -95,8 +99,8 @@ export function Inspector({
     onAction({
       type: 'node/layout-position',
       nodeId: node.id,
-      x: actionX ?? node.x,
-      y: actionY ?? node.y,
+      x: actionX ?? effectiveGeometry.x,
+      y: actionY ?? effectiveGeometry.y,
     });
   }
 
@@ -107,8 +111,8 @@ export function Inspector({
     onAction({
       type: 'node/layout-size',
       nodeId: node.id,
-      w: actionW ?? node.w,
-      h: actionH ?? node.h,
+      w: actionW ?? effectiveGeometry.w,
+      h: actionH ?? effectiveGeometry.h,
     });
   }
 
@@ -608,40 +612,81 @@ export function Inspector({
 
       <div aria-label="Layout" className="mt-6">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Layout</p>
+        <p className="mb-2 text-xs text-ink-muted">
+          {device === 'mobile' ? 'Base mobile geometry' : `${device} override (inherits mobile until edited)`}
+        </p>
         <div className="grid grid-cols-2 gap-2">
           <TextInput
             label="X"
             name="inspector-geometry-x"
             onChange={(event) => moveBy(numberFromEvent(event), null)}
             type="number"
-            value={node.x}
+            value={effectiveGeometry.x}
           />
           <TextInput
             label="Y"
             name="inspector-geometry-y"
             onChange={(event) => moveBy(null, numberFromEvent(event))}
             type="number"
-            value={node.y}
+            value={effectiveGeometry.y}
           />
           <TextInput
             label="Width"
             name="inspector-geometry-w"
             onChange={(event) => resizeBy(numberFromEvent(event), null)}
             type="number"
-            value={node.w}
+            value={effectiveGeometry.w}
           />
           <TextInput
             label="Height"
             name="inspector-geometry-h"
             onChange={(event) => resizeBy(null, numberFromEvent(event))}
             type="number"
-            value={node.h}
+            value={effectiveGeometry.h}
           />
         </div>
+        {device !== 'mobile' && node.responsive?.[device] ? (
+          <button className="mt-2 text-xs font-medium text-brand-700" onClick={() => onAction({ type: 'node/responsive-reset', nodeId: node.id })} type="button">
+            Reset responsive overrides
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-6">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Appearance</p>
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <TextInput
+            label="Background"
+            name="inspector-appearance-background"
+            onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, backgroundColor: event.target.value || undefined } })}
+            placeholder="#ffffff"
+            value={node.appearance?.backgroundColor ?? ''}
+          />
+          <TextInput
+            label="Text color"
+            name="inspector-appearance-text"
+            onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, textColor: event.target.value || undefined } })}
+            placeholder="#111827"
+            value={node.appearance?.textColor ?? ''}
+          />
+          <TextInput
+            label="Border color"
+            name="inspector-appearance-border"
+            onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, borderColor: event.target.value || undefined } })}
+            placeholder="#d1d5db"
+            value={node.appearance?.borderColor ?? ''}
+          />
+          <TextInput
+            label="Corner radius"
+            name="inspector-appearance-radius"
+            onChange={(event) => {
+              const value = numberFromEvent(event);
+              if (value !== null) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, borderRadius: Math.max(0, value) } });
+            }}
+            type="number"
+            value={node.appearance?.borderRadius ?? 0}
+          />
+        </div>
         {node.type === 'button' ? (
           <SegmentedControl
             ariaLabel="Button variant"

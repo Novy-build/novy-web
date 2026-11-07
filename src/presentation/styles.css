@@ -40,6 +40,10 @@
   /* Editor canvas dot grid */
   --color-grid-dot: rgba(14, 16, 19, 0.09);
 
+  /* Smart alignment guides and component-distance measurements */
+  --color-guide: #ec4899;
+  --color-guide-ink: #0e1013;
+
   /* Dark sidebar surface (n8n-inspired, graphite) */
   --color-sidebar: #1b1d23;
   --color-sidebar-soft: #24272f;
@@ -51,6 +55,18 @@
   /* Shared radii (sharper, tech-crisp) */
   --radius-panel: 0.625rem;
   --radius-tile: 0.375rem;
+}
+
+/* Typed component appearance is applied at the shared renderer frame so it
+   consistently overrides component-library utility colors in every mode. */
+.novy-node-appearance * {
+  color: inherit !important;
+  border-color: inherit !important;
+}
+
+.novy-node-appearance > * {
+  background-color: transparent !important;
+  border-radius: inherit !important;
 }
 
 @layer base {
@@ -86,6 +102,8 @@
     --color-ink: #eef0f4;
     --color-ink-muted: #8a90a0;
     --color-grid-dot: rgba(238, 240, 244, 0.07);
+    --color-guide: #f472b6;
+    --color-guide-ink: #0e1013;
 
     --color-sidebar: #0a0c10;
     --color-sidebar-soft: #13161c;

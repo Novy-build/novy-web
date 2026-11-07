@@ -2,6 +2,7 @@ import type { ComponentNode } from '@domain/entities/componentNode';
 import type { DataCollection } from '@domain/entities/appData';
 import type {
   ActionPayload,
+  ActionInputMappings,
   Behavior,
   ConditionNode,
   LogicNode,
@@ -9,6 +10,7 @@ import type {
 } from '@domain/entities/logic';
 import { logicNodeTitle } from './logicLabels';
 import { nodeDisplayLabel, nodeLayerName } from '../workspace/nodeLabels';
+import { InputMappingEditor } from './InputMappingEditor';
 
 interface LogicNodeConfigProps {
   node: LogicNode | null;
@@ -18,6 +20,7 @@ interface LogicNodeConfigProps {
   screens: { id: string; name: string }[];
   currentScreenId: string;
   onConfigure: (nodeId: string, payload: ActionPayload) => void;
+  onConfigureInputMappings: (nodeId: string, inputMappings: ActionInputMappings) => void;
   onConfigureCondition: (
     nodeId: string,
     patch: Partial<Pick<ConditionNode, 'left' | 'operator' | 'compareValue'>>,
@@ -26,6 +29,7 @@ interface LogicNodeConfigProps {
   onRemoveSelected: () => void;
   onDeleteBehavior: () => void;
   collections?: readonly DataCollection[];
+  logicNodes: readonly LogicNode[];
 }
 
 /**
@@ -39,11 +43,13 @@ export function LogicNodeConfig({
   screens,
   currentScreenId,
   onConfigure,
+  onConfigureInputMappings,
   onConfigureCondition,
   onConfigureTrigger,
   onRemoveSelected,
   onDeleteBehavior,
   collections = [],
+  logicNodes,
 }: LogicNodeConfigProps) {
   if (!behavior) {
     return <EmptyDetails />;
@@ -179,6 +185,7 @@ export function LogicNodeConfig({
 
   const configure = (payload: ActionPayload): void => onConfigure(node.id, payload);
   const actionPayload = node.payload;
+  const emailPayload = actionPayload.type === 'send-email' ? actionPayload : null;
   const selectedDataCollection = isDataPayload(actionPayload)
     ? collections.find((collection) => collection.id === actionPayload.collectionId) ?? null
     : null;
@@ -321,6 +328,44 @@ export function LogicNodeConfig({
         </>
       ) : null}
 
+      {emailPayload ? (
+        <div className="mt-4 grid gap-3">
+          <label className="text-xs font-medium text-ink-muted">Recipient
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...emailPayload, to: event.target.value })} value={emailPayload.to} />
+          </label>
+          <label className="text-xs font-medium text-ink-muted">Subject
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...emailPayload, subject: event.target.value })} value={emailPayload.subject} />
+          </label>
+          <label className="text-xs font-medium text-ink-muted">Body
+            <textarea className="mt-1 min-h-20 w-full rounded-tile border border-hairline bg-surface px-2 py-2 text-sm text-ink" onChange={(event) => configure({ ...emailPayload, body: event.target.value })} value={emailPayload.body} />
+          </label>
+          <p className="text-xs text-ink-muted">Preview simulates delivery; only the backend runtime may send email.</p>
+        </div>
+      ) : null}
+
+      {actionInputDefinitions(actionPayload, selectedDataCollection).length > 0 ? (
+        <div className="mt-5 grid gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Input mapping</p>
+          {actionInputDefinitions(actionPayload, selectedDataCollection).map((input) => (
+            <InputMappingEditor
+              currentNodeId={node.id}
+              inputKey={input.key}
+              key={input.key}
+              label={input.label}
+              logicNodes={logicNodes}
+              mapping={node.inputMappings?.[input.key]}
+              onChange={(mapping) => {
+                const next = { ...(node.inputMappings ?? {}) };
+                if (mapping) next[input.key] = mapping;
+                else delete next[input.key];
+                onConfigureInputMappings(node.id, next);
+              }}
+              screenNodes={screenNodes}
+            />
+          ))}
+        </div>
+      ) : null}
+
       <button
         className="mt-6 w-full rounded-tile border border-hairline bg-surface px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-canvas"
         onClick={onRemoveSelected}
@@ -334,11 +379,37 @@ export function LogicNodeConfig({
 
 function isDataPayload(
   payload: ActionPayload,
-): payload is Extract<ActionPayload, { type: 'get-records' | 'insert-record' | 'update-record' | 'delete-record' }> {
+): payload is Extract<ActionPayload, { type: 'get-records' | 'insert-record' | 'update-record' | 'delete-record' | 'refresh-collection' }> {
   return payload.type === 'get-records' ||
     payload.type === 'insert-record' ||
     payload.type === 'update-record' ||
-    payload.type === 'delete-record';
+    payload.type === 'delete-record' ||
+    payload.type === 'refresh-collection';
+}
+
+function actionInputDefinitions(
+  payload: ActionPayload,
+  collection: DataCollection | null,
+): Array<{ key: string; label: string }> {
+  switch (payload.type) {
+    case 'change-text': return [{ key: 'text', label: 'New text' }];
+    case 'show-message': return [{ key: 'message', label: 'Message' }];
+    case 'send-email': return [
+      { key: 'to', label: 'Recipient' },
+      { key: 'subject', label: 'Subject' },
+      { key: 'body', label: 'Body' },
+    ];
+    case 'insert-record': return collection?.fields.map((field) => ({ key: field.id, label: field.label })) ?? [];
+    case 'update-record': return [
+      { key: '$recordId', label: 'Record ID' },
+      ...(collection?.fields.map((field) => ({ key: field.id, label: field.label })) ?? []),
+    ];
+    case 'delete-record': return [{ key: '$recordId', label: 'Record ID' }];
+    case 'navigate':
+    case 'get-records':
+    case 'refresh-collection':
+      return [];
+  }
 }
 
 /** Verb phrase per event so captions read naturally ("Click me is clicked"). */

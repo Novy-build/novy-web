@@ -13,6 +13,7 @@ import {
 const FIXTURE_SCREEN: Screen = {
   id: 'screen_1',
   name: 'Home',
+  path: '/',
   nodes: [
     {
       id: 'node_container',
@@ -28,7 +29,17 @@ const FIXTURE_SCREEN: Screen = {
         { id: 'node_text', name: 'Hero copy', isHidden: true, type: 'text', x: 8, y: 8, w: 100, h: 20, props: { text: 'Inside', level: 'body' } },
       ],
     },
-    { id: 'node_button', type: 'button', x: 40, y: 200, w: 120, h: 44, props: { label: 'Save', variant: 'solid' } },
+    {
+      id: 'node_button',
+      appearance: { backgroundColor: '#112233', borderRadius: 12, opacity: 0.9 },
+      responsive: { desktop: { x: 80, w: 180 } },
+      type: 'button',
+      x: 40,
+      y: 200,
+      w: 120,
+      h: 44,
+      props: { label: 'Save', variant: 'solid' },
+    },
     {
       id: 'node_form',
       type: 'form',
@@ -69,7 +80,13 @@ const FIXTURE_SCREEN: Screen = {
       sourceNodeId: 'node_button',
       nodes: [
         { kind: 'trigger', id: 'logic_trigger', event: 'click', position: { x: 80, y: 160 } },
-        { kind: 'action', id: 'logic_action', position: { x: 312, y: 160 }, payload: { type: 'show-message', message: 'Hello!' } },
+        {
+          kind: 'action',
+          id: 'logic_action',
+          position: { x: 312, y: 160 },
+          payload: { type: 'show-message', message: 'Hello!' },
+          inputMappings: { message: { source: 'session', path: 'user.name' } },
+        },
       ],
       edges: [{ id: 'edge_1', fromNodeId: 'logic_trigger', fromPort: 'next', toNodeId: 'logic_action', toPort: 'in' }],
     },
@@ -97,7 +114,7 @@ describe('project mapper', () => {
 
     expect(dto.createdAt).toBe('2026-01-01T10:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-02T12:30:00.000Z');
-    expect(dto.schemaVersion).toBe(2);
+    expect(dto.schemaVersion).toBe(3);
   });
 
   it('round-trips projects losslessly', () => {
@@ -111,6 +128,24 @@ describe('project mapper', () => {
     const restored = mapProjectFromDto(dto as never);
 
     expect(restored).toEqual(FIXTURE_PROJECT);
+  });
+
+  it('assigns unique routes while loading legacy projects with repeated screen names', () => {
+    const dto = mapProjectToDto({
+      ...FIXTURE_PROJECT,
+      document: {
+        screens: [
+          FIXTURE_SCREEN,
+          { ...FIXTURE_SCREEN, id: 'screen_2', path: '/copy' },
+        ],
+      },
+    });
+    dto.screens.forEach((candidate) => delete candidate.path);
+
+    expect(mapProjectFromDto(dto).document.screens.map((screen) => screen.path)).toEqual([
+      '/',
+      '/home',
+    ]);
   });
 
   it('builds summaries for listings', () => {
@@ -171,5 +206,43 @@ describe('screen mapper', () => {
       toNodeId: 'action',
       toPort: 'in',
     });
+    expect(migrated.path).toBe('/');
+  });
+
+  it('migrates non-home legacy routes and async next ports', () => {
+    const legacy = {
+      id: 'legacy_settings',
+      name: 'Account Settings',
+      nodes: [],
+      behaviors: [],
+      logicGraphs: [{
+        id: 'legacy_email_graph',
+        name: 'Email',
+        sourceNodeId: 'button',
+        nodes: [
+          { kind: 'trigger' as const, id: 'trigger', event: 'click' as const, position: { x: 80, y: 160 } },
+          {
+            kind: 'action' as const,
+            id: 'email',
+            payload: { type: 'send-email' as const, to: 'ada@example.com', subject: 'Hi', body: 'Hello' },
+            position: { x: 312, y: 160 },
+          },
+          {
+            kind: 'action' as const,
+            id: 'toast',
+            payload: { type: 'show-message' as const, message: 'Sent' },
+            position: { x: 544, y: 160 },
+          },
+        ],
+        edges: [
+          { id: 'edge_1', fromNodeId: 'trigger', fromPort: 'next' as const, toNodeId: 'email', toPort: 'in' as const },
+          { id: 'edge_2', fromNodeId: 'email', fromPort: 'next' as const, toNodeId: 'toast', toPort: 'in' as const },
+        ],
+      }],
+    } satisfies ScreenDTO;
+
+    const migrated = mapScreenFromDto(legacy, 1);
+    expect(migrated.path).toBe('/account-settings');
+    expect(migrated.logicGraphs[0]!.edges[1]!.fromPort).toBe('success');
   });
 });

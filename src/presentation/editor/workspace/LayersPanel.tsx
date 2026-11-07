@@ -1,10 +1,12 @@
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
-import type { ComponentNode } from '@domain/entities/componentNode';
+import type { ComponentNode, ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import { isHiddenAtBreakpoint } from '@domain/entities/componentNode';
 import type { LayerDropPosition } from '@domain/componentTree';
 import { nodeDisplayLabel, nodeLayerName } from './nodeLabels';
 
 interface LayersPanelProps {
   nodes: readonly ComponentNode[];
+  device?: ResponsiveBreakpoint;
   selectedNodeId: string | null;
   onSelect: (nodeId: string) => void;
   onOrder: (nodeId: string, direction: 'forward' | 'backward') => void;
@@ -41,6 +43,7 @@ const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
 /** Figma-inspired hierarchical layer tree with persisted layer controls. */
 export function LayersPanel({
   nodes,
+  device = 'mobile',
   selectedNodeId,
   onSelect,
   onOrder,
@@ -155,7 +158,7 @@ export function LayersPanel({
                 aria-level={depth + 1}
                 className={`group flex min-h-8 items-center gap-0.5 rounded-md border border-transparent pr-1 transition-colors ${
                   isSelected ? 'border-brand-200 bg-brand-50' : 'hover:bg-canvas'
-                } ${node.isHidden ? 'opacity-55' : ''} ${
+                } ${isHiddenAtBreakpoint(node, device) ? 'opacity-55' : ''} ${
                   dropTarget?.id === node.id && dropTarget.position === 'inside'
                     ? 'ring-2 ring-brand-500'
                     : dropTarget?.id === node.id
@@ -240,10 +243,10 @@ export function LayersPanel({
                   role="group"
                 >
                   <LayerControl
-                    label={`${node.isHidden ? 'Show' : 'Hide'} ${nodeLayerName(node)}`}
+                    label={`${isHiddenAtBreakpoint(node, device) ? 'Show' : 'Hide'} ${nodeLayerName(node)}`}
                     onClick={() => onToggleVisibility(node.id)}
                   >
-                    {node.isHidden ? '○' : '◉'}
+                    {isHiddenAtBreakpoint(node, device) ? '○' : '◉'}
                   </LayerControl>
                   <LayerControl
                     label={`${node.isLocked ? 'Unlock' : 'Lock'} ${nodeLayerName(node)}`}

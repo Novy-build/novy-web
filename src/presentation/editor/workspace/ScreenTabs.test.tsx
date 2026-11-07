@@ -4,8 +4,8 @@ import type { Screen } from '@domain/entities/screen';
 import { ScreenTabs } from './ScreenTabs';
 
 const SCREENS: Screen[] = [
-  { id: 'screen_home', name: 'Home', nodes: [], behaviors: [], logicGraphs: [] },
-  { id: 'screen_about', name: 'About', nodes: [], behaviors: [], logicGraphs: [] },
+  { id: 'screen_home', name: 'Home', path: '/', nodes: [], behaviors: [], logicGraphs: [] },
+  { id: 'screen_about', name: 'About', path: '/about', nodes: [], behaviors: [], logicGraphs: [] },
 ];
 
 function renderTabs(overrides: Record<string, unknown> = {}) {

@@ -1,6 +1,8 @@
 import type { ComponentNode, ComponentType } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isHiddenAtBreakpoint, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import { createComponentNode, getDefaultNodeSize } from '@domain/factories/componentNode';
 import { generateId } from '@domain/ids';
+import { screenPathFromName } from '@domain/factories/screen';
 import type { LogicGraph } from '@domain/entities/logic';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import {
@@ -66,9 +68,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'screen/add':
       return pushHistory(state, (document) => {
+        const name = `Screen ${document.screens.length + 1}`;
         const screen: Screen = {
           id: generateId('screen'),
-          name: `Screen ${document.screens.length + 1}`,
+          name,
+          path: uniqueScreenPath(document, screenPathFromName(name)),
           nodes: [],
           behaviors: [],
           logicGraphs: [],
@@ -89,6 +93,17 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return pushHistory(state, (document) => ({
         ...state,
         document: replaceScreen(document, action.screenId, (screen) => ({ ...screen, name: trimmedName })),
+      }) as EditorState);
+    }
+
+    case 'screen/path': {
+      const path = normalizeScreenPath(action.path);
+      if (!path || state.document.screens.some((screen) => screen.id !== action.screenId && screen.path === path)) {
+        return state;
+      }
+      return pushHistory(state, (document) => ({
+        ...state,
+        document: replaceScreen(document, action.screenId, (screen) => ({ ...screen, path })),
       }) as EditorState);
     }
 
@@ -134,53 +149,53 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'node/move':
       return updateNode(state, action.nodeId, (node) => {
-        const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId);
+        const current = geometryAtBreakpoint(node, state.device);
+        const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId, state.device);
         const bounds = location?.parentWidth && location.parentHeight
           ? { width: location.parentWidth, height: location.parentHeight }
           : deviceViewport(state.device);
         const next = clampNodeToBounds(
-          { x: Math.round(action.x), y: Math.round(action.y), w: node.w, h: node.h },
+          { x: Math.round(action.x), y: Math.round(action.y), w: current.w, h: current.h },
           bounds,
         );
-        return { ...node, x: next.x, y: next.y };
+        return applyBreakpointGeometry(node, { ...current, x: next.x, y: next.y }, state.device);
       });
 
     case 'node/layout-position': {
-      const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId);
+      const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId, state.device);
       const layoutBounds = location?.parentWidth && location.parentHeight
         ? { width: location.parentWidth, height: location.parentHeight }
         : deviceViewport(state.device);
-      return updateNodeWithHistory(state, action.nodeId, (node) => ({
-        ...node,
-        ...clampNodeToBounds(
-          { x: action.x, y: action.y, w: node.w, h: node.h },
+      return updateNodeWithHistory(state, action.nodeId, (node) => {
+        const current = geometryAtBreakpoint(node, state.device);
+        return applyBreakpointGeometry(node, clampNodeToBounds(
+          { x: action.x, y: action.y, w: current.w, h: current.h },
           layoutBounds,
-        ),
-      }));
+        ), state.device);
+      });
     }
 
     case 'node/layout-size': {
-      const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId);
+      const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId, state.device);
       const layoutBounds = location?.parentWidth && location.parentHeight
         ? { width: location.parentWidth, height: location.parentHeight }
         : deviceViewport(state.device);
-      return updateNodeWithHistory(state, action.nodeId, (node) => ({
-        ...node,
-        ...clampNodeToBounds(
-          { x: node.x, y: node.y, w: action.w, h: action.h },
+      return updateNodeWithHistory(state, action.nodeId, (node) => {
+        const current = geometryAtBreakpoint(node, state.device);
+        return applyBreakpointGeometry(node, clampNodeToBounds(
+          { x: current.x, y: current.y, w: action.w, h: action.h },
           layoutBounds,
-        ),
-      }));
+        ), state.device);
+      });
     }
 
     case 'node/resize': {
-      const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId);
+      const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId, state.device);
       const resizeBounds = location?.parentWidth && location.parentHeight
         ? { width: location.parentWidth, height: location.parentHeight }
         : deviceViewport(state.device);
-      return updateNode(state, action.nodeId, (node) => ({
-        ...node,
-        ...clampNodeToBounds(
+      return updateNode(state, action.nodeId, (node) => applyBreakpointGeometry(node,
+        clampNodeToBounds(
           {
             x: Math.round(action.geometry.x),
             y: Math.round(action.geometry.y),
@@ -188,13 +203,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
             h: Math.round(action.geometry.h),
           },
           resizeBounds,
-        ),
-      }));
+        ), state.device));
     }
 
     case 'node/nudge': {
       const activeScreen = getActiveScreen(state);
-      const location = getComponentTreeLocation(activeScreen.nodes, action.nodeId);
+      const location = getComponentTreeLocation(activeScreen.nodes, action.nodeId, state.device);
       if (!location) {
         return state;
       }
@@ -206,7 +220,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           ...state,
           document: replaceScreen(document, state.activeScreenId, (candidate) => ({
             ...candidate,
-            nodes: remapTree(candidate.nodes, action.nodeId, applyNudge(findNodeInScreen(candidate, action.nodeId)!, action.dx, action.dy, bounds)),
+            nodes: remapTree(candidate.nodes, action.nodeId, applyNudge(findNodeInScreen(candidate, action.nodeId)!, action.dx, action.dy, bounds, state.device)),
           })),
         } as EditorState;
       });
@@ -305,16 +319,32 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }));
 
     case 'node/layer-visibility':
-      return updateNodeWithHistory(state, action.nodeId, (node) => ({
-        ...node,
-        isHidden: node.isHidden ? undefined : true,
-      }));
+      return updateNodeWithHistory(state, action.nodeId, (node) => {
+        const effectiveHidden = isHiddenAtBreakpoint(node, state.device);
+        return setBreakpointHidden(node, !effectiveHidden, state.device);
+      });
 
     case 'node/layer-lock':
       return updateNodeWithHistory(state, action.nodeId, (node) => ({
         ...node,
         isLocked: node.isLocked ? undefined : true,
       }));
+
+    case 'node/appearance':
+      return updateNodeWithHistory(state, action.nodeId, (node) => ({
+        ...node,
+        appearance: Object.keys(action.appearance).length > 0 ? { ...action.appearance } : undefined,
+      }));
+
+    case 'node/responsive-reset':
+      return updateNodeWithHistory(state, action.nodeId, (node) => {
+        if (state.device === 'mobile') {
+          return { ...node, responsive: undefined };
+        }
+        const responsive = { ...(node.responsive ?? {}) };
+        delete responsive[state.device];
+        return { ...node, responsive: Object.keys(responsive).length ? responsive : undefined };
+      });
 
     case 'node/reparent': {
       const activeScreen = getActiveScreen(state);
@@ -324,6 +354,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         action.parentId,
         action.absolutePosition,
         deviceViewport(state.device),
+        state.device,
       );
       if (moved === activeScreen.nodes) {
         return state;
@@ -339,6 +370,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
               action.parentId,
               action.absolutePosition,
               deviceViewport(state.device),
+              state.device,
             ),
           ],
         })),
@@ -625,6 +657,25 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }) as EditorState);
     }
 
+    case 'graph/action-inputs-update': {
+      const graph = findGraph(state, action.graphId);
+      if (!graph) return state;
+      const target = graph.nodes.find((node) => node.id === action.nodeId);
+      if (!target || target.kind !== 'action') return state;
+      const inputMappings = Object.keys(action.inputMappings).length > 0
+        ? structuredClone(action.inputMappings)
+        : undefined;
+      const nextGraph = {
+        ...graph,
+        nodes: graph.nodes.map((node) => node.id === target.id ? { ...target, inputMappings } : node),
+      };
+      if (JSON.stringify(nextGraph) === JSON.stringify(graph)) return state;
+      return pushHistory(state, (document) => ({
+        ...state,
+        document: replaceGraph(document, state.activeScreenId, graph.id, nextGraph),
+      }) as EditorState);
+    }
+
     case 'graph/action-delete': {
       const graph = findGraph(state, action.graphId);
       if (!graph || !graph.nodes.some((node) => node.id === action.nodeId)) {
@@ -680,7 +731,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     // Device chrome -----------------------------------------------------------
 
     case 'device/set':
-      return { ...state, device: action.device, selectedNodeId: null };
+      return { ...state, device: action.device };
 
     case 'zoom/set':
       return {
@@ -790,14 +841,15 @@ function addNode(
 ): EditorState {
   const activeScreen = getActiveScreen(state);
   const parentLocation = parentId
-    ? getComponentTreeLocation(activeScreen.nodes, parentId)
+    ? getComponentTreeLocation(activeScreen.nodes, parentId, state.device)
     : null;
   const validParent =
     parentLocation?.node.type === 'container' && !parentLocation.node.isLocked
       ? parentLocation
       : null;
-  const bounds = validParent
-    ? { width: validParent.node.w, height: validParent.node.h }
+  const parentGeometry = validParent ? geometryAtBreakpoint(validParent.node, state.device) : null;
+  const bounds = parentGeometry
+    ? { width: parentGeometry.w, height: parentGeometry.h }
     : deviceViewport(state.device);
   const { w, h } = getDefaultNodeSize(nodeType);
   const geometry = clampNodeToBounds(
@@ -811,7 +863,17 @@ function addNode(
   );
 
   return pushHistory(state, (document) => {
-    const node = { ...createComponentNode(nodeType), ...geometry };
+    const created = createComponentNode(nodeType);
+    const mobileBounds = validParent
+      ? { width: validParent.node.w, height: validParent.node.h }
+      : deviceViewport('mobile');
+    const mobileGeometry = state.device === 'mobile'
+      ? geometry
+      : clampNodeToBounds(geometry, mobileBounds);
+    let node: ComponentNode = { ...created, ...mobileGeometry };
+    if (state.device !== 'mobile') {
+      node = applyBreakpointGeometry(node, geometry, state.device);
+    }
     return {
       ...state,
       document: replaceScreen(document, state.activeScreenId, (screen) => ({
@@ -852,20 +914,93 @@ function reparentNodeForCanvas(
   parentId: string | null,
   absolutePosition: { x: number; y: number } | undefined,
   rootBounds: ScreenFrameSize,
+  breakpoint: ResponsiveBreakpoint = 'mobile',
 ): readonly ComponentNode[] {
-  const moved = reparentLayerInTree(nodes, nodeId, parentId, absolutePosition);
+  const sourceLocation = getComponentTreeLocation(nodes, nodeId, 'mobile');
+  const sourceNode = sourceLocation?.node;
+  if (!sourceNode) return nodes;
+
+  const breakpoints: readonly ResponsiveBreakpoint[] = ['mobile', 'tablet', 'desktop'];
+  const desiredAbs = new Map<ResponsiveBreakpoint, { x: number; y: number }>();
+  for (const bp of breakpoints) {
+    const location = getComponentTreeLocation(nodes, nodeId, bp);
+    const fallback = location
+      ? { x: location.absoluteX, y: location.absoluteY }
+      : { x: 0, y: 0 };
+    desiredAbs.set(bp, bp === breakpoint && absolutePosition ? absolutePosition : fallback);
+  }
+
+  const moved = reparentLayerInTree(nodes, nodeId, parentId, breakpoint === 'mobile' ? absolutePosition : undefined);
   if (moved === nodes) {
     return nodes;
   }
-  const location = getComponentTreeLocation(moved, nodeId);
-  if (!location) {
-    return nodes;
+  const movedNode = getComponentTreeLocation(moved, nodeId, 'mobile')?.node;
+  if (!movedNode) return nodes;
+
+  const parentAbs = new Map<ResponsiveBreakpoint, { x: number; y: number }>();
+  for (const bp of breakpoints) {
+    const location = getComponentTreeLocation(moved, nodeId, bp);
+    parentAbs.set(bp, {
+      x: location?.parentAbsoluteX ?? 0,
+      y: location?.parentAbsoluteY ?? 0,
+    });
   }
-  const bounds = location.parentWidth && location.parentHeight
+
+  const mobileBase = {
+    x: movedNode.x,
+    y: movedNode.y,
+    w: movedNode.w,
+    h: movedNode.h,
+  };
+  const responsive: { tablet?: { x?: number; y?: number; w?: number; h?: number; isHidden?: boolean }; desktop?: { x?: number; y?: number; w?: number; h?: number; isHidden?: boolean } } = {};
+
+  const tabletSourceSize = geometryAtBreakpoint(sourceNode, 'tablet');
+  const tabletRel = {
+    x: (desiredAbs.get('tablet')!.x - parentAbs.get('tablet')!.x),
+    y: (desiredAbs.get('tablet')!.y - parentAbs.get('tablet')!.y),
+    w: tabletSourceSize.w,
+    h: tabletSourceSize.h,
+  };
+  const tabletOverride: { x?: number; y?: number; w?: number; h?: number } = {};
+  for (const field of ['x', 'y', 'w', 'h'] as const) {
+    if (tabletRel[field] !== mobileBase[field]) tabletOverride[field] = Math.round(tabletRel[field]);
+  }
+  if (Object.keys(tabletOverride).length > 0) responsive.tablet = tabletOverride;
+
+  const desktopSourceSize = geometryAtBreakpoint(sourceNode, 'desktop');
+  const desktopRel = {
+    x: (desiredAbs.get('desktop')!.x - parentAbs.get('desktop')!.x),
+    y: (desiredAbs.get('desktop')!.y - parentAbs.get('desktop')!.y),
+    w: desktopSourceSize.w,
+    h: desktopSourceSize.h,
+  };
+  const desktopInherited = responsive.tablet
+    ? geometryAtBreakpoint({ ...movedNode, responsive: { tablet: responsive.tablet } }, 'tablet')
+    : mobileBase;
+  const desktopOverride: { x?: number; y?: number; w?: number; h?: number } = {};
+  for (const field of ['x', 'y', 'w', 'h'] as const) {
+    if (desktopRel[field] !== desktopInherited[field]) desktopOverride[field] = Math.round(desktopRel[field]);
+  }
+  if (Object.keys(desktopOverride).length > 0) responsive.desktop = desktopOverride;
+
+  let newNode: ComponentNode = {
+    ...movedNode,
+    x: Math.round(mobileBase.x),
+    y: Math.round(mobileBase.y),
+    w: mobileBase.w,
+    h: mobileBase.h,
+    responsive: Object.keys(responsive).length ? responsive : undefined,
+  };
+
+  const location = getComponentTreeLocation(moved, nodeId, breakpoint);
+  const bounds = location?.parentWidth && location?.parentHeight
     ? { width: location.parentWidth, height: location.parentHeight }
     : rootBounds;
-  const geometry = clampNodeToBounds(location.node, bounds);
-  return remapTree(moved, nodeId, { ...location.node, ...geometry });
+  const current = geometryAtBreakpoint(newNode, breakpoint);
+  const clamped = clampNodeToBounds(current, bounds);
+  newNode = applyBreakpointGeometry(newNode, clamped, breakpoint);
+
+  return remapTree(moved, nodeId, newNode);
 }
 
 function updateNode(
@@ -933,7 +1068,18 @@ function duplicateNode(state: EditorState, nodeId: string): EditorState {
       { x: source.x + 16, y: source.y + 16, w: copy.w, h: copy.h },
       bounds,
     );
-    const placed = { ...copy, ...geometry };
+    let placed: ComponentNode = { ...copy, ...geometry };
+    if (copy.responsive) {
+      const responsive = structuredClone(copy.responsive);
+      for (const breakpoint of ['tablet', 'desktop'] as const) {
+        const override = responsive[breakpoint];
+        if (!override) continue;
+        if (override.x !== undefined) override.x += 16;
+        if (override.y !== undefined) override.y += 16;
+      }
+      placed = { ...placed, responsive };
+      placed = compactResponsiveNode(placed);
+    }
 
     return {
       ...state,
@@ -986,12 +1132,140 @@ function applyNudge(
   dx: number,
   dy: number,
   bounds: ScreenFrameSize,
+  breakpoint: ResponsiveBreakpoint,
 ): ComponentNode {
+  const current = geometryAtBreakpoint(node, breakpoint);
   const next = clampNodeToBounds(
-    { x: Math.round(node.x + dx), y: Math.round(node.y + dy), w: node.w, h: node.h },
+    { x: Math.round(current.x + dx), y: Math.round(current.y + dy), w: current.w, h: current.h },
     bounds,
   );
-  return { ...node, x: next.x, y: next.y };
+  return applyBreakpointGeometry(node, next, breakpoint);
+}
+
+function inheritedHiddenAtBreakpoint(node: ComponentNode, breakpoint: ResponsiveBreakpoint): boolean {
+  if (breakpoint === 'tablet') {
+    return node.isHidden === true;
+  }
+  const withoutDesktop: ComponentNode = {
+    ...node,
+    responsive: node.responsive ? { ...node.responsive, desktop: undefined } : undefined,
+  };
+  return isHiddenAtBreakpoint(withoutDesktop, 'tablet');
+}
+
+function setBreakpointHidden(
+  node: ComponentNode,
+  hidden: boolean,
+  breakpoint: ResponsiveBreakpoint,
+): ComponentNode {
+  if (breakpoint === 'mobile') {
+    return { ...node, isHidden: hidden ? true : undefined };
+  }
+  const inheritedHidden = inheritedHiddenAtBreakpoint(node, breakpoint);
+  const responsive = { ...(node.responsive ?? {}) };
+  const current: { x?: number; y?: number; w?: number; h?: number; isHidden?: boolean } = {
+    ...(responsive[breakpoint] ?? {}),
+  };
+  if (hidden === inheritedHidden) {
+    delete current.isHidden;
+  } else {
+    current.isHidden = hidden;
+  }
+  if (Object.keys(current).length > 0) {
+    responsive[breakpoint] = current;
+  } else {
+    delete responsive[breakpoint];
+  }
+  return { ...node, responsive: Object.keys(responsive).length ? responsive : undefined };
+}
+
+function compactResponsiveNode(node: ComponentNode): ComponentNode {
+  if (!node.responsive) return node;
+  const responsive = structuredClone(node.responsive);
+  const tablet = responsive.tablet;
+  if (tablet) {
+    for (const field of ['x', 'y', 'w', 'h'] as const) {
+      if (tablet[field] !== undefined && tablet[field] === (node as unknown as Record<string, number>)[field]) {
+        delete tablet[field];
+      }
+    }
+    if (Object.keys(tablet).length === 0) delete responsive.tablet;
+  }
+  const desktop = responsive.desktop;
+  if (desktop) {
+    const tabletResolved = responsive.tablet
+      ? geometryAtBreakpoint({ ...node, responsive: { tablet: responsive.tablet } }, 'tablet')
+      : { x: node.x, y: node.y, w: node.w, h: node.h };
+    for (const field of ['x', 'y', 'w', 'h'] as const) {
+      if (desktop[field] !== undefined && desktop[field] === tabletResolved[field]) {
+        delete desktop[field];
+      }
+    }
+    if (Object.keys(desktop).length === 0) delete responsive.desktop;
+  }
+  return { ...node, responsive: Object.keys(responsive).length ? responsive : undefined };
+}
+
+function inheritedGeometry(node: ComponentNode, breakpoint: ResponsiveBreakpoint): NodeGeometry {
+  if (breakpoint === 'tablet') {
+    return { x: node.x, y: node.y, w: node.w, h: node.h };
+  }
+  const withoutDesktop: ComponentNode = {
+    ...node,
+    responsive: node.responsive ? { ...node.responsive, desktop: undefined } : undefined,
+  };
+  return geometryAtBreakpoint(withoutDesktop, 'tablet');
+}
+
+function applyBreakpointGeometry(
+  node: ComponentNode,
+  geometry: NodeGeometry,
+  breakpoint: ResponsiveBreakpoint,
+): ComponentNode {
+  if (breakpoint === 'mobile') {
+    return { ...node, ...geometry };
+  }
+  const inherited = inheritedGeometry(node, breakpoint);
+  const responsive = { ...(node.responsive ?? {}) };
+  const current: { x?: number; y?: number; w?: number; h?: number; isHidden?: boolean } = {
+    ...(responsive[breakpoint] ?? {}),
+  };
+  for (const field of ['x', 'y', 'w', 'h'] as const) {
+    if (geometry[field] !== inherited[field]) {
+      current[field] = geometry[field];
+    } else {
+      delete current[field];
+    }
+  }
+  // Preserve an existing breakpoint visibility override while geometry compacts.
+  const previous = node.responsive?.[breakpoint];
+  if (previous?.isHidden !== undefined && current.isHidden === undefined) {
+    current.isHidden = previous.isHidden;
+  }
+  if (Object.keys(current).length > 0) {
+    responsive[breakpoint] = current;
+  } else {
+    delete responsive[breakpoint];
+  }
+  return {
+    ...node,
+    responsive: Object.keys(responsive).length ? responsive : undefined,
+  };
+}
+
+
+function normalizeScreenPath(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return '';
+  const withSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withSlash === '/' ? '/' : withSlash.replace(/[^/a-z0-9-]+/g, '-').replace(/\/{2,}/g, '/').replace(/\/$/, '');
+}
+
+function uniqueScreenPath(document: ProjectDocument, candidate: string): string {
+  if (!document.screens.some((screen) => screen.path === candidate)) return candidate;
+  let index = 2;
+  while (document.screens.some((screen) => screen.path === `${candidate === '/' ? '/screen' : candidate}-${index}`)) index += 1;
+  return `${candidate === '/' ? '/screen' : candidate}-${index}`;
 }
 
 function replaceScreen(

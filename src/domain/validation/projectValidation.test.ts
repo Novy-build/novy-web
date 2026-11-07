@@ -85,4 +85,54 @@ describe('validateProject', () => {
       'data-field-label',
     ]));
   });
+
+  it('validates unique routes, action mappings, async ports, email, and refresh references', () => {
+    const home = makeScreen('screen_home', [makeButton('node_button')]);
+    const duplicate = makeScreen('screen_other', [], 'Other');
+    duplicate.path = '/';
+    home.behaviors = [{
+      id: 'behavior_1',
+      name: 'Submit',
+      event: 'click',
+      graphId: 'graph_1',
+      targetNodeId: 'node_button',
+    }];
+    home.logicGraphs = [{
+      id: 'graph_1',
+      name: 'Submit',
+      sourceNodeId: 'node_button',
+      nodes: [
+        { kind: 'trigger', id: 'trigger', event: 'click', position: { x: 80, y: 160 } },
+        {
+          kind: 'action',
+          id: 'email',
+          position: { x: 312, y: 160 },
+          payload: { type: 'send-email', to: '', subject: '', body: '' },
+          inputMappings: {
+            to: { source: 'component', nodeId: 'missing_input', property: 'value' },
+          },
+        },
+        {
+          kind: 'action',
+          id: 'refresh',
+          position: { x: 544, y: 160 },
+          payload: { type: 'refresh-collection', collectionId: 'missing_collection' },
+        },
+      ],
+      edges: [
+        { id: 'edge_1', fromNodeId: 'trigger', fromPort: 'next', toNodeId: 'email', toPort: 'in' },
+        { id: 'edge_2', fromNodeId: 'email', fromPort: 'next', toNodeId: 'refresh', toPort: 'in' },
+      ],
+    }];
+
+    const report = validateProject(documentWith(home, duplicate));
+    expect(report.issues.map((entry) => entry.code)).toEqual(expect.arrayContaining([
+      'screen-path-duplicate',
+      'logic-invalid-output-port',
+      'logic-empty-email',
+      'logic-empty-email-subject',
+      'logic-missing-input-source',
+      'data-missing-collection',
+    ]));
+  });
 });

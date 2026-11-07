@@ -8,6 +8,7 @@ import {
   moveLogicNode,
   normalizeLogicGraph,
   orderChain,
+  outputPortsFor,
   removeConnection,
   removeLogicNodes,
   updateAction,
@@ -162,6 +163,48 @@ describe('factories', () => {
 });
 
 describe('typed graph ports and conditions', () => {
+  it('exposes success/error ports for asynchronous actions and appends through success', () => {
+    const { graph } = buildGraph();
+    const withEmail = appendAction(graph, {
+      type: 'send-email',
+      to: 'ada@example.com',
+      subject: 'Hello',
+      body: 'Welcome',
+    });
+    const email = withEmail.nodes[1]!;
+    expect(outputPortsFor(email)).toEqual(['success', 'error']);
+
+    const chained = appendAction(withEmail, { type: 'show-message', message: 'Sent' });
+    expect(chained.edges[1]).toMatchObject({
+      fromNodeId: email.id,
+      fromPort: 'success',
+      toNodeId: chained.nodes[2]!.id,
+    });
+  });
+
+  it('migrates legacy async next edges to success', () => {
+    const trigger = createTriggerNode('click');
+    const email = createActionNode({
+      type: 'send-email',
+      to: 'ada@example.com',
+      subject: 'Hello',
+      body: 'Welcome',
+    });
+    const next = createActionNode({ type: 'show-message', message: 'Sent' });
+    const normalized = normalizeLogicGraph({
+      id: 'graph_legacy_async',
+      name: 'Legacy async',
+      sourceNodeId: 'button',
+      nodes: [trigger, email, next],
+      edges: [
+        { id: 'edge_1', fromNodeId: trigger.id, fromPort: 'next', toNodeId: email.id, toPort: 'in' },
+        { id: 'edge_2', fromNodeId: email.id, fromPort: 'next', toNodeId: next.id, toPort: 'in' },
+      ],
+    }, 'click');
+
+    expect(normalized.edges[1]!.fromPort).toBe('success');
+  });
+
   it('adds a positioned condition with true/false ports', () => {
     const { graph } = buildGraph();
     const withCondition = appendCondition(graph);

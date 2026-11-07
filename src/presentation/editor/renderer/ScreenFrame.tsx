@@ -1,6 +1,8 @@
 import type { Screen } from '@domain/entities/screen';
+import type { ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import type { RendererMode } from './renderer';
 import type { RendererDataContext } from './renderer';
+import type { TriggerEvent } from '@domain/entities/logic';
 import { ComponentRenderer } from './ComponentRenderer';
 
 /** Design-space dimensions rendered by ScreenFrame (MVP presets). */
@@ -19,12 +21,15 @@ export interface ScreenFrameProps {
   screen: Screen | null;
   mode: RendererMode;
   size?: ScreenFrameSize;
+  /** Explicit responsive breakpoint; inferred from size when omitted. */
+  breakpoint?: ResponsiveBreakpoint;
   /** CSS scale (thumbnails render the same tree, just smaller). */
   scale?: number;
   selectedNodeId?: string | null;
   onSelectNode?: (nodeId: string) => void;
   /** Reactive preview: forwards runtime clicks on non-canvas nodes. */
   onNodeAction?: (nodeId: string) => void;
+  onNodeEvent?: (nodeId: string, event: TriggerEvent, value?: string) => void;
   onNodeValueChange?: (nodeId: string, value: string) => void;
   dataContext?: RendererDataContext;
   onFormSubmit?: (nodeId: string, values: string[]) => void;
@@ -39,16 +44,23 @@ export function ScreenFrame({
   screen,
   mode,
   size = CANVAS_PRESETS.mobile,
+  breakpoint,
   scale = 1,
   selectedNodeId = null,
   onSelectNode,
   onNodeAction,
+  onNodeEvent,
   onNodeValueChange,
   dataContext,
   onFormSubmit,
 }: ScreenFrameProps) {
   const outerWidth = Math.round(size.width * scale);
   const outerHeight = Math.round(size.height * scale);
+  const resolvedBreakpoint = breakpoint ?? (size.width >= CANVAS_PRESETS.desktop.width
+    ? 'desktop'
+    : size.width >= CANVAS_PRESETS.tablet.width
+      ? 'tablet'
+      : 'mobile');
 
   return (
     <div
@@ -68,9 +80,11 @@ export function ScreenFrame({
         {screen?.nodes.map((node) => (
           <ComponentRenderer
             key={node.id}
+            breakpoint={resolvedBreakpoint}
             mode={mode}
             node={node}
             onNodeAction={onNodeAction}
+            onNodeEvent={onNodeEvent}
             onNodeValueChange={onNodeValueChange}
             dataContext={dataContext}
             onFormSubmit={onFormSubmit}

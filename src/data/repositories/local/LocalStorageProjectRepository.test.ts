@@ -8,7 +8,7 @@ const BLANK_TEMPLATE: Template = {
   id: 'template_blank',
   name: 'Blank',
   description: 'Empty screen',
-  screens: [{ id: 'screen_blank', name: 'Home', nodes: [], behaviors: [], logicGraphs: [] }],
+  screens: [{ id: 'screen_blank', name: 'Home', path: '/', nodes: [], behaviors: [], logicGraphs: [] }],
 };
 
 const BASE_MS = Date.UTC(2026, 0, 1, 10, 0, 0);
@@ -90,7 +90,7 @@ describe('LocalStorageProjectRepository', () => {
     const { repository, clock } = createRepository();
     const created = await repository.createProject('Draft', BLANK_TEMPLATE);
     const document = {
-      screens: [{ id: 'screen_new', name: 'About', nodes: [], behaviors: [], logicGraphs: [] }],
+      screens: [{ id: 'screen_new', name: 'About', path: '/about', nodes: [], behaviors: [], logicGraphs: [] }],
     };
 
     clock.advanceMinutes(1);
@@ -147,7 +147,7 @@ describe('LocalStorageProjectRepository', () => {
 
     clock.advanceMinutes(1);
     await repository.saveProjectDocument(first.id, {
-      screens: [{ id: 'screen_touched', name: 'Home', nodes: [], behaviors: [], logicGraphs: [] }],
+      screens: [{ id: 'screen_touched', name: 'Home', path: '/', nodes: [], behaviors: [], logicGraphs: [] }],
     });
 
     const list = await repository.listProjects();

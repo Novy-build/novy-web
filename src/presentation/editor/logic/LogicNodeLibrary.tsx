@@ -6,7 +6,7 @@ import {
   type LogicNodeCategory,
 } from './logicNodeRegistry';
 
-const CATEGORY_ORDER: readonly LogicNodeCategory[] = ['Triggers', 'Flow', 'UI', 'Database'];
+const CATEGORY_ORDER: readonly LogicNodeCategory[] = ['Triggers', 'Flow', 'UI', 'Database', 'Actions'];
 
 export function LogicNodeLibrary({
   onAdd,

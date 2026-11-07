@@ -22,4 +22,6 @@ const ACTION_TYPE_LABELS: Record<ActionPayload['type'], string> = {
   'insert-record': 'Insert to DB',
   'update-record': 'Update in DB',
   'delete-record': 'Delete from DB',
+  'send-email': 'Send email',
+  'refresh-collection': 'Refresh collection',
 };

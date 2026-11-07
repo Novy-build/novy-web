@@ -11,6 +11,7 @@ import type {
   ProjectDTO,
   ScreenDTO,
 } from '../dto/project.dto';
+import { normalizeLogicGraph } from '@domain/logic/graph';
 
 /*
  * Domain <-> DTO boundaries. Dates become ISO-8601 strings on the wire; node
@@ -20,7 +21,7 @@ import type {
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: project.id,
     name: project.name,
     createdAt: project.createdAt.toISOString(),
@@ -30,8 +31,15 @@ export function mapProjectToDto(project: Project): ProjectDTO {
 }
 
 export function mapProjectFromDto(dto: ProjectDTO): Project {
+  const takenPaths = new Set(dto.screens.flatMap((screen) => screen.path ? [screen.path] : []));
   const document: ProjectDocument = {
-    screens: dto.screens.map(mapScreenFromDto),
+    screens: dto.screens.map((screen, index) => {
+      const mapped = mapScreenFromDto(screen, index);
+      if (screen.path) return mapped;
+      const path = uniqueMigratedScreenPath(mapped.path, index, takenPaths);
+      takenPaths.add(path);
+      return path === mapped.path ? mapped : { ...mapped, path };
+    }),
   };
   return {
     id: dto.id,
@@ -40,6 +48,19 @@ export function mapProjectFromDto(dto: ProjectDTO): Project {
     updatedAt: new Date(dto.updatedAt),
     document,
   };
+}
+
+function uniqueMigratedScreenPath(
+  candidate: string,
+  index: number,
+  takenPaths: ReadonlySet<string>,
+): string {
+  if (!takenPaths.has(candidate)) return candidate;
+  const base = candidate === '/' ? `/screen-${index + 1}` : candidate;
+  if (!takenPaths.has(base)) return base;
+  let suffix = 2;
+  while (takenPaths.has(`${base}-${suffix}`)) suffix += 1;
+  return `${base}-${suffix}`;
 }
 
 export function mapProjectToSummary(project: Project): ProjectSummary {
@@ -58,16 +79,18 @@ export function mapScreenToDto(screen: Screen): ScreenDTO {
   return {
     id: screen.id,
     name: screen.name,
+    path: screen.path,
     nodes: screen.nodes.map(mapNodeToDto),
     behaviors: screen.behaviors.map(mapBehaviorToDto),
     logicGraphs: screen.logicGraphs.map(mapLogicGraphToDto),
   };
 }
 
-export function mapScreenFromDto(dto: ScreenDTO): Screen {
+export function mapScreenFromDto(dto: ScreenDTO, index = 0): Screen {
   return {
     id: dto.id,
     name: dto.name,
+    path: dto.path ?? (index === 0 ? '/' : `/${dto.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `screen-${index + 1}`}`),
     nodes: dto.nodes.map(mapNodeFromDto),
     behaviors: dto.behaviors.map(mapBehaviorFromDto),
     logicGraphs: dto.logicGraphs.map(mapLogicGraphFromDto),
@@ -423,25 +446,29 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
 
 function mapNodeEditorToDto(
   node: ComponentNode,
-): Partial<Pick<ComponentNodeDTO, 'name' | 'isHidden' | 'isLocked'>> {
-  return compactEditorMetadata(node.name, node.isHidden, node.isLocked);
+): Partial<Pick<ComponentNodeDTO, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive'>> {
+  return compactEditorMetadata(node.name, node.isHidden, node.isLocked, node.appearance, node.responsive);
 }
 
 function mapNodeEditorFromDto(
   dto: ComponentNodeDTO,
-): Partial<Pick<ComponentNode, 'name' | 'isHidden' | 'isLocked'>> {
-  return compactEditorMetadata(dto.name, dto.isHidden, dto.isLocked);
+): Partial<Pick<ComponentNode, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive'>> {
+  return compactEditorMetadata(dto.name, dto.isHidden, dto.isLocked, dto.appearance, dto.responsive);
 }
 
 function compactEditorMetadata(
   name: string | undefined,
   isHidden: boolean | undefined,
   isLocked: boolean | undefined,
-): { name?: string; isHidden?: boolean; isLocked?: boolean } {
+  appearance: ComponentNode['appearance'],
+  responsive: ComponentNode['responsive'],
+): { name?: string; isHidden?: boolean; isLocked?: boolean; appearance?: ComponentNode['appearance']; responsive?: ComponentNode['responsive'] } {
   return {
     ...(name !== undefined ? { name } : {}),
     ...(isHidden !== undefined ? { isHidden } : {}),
     ...(isLocked !== undefined ? { isLocked } : {}),
+    ...(appearance !== undefined ? { appearance: structuredClone(appearance) } : {}),
+    ...(responsive !== undefined ? { responsive: structuredClone(responsive) } : {}),
   };
 }
 
@@ -476,13 +503,15 @@ function mapLogicGraphToDto(graph: LogicGraph): LogicGraphDTO {
 }
 
 function mapLogicGraphFromDto(dto: LogicGraphDTO): LogicGraph {
-  return {
+  const graph: LogicGraph = {
     id: dto.id,
     name: dto.name,
     sourceNodeId: dto.sourceNodeId,
     nodes: dto.nodes.map((node, index) => mapLogicNodeFromDto(node, index)),
     edges: dto.edges.map((edge, index) => mapEdgeFromDto(edge, dto.id, index)),
   };
+  const trigger = graph.nodes.find((node) => node.kind === 'trigger');
+  return normalizeLogicGraph(graph, trigger?.event ?? 'click');
 }
 
 function mapLogicNodeToDto(node: LogicNode): LogicNodeDTO {

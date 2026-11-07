@@ -100,6 +100,19 @@ describe('LogicWorkspace without a workflow', () => {
     expect(screen.getByRole('button', { name: 'Delete from DB' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Change Text' })).not.toBeInTheDocument();
   });
+
+  it('finds Send Email and Refresh Collection actions', () => {
+    renderWorkspace();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search nodes' }), {
+      target: { value: 'email' },
+    });
+    expect(screen.getByRole('button', { name: 'Send Email' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search nodes' }), {
+      target: { value: 'refresh' },
+    });
+    expect(screen.getByRole('button', { name: 'Refresh Collection' })).toBeInTheDocument();
+  });
 });
 
 describe('LogicWorkspace with a workflow', () => {
@@ -162,6 +175,32 @@ describe('LogicWorkspace with a workflow', () => {
       collectionId: 'students',
       values: { student_name: 'Ada' },
     });
+  });
+
+  it('configures Send Email, dynamic inputs, and success/error ports', () => {
+    renderWorkspace(seededWorkflow());
+    fireEvent.click(screen.getByRole('button', { name: 'Send Email' }));
+
+    const graph = getActiveScreen(latest.current!).logicGraphs[0]!;
+    const email = graph.nodes.find(
+      (node) => node.kind === 'action' && node.payload.type === 'send-email',
+    )!;
+    fireEvent.click(screen.getByTestId(`logic-node-${email.id}`));
+    fireEvent.change(screen.getByLabelText('Recipient'), { target: { value: 'ada@example.com' } });
+    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Welcome' } });
+    fireEvent.change(screen.getAllByLabelText('Value source')[0]!, { target: { value: 'session' } });
+
+    const updated = getActiveScreen(latest.current!).logicGraphs[0]!.nodes.find((node) => node.id === email.id);
+    expect(updated?.kind === 'action' ? updated.payload : null).toMatchObject({
+      type: 'send-email',
+      to: 'ada@example.com',
+      subject: 'Welcome',
+    });
+    expect(updated?.kind === 'action' ? updated.inputMappings : null).toEqual({
+      to: { source: 'session', path: 'user.email' },
+    });
+    expect(screen.getByRole('button', { name: 'success output of Send email' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'error output of Send email' })).toBeInTheDocument();
   });
 
   it('configures the trigger and deletes the workflow from Details', () => {

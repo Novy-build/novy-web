@@ -9,6 +9,7 @@ import { createEditorState, findNodeInScreen, getActiveScreen, type EditorState 
 const SCREEN: Screen = {
   id: 'screen_1',
   name: 'Home',
+  path: '/',
   nodes: [
     {
       id: 'node_text',
@@ -37,7 +38,11 @@ const DOCUMENT: ProjectDocument = { screens: [SCREEN] };
 
 /** Convenience: build state fresh per reducer step (no cross-test leakage). */
 function stateAt(pastCount = 0): ReturnType<typeof createEditorState> {
-  return { ...createEditorState(DOCUMENT), past: Array.from({ length: pastCount }, () => structuredClone(DOCUMENT)) };
+  return {
+    ...createEditorState(DOCUMENT),
+    device: 'mobile',
+    past: Array.from({ length: pastCount }, () => structuredClone(DOCUMENT)),
+  };
 }
 
 describe('load', () => {
@@ -72,6 +77,23 @@ describe('screens', () => {
     const next = editorReducer(state, { type: 'screen/rename', screenId: 'screen_1', name: '   ' });
 
     expect(next).toBe(state);
+  });
+
+  it('normalizes unique screen routes and rejects duplicates', () => {
+    const withSecond = editorReducer(stateAt(), { type: 'screen/add' });
+    const secondId = withSecond.activeScreenId;
+    const routed = editorReducer(withSecond, {
+      type: 'screen/path',
+      screenId: secondId,
+      path: 'Account Settings/',
+    });
+
+    expect(routed.document.screens.find((screen) => screen.id === secondId)?.path).toBe('/account-settings');
+    expect(editorReducer(routed, {
+      type: 'screen/path',
+      screenId: secondId,
+      path: '/',
+    })).toBe(routed);
   });
 
   it('deletes a non-first screen and keeps the active screen', () => {
@@ -139,7 +161,7 @@ describe('node add / drag', () => {
 
   it('keeps moved nodes inside the device frame', () => {
     const overshoot = editorReducer(stateAt(), { type: 'node/move', nodeId: 'node_text', x: 1500, y: 900 });
-    expect(findNodeInScreen(getActiveScreen(overshoot), 'node_text')?.x).toBe(1200 - 200);
+    expect(findNodeInScreen(getActiveScreen(overshoot), 'node_text')?.x).toBe(390 - 200);
 
     const undershoot = editorReducer(stateAt(), { type: 'node/move', nodeId: 'node_text', x: -50, y: -50 });
     expect(findNodeInScreen(getActiveScreen(undershoot), 'node_text')?.x).toBe(0);
@@ -497,7 +519,7 @@ describe('layer metadata and hierarchy', () => {
       props: {},
       children: [child],
     };
-    let state = createEditorState({ screens: [{ ...SCREEN, nodes: [frame] }] });
+    let state: EditorState = { ...createEditorState({ screens: [{ ...SCREEN, nodes: [frame] }] }), device: 'mobile' };
 
     state = editorReducer(state, { type: 'node/move', nodeId: 'child', x: 999, y: 999 });
     expect(findNodeInScreen(getActiveScreen(state), 'child')).toMatchObject({ x: 120, y: 120 });
@@ -570,7 +592,7 @@ describe('autosave + chrome', () => {
 
     state = editorReducer(state, { type: 'device/set', device: 'tablet' });
     expect(state.device).toBe('tablet');
-    expect(state.selectedNodeId).toBeNull();
+    expect(state.selectedNodeId).toBe('node_text');
   });
 
   it('tracks and clears the drop indicator', () => {
@@ -579,6 +601,50 @@ describe('autosave + chrome', () => {
 
     const cleared = editorReducer(positioned, { type: 'canvas/dropIndicator', position: null });
     expect(cleared.dropIndicator).toBeNull();
+  });
+
+  it('stores desktop geometry as an override without changing the mobile base', () => {
+    let state: EditorState = { ...stateAt(), device: 'desktop' };
+    state = editorReducer(state, {
+      type: 'node/layout-position',
+      nodeId: 'node_text',
+      x: 480,
+      y: 120,
+    });
+
+    const node = findNodeInScreen(getActiveScreen(state), 'node_text')!;
+    expect(node).toMatchObject({ x: 88, y: 96 });
+    expect(node.responsive?.desktop).toMatchObject({ x: 480, y: 120 });
+
+    state = editorReducer(state, { type: 'node/responsive-reset', nodeId: 'node_text' });
+    expect(findNodeInScreen(getActiveScreen(state), 'node_text')?.responsive).toBeUndefined();
+  });
+
+  it('adds on desktop with a visible mobile base and a desktop override', () => {
+    const state = editorReducer({ ...stateAt(), device: 'desktop' }, {
+      type: 'node/add',
+      nodeType: 'button',
+      x: 900,
+      y: 320,
+    });
+    const node = getActiveScreen(state).nodes.at(-1)!;
+
+    expect(node.x + node.w).toBeLessThanOrEqual(390);
+    expect(node.responsive?.desktop).toMatchObject({ x: 824 });
+  });
+
+  it('persists typed appearance updates', () => {
+    const state = editorReducer(stateAt(), {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { backgroundColor: '#112233', textColor: '#ffffff', borderRadius: 16 },
+    });
+
+    expect(findNodeInScreen(getActiveScreen(state), 'node_button')?.appearance).toEqual({
+      backgroundColor: '#112233',
+      textColor: '#ffffff',
+      borderRadius: 16,
+    });
   });
 });
 
@@ -740,6 +806,26 @@ describe('logic workspace', () => {
     expect(same).toBe(updated);
   });
 
+  it('updates serializable action input mappings', () => {
+    const created = addClickBehavior(stateAt());
+    const withStep = editorReducer(created, { type: 'graph/action-add', graphId: firstGraph(created).id });
+    const graph = firstGraph(withStep);
+    const stepId = graph.nodes[1]!.id;
+    const updated = editorReducer(withStep, {
+      type: 'graph/action-inputs-update',
+      graphId: graph.id,
+      nodeId: stepId,
+      inputMappings: {
+        text: { source: 'component', nodeId: 'node_text', property: 'text' },
+      },
+    });
+
+    const action = firstGraph(updated).nodes[1]!;
+    expect(action.kind === 'action' ? action.inputMappings : undefined).toEqual({
+      text: { source: 'component', nodeId: 'node_text', property: 'text' },
+    });
+  });
+
   it('removes a step and its incident edges', () => {
     let state = addClickBehavior(stateAt());
     const graphId = firstGraph(state).id;
@@ -875,6 +961,7 @@ describe('logic workspace', () => {
     const about: Screen = {
       id: 'screen_2',
       name: 'About',
+      path: '/about',
       nodes: [{ ...SCREEN.nodes[1]! }],
       behaviors: [],
       logicGraphs: [],

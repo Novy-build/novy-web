@@ -1,4 +1,4 @@
-import type { ComponentNode } from './entities/componentNode';
+import { geometryAtBreakpoint, isHiddenAtBreakpoint, type ComponentNode, type ResponsiveBreakpoint } from './entities/componentNode';
 
 export type LayerDropPosition = 'before' | 'inside';
 
@@ -25,8 +25,9 @@ export interface FrameHit {
 export function getComponentTreeLocation(
   nodes: readonly ComponentNode[],
   nodeId: string,
+  breakpoint: ResponsiveBreakpoint = 'mobile',
 ): ComponentTreeLocation | null {
-  return locateNode(nodes, nodeId);
+  return locateNode(nodes, nodeId, null, 0, 0, null, null, breakpoint);
 }
 
 /** Finds the deepest unlocked frame under a design-space point. */
@@ -35,6 +36,7 @@ export function findFrameAtPoint(
   x: number,
   y: number,
   excludeNodeId?: string,
+  breakpoint: ResponsiveBreakpoint = 'mobile',
 ): FrameHit | null {
   let match: FrameHit | null = null;
   function visit(
@@ -44,20 +46,21 @@ export function findFrameAtPoint(
     ancestorBlocked: boolean,
   ): void {
     for (const node of list) {
-      if (node.id === excludeNodeId || node.isHidden) {
+      if (node.id === excludeNodeId || isHiddenAtBreakpoint(node, breakpoint)) {
         continue;
       }
-      const absoluteX = originX + node.x;
-      const absoluteY = originY + node.y;
+      const geometry = geometryAtBreakpoint(node, breakpoint);
+      const absoluteX = originX + geometry.x;
+      const absoluteY = originY + geometry.y;
       const blocked = ancestorBlocked || node.isLocked === true;
       if (node.type === 'container') {
         const contains =
           x >= absoluteX &&
-          x <= absoluteX + node.w &&
+          x <= absoluteX + geometry.w &&
           y >= absoluteY &&
-          y <= absoluteY + node.h;
+          y <= absoluteY + geometry.h;
         if (contains && !blocked) {
-          match = { id: node.id, x: absoluteX, y: absoluteY, w: node.w, h: node.h };
+          match = { id: node.id, x: absoluteX, y: absoluteY, w: geometry.w, h: geometry.h };
           visit(node.children, absoluteX, absoluteY, blocked);
         }
       }
@@ -73,6 +76,7 @@ export function reparentLayerInTree(
   nodeId: string,
   parentId: string | null,
   absolutePosition?: { x: number; y: number },
+  _breakpoint: ResponsiveBreakpoint = 'mobile',
 ): readonly ComponentNode[] {
   const source = locateNode(nodes, nodeId);
   if (!source || source.parentId === parentId) {
@@ -176,11 +180,13 @@ function locateNode(
   parentAbsoluteY = 0,
   parentWidth: number | null = null,
   parentHeight: number | null = null,
+  breakpoint: ResponsiveBreakpoint = 'mobile',
 ): ComponentTreeLocation | null {
   for (let index = 0; index < nodes.length; index += 1) {
     const node = nodes[index]!;
-    const absoluteX = parentAbsoluteX + node.x;
-    const absoluteY = parentAbsoluteY + node.y;
+    const geometry = geometryAtBreakpoint(node, breakpoint);
+    const absoluteX = parentAbsoluteX + geometry.x;
+    const absoluteY = parentAbsoluteY + geometry.y;
     if (node.id === nodeId) {
       return {
         node,
@@ -201,8 +207,9 @@ function locateNode(
         node.id,
         absoluteX,
         absoluteY,
-        node.w,
-        node.h,
+        geometry.w,
+        geometry.h,
+        breakpoint,
       );
       if (nested) {
         return nested;

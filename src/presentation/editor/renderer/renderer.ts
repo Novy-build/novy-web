@@ -1,4 +1,5 @@
-import type { ComponentNode } from '@domain/entities/componentNode';
+import type { ComponentNode, ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import type { TriggerEvent } from '@domain/entities/logic';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
 
 /** Rendering contexts for the shared project-document renderer. */
@@ -11,6 +12,7 @@ export interface RendererDataContext {
 
 export interface ComponentRendererProps {
   node: ComponentNode;
+  breakpoint?: ResponsiveBreakpoint;
   mode: RendererMode;
   selected: boolean;
   /** Carries nested selection through frame recursion. */
@@ -18,6 +20,8 @@ export interface ComponentRendererProps {
   onSelect?: (nodeId: string) => void;
   /** Reactive preview: fires when a non-canvas node receives a click. */
   onNodeAction?: (nodeId: string) => void;
+  /** Preview runtime event hook for click/change behavior execution. */
+  onNodeEvent?: (nodeId: string, event: TriggerEvent, value?: string) => void;
   /** Preview-only input value updates consumed by condition nodes. */
   onNodeValueChange?: (nodeId: string, value: string) => void;
   dataContext?: RendererDataContext;

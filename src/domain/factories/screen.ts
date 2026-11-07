@@ -6,13 +6,24 @@ import { generateId } from '../ids';
 /** Timestamps are injected to keep these factories pure and testable. */
 export interface CreateScreenInput {
   name: string;
+  path?: string;
   nodes?: Screen['nodes'];
+}
+
+export function screenPathFromName(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug.length > 0 && slug !== 'home' ? `/${slug}` : '/';
 }
 
 export function createScreen(input: CreateScreenInput): Screen {
   return {
     id: generateId('screen'),
     name: input.name,
+    path: input.path ?? screenPathFromName(input.name),
     nodes: input.nodes ?? [],
     behaviors: [],
     logicGraphs: [],
@@ -28,9 +39,10 @@ export function createProjectDocument(screens: Screen[]): ProjectDocument {
  * copy with fresh screen ids as well.
  */
 export function createProjectFromTemplate(template: Template, name: string, now: Date): Project {
-  const screens: Screen[] = template.screens.map((screen) => ({
+  const screens: Screen[] = template.screens.map((screen, index) => ({
     ...structuredClone(screen),
     id: generateId('screen'),
+    path: screen.path || (index === 0 ? '/' : screenPathFromName(screen.name)),
   }));
 
   return {

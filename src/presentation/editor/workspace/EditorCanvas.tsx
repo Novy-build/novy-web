@@ -6,16 +6,26 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react';
-import type { ComponentNode, ComponentType } from '@domain/entities/componentNode';
+import type { ComponentNode, ComponentType, NodeGeometry, ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import { findFrameAtPoint, getComponentTreeLocation, type FrameHit } from '@domain/componentTree';
 import { ScreenFrame } from '../renderer/ScreenFrame';
 import type { RendererDataContext } from '../renderer/renderer';
 import { SNAP_GRID, ZOOM_LIMITS, computeFitZoom, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
+import {
+  ALIGNMENT_THRESHOLD,
+  computeAlignment,
+  computeDistanceIndicators,
+  type AlignmentGuide,
+  type DistanceIndicator,
+} from '../state/alignment';
 import { COMPONENT_MIME } from './ComponentsPalette';
 import { SelectionOverlay } from './SelectionOverlay';
 import { DeviceToggle } from './DeviceToggle';
 import { ZoomPill } from './ZoomPill';
+import { AlignmentGuides } from './AlignmentGuides';
+import { DistanceIndicators } from './DistanceIndicators';
 /** Padding around the device frame inside the scrollable stage. */
 export const CANVAS_PAD_PX = 48;
 /** Pointer travel (screen px) before a press counts as a drag, not a click. */
@@ -72,6 +82,7 @@ interface EditorCanvasProps {
 
 interface InteractionTarget {
   node: ComponentNode;
+  geometry: NodeGeometry;
   /** Screen-space position (top-level nodes: same as relative coords). */
   absX: number;
   absY: number;
@@ -86,21 +97,23 @@ function flattenInteractionTargets(
   nodes: readonly ComponentNode[],
   originX: number,
   originY: number,
+  breakpoint: ResponsiveBreakpoint,
   ancestorLocked = false,
 ): InteractionTarget[] {
   const targets: InteractionTarget[] = [];
   for (const node of nodes) {
-    if (node.isHidden) {
+    if (isHiddenAtBreakpoint(node, breakpoint)) {
       continue;
     }
-    const absX = originX + node.x;
-    const absY = originY + node.y;
+    const geometry = geometryAtBreakpoint(node, breakpoint);
+    const absX = originX + geometry.x;
+    const absY = originY + geometry.y;
     const isLocked = ancestorLocked || node.isLocked === true;
     if (!isLocked) {
-      targets.push({ node, absX, absY });
+      targets.push({ node, geometry, absX, absY });
     }
     if (node.type === 'container') {
-      targets.push(...flattenInteractionTargets(node.children, absX, absY, isLocked));
+      targets.push(...flattenInteractionTargets(node.children, absX, absY, breakpoint, isLocked));
     }
   }
   return targets;
@@ -110,15 +123,28 @@ interface DragSession {
   nodeId: string;
   startClientX: number;
   startClientY: number;
-  /** Node position at pointerdown, in the node's own coordinate space. */
-  nodeStartX: number;
-  nodeStartY: number;
   isDragging: boolean;
   targetParentId: string | null;
   startAbsoluteX: number;
   startAbsoluteY: number;
   lastAbsoluteX: number;
   lastAbsoluteY: number;
+  /** Absolute - relative offset at drag start (constant during the gesture). */
+  parentOffsetX: number;
+  parentOffsetY: number;
+}
+
+/** Ids of a node and everything nested inside it (containers only). */
+function collectSubtreeIds(node: ComponentNode): Set<string> {
+  const ids = new Set<string>([node.id]);
+  if (node.type === 'container') {
+    for (const child of node.children) {
+      for (const id of collectSubtreeIds(child)) {
+        ids.add(id);
+      }
+    }
+  }
+  return ids;
 }
 
 /**
@@ -154,16 +180,18 @@ export function EditorCanvas({
   const isSpacePressedRef = useRef(false);
   const [isPanning, setIsPanning] = useState(false);
   const [frameDropTarget, setFrameDropTarget] = useState<FrameHit | null>(null);
+  const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuide[]>([]);
+  const [distanceIndicators, setDistanceIndicators] = useState<DistanceIndicator[]>([]);
 
   const bounds = deviceViewport(device);
-  const targets = flattenInteractionTargets(screen.nodes, 0, 0);
+  const targets = flattenInteractionTargets(screen.nodes, 0, 0, device);
   const frameWidth = bounds.width * zoom;
   const frameHeight = bounds.height * zoom;
   const selectedTarget = selectedNodeId
     ? targets.find((target) => target.node.id === selectedNodeId)
     : undefined;
   const selectedLocation = selectedNodeId
-    ? getComponentTreeLocation(screen.nodes, selectedNodeId)
+    ? getComponentTreeLocation(screen.nodes, selectedNodeId, device)
     : null;
 
   function computeFittedZoom(): number | null {
@@ -312,19 +340,35 @@ export function EditorCanvas({
       return;
     }
     event.stopPropagation();
+    const parentOffsetX = target.absX - target.geometry.x;
+    const parentOffsetY = target.absY - target.geometry.y;
+    const subtreeIds = collectSubtreeIds(target.node);
+    const componentAlignmentTargets = targets
+      .filter((candidate) => !subtreeIds.has(candidate.node.id))
+      .map((candidate) => ({
+        x: candidate.absX,
+        y: candidate.absY,
+        w: candidate.geometry.w,
+        h: candidate.geometry.h,
+      }));
+    const alignmentTargets = [
+      ...componentAlignmentTargets,
+      { x: 0, y: 0, w: bounds.width, h: bounds.height },
+    ];
+
     dragSessionRef.current = {
       nodeId: target.node.id,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      nodeStartX: target.node.x,
-      nodeStartY: target.node.y,
       isDragging: false,
       targetParentId:
-        getComponentTreeLocation(screen.nodes, target.node.id)?.parentId ?? null,
+        getComponentTreeLocation(screen.nodes, target.node.id, device)?.parentId ?? null,
       startAbsoluteX: target.absX,
       startAbsoluteY: target.absY,
       lastAbsoluteX: target.absX,
       lastAbsoluteY: target.absY,
+      parentOffsetX,
+      parentOffsetY,
     };
     capturePointer(event);
 
@@ -335,8 +379,6 @@ export function EditorCanvas({
       }
       const totalDx = moveEvent.clientX - session.startClientX;
       const totalDy = moveEvent.clientY - session.startClientY;
-      session.lastAbsoluteX = session.startAbsoluteX + totalDx / zoom;
-      session.lastAbsoluteY = session.startAbsoluteY + totalDy / zoom;
       if (!session.isDragging) {
         if (Math.hypot(totalDx, totalDy) < DRAG_THRESHOLD_PX) {
           return;
@@ -344,9 +386,30 @@ export function EditorCanvas({
         session.isDragging = true;
         onDragStart();
       }
-      onNodeMove(session.nodeId, session.nodeStartX + totalDx / zoom, session.nodeStartY + totalDy / zoom);
+
+      const candidate = {
+        x: session.startAbsoluteX + totalDx / zoom,
+        y: session.startAbsoluteY + totalDy / zoom,
+        w: target.geometry.w,
+        h: target.geometry.h,
+      };
+      const aligned = computeAlignment(candidate, alignmentTargets, {
+        snap: isSnapEnabled,
+        threshold: ALIGNMENT_THRESHOLD / zoom,
+      });
+      const settled = { ...candidate, x: aligned.x, y: aligned.y };
+      session.lastAbsoluteX = aligned.x;
+      session.lastAbsoluteY = aligned.y;
+      setAlignmentGuides(aligned.guides);
+      setDistanceIndicators(computeDistanceIndicators(settled, componentAlignmentTargets));
+
+      onNodeMove(
+        session.nodeId,
+        aligned.x - session.parentOffsetX,
+        aligned.y - session.parentOffsetY,
+      );
       const point = toDesignPoint(moveEvent.clientX, moveEvent.clientY);
-      const frame = findFrameAtPoint(screen.nodes, point.x, point.y, session.nodeId);
+      const frame = findFrameAtPoint(screen.nodes, point.x, point.y, session.nodeId, device);
       session.targetParentId = frame?.id ?? null;
       setFrameDropTarget(frame);
     }
@@ -373,12 +436,16 @@ export function EditorCanvas({
       }
       dragSessionRef.current = null;
       setFrameDropTarget(null);
+      setAlignmentGuides([]);
+      setDistanceIndicators([]);
     }
 
     function handleCancel(): void {
       detach();
       dragSessionRef.current = null;
       setFrameDropTarget(null);
+      setAlignmentGuides([]);
+      setDistanceIndicators([]);
     }
 
     window.addEventListener('pointermove', handleMove);
@@ -393,7 +460,7 @@ export function EditorCanvas({
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
     const point = toDesignPoint(event.clientX, event.clientY);
-    setFrameDropTarget(findFrameAtPoint(screen.nodes, point.x, point.y));
+    setFrameDropTarget(findFrameAtPoint(screen.nodes, point.x, point.y, undefined, device));
     onDropIndicatorChange({
       x: snapOrRaw(point.x, isSnapEnabled),
       y: snapOrRaw(point.y, isSnapEnabled),
@@ -454,6 +521,7 @@ export function EditorCanvas({
             style={{ height: frameHeight, width: frameWidth }}
           >
             <ScreenFrame
+              breakpoint={device}
               mode="canvas"
               dataContext={dataContext}
               scale={zoom}
@@ -472,18 +540,18 @@ export function EditorCanvas({
               onPointerDown={handleBackgroundPointerDown}
               ref={interactionLayerRef}
             >
-              {targets.map(({ node, absX, absY }) => (
+              {targets.map(({ node, geometry, absX, absY }) => (
                 <div
                   className="absolute cursor-move"
                   data-testid={`interaction-${node.id}`}
                   key={node.id}
                   onClick={(event) => event.stopPropagation()}
-                  onPointerDown={(event) => beginNodeInteraction(event, { node, absX, absY })}
+                  onPointerDown={(event) => beginNodeInteraction(event, { node, geometry, absX, absY })}
                   style={{
-                    height: node.h * zoom,
+                    height: geometry.h * zoom,
                     left: absX * zoom,
                     top: absY * zoom,
-                    width: node.w * zoom,
+                    width: geometry.w * zoom,
                   }}
                 />
               ))}
@@ -522,20 +590,23 @@ export function EditorCanvas({
                       : bounds
                   }
                   device={device}
-                  geometry={selectedTarget.node}
+                  geometry={selectedTarget.geometry}
                   isSnapEnabled={isSnapEnabled}
                   onAddBehavior={onAddBehavior}
                   onDelete={onDeleteSelected}
                   onDuplicate={onDuplicateSelected}
                   offset={{
-                    x: selectedTarget.absX - selectedTarget.node.x,
-                    y: selectedTarget.absY - selectedTarget.node.y,
+                    x: selectedTarget.absX - selectedTarget.geometry.x,
+                    y: selectedTarget.absY - selectedTarget.geometry.y,
                   }}
                   onResize={(geometry) => onNodeResize(selectedTarget.node.id, geometry)}
                   onResizeStart={onDragStart}
                   zoom={zoom}
                 />
               ) : null}
+
+              <AlignmentGuides guides={alignmentGuides} zoom={zoom} />
+              <DistanceIndicators indicators={distanceIndicators} zoom={zoom} />
             </div>
           </div>
         </div>

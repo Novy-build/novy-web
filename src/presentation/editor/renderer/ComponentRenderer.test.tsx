@@ -31,6 +31,33 @@ describe('ComponentRenderer', () => {
     expect(frame).toHaveStyle({ left: '10px', top: '20px', width: '120px', height: '44px' });
   });
 
+  it('renders typed appearance and active responsive geometry', () => {
+    const node: ButtonNode = {
+      ...BUTTON,
+      appearance: {
+        backgroundColor: '#112233',
+        textColor: '#ffffff',
+        borderRadius: 14,
+        opacity: 0.8,
+      },
+      responsive: { desktop: { x: 320, y: 80, w: 240, h: 52 } },
+    };
+    const { container } = render(
+      <ComponentRenderer breakpoint="desktop" mode="preview" node={node} selected={false} />,
+    );
+
+    expect(container.querySelector('[data-node-id="node_save"]')).toHaveStyle({
+      left: '320px',
+      top: '80px',
+      width: '240px',
+      height: '52px',
+      backgroundColor: '#112233',
+      color: '#ffffff',
+      borderRadius: '14px',
+      opacity: '0.8',
+    });
+  });
+
   it('marks the selected node in canvas mode', () => {
     render(<ComponentRenderer mode="canvas" node={BUTTON} selected />);
 
@@ -110,6 +137,30 @@ describe('ComponentRenderer', () => {
 
     expect(screen.queryByPlaceholderText('you@school.edu')).not.toBeInTheDocument();
     expect(screen.getByText('Email')).toBeInTheDocument();
+  });
+
+  it('dispatches preview change events with the current input value', () => {
+    const input: InputNode = {
+      id: 'node_email',
+      type: 'input',
+      x: 0,
+      y: 0,
+      w: 180,
+      h: 60,
+      props: { label: 'Email', placeholder: 'you@school.edu', inputType: 'email', multiline: false },
+    };
+    const onNodeEvent = vi.fn();
+    render(
+      <ComponentRenderer
+        mode="preview"
+        node={input}
+        onNodeEvent={onNodeEvent}
+        selected={false}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } });
+    expect(onNodeEvent).toHaveBeenCalledWith('node_email', 'change', 'ada@example.com');
   });
 
   it('renders container children relative to the container', () => {
@@ -304,6 +355,7 @@ describe('ScreenFrame', () => {
   const homeScreen: Screen = {
     id: 'screen_home',
     name: 'Home',
+    path: '/',
     nodes: [BUTTON],
     behaviors: [],
     logicGraphs: [],

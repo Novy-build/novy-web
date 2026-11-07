@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { Screen } from '../entities/screen';
 import { createActionNode, createBehaviorBundle } from '../factories/logic';
 import { appendAction, appendCondition, connectLogicPorts, updateCondition } from './graph';
-import { applyTextOverrides, pruneDeadNavigateTargets, runClickBehavior, type PreviewEffect } from './runtime';
+import {
+  applyTextOverrides,
+  pruneDeadNavigateTargets,
+  resolveValueExpression,
+  runBehavior,
+  runClickBehavior,
+  type PreviewEffect,
+} from './runtime';
 
 const TARGET_TEXT_NODE = 'node_text';
 
@@ -11,6 +18,7 @@ function buildScreen(): { screen: Screen; graphId: string } {
   const screen: Screen = {
     id: 'screen_1',
     name: 'Home',
+    path: '/',
     nodes: [
       {
         id: TARGET_TEXT_NODE,
@@ -133,6 +141,76 @@ describe('runClickBehavior', () => {
         payload: { type: 'insert-record', collectionId: 'students', values: { name: 'Ada' } },
       },
     ]);
+  });
+
+  it('maps component and session values into email inputs and follows the success port', () => {
+    const { screen, graphId } = buildScreen();
+    let graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'send-email',
+      to: '',
+      subject: '',
+      body: 'Static body',
+    });
+    const email = graph.nodes[1]!;
+    if (email.kind !== 'action') throw new Error('Expected action node');
+    graph = {
+      ...graph,
+      nodes: graph.nodes.map((node) => node.id === email.id ? {
+        ...email,
+        inputMappings: {
+          to: { source: 'session', path: 'user.email' },
+          subject: { source: 'component', nodeId: TARGET_TEXT_NODE, property: 'text' },
+        },
+      } : node),
+    };
+    graph = appendAction(graph, { type: 'refresh-collection', collectionId: 'students' });
+    const withGraph = {
+      ...screen,
+      logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item),
+    };
+
+    expect(runClickBehavior(
+      { screens: [withGraph] },
+      withGraph,
+      'node_button',
+      {
+        componentValues: new Map(),
+        session: { user: { email: 'ada@example.com' } },
+      },
+    )).toEqual([
+      { kind: 'email-simulated', to: 'ada@example.com', subject: 'Hello, World!' },
+      { kind: 'refresh-collection', collectionId: 'students' },
+    ]);
+  });
+
+  it('executes change and load bindings through the generic runtime', () => {
+    const { screen } = buildScreen();
+    const bundle = createBehaviorBundle('On change — Answer', 'node_input', 'change');
+    const graph = appendAction(bundle.graph, { type: 'show-message', message: 'Changed' });
+    const changed = { ...screen, behaviors: [bundle.behavior], logicGraphs: [graph] };
+
+    expect(runBehavior({ screens: [changed] }, changed, 'node_input', 'change')).toEqual([
+      { kind: 'show-message', message: 'Changed' },
+    ]);
+    expect(runBehavior({ screens: [changed] }, changed, 'node_input', 'load')).toEqual([]);
+  });
+});
+
+describe('resolveValueExpression', () => {
+  it('resolves literals and nested previous-node output paths', () => {
+    const { screen } = buildScreen();
+    const document = { screens: [screen] };
+    const context = {
+      componentValues: new Map<string, string>(),
+      nodeOutputs: new Map<string, unknown>([['action_1', { result: { id: 42 } }]]),
+    };
+
+    expect(resolveValueExpression({ source: 'literal', value: 'fixed' }, document, context)).toBe('fixed');
+    expect(resolveValueExpression(
+      { source: 'node-output', nodeId: 'action_1', path: 'result.id' },
+      document,
+      context,
+    )).toBe('42');
   });
 });
 

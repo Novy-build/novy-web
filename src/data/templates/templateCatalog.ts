@@ -13,7 +13,7 @@ const EMPTY_BEHAVIORS: Behavior[] = [];
 const EMPTY_GRAPHS: LogicGraph[] = [];
 
 function screen(id: string, name: string, nodes: ComponentNode[]): Screen {
-  return { id, name, nodes, behaviors: EMPTY_BEHAVIORS, logicGraphs: EMPTY_GRAPHS };
+  return { id, name, path: name === 'Home' ? '/' : `/${name.toLowerCase().replace(/\s+/g, '-')}`, nodes, behaviors: EMPTY_BEHAVIORS, logicGraphs: EMPTY_GRAPHS };
 }
 
 const BLANK: Template = {

@@ -13,6 +13,14 @@ export interface ComponentNodeDTOBase {
   y: number;
   w: number;
   h: number;
+  appearance?: {
+    backgroundColor?: string;
+    textColor?: string;
+    borderColor?: string;
+    borderRadius?: number;
+    opacity?: number;
+  };
+  responsive?: Partial<Record<'tablet' | 'desktop', Partial<{ x: number; y: number; w: number; h: number; isHidden: boolean }>>>;
 }
 
 export interface ButtonNodeDTO extends ComponentNodeDTOBase {
@@ -176,6 +184,18 @@ export interface DeleteRecordPayloadDTO {
   recordId: string;
 }
 
+export interface SendEmailPayloadDTO {
+  type: 'send-email';
+  to: string;
+  subject: string;
+  body: string;
+}
+
+export interface RefreshCollectionPayloadDTO {
+  type: 'refresh-collection';
+  collectionId: string;
+}
+
 export type ActionPayloadDTO =
   | ChangeTextPayloadDTO
   | ShowMessagePayloadDTO
@@ -183,12 +203,21 @@ export type ActionPayloadDTO =
   | GetRecordsPayloadDTO
   | InsertRecordPayloadDTO
   | UpdateRecordPayloadDTO
-  | DeleteRecordPayloadDTO;
+  | DeleteRecordPayloadDTO
+  | SendEmailPayloadDTO
+  | RefreshCollectionPayloadDTO;
+
+export type ValueExpressionDTO =
+  | { source: 'literal'; value: string }
+  | { source: 'component'; nodeId: string; property: 'value' | 'text' }
+  | { source: 'session'; path: 'user.id' | 'user.name' | 'user.email' }
+  | { source: 'node-output'; nodeId: string; path: string };
 
 export interface ActionNodeDTO {
   kind: 'action';
   id: string;
   payload: ActionPayloadDTO;
+  inputMappings?: Record<string, ValueExpressionDTO>;
   position?: { x: number; y: number };
 }
 
@@ -210,7 +239,7 @@ export type LogicNodeDTO = TriggerNodeDTO | ConditionNodeDTO | ActionNodeDTO;
 export interface LogicEdgeDTO {
   id?: string;
   fromNodeId: string;
-  fromPort?: 'next' | 'true' | 'false';
+  fromPort?: 'next' | 'true' | 'false' | 'success' | 'error';
   toNodeId: string;
   toPort?: 'in';
 }
@@ -226,6 +255,7 @@ export interface LogicGraphDTO {
 export interface ScreenDTO {
   id: string;
   name: string;
+  path?: string;
   nodes: ComponentNodeDTO[];
   behaviors: BehaviorDTO[];
   logicGraphs: LogicGraphDTO[];

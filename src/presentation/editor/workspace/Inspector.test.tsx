@@ -22,9 +22,10 @@ function renderInspector(
   onOpenLogic = vi.fn(),
   behaviors: Parameters<typeof Inspector>[0]['behaviors'] = [],
   collections: readonly DataCollection[] = [],
+  device: Parameters<typeof Inspector>[0]['device'] = 'mobile',
 ) {
   const onAction = vi.fn<(action: EditorAction) => void>();
-  render(<Inspector behaviors={behaviors} collections={collections} node={node} onAction={onAction} onOpenLogic={onOpenLogic} />);
+  render(<Inspector behaviors={behaviors} collections={collections} device={device} node={node} onAction={onAction} onOpenLogic={onOpenLogic} />);
   return { onAction, onOpenLogic };
 }
 
@@ -104,6 +105,36 @@ describe('Inspector', () => {
       w: 160,
       h: 60,
     });
+  });
+
+  it('edits typed appearance values', () => {
+    const { onAction } = renderInspector(makeButton('node_1'));
+
+    fireEvent.change(screen.getByLabelText('Background'), { target: { value: '#112233' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'node_1',
+      appearance: { backgroundColor: '#112233' },
+    });
+
+    fireEvent.change(screen.getByLabelText('Corner radius'), { target: { value: '18' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'node_1',
+      appearance: { borderRadius: 18 },
+    });
+  });
+
+  it('shows effective desktop geometry and resets responsive overrides', () => {
+    const node = makeButton('node_1', {
+      responsive: { desktop: { x: 420, y: 64, w: 240, h: 52 } },
+    });
+    const { onAction } = renderInspector(node, vi.fn(), [], [], 'desktop');
+
+    expect(screen.getByLabelText('X')).toHaveValue(420);
+    expect(screen.getByLabelText('Width')).toHaveValue(240);
+    fireEvent.click(screen.getByRole('button', { name: 'Reset responsive overrides' }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'node/responsive-reset', nodeId: 'node_1' });
   });
 
   it('ignores non-numeric layout input', () => {

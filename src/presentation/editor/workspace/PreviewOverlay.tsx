@@ -3,8 +3,8 @@ import type { Screen } from '@domain/entities/screen';
 import type { DataCollection, DataRecord, DataValue } from '@domain/entities/appData';
 import { generateId } from '@domain/ids';
 import type { ComponentNode } from '@domain/entities/componentNode';
-import type { ActionPayload } from '@domain/entities/logic';
-import { applyTextOverrides, runClickBehavior } from '@domain/logic/runtime';
+import type { ActionPayload, TriggerEvent } from '@domain/entities/logic';
+import { applyTextOverrides, runBehavior, type PreviewEffect } from '@domain/logic/runtime';
 import { Modal } from '@presentation/components/system/Modal';
 import { ScreenFrame } from '../renderer/ScreenFrame';
 import { DeviceToggle } from './DeviceToggle';
@@ -72,17 +72,31 @@ export function PreviewOverlay({
 
   const screen: Screen | null = screens.find((candidate) => candidate.id === screenId) ?? screens[0] ?? null;
 
-  const handleNodeAction = useCallback(
-    (nodeId: string): void => {
+  const handleNodeEvent = useCallback(
+    (nodeId: string, event: TriggerEvent, value?: string): void => {
       if (!screen) {
         return;
       }
-      const effects = runClickBehavior(
+      const nextValues = value === undefined
+        ? componentValues
+        : new Map([...componentValues, [nodeId, value]]);
+      if (value !== undefined) setComponentValues(nextValues);
+      const effects = runBehavior(
         { screens },
         screen,
         nodeId,
-        { componentValues },
+        event,
+        {
+          componentValues: nextValues,
+          session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
+        },
       );
+      applyPreviewEffects(effects);
+    },
+    [componentValues, previewRecords, screens, screen],
+  );
+
+  function applyPreviewEffects(effects: readonly PreviewEffect[]): void {
       for (const effect of effects) {
         switch (effect.kind) {
           case 'change-text':
@@ -99,15 +113,40 @@ export function PreviewOverlay({
           case 'data-operation':
             applyDataOperation(effect.payload);
             break;
+          case 'refresh-collection':
+            setToast({ id: Date.now(), message: `Refreshed collection ${effect.collectionId}.` });
+            break;
+          case 'email-simulated':
+            setToast({ id: Date.now(), message: `Preview email to ${effect.to} was simulated.` });
+            break;
           default: {
             const exhaustive: never = effect;
             void exhaustive;
           }
         }
       }
-    },
-    [componentValues, previewRecords, screens, screen],
-  );
+  }
+
+  const loadedScreenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!screen || loadedScreenRef.current === screen.id) return;
+    loadedScreenRef.current = screen.id;
+    for (const behavior of screen.behaviors.filter((candidate) => candidate.event === 'load')) {
+      const effects = runBehavior(
+        { screens },
+        screen,
+        behavior.targetNodeId,
+        'load',
+        {
+          componentValues,
+          session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
+        },
+      );
+      applyPreviewEffects(effects);
+    }
+    // Execute once when a screen is entered; runtime state changes must not retrigger On Load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen?.id]);
 
   function applyDataOperation(
     payload: Extract<ActionPayload, { type: 'get-records' | 'insert-record' | 'update-record' | 'delete-record' }>,
@@ -298,12 +337,10 @@ export function PreviewOverlay({
       >
         <div className="m-auto shrink-0">
           <ScreenFrame
+            breakpoint={previewDevice}
             dataContext={{ collections, recordsByCollection: previewRecords }}
             mode="preview"
-            onNodeAction={handleNodeAction}
-            onNodeValueChange={(nodeId, value) =>
-              setComponentValues((previous) => new Map([...previous, [nodeId, value]]))
-            }
+            onNodeEvent={handleNodeEvent}
             onFormSubmit={submitBoundForm}
             screen={effectiveScreen}
             size={bounds}
@@ -312,7 +349,7 @@ export function PreviewOverlay({
         </div>
       </div>
       <p aria-live="polite" className="mt-2 shrink-0 text-center text-xs text-ink-muted" ref={footerRef}>
-        Behaviors run on click. Screen load and change triggers arrive with the backend phase.
+        Click, change, and screen-load behaviors run against isolated preview state.
       </p>
       {toast ? (
         <div

@@ -357,12 +357,17 @@ export function LogicGraphCanvas({
                 <span className="sr-only">{port}</span>
               </button>
             ))}
-            {node.kind === 'condition' ? (
-              <>
-                <span className="absolute right-3 top-[47px] text-[10px] font-medium text-ink-muted">true</span>
-                <span className="absolute right-3 top-[83px] text-[10px] font-medium text-ink-muted">false</span>
-              </>
-            ) : null}
+            {outputPortsFor(node).length > 1
+              ? outputPortsFor(node).map((port) => (
+                  <span
+                    className="absolute right-3 text-[10px] font-medium text-ink-muted"
+                    key={`label-${port}`}
+                    style={{ top: outputPortTop(node, port) + 7 }}
+                  >
+                    {port}
+                  </span>
+                ))
+              : null}
           </div>
         ))}
       </div>
@@ -419,6 +424,8 @@ function detailFor(node: LogicNode, targetLabelFor: (nodeId: string) => string |
     case 'insert-record': return node.payload.collectionId ? `Insert into ${node.payload.collectionId}` : 'Collection not set';
     case 'update-record': return node.payload.collectionId ? `Update ${node.payload.collectionId}` : 'Collection not set';
     case 'delete-record': return node.payload.collectionId ? `Delete from ${node.payload.collectionId}` : 'Collection not set';
+    case 'send-email': return node.payload.to ? `Email ${node.payload.to}` : 'Recipient not set';
+    case 'refresh-collection': return node.payload.collectionId ? `Refresh ${node.payload.collectionId}` : 'Collection not set';
   }
 }
 
@@ -427,12 +434,13 @@ function outputPoint(node: LogicNode | undefined, port: LogicOutputPort): { x: n
 }
 
 function outputPortTop(node: LogicNode, port: LogicOutputPort): number {
-  if (node.kind !== 'condition') return CARD.h / 2 - 8;
-  return port === 'true' ? 40 : 76;
+  const ports = outputPortsFor(node);
+  if (ports.length === 1) return CARD.h / 2 - 8;
+  return port === 'true' || port === 'success' ? 40 : 76;
 }
 
 function nodeHeight(node: LogicNode): number {
-  return node.kind === 'condition' ? CONDITION_HEIGHT : CARD.h;
+  return outputPortsFor(node).length > 1 ? CONDITION_HEIGHT : CARD.h;
 }
 
 function bezierPath(from: { x: number; y: number }, to: { x: number; y: number }): string {

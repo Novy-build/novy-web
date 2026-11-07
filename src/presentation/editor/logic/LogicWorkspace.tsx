@@ -115,6 +115,10 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
     if (graph) dispatch({ type: 'graph/action-update', graphId: graph.id, nodeId, payload });
   }
 
+  function configureInputMappings(nodeId: string, inputMappings: import('@domain/entities/logic').ActionInputMappings): void {
+    if (graph) dispatch({ type: 'graph/action-inputs-update', graphId: graph.id, nodeId, inputMappings });
+  }
+
   function configureCondition(
     nodeId: string,
     patch: Partial<Pick<ConditionNode, 'left' | 'operator' | 'compareValue'>>,
@@ -187,7 +191,9 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
             collections={collections}
             currentScreenId={screen.id}
             node={selectedNode}
+            logicNodes={graph?.nodes ?? []}
             onConfigure={configureSelected}
+            onConfigureInputMappings={configureInputMappings}
             onConfigureCondition={configureCondition}
             onConfigureTrigger={configureTrigger}
             onDeleteBehavior={removeWorkflow}

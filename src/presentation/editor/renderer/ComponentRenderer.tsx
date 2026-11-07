@@ -1,5 +1,6 @@
-import type { ComponentNode } from '@domain/entities/componentNode';
-import { type PropsWithChildren } from 'react';
+import type { ComponentAppearance, ComponentNode } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
+import { type CSSProperties, type PropsWithChildren } from 'react';
 import type { ComponentRendererProps } from './renderer';
 import { ButtonNodeView } from './nodes/ButtonNodeView';
 import { CheckboxNodeView } from './nodes/CheckboxNodeView';
@@ -23,6 +24,8 @@ interface NodeFrameProps {
   onSelect?: (nodeId: string) => void;
   /** Runtime hook for published behavior (preview overlay executes chains). */
   onNodeAction?: (nodeId: string) => void;
+  onNodeEvent?: (nodeId: string, event: 'click' | 'change', value?: string) => void;
+  appearance?: ComponentAppearance;
 }
 
 /**
@@ -30,11 +33,11 @@ interface NodeFrameProps {
  * it also owns hit-testing: the selection click reaches the deepest node
  * first (inner frames stop propagation).
  */
-function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, children }: PropsWithChildren<NodeFrameProps>) {
+function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, onNodeEvent, appearance, children }: PropsWithChildren<NodeFrameProps>) {
   const selectionClass = interactive && selected ? ' ring-2 ring-brand-600' : '';
   return (
     <div
-      className={`absolute${selectionClass}`}
+      className={`absolute${appearance ? ' novy-node-appearance' : ''}${selectionClass}`}
       data-node-id={geometry.id}
       data-selected={selected ? 'true' : 'false'}
       onClick={
@@ -43,8 +46,11 @@ function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, ch
               event.stopPropagation();
               onSelect?.(geometry.id);
             }
-          : onNodeAction
-            ? () => onNodeAction(geometry.id)
+          : onNodeEvent || onNodeAction
+            ? () => {
+                if (onNodeEvent) onNodeEvent(geometry.id, 'click');
+                else onNodeAction?.(geometry.id);
+              }
             : undefined
       }
       style={{
@@ -52,6 +58,7 @@ function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, ch
         top: geometry.y,
         width: geometry.w,
         height: geometry.h,
+        ...appearanceStyle(appearance),
       }}
     >
       {children}
@@ -66,32 +73,38 @@ function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, ch
  */
 export function ComponentRenderer({
   node,
+  breakpoint = 'mobile',
   mode,
   selected,
   selectedNodeId = null,
   onSelect,
   onNodeAction,
+  onNodeEvent,
   onNodeValueChange,
   dataContext,
   onFormSubmit,
 }: ComponentRendererProps) {
-  if (node.isHidden) {
+  if (isHiddenAtBreakpoint(node, breakpoint)) {
     return null;
   }
   const interactive = mode === 'canvas' && !node.isLocked;
+  const geometry = { id: node.id, ...geometryAtBreakpoint(node, breakpoint) };
   const isSelected = selected || selectedNodeId === node.id;
   const renderStatic = mode === 'thumbnail';
   // Runtime clicks only exist in the reactive preview; canvas delegates to
   // selection and thumbnails stay inert dashboard tiles.
   const runtimeClick = mode === 'preview' && onNodeAction ? onNodeAction : undefined;
+  const runtimeEvent = mode === 'preview' ? onNodeEvent : undefined;
 
   const frame = (children: React.ReactNode) => (
     <NodeFrame
-      geometry={node}
+      geometry={geometry}
+      appearance={node.appearance}
       interactive={interactive}
       selected={isSelected}
       onSelect={onSelect}
       onNodeAction={runtimeClick}
+      onNodeEvent={runtimeEvent}
     >
       {children}
     </NodeFrame>
@@ -106,7 +119,10 @@ export function ComponentRenderer({
       return frame(
         <InputNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          onValueChange={(value) => {
+            onNodeValueChange?.(node.id, value);
+            runtimeEvent?.(node.id, 'change', value);
+          }}
           props={node.props}
           renderStatic={renderStatic}
         />,
@@ -125,7 +141,7 @@ export function ComponentRenderer({
       return frame(
         <CheckboxNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
           props={node.props}
           renderStatic={renderStatic}
         />,
@@ -134,7 +150,7 @@ export function ComponentRenderer({
       return frame(
         <RadioNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
           props={node.props}
           renderStatic={renderStatic}
         />,
@@ -143,7 +159,7 @@ export function ComponentRenderer({
       return frame(
         <SwitchNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
           props={node.props}
           renderStatic={renderStatic}
         />,
@@ -152,7 +168,7 @@ export function ComponentRenderer({
       return frame(
         <DropdownNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
           props={node.props}
           renderStatic={renderStatic}
         />,
@@ -161,7 +177,7 @@ export function ComponentRenderer({
       return frame(
         <SliderNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => onNodeValueChange?.(node.id, value)}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
           props={node.props}
           renderStatic={renderStatic}
         />,
@@ -176,10 +192,12 @@ export function ComponentRenderer({
           {node.children.map((child) => (
             <ComponentRenderer
               key={child.id}
+              breakpoint={breakpoint}
               mode={mode}
               node={child}
               onSelect={onSelect}
               onNodeAction={runtimeClick}
+              onNodeEvent={runtimeEvent}
               onNodeValueChange={onNodeValueChange}
               dataContext={dataContext}
               onFormSubmit={onFormSubmit}
@@ -200,6 +218,20 @@ export function ComponentRenderer({
     default:
       return null;
   }
+}
+
+function appearanceStyle(appearance: ComponentAppearance | undefined): CSSProperties {
+  if (!appearance) return {};
+  return {
+    backgroundColor: appearance.backgroundColor || undefined,
+    color: appearance.textColor || undefined,
+    borderColor: appearance.borderColor || undefined,
+    borderStyle: appearance.borderColor ? 'solid' : undefined,
+    borderWidth: appearance.borderColor ? 1 : undefined,
+    borderRadius: appearance.borderRadius,
+    opacity: appearance.opacity,
+    overflow: appearance.borderRadius ? 'hidden' : undefined,
+  };
 }
 
 function resolveListItems(

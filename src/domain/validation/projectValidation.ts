@@ -1,6 +1,7 @@
 import type { DataCollection } from '../entities/appData';
 import type { ComponentNode } from '../entities/componentNode';
 import type { ActionPayload, LogicGraph } from '../entities/logic';
+import { outputPortsFor } from '../logic/graph';
 import type { ProjectDocument, Screen } from '../entities/screen';
 
 export type ValidationSeverity = 'error' | 'warning';
@@ -33,7 +34,8 @@ export function validateProject(
   const issues: ValidationIssue[] = [];
   const screens = document.screens;
   const componentIds = new Set<string>();
-  const screenIds = new Set<string>();
+  const screenIds = new Set(screens.map((screen) => screen.id));
+  const screenPaths = new Set<string>();
   const collectionById = new Map(collections.map((collection) => [collection.id, collection]));
 
   if (screens.length === 0) {
@@ -41,10 +43,15 @@ export function validateProject(
   }
 
   for (const screen of screens) {
-    if (screenIds.has(screen.id)) {
+    if (screens.filter((candidate) => candidate.id === screen.id).length > 1) {
       issues.push(issue('screen-duplicate-id', 'error', 'screen', `Screen id “${screen.id}” is duplicated.`, { screenId: screen.id }));
     }
-    screenIds.add(screen.id);
+    if (!/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(screen.path)) {
+      issues.push(issue('screen-path-invalid', 'error', 'screen', `Screen path “${screen.path}” is invalid.`, { screenId: screen.id }));
+    } else if (screenPaths.has(screen.path)) {
+      issues.push(issue('screen-path-duplicate', 'error', 'screen', `Screen path “${screen.path}” is duplicated.`, { screenId: screen.id }));
+    }
+    screenPaths.add(screen.path);
     validateScreenTree(screen, componentIds, issues, screen.id, collectionById);
     validateLogic(screen, issues, collectionById, screenIds);
   }
@@ -89,6 +96,21 @@ function validateScreenTree(
       }
       if (node.w <= 0 || node.h <= 0) {
         issues.push(issue('component-size-invalid', 'error', 'component', 'Component width and height must be positive.', { screenId, componentId: node.id }));
+      }
+      if (node.responsive) {
+        for (const [breakpoint, override] of Object.entries(node.responsive)) {
+          if (!override) continue;
+          const fields = ['x', 'y', 'w', 'h'] as const;
+          if (fields.some((field) => override[field] !== undefined && !Number.isFinite(override[field]))) {
+            issues.push(issue('component-responsive-geometry-invalid', 'error', 'component', `Component ${breakpoint} responsive geometry is invalid.`, { screenId, componentId: node.id }));
+          }
+          if ((override.w !== undefined && override.w <= 0) || (override.h !== undefined && override.h <= 0)) {
+            issues.push(issue('component-responsive-size-invalid', 'error', 'component', `Component ${breakpoint} responsive size must be positive.`, { screenId, componentId: node.id }));
+          }
+          if (override.isHidden !== undefined && typeof override.isHidden !== 'boolean') {
+            issues.push(issue('component-responsive-visibility-invalid', 'error', 'component', `Component ${breakpoint} responsive visibility is invalid.`, { screenId, componentId: node.id }));
+          }
+        }
       }
       if (parent?.type === 'container' && (node.x < 0 || node.y < 0 || node.x + node.w > parent.w || node.y + node.h > parent.h)) {
         issues.push(issue('component-outside-frame', 'warning', 'component', 'Component extends outside its parent frame.', { screenId, componentId: node.id }));
@@ -200,6 +222,10 @@ function validateLogic(
       if (edge.fromNodeId === edge.toNodeId) {
         issues.push(issue('logic-self-loop', 'error', 'logic', 'Workflow cannot connect a node to itself.', { screenId: screen.id, graphId: graph.id }));
       }
+      const source = graph.nodes.find((node) => node.id === edge.fromNodeId);
+      if (source && !outputPortsFor(source).includes(edge.fromPort)) {
+        issues.push(issue('logic-invalid-output-port', 'error', 'logic', 'Workflow connection uses an invalid output port.', { screenId: screen.id, graphId: graph.id }));
+      }
       incomingCounts.set(edge.toNodeId, (incomingCounts.get(edge.toNodeId) ?? 0) + 1);
     }
     if (wouldCreateCycle(graph)) {
@@ -218,6 +244,14 @@ function validateLogic(
       }
       if (node.kind === 'action') {
         validateActionPayload(node.payload, screen, collections, issues, screen.id, graph.id, node.id, screenIds);
+        for (const expression of Object.values(node.inputMappings ?? {})) {
+          if (expression.source === 'component' && !componentIds.has(expression.nodeId)) {
+            issues.push(issue('logic-missing-input-source', 'error', 'logic', 'Action input references a missing component.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
+          }
+          if (expression.source === 'node-output' && !nodeIds.has(expression.nodeId)) {
+            issues.push(issue('logic-missing-input-source', 'error', 'logic', 'Action input references a missing workflow node.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
+          }
+        }
       }
       if (node.kind === 'condition') {
         if (!componentIds.has(node.left.nodeId)) {
@@ -261,6 +295,15 @@ function validateActionPayload(
       if (payload.type === 'update-record' || payload.type === 'delete-record') {
         if (!payload.recordId) issues.push(issue('logic-empty-record', 'warning', 'logic', 'Record ID is not set.', base));
       }
+      break;
+    case 'refresh-collection':
+      if (!payload.collectionId || !collections.has(payload.collectionId)) {
+        issues.push(issue('data-missing-collection', 'error', 'logic', 'Refresh Collection references a missing collection.', base));
+      }
+      break;
+    case 'send-email':
+      if (!payload.to.trim()) issues.push(issue('logic-empty-email', 'warning', 'logic', 'Send Email recipient is empty.', base));
+      if (!payload.subject.trim()) issues.push(issue('logic-empty-email-subject', 'warning', 'logic', 'Send Email subject is empty.', base));
       break;
     default: {
       const exhaustive: never = payload;

@@ -100,7 +100,9 @@ export function addConnection(
   fromNodeId: string,
   toNodeId: string,
 ): LogicGraph | null {
-  return connectLogicPorts(graph, fromNodeId, 'next', toNodeId, 'in');
+  const source = graph.nodes.find((node) => node.id === fromNodeId);
+  const port = source ? outputPortsFor(source)[0] : undefined;
+  return port ? connectLogicPorts(graph, fromNodeId, port, toNodeId, 'in') : null;
 }
 
 export function disconnectLogicEdge(graph: LogicGraph, edgeId: string): LogicGraph {
@@ -182,14 +184,19 @@ export function normalizeLogicGraph(graph: LogicGraph, fallbackEvent: TriggerEve
       })),
     ];
   }
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const edges = graph.edges.map((edge, index) => {
     const legacy = edge as LogicEdge & Partial<LogicEdge>;
-    if (!legacy.id || !legacy.fromPort || !legacy.toPort) {
+    const source = nodeById.get(edge.fromNodeId);
+    const migratedPort = source?.kind === 'action' && isAsyncActionPayload(source.payload) && (legacy.fromPort ?? 'next') === 'next'
+      ? 'success'
+      : legacy.fromPort ?? 'next';
+    if (!legacy.id || !legacy.fromPort || !legacy.toPort || migratedPort !== legacy.fromPort) {
       changed = true;
       return {
         id: legacy.id ?? `edge_${graph.id}_${index + 1}`,
         fromNodeId: edge.fromNodeId,
-        fromPort: legacy.fromPort ?? 'next',
+        fromPort: migratedPort,
         toNodeId: edge.toNodeId,
         toPort: legacy.toPort ?? 'in',
       } satisfies LogicEdge;
@@ -208,11 +215,22 @@ export function updateAction(
   if (!target || target.kind !== 'action' || JSON.stringify(target.payload) === JSON.stringify(payload)) {
     return graph;
   }
+  const nextNode = { ...target, payload };
+  const wasAsync = isAsyncActionPayload(target.payload);
+  const isAsync = isAsyncActionPayload(payload);
+  const edges = wasAsync === isAsync
+    ? graph.edges
+    : graph.edges
+        .filter((edge) => !(edge.fromNodeId === nodeId && edge.fromPort === 'error' && !isAsync))
+        .map((edge) => edge.fromNodeId !== nodeId
+          ? edge
+          : { ...edge, fromPort: isAsync ? 'success' as const : 'next' as const });
   return {
     ...graph,
     nodes: graph.nodes.map((node) =>
-      node.kind === 'action' && node.id === nodeId ? { ...node, payload } : node,
+      node.kind === 'action' && node.id === nodeId ? nextNode : node,
     ),
+    edges,
   };
 }
 
@@ -293,7 +311,17 @@ export function wouldCreateCycle(
 }
 
 export function outputPortsFor(node: LogicNode): readonly LogicOutputPort[] {
-  return node.kind === 'condition' ? ['true', 'false'] : ['next'];
+  if (node.kind === 'condition') return ['true', 'false'];
+  if (node.kind === 'action' && isAsyncActionPayload(node.payload)) return ['success', 'error'];
+  return ['next'];
+}
+
+export function isAsyncActionPayload(payload: ActionPayload): boolean {
+  return payload.type === 'get-records' ||
+    payload.type === 'insert-record' ||
+    payload.type === 'update-record' ||
+    payload.type === 'delete-record' ||
+    payload.type === 'send-email';
 }
 
 function firstFreeOutput(graph: LogicGraph, node: LogicNode): LogicOutputPort | null {
@@ -308,5 +336,7 @@ function nextNodePosition(graph: LogicGraph): LogicNodePosition {
 }
 
 function portOrder(port: LogicOutputPort): number {
-  return port === 'next' ? 0 : port === 'true' ? 1 : 2;
+  if (port === 'next') return 0;
+  if (port === 'true' || port === 'success') return 1;
+  return 2;
 }

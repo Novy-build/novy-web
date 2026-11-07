@@ -96,6 +96,7 @@ export function makeScreen(id: string, nodes: ComponentNode[], name = 'Home'): S
   return {
     id,
     name,
+    path: name === 'Home' ? '/' : `/${name.toLowerCase().replace(/\s+/g, '-')}`,
     nodes,
     behaviors: [],
     logicGraphs: [],

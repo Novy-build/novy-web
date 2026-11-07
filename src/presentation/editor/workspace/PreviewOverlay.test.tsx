@@ -129,10 +129,39 @@ describe('PreviewOverlay', () => {
     expect(screen.queryByTestId('preview-toast')).not.toBeInTheDocument();
   });
 
-  it('announces that click behaviors execute in the preview', () => {
+  it('announces the behavior events that execute in the preview', () => {
     renderPreview();
 
-    expect(within(screen.getByRole('dialog')).getByText(/Behaviors run on click/)).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText(/Click, change, and screen-load behaviors/)).toBeInTheDocument();
+  });
+
+  it('runs change behaviors with the updated preview value', () => {
+    const home = makeScreen('screen_home', [
+      {
+        id: 'node_input',
+        type: 'input',
+        x: 24,
+        y: 24,
+        w: 220,
+        h: 56,
+        props: { label: 'Answer', placeholder: 'Type', inputType: 'text', multiline: false },
+      },
+    ]);
+    const bundle = createBehaviorBundle('On change — Answer', 'node_input', 'change');
+    const graph = appendAction(bundle.graph, { type: 'show-message', message: 'Value changed' });
+    renderPreview(vi.fn(), [{ ...home, behaviors: [bundle.behavior], logicGraphs: [graph] }]);
+
+    fireEvent.change(screen.getByLabelText('Answer'), { target: { value: 'yes' } });
+    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Value changed');
+  });
+
+  it('runs screen-load behaviors when a screen is entered', () => {
+    const home = makeScreen('screen_home', [makeText('node_text')]);
+    const bundle = createBehaviorBundle('On load — Home', 'node_text', 'load');
+    const graph = appendAction(bundle.graph, { type: 'show-message', message: 'Screen loaded' });
+    renderPreview(vi.fn(), [{ ...home, behaviors: [bundle.behavior], logicGraphs: [graph] }]);
+
+    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Screen loaded');
   });
 
   it('captures preview input values and follows condition branches', () => {
