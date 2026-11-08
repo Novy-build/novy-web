@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Screen } from '@domain/entities/screen';
-import type { DataCollection, DataRecord, LocalListItemAddition } from '@domain/entities/appData';
+import type { DataCollection, DataRecord, DataValue, LocalListItemAddition } from '@domain/entities/appData';
+import { validateRecordValues } from '@domain/appData/validation';
 import { generateId } from '@domain/ids';
-import type { ActionPayload, TriggerEvent } from '@domain/entities/logic';
-import { applyTextOverrides, runBehavior, type PreviewEffect } from '@domain/logic/runtime';
+import type { TriggerEvent } from '@domain/entities/logic';
+import {
+  applyTextOverrides,
+  runBehaviorAsync,
+  type AsyncPreviewEffect,
+  type DataOperationPayload,
+} from '@domain/logic/runtime';
 import { Modal } from '@presentation/components/system/Modal';
 import { ScreenFrame } from '../renderer/ScreenFrame';
 import { DeviceToggle } from './DeviceToggle';
@@ -27,6 +33,13 @@ interface PreviewOverlayProps {
   onClose: () => void;
   collections?: readonly DataCollection[];
   recordsByCollection?: ReadonlyMap<string, readonly DataRecord[]>;
+  persistence?: PreviewPersistenceActions;
+}
+
+export interface PreviewPersistenceActions {
+  createRecord: (collectionId: string, values: Record<string, DataValue>) => Promise<DataRecord>;
+  updateRecord: (collectionId: string, recordId: string, values: Record<string, DataValue>) => Promise<DataRecord>;
+  deleteRecord: (collectionId: string, recordId: string) => Promise<void>;
 }
 
 interface Toast {
@@ -47,6 +60,7 @@ export function PreviewOverlay({
   onClose,
   collections = [],
   recordsByCollection = new Map(),
+  persistence,
 }: PreviewOverlayProps) {
   const [previewDevice, setPreviewDevice] = useState<EditorDevice>(initialDevice);
   const bounds = CANVAS_PRESETS[previewDevice];
@@ -65,6 +79,9 @@ export function PreviewOverlay({
   const [previewRecords, setPreviewRecords] = useState<ReadonlyMap<string, readonly DataRecord[]>>(
     () => new Map(recordsByCollection),
   );
+  const previewRecordsRef = useRef(previewRecords);
+  previewRecordsRef.current = previewRecords;
+  const [persistDataChanges, setPersistDataChanges] = useState(false);
   const [localItemsByListView, setLocalItemsByListView] = useState<
     ReadonlyMap<string, readonly LocalListItemAddition[]>
   >(() => new Map());
@@ -81,13 +98,13 @@ export function PreviewOverlay({
   function previewRuntimeData() {
     return {
       getRecord: (collectionId: string, recordId: string) =>
-        (previewRecords.get(collectionId) ?? []).find((record) => record.id === recordId) ?? null,
+        (previewRecordsRef.current.get(collectionId) ?? []).find((record) => record.id === recordId) ?? null,
       loadCollectionDocuments: (
         collectionId: string,
         contentFieldId: string,
         titleFieldId?: string,
         documentIdFieldId?: string,
-      ) => (previewRecords.get(collectionId) ?? []).map((record) => ({
+      ) => (previewRecordsRef.current.get(collectionId) ?? []).map((record) => ({
         id: String(documentIdFieldId ? record.values[documentIdFieldId] ?? record.id : record.id),
         title: String(titleFieldId ? record.values[titleFieldId] ?? '' : ''),
         text: String(record.values[contentFieldId] ?? ''),
@@ -150,7 +167,7 @@ export function PreviewOverlay({
         ? componentValues
         : new Map([...componentValues, [nodeId, value]]);
       if (value !== undefined) setComponentValues(nextValues);
-      const effects = runBehavior(
+      void runBehaviorAsync(
         { screens },
         screen,
         nodeId,
@@ -161,15 +178,15 @@ export function PreviewOverlay({
           variables,
           createLocalListItemId: () => generateId('preview-list-item'),
           data: previewRuntimeData(),
+          executeDataOperation: applyDataOperation,
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
-      );
-      applyPreviewEffects(effects);
+      ).then(applyPreviewEffects);
     },
-    [componentValues, previewRecords, screens, screen, variables],
+    [componentValues, persistDataChanges, persistence, screens, screen, variables],
   );
 
-  function applyPreviewEffects(effects: readonly PreviewEffect[]): void {
+  function applyPreviewEffects(effects: readonly AsyncPreviewEffect[]): void {
       for (const effect of effects) {
         switch (effect.kind) {
           case 'change-text':
@@ -185,7 +202,10 @@ export function PreviewOverlay({
             setScreenId(effect.screenId);
             break;
           case 'data-operation':
-            applyDataOperation(effect.payload);
+            void applyDataOperation(effect.payload);
+            break;
+          case 'data-operation-error':
+            setToast({ id: Date.now(), message: effect.message });
             break;
           case 'refresh-collection':
             setToast({ id: Date.now(), message: `Refreshed collection ${effect.collectionId}.` });
@@ -249,7 +269,7 @@ export function PreviewOverlay({
     if (!screen || loadedScreenRef.current === screen.id) return;
     loadedScreenRef.current = screen.id;
     for (const behavior of screen.behaviors.filter((candidate) => candidate.event === 'load')) {
-      const effects = runBehavior(
+      void runBehaviorAsync(
         { screens },
         screen,
         behavior.targetNodeId,
@@ -259,52 +279,78 @@ export function PreviewOverlay({
           variables,
           createLocalListItemId: () => generateId('preview-list-item'),
           data: previewRuntimeData(),
+          executeDataOperation: applyDataOperation,
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
-      );
-      applyPreviewEffects(effects);
+      ).then(applyPreviewEffects);
     }
     // Execute once when a screen is entered; runtime state changes must not retrigger On Load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen?.id]);
 
-  function applyDataOperation(
-    payload: Extract<ActionPayload, { type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record' }>,
-  ): void {
-    const current = previewRecords.get(payload.collectionId) ?? [];
+  async function applyDataOperation(payload: DataOperationPayload): Promise<unknown> {
+    const collection = collections.find((candidate) => candidate.id === payload.collectionId);
+    if (!collection) throw new Error('Collection not found.');
+    const current = previewRecordsRef.current.get(payload.collectionId) ?? [];
     if (payload.type === 'get-records') {
       setToast({ id: Date.now(), message: `${current.length} records loaded.` });
-      return;
+      return { records: current };
+    }
+    if (payload.type === 'get-record') {
+      const record = current.find((candidate) => candidate.id === payload.recordId);
+      if (!record) throw new Error('Record not found.');
+      return { record };
     }
     if (payload.type === 'insert-record') {
+      const error = validateRecordValues(collection, payload.values);
+      if (error) throw new Error(error);
       const now = new Date();
-      const record: DataRecord = {
-        id: generateId('preview-record'),
-        projectId: 'preview',
-        collectionId: payload.collectionId,
-        values: { ...payload.values },
-        createdAt: now,
-        updatedAt: now,
-      };
-      setPreviewRecords((previous) => new Map([...previous, [payload.collectionId, [...current, record]]]));
-      setToast({ id: Date.now(), message: 'Preview record inserted.' });
-      return;
+      const record = persistDataChanges && persistence
+        ? await persistence.createRecord(payload.collectionId, payload.values)
+        : {
+            id: generateId('preview-record'),
+            projectId: 'preview',
+            collectionId: payload.collectionId,
+            values: { ...payload.values },
+            createdAt: now,
+            updatedAt: now,
+          };
+      replacePreviewCollection(payload.collectionId, [...current, record]);
+      setToast({ id: Date.now(), message: persistDataChanges ? 'Record saved to project data.' : 'Preview record inserted.' });
+      return { record };
     }
     if (payload.type === 'update-record') {
-      setPreviewRecords((previous) => new Map([
-        ...previous,
-        [payload.collectionId, current.map((record) => record.id === payload.recordId
-          ? { ...record, values: { ...record.values, ...payload.values }, updatedAt: new Date() }
-          : record)],
-      ]));
-      setToast({ id: Date.now(), message: 'Preview record updated.' });
-      return;
+      const existing = current.find((record) => record.id === payload.recordId);
+      if (!existing) throw new Error('Record not found.');
+      const values = { ...existing.values, ...payload.values };
+      const error = validateRecordValues(collection, values);
+      if (error) throw new Error(error);
+      const updated = persistDataChanges && persistence
+        ? await persistence.updateRecord(payload.collectionId, payload.recordId, values)
+        : { ...existing, values, updatedAt: new Date() };
+      replacePreviewCollection(
+        payload.collectionId,
+        current.map((record) => record.id === payload.recordId ? updated : record),
+      );
+      setToast({ id: Date.now(), message: persistDataChanges ? 'Record update saved to project data.' : 'Preview record updated.' });
+      return { record: updated };
     }
-    setPreviewRecords((previous) => new Map([
-      ...previous,
-      [payload.collectionId, current.filter((record) => record.id !== payload.recordId)],
-    ]));
-    setToast({ id: Date.now(), message: 'Preview record deleted.' });
+    if (!current.some((record) => record.id === payload.recordId)) throw new Error('Record not found.');
+    if (persistDataChanges && persistence) {
+      await persistence.deleteRecord(payload.collectionId, payload.recordId);
+    }
+    replacePreviewCollection(
+      payload.collectionId,
+      current.filter((record) => record.id !== payload.recordId),
+    );
+    setToast({ id: Date.now(), message: persistDataChanges ? 'Record deleted from project data.' : 'Preview record deleted.' });
+    return { deletedRecordId: payload.recordId, collectionId: payload.collectionId };
+  }
+
+  function replacePreviewCollection(collectionId: string, records: readonly DataRecord[]): void {
+    const next = new Map([...previewRecordsRef.current, [collectionId, records]]);
+    previewRecordsRef.current = next;
+    setPreviewRecords(next);
   }
 
   useEffect(() => {
@@ -414,6 +460,15 @@ export function PreviewOverlay({
             value={previewDevice}
           />
           <div className="flex flex-wrap items-center gap-2">
+            <label className="flex min-h-11 items-center gap-2 rounded-tile border border-hairline bg-surface px-3 text-xs font-medium text-ink">
+              <input
+                checked={persistDataChanges}
+                disabled={!persistence}
+                onChange={(event) => setPersistDataChanges(event.target.checked)}
+                type="checkbox"
+              />
+              Save data changes
+            </label>
             <PreviewZoomControls
               max={PREVIEW_ZOOM_LIMITS.max}
               min={PREVIEW_ZOOM_LIMITS.min}
@@ -446,7 +501,9 @@ export function PreviewOverlay({
         </div>
       </div>
       <p aria-live="polite" className="mt-2 shrink-0 text-center text-xs text-ink-muted" ref={footerRef}>
-        Click, change, and screen-load behaviors run against isolated preview state.
+        {persistDataChanges
+          ? 'Database actions save to this browser’s project data. Other preview state remains isolated.'
+          : 'Click, change, and screen-load behaviors run against isolated preview state.'}
       </p>
       {toast ? (
         <div

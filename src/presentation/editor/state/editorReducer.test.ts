@@ -666,6 +666,39 @@ describe('z-order', () => {
     expect(next).toBe(atTop);
     expect(orderOf(atBottom)).toEqual(orderOf(orderedState()));
   });
+
+  it('sends a middle node to the front', () => {
+    const state = orderedState();
+    const next = editorReducer(state, { type: 'node/order', nodeId: 'node_button', direction: 'front' });
+
+    expect(orderOf(next)).toEqual(['node_text', 'node_image', 'node_button']);
+    expect(next.past).toHaveLength(state.past.length + 1);
+  });
+
+  it('sends a middle node to the back', () => {
+    const state = orderedState();
+    const next = editorReducer(state, { type: 'node/order', nodeId: 'node_button', direction: 'back' });
+
+    expect(orderOf(next)).toEqual(['node_button', 'node_text', 'node_image']);
+    expect(next.past).toHaveLength(state.past.length + 1);
+  });
+
+  it('treats front/back at the boundary as no-op without history', () => {
+    const state = orderedState();
+    const atFront = editorReducer(state, { type: 'node/order', nodeId: 'node_image', direction: 'front' });
+    const atBack = editorReducer(state, { type: 'node/order', nodeId: 'node_text', direction: 'back' });
+
+    expect(atFront).toBe(state);
+    expect(atBack).toBe(state);
+  });
+
+  it('reverses a front/back move through undo', () => {
+    const state = orderedState();
+    const moved = editorReducer(state, { type: 'node/order', nodeId: 'node_button', direction: 'front' });
+    const undone = editorReducer(moved, { type: 'history/undo' });
+
+    expect(orderOf(undone)).toEqual(orderOf(state));
+  });
 });
 
 describe('layer metadata and hierarchy', () => {

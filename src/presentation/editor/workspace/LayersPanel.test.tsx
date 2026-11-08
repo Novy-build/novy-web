@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ComponentNode } from '@domain/entities/componentNode';
 import { LayersPanel } from './LayersPanel';
-import { makeButton, makeContainer, makeListView, makeText } from '@test/editorFixtures';
+import { makeButton, makeContainer, makeImage, makeListView, makeText } from '@test/editorFixtures';
 
 function renderLayers(nodes: readonly ComponentNode[], selectedNodeId: string | null = null) {
   const props = {
@@ -199,5 +199,64 @@ describe('LayersPanel item frame root', () => {
     render(<LayersPanel frame={frame} nodes={[makeText('node_text')]} selectedNodeId={null} onSelect={vi.fn()} onOrder={vi.fn()} onRename={vi.fn()} onToggleVisibility={vi.fn()} onToggleLock={vi.fn()} onMove={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Collapse Item frame' }));
     expect(screen.queryByTestId('layer-row-node_text')).not.toBeInTheDocument();
+  });
+
+  it('opens a layer order menu and sends a node to front or back', () => {
+    const props = renderLayers(
+      [makeText('node_text'), makeButton('node_button'), makeImage('node_image')],
+      'node_button',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Layer order for Button — Click me' }));
+    expect(screen.getByRole('menu', { name: 'Layer order for Button — Click me' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Bring to front' }));
+    expect(props.onOrder).toHaveBeenLastCalledWith('node_button', 'front');
+    expect(screen.queryByRole('menu', { name: 'Layer order for Button — Click me' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Layer order for Button — Click me' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Send to back' }));
+    expect(props.onOrder).toHaveBeenLastCalledWith('node_button', 'back');
+  });
+
+  it('disables boundary layer-order actions', () => {
+    renderLayers([makeText('node_text'), makeButton('node_button')]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Layer order for Button — Click me' }));
+    expect(screen.getByRole('menuitem', { name: 'Bring to front' })).toBeDisabled();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Layer order for Text — Hello, World!' }));
+    expect(screen.getByRole('menuitem', { name: 'Send to back' })).toBeDisabled();
+  });
+
+  it('closes the layer order menu on Escape or outside click', () => {
+    renderLayers([makeButton('node_button')]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Layer order for Button — Click me' }));
+    expect(screen.getByRole('menu', { name: 'Layer order for Button — Click me' })).toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('menu', { name: 'Layer order for Button — Click me' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Layer order for Button — Click me' }));
+    expect(screen.getByRole('menu', { name: 'Layer order for Button — Click me' })).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('menu', { name: 'Layer order for Button — Click me' })).not.toBeInTheDocument();
+  });
+
+  it('sends a focused layer to front or back with Alt+Shift arrows', () => {
+    const props = renderLayers([makeText('node_text'), makeButton('node_button')], 'node_button');
+    const rowButton = within(screen.getByTestId('layer-row-node_button')).getByRole('button', {
+      name: 'Button — Click me',
+    });
+    rowButton.focus();
+
+    fireEvent.keyDown(rowButton, { key: 'ArrowUp', altKey: true, shiftKey: true });
+    expect(props.onOrder).toHaveBeenLastCalledWith('node_button', 'front');
+
+    fireEvent.keyDown(rowButton, { key: 'ArrowDown', altKey: true, shiftKey: true });
+    expect(props.onOrder).toHaveBeenLastCalledWith('node_button', 'back');
   });
 });

@@ -1701,18 +1701,29 @@ function collectSubtreeIds(nodes: readonly ComponentNode[], nodeId: string): Set
 function reorderInTree(
   nodes: readonly ComponentNode[],
   nodeId: string,
-  direction: 'forward' | 'backward',
+  direction: 'forward' | 'backward' | 'front' | 'back',
 ): readonly ComponentNode[] {
   const sourceIndex = nodes.findIndex((node) => node.id === nodeId);
   if (sourceIndex !== -1) {
-    const targetIndex = direction === 'forward' ? sourceIndex + 1 : sourceIndex - 1;
-    if (targetIndex < 0 || targetIndex >= nodes.length) {
+    if (direction === 'forward' || direction === 'backward') {
+      const targetIndex = direction === 'forward' ? sourceIndex + 1 : sourceIndex - 1;
+      if (targetIndex < 0 || targetIndex >= nodes.length) {
+        return nodes;
+      }
+      const copy = [...nodes];
+      const moving = copy[sourceIndex]!;
+      copy[sourceIndex] = copy[targetIndex]!;
+      copy[targetIndex] = moving;
+      return copy;
+    }
+
+    const targetIndex = direction === 'front' ? nodes.length - 1 : 0;
+    if (sourceIndex === targetIndex) {
       return nodes;
     }
     const copy = [...nodes];
-    const moving = copy[sourceIndex];
-    copy[sourceIndex] = copy[targetIndex];
-    copy[targetIndex] = moving;
+    const [moving] = copy.splice(sourceIndex, 1);
+    copy.splice(targetIndex, 0, moving!);
     return copy;
   }
 

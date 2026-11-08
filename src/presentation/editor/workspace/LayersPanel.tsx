@@ -3,6 +3,7 @@ import type { ChildBearingNode, ComponentNode, ListViewNode, ResponsiveBreakpoin
 import { isChildBearingNode, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
 import type { LayerDropPosition } from '@domain/componentTree';
 import { nodeDisplayLabel, nodeLayerName } from './nodeLabels';
+import { LayerOrderMenu } from './LayerOrderMenu';
 
 interface LayersPanelProps {
   nodes: readonly ComponentNode[];
@@ -11,7 +12,7 @@ interface LayersPanelProps {
   device?: ResponsiveBreakpoint;
   selectedNodeId: string | null;
   onSelect: (nodeId: string) => void;
-  onOrder: (nodeId: string, direction: 'forward' | 'backward') => void;
+  onOrder: (nodeId: string, direction: 'forward' | 'backward' | 'front' | 'back') => void;
   onRename: (nodeId: string, name: string) => void;
   onToggleVisibility: (nodeId: string) => void;
   onToggleLock: (nodeId: string) => void;
@@ -23,6 +24,8 @@ interface LayerRow {
   node: ComponentNode;
   depth: number;
   parentId: string | null;
+  isFront: boolean;
+  isBack: boolean;
 }
 
 function acceptsDirectChildren(node: ComponentNode): node is ChildBearingNode {
@@ -70,6 +73,13 @@ export function LayersPanel({
     id: string;
     position: LayerDropPosition;
   } | null>(null);
+  const [openMenu, setOpenMenu] = useState<{
+    id: string;
+    name: string;
+    isFront: boolean;
+    isBack: boolean;
+    trigger: HTMLElement;
+  } | null>(null);
   const rows = buildRows(nodes, collapsedIds, frame ? 1 : 0);
   const frameCollapsed = frame ? collapsedIds.has(frame.id) : false;
 
@@ -105,6 +115,19 @@ export function LayersPanel({
       return;
     }
     if (!event.altKey) {
+      return;
+    }
+    if (event.shiftKey) {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        onOrder(row.node.id, 'front');
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        onOrder(row.node.id, 'back');
+        return;
+      }
       return;
     }
     if (event.key === 'ArrowUp') {
@@ -281,7 +304,7 @@ export function LayersPanel({
                     onClick={() => onSelect(node.id)}
                     onDoubleClick={() => beginRename(node)}
                     onKeyDown={(event) => handleLayerKeyDown(event, row, index)}
-                    title="F2 rename · Alt+↑/↓ reorder · Alt+→/← nest"
+                    title="F2 rename · Alt+↑/↓ reorder · Alt+Shift+↑/↓ to front/back · Alt+→/← nest"
                     type="button"
                   >
                     {nodeDisplayLabel(node)}
@@ -321,6 +344,29 @@ export function LayersPanel({
                   >
                     ↓
                   </LayerControl>
+                  <button
+                    aria-expanded={openMenu?.id === node.id}
+                    aria-haspopup="menu"
+                    aria-label={`Layer order for ${nodeLayerName(node)}`}
+                    className="flex h-7 w-7 items-center justify-center rounded text-[10px] text-ink-muted transition-colors hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-brand-500"
+                    onClick={(event) => {
+                      if (openMenu?.id === node.id) {
+                        setOpenMenu(null);
+                        return;
+                      }
+                      setOpenMenu({
+                        id: node.id,
+                        name: nodeLayerName(node),
+                        isFront: row.isFront,
+                        isBack: row.isBack,
+                        trigger: event.currentTarget,
+                      });
+                    }}
+                    title="Layer order"
+                    type="button"
+                  >
+                    ⋯
+                  </button>
                 </div>
               </li>
             );
@@ -332,6 +378,17 @@ export function LayersPanel({
           ) : null}
         </ul>
       )}
+      {openMenu ? (
+        <LayerOrderMenu
+          isBack={openMenu.isBack}
+          isFront={openMenu.isFront}
+          nodeName={openMenu.name}
+          onBack={() => onOrder(openMenu.id, 'back')}
+          onClose={() => setOpenMenu(null)}
+          onFront={() => onOrder(openMenu.id, 'front')}
+          trigger={openMenu.trigger}
+        />
+      ) : null}
       {draggingId ? (
         <p className="sr-only" role="status">
           Drop on a frame to nest. Hold Alt while dropping to reorder beside it.
@@ -382,7 +439,7 @@ function buildRows(
   const rows: LayerRow[] = [];
   for (let index = nodes.length - 1; index >= 0; index -= 1) {
     const node = nodes[index]!;
-    rows.push({ node, depth, parentId });
+    rows.push({ node, depth, parentId, isFront: index === nodes.length - 1, isBack: index === 0 });
     if (acceptsDirectChildren(node) && !collapsedIds.has(node.id)) {
       rows.push(...buildRows(node.children, collapsedIds, depth + 1, node.id));
     }

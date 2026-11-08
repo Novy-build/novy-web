@@ -9,6 +9,7 @@ import {
   pruneDeadNavigateTargets,
   resolveValueExpression,
   runBehavior,
+  runBehaviorAsync,
   runClickBehavior,
   type PreviewEffect,
 } from './runtime';
@@ -57,6 +58,41 @@ function buildScreen(): { screen: Screen; graphId: string } {
 }
 
 describe('runClickBehavior', () => {
+  it('awaits database operations before choosing their success or error branch', async () => {
+    const { screen, graphId } = buildScreen();
+    let graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'insert-record',
+      collectionId: 'notes',
+      values: { title: 'New note' },
+    });
+    const insert = graph.nodes.find((node) => node.kind === 'action' && node.payload.type === 'insert-record')!;
+    const success = createActionNode({ type: 'show-message', message: 'Saved' }, { x: 560, y: 100 });
+    const error = createActionNode({ type: 'show-message', message: 'Not saved' }, { x: 560, y: 260 });
+    graph = { ...graph, nodes: [...graph.nodes, success, error] };
+    graph = connectLogicPorts(graph, insert.id, 'success', success.id)!;
+    graph = connectLogicPorts(graph, insert.id, 'error', error.id)!;
+    const withGraph = { ...screen, logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item) };
+
+    await expect(runBehaviorAsync(
+      { screens: [withGraph] },
+      withGraph,
+      'node_button',
+      'click',
+      { componentValues: new Map(), executeDataOperation: async () => ({ record: { id: 'record_1' } }) },
+    )).resolves.toEqual([{ kind: 'show-message', message: 'Saved' }]);
+
+    await expect(runBehaviorAsync(
+      { screens: [withGraph] },
+      withGraph,
+      'node_button',
+      'click',
+      { componentValues: new Map(), executeDataOperation: async () => { throw new Error('Title is required.'); } },
+    )).resolves.toEqual([
+      { kind: 'data-operation-error', message: 'Title is required.' },
+      { kind: 'show-message', message: 'Not saved' },
+    ]);
+  });
+
   it('executes the whole chain of the behavior bound to the clicked node', () => {
     const { screen, graphId } = buildScreen();
 

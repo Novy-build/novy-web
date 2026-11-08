@@ -74,7 +74,7 @@ export type EditorNodeAction =
   | { type: 'node/props-divider'; nodeId: string; props: Partial<DividerProps> }
   | { type: 'node/duplicate'; nodeId: string }
   | { type: 'node/delete'; nodeId: string }
-  | { type: 'node/order'; nodeId: string; direction: 'forward' | 'backward' }
+  | { type: 'node/order'; nodeId: string; direction: 'forward' | 'backward' | 'front' | 'back' }
   | { type: 'node/layer-rename'; nodeId: string; name: string }
   | { type: 'node/layer-visibility'; nodeId: string }
   | { type: 'node/layer-lock'; nodeId: string }

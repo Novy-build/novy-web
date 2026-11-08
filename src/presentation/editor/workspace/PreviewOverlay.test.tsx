@@ -1,11 +1,11 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PreviewEffect } from '@domain/logic/runtime';
 import type { Screen } from '@domain/entities/screen';
 import { createActionNode, createBehaviorBundle } from '@domain/factories/logic';
 import { appendAction, appendCondition, connectLogicPorts, updateCondition } from '@domain/logic/graph';
 import { makeButton, makeColumn, makeListView, makeScreen, makeText } from '@test/editorFixtures';
-import type { DataCollection } from '@domain/entities/appData';
+import type { DataCollection, DataRecord } from '@domain/entities/appData';
 import { PreviewOverlay } from './PreviewOverlay';
 
 beforeEach(() => {
@@ -89,6 +89,7 @@ describe('PreviewOverlay', () => {
 
       const dialog = screen.getByRole('dialog');
       fireEvent.click(within(dialog).getByRole('button', { name: 'Click me' }));
+      await act(async () => { await Promise.resolve(); });
 
       expect(within(dialog).getByText('Changed!')).toBeInTheDocument();
       expect(screen.getByTestId('preview-toast')).toHaveTextContent('Saved!');
@@ -104,7 +105,7 @@ describe('PreviewOverlay', () => {
     }
   });
 
-  it('navigates to the target screen and resets runtime overrides', () => {
+  it('navigates to the target screen and resets runtime overrides', async () => {
     renderPreview(
       vi.fn(),
       buildScreens([
@@ -116,7 +117,7 @@ describe('PreviewOverlay', () => {
     const dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Click me' }));
 
-    expect(within(dialog).getByText('You made it!')).toBeInTheDocument();
+    expect(await within(dialog).findByText('You made it!')).toBeInTheDocument();
     expect(within(dialog).queryByText('Changed!')).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Click me' })).not.toBeInTheDocument();
   });
@@ -135,7 +136,7 @@ describe('PreviewOverlay', () => {
     expect(within(screen.getByRole('dialog')).getByText(/Click, change, and screen-load behaviors/)).toBeInTheDocument();
   });
 
-  it('runs change behaviors with the updated preview value', () => {
+  it('runs change behaviors with the updated preview value', async () => {
     const home = makeScreen('screen_home', [
       {
         id: 'node_input',
@@ -152,19 +153,19 @@ describe('PreviewOverlay', () => {
     renderPreview(vi.fn(), [{ ...home, behaviors: [bundle.behavior], logicGraphs: [graph] }]);
 
     fireEvent.change(screen.getByLabelText('Answer'), { target: { value: 'yes' } });
-    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Value changed');
+    expect(await screen.findByTestId('preview-toast')).toHaveTextContent('Value changed');
   });
 
-  it('runs screen-load behaviors when a screen is entered', () => {
+  it('runs screen-load behaviors when a screen is entered', async () => {
     const home = makeScreen('screen_home', [makeText('node_text')]);
     const bundle = createBehaviorBundle('On load — Home', 'node_text', 'load');
     const graph = appendAction(bundle.graph, { type: 'show-message', message: 'Screen loaded' });
     renderPreview(vi.fn(), [{ ...home, behaviors: [bundle.behavior], logicGraphs: [graph] }]);
 
-    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Screen loaded');
+    expect(await screen.findByTestId('preview-toast')).toHaveTextContent('Screen loaded');
   });
 
-  it('captures preview input values and follows condition branches', () => {
+  it('captures preview input values and follows condition branches', async () => {
     const home = makeScreen('screen_home', [
       {
         id: 'node_input',
@@ -199,14 +200,14 @@ describe('PreviewOverlay', () => {
 
     fireEvent.change(screen.getByLabelText('Answer'), { target: { value: 'yes' } });
     fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
-    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Accepted');
+    await waitFor(() => expect(screen.getByTestId('preview-toast')).toHaveTextContent('Accepted'));
 
     fireEvent.change(screen.getByLabelText('Answer'), { target: { value: 'no' } });
     fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
-    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Try again');
+    await waitFor(() => expect(screen.getByTestId('preview-toast')).toHaveTextContent('Try again'));
   });
 
-  it('keeps composed input records in isolated preview data and refreshes bound ListViews', () => {
+  it('keeps composed input records in isolated preview data and refreshes bound ListViews', async () => {
     const collection: DataCollection = {
       id: 'students',
       projectId: 'project',
@@ -279,11 +280,11 @@ describe('PreviewOverlay', () => {
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create student' }));
 
-    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Preview record inserted.');
-    expect(screen.getByText('Ada')).toBeInTheDocument();
+    expect(await screen.findByTestId('preview-toast')).toHaveTextContent('Preview record inserted.');
+    expect(await screen.findByText('Ada')).toBeInTheDocument();
   });
 
-  it('applies database-node effects to isolated preview records', () => {
+  it('applies database-node effects to isolated preview records', async () => {
     const collection: DataCollection = {
       id: 'students', projectId: 'project', databaseId: 'database', name: 'Students',
       fields: [{ id: 'name', key: 'name', label: 'Name', type: 'text', required: true }],
@@ -316,11 +317,122 @@ describe('PreviewOverlay', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
-    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Preview record inserted.');
-    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+    expect(await screen.findByTestId('preview-toast')).toHaveTextContent('Preview record inserted.');
+    expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
   });
 
-  it('prepends session-only items without replacing static ListView seeds', () => {
+  it('reads a record without removing it from preview collection state', async () => {
+    const collection: DataCollection = {
+      id: 'students', projectId: 'project', databaseId: 'database', name: 'Students',
+      fields: [{ id: 'name', key: 'name', label: 'Name', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const record: DataRecord = {
+      id: 'student_1', projectId: 'project', collectionId: collection.id,
+      values: { name: 'Ada' }, createdAt: new Date(), updatedAt: new Date(),
+    };
+    const button = makeButton('load', { props: { label: 'Load', variant: 'solid' } });
+    const list = makeListView('listview', {
+      y: 100,
+      props: {
+        emptyText: 'No students yet', showDividers: true, scrollDirection: 'vertical',
+        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 0, itemBorderRadius: 0,
+        dataSource: { kind: 'collection', collectionId: collection.id, displayFieldIds: ['name'] },
+      },
+      children: [makeText('student_item', { bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'name' } }] })],
+    });
+    const bundle = createBehaviorBundle('Load student', button.id, 'click');
+    const graph = appendAction(bundle.graph, {
+      type: 'get-record', collectionId: collection.id, recordId: record.id,
+    });
+
+    render(
+      <PreviewOverlay
+        collections={[collection]}
+        initialDevice="mobile"
+        onClose={vi.fn()}
+        projectName="Students"
+        recordsByCollection={new Map([[collection.id, [record]]])}
+        screens={[{ ...makeScreen('home', [button, list]), behaviors: [bundle.behavior], logicGraphs: [graph] }]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load' }));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(screen.getByText('Ada')).toBeInTheDocument();
+  });
+
+  it('persists inserts only after the user enables project-data writes', async () => {
+    const collection: DataCollection = {
+      id: 'notes', projectId: 'project', databaseId: 'database', name: 'Notes',
+      fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const button = makeButton('save', { props: { label: 'Save', variant: 'solid' } });
+    const bundle = createBehaviorBundle('Save note', button.id, 'click');
+    const graph = appendAction(bundle.graph, {
+      type: 'insert-record', collectionId: collection.id, values: { title: 'Persistent note' },
+    });
+    const created = {
+      id: 'record_1', projectId: 'project', collectionId: collection.id,
+      values: { title: 'Persistent note' }, createdAt: new Date(), updatedAt: new Date(),
+    };
+    const createRecord = vi.fn().mockResolvedValue(created);
+
+    render(
+      <PreviewOverlay
+        collections={[collection]}
+        initialDevice="mobile"
+        onClose={vi.fn()}
+        persistence={{ createRecord, updateRecord: vi.fn(), deleteRecord: vi.fn() }}
+        projectName="Notes"
+        recordsByCollection={new Map([[collection.id, []]])}
+        screens={[{ ...makeScreen('home', [button]), behaviors: [bundle.behavior], logicGraphs: [graph] }]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Save data changes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(createRecord).toHaveBeenCalledWith(collection.id, { title: 'Persistent note' }));
+    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Record saved to project data.');
+    expect(screen.getByText(/Database actions save to this browser/)).toBeInTheDocument();
+  });
+
+  it('does not follow the success path when insert validation fails', async () => {
+    const collection: DataCollection = {
+      id: 'notes', projectId: 'project', databaseId: 'database', name: 'Notes',
+      fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const button = makeButton('save', { props: { label: 'Save', variant: 'solid' } });
+    const home = makeScreen('home', [button]);
+    const destination = makeScreen('destination', [makeText('arrival', { props: { text: 'Home destination', level: 'body' } })]);
+    const bundle = createBehaviorBundle('Save note', button.id, 'click');
+    const insert = appendAction(bundle.graph, {
+      type: 'insert-record', collectionId: collection.id, values: { title: '' },
+    });
+    const graph = appendAction(insert, { type: 'navigate', targetScreenId: destination.id });
+
+    render(
+      <PreviewOverlay
+        collections={[collection]}
+        initialDevice="mobile"
+        onClose={vi.fn()}
+        projectName="Notes"
+        recordsByCollection={new Map([[collection.id, []]])}
+        screens={[{ ...home, behaviors: [bundle.behavior], logicGraphs: [graph] }, destination]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByTestId('preview-toast')).toHaveTextContent('Title is required.');
+    expect(screen.queryByText('Home destination')).not.toBeInTheDocument();
+  });
+
+  it('prepends session-only items without replacing static ListView seeds', async () => {
     const button = makeButton('button', { x: 24, y: 24 });
     const list = makeListView('drafts', { y: 100 });
     const base = makeScreen('home', [button, list]);
@@ -342,7 +454,7 @@ describe('PreviewOverlay', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
 
-    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Local list item added');
+    expect(await screen.findByTestId('preview-toast')).toHaveTextContent('Local list item added');
     const items = within(screen.getByRole('list', { name: 'ListView' })).getAllByRole('listitem');
     expect(items.map((item) => item.textContent)).toEqual(['Unsaved draft', 'First', 'Second']);
   });

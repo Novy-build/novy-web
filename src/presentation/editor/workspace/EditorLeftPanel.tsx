@@ -15,7 +15,7 @@ interface EditorLeftPanelProps {
   selectedNodeId: string | null;
   onAddByType: (type: ComponentType) => void;
   onSelect: (nodeId: string) => void;
-  onOrder: (nodeId: string, direction: 'forward' | 'backward') => void;
+  onOrder: (nodeId: string, direction: 'forward' | 'backward' | 'front' | 'back') => void;
   onRename: (nodeId: string, name: string) => void;
   onToggleVisibility: (nodeId: string) => void;
   onToggleLock: (nodeId: string) => void;

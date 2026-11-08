@@ -540,8 +540,10 @@ The viewport presets represent responsive web layouts; they do not generate nati
 - [x] Inline layer renaming by double-click or `F2`.
 - [x] Visibility and lock controls.
 - [x] Theme-safe selected-layer treatment in light and dark mode.
-- [x] Hover and keyboard-focus tooltips for visibility, lock, forward, and backward layer controls.
-- [x] Bring-forward and send-backward controls.
+- [x] Hover and keyboard-focus tooltips for visibility, lock, forward, backward, and layer-order controls.
+- [x] Bring-forward, send-backward, bring-to-front, and send-to-back controls.
+- [x] Compact accessible layer-order menu with boundary-disabled front/back actions.
+- [x] `Alt+Shift+↑/↓` keyboard shortcuts for bring-to-front and send-to-back.
 - [x] Drag-to-reorder and drag-to-reparent.
 - [x] Visual insertion and nesting feedback.
 - [x] Keyboard reorder and nesting alternatives using `Alt` plus arrow keys.
@@ -763,13 +765,19 @@ No external AI model or AI SDK is connected.
 - [x] Navigation between project screens.
 - [x] Isolated preview copies of collection records.
 - [x] Simulated get, insert, update, and delete data effects.
+- [x] Database actions await validation/repository completion before following success or error
+  graph outputs; failed writes do not continue through success navigation.
+- [x] Optional **Save data changes** mode writes preview Insert/Update/Delete actions to this
+  browser's project-data repository and synchronizes collection-bound ListViews and the Data
+  workspace. The mode is off by default.
 - [x] Simulated collection refresh/refetch and Send Email success effects.
 - [x] Simulated granular document loading, chunking, embeddings, isolated vector indexing/search,
   reranking, prompt compilation, generation, citations, memory, and biometric effects.
 - [x] Camera capture remains in isolated preview component state and is never written into Project
   JSON or project collections implicitly.
 - [x] Composed inputs and buttons create isolated preview records through normal logic workflows.
-- [x] Preview state does not write real databases or invoke external services.
+- [x] Default Preview state remains isolated. Opt-in saved changes affect only the browser-local
+  project-data repository; Preview does not write a production database or invoke external services.
 
 ## 12. Deployment experience — frontend simulation
 
@@ -816,7 +824,7 @@ The repository includes automated coverage for:
 Verification completed on 2026-11-08:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 73 test files and 585 tests passed.
+- `npm test -- --run` — 78 test files and 620 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.

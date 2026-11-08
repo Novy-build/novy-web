@@ -459,6 +459,11 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
           initialDevice={state.device}
           initialScreenId={state.activeScreenId}
           onClose={() => setIsPreviewOpen(false)}
+          persistence={{
+            createRecord: projectData.createRecord,
+            deleteRecord: projectData.deleteRecord,
+            updateRecord: projectData.updateRecord,
+          }}
           projectName={project.name}
           recordsByCollection={projectData.recordsByCollection}
           screens={state.document.screens}

@@ -47,6 +47,16 @@ export type PreviewEffect =
   | { kind: 'chat-response'; nodeId: string; citationsNodeId?: string; answer: string; citations: RagCitation[] }
   | { kind: 'cv-result'; operation: string; isLive?: boolean; verified?: boolean; credentialId?: string; reason?: string };
 
+export type DataOperationPayload = Extract<ActionPayload, {
+  type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record';
+}>;
+
+export type AsyncPreviewEffect = PreviewEffect | { kind: 'data-operation-error'; message: string };
+
+export interface AsyncPreviewRuntimeContext extends PreviewRuntimeContext {
+  executeDataOperation: (payload: DataOperationPayload) => Promise<unknown>;
+}
+
 export interface RagCitation {
   documentId: string;
   title: string;
@@ -197,6 +207,125 @@ export function runBehavior(
     )?.toNodeId;
   }
   return effects;
+}
+
+/**
+ * Executes a preview workflow while awaiting database operations before
+ * selecting their success/error output. The synchronous runner remains for
+ * generated-runtime planning and pure tests; interactive preview uses this
+ * function so a navigation step cannot run before a write has succeeded.
+ */
+export async function runBehaviorAsync(
+  document: ProjectDocument,
+  screen: Screen,
+  sourceNodeId: string,
+  event: TriggerEvent,
+  context: AsyncPreviewRuntimeContext,
+): Promise<AsyncPreviewEffect[]> {
+  const behavior = screen.behaviors.find(
+    (candidate) => candidate.event === event && candidate.targetNodeId === sourceNodeId,
+  );
+  if (!behavior) return [];
+  const graph = screen.logicGraphs.find((candidate) => candidate.id === behavior.graphId);
+  if (!graph) return [];
+  const trigger = graph.nodes.find((node) => node.kind === 'trigger');
+  if (!trigger) return [];
+
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
+  const effects: AsyncPreviewEffect[] = [];
+  const outputs = new Map<string, unknown>(context.nodeOutputs ?? []);
+  const variables = new Map<string, string>(context.variables ?? []);
+  const runtimeContext: AsyncPreviewRuntimeContext = {
+    ...context,
+    nodeOutputs: outputs,
+    variables,
+  };
+  let currentId: string | undefined = trigger.id;
+  let steps = 0;
+
+  while (currentId && steps < MAX_RUNTIME_STEPS) {
+    steps += 1;
+    const node = byId.get(currentId);
+    if (!node) break;
+    let output: LogicOutputPort = 'next';
+
+    if (node.kind === 'action') {
+      const inputs = resolveInputMappings(node.inputMappings, document, runtimeContext);
+      const payload = applyActionInputMappings(node.payload, node.inputMappings, document, runtimeContext);
+
+      if (isDataOperationPayload(payload)) {
+        try {
+          const result = await context.executeDataOperation(payload);
+          outputs.set(node.id, result);
+          output = 'success';
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Database operation failed.';
+          outputs.set(node.id, { error: message });
+          effects.push({ kind: 'data-operation-error', message });
+          output = 'error';
+        }
+      } else {
+        setActionOutput(node.id, payload, graph, inputs, outputs, runtimeContext);
+        const effect = effectFor(payload, document, runtimeContext, inputs, outputs.get(node.id));
+        if (effect) effects.push(effect);
+        if (payload.type === 'cv-liveness' || payload.type === 'cv-verify') {
+          output = payload.mediaReference ? 'success' : 'error';
+        } else if (payload.type === 'cv-enroll') {
+          output = payload.mediaReference && payload.userId && payload.consent ? 'success' : 'error';
+        } else {
+          output = isAsyncActionPayload(payload) ? 'success' : 'next';
+        }
+      }
+    } else if (node.kind === 'condition') {
+      output = evaluateCondition(node, document, runtimeContext) ? 'true' : 'false';
+    }
+
+    currentId = graph.edges.find(
+      (edge) => edge.kind !== 'resource' && edge.toPort === 'in' && edge.fromNodeId === node.id && edge.fromPort === output,
+    )?.toNodeId;
+  }
+
+  return effects;
+}
+
+function isDataOperationPayload(payload: ActionPayload): payload is DataOperationPayload {
+  return payload.type === 'get-records' || payload.type === 'get-record' || payload.type === 'insert-record' ||
+    payload.type === 'update-record' || payload.type === 'delete-record';
+}
+
+function setActionOutput(
+  nodeId: string,
+  payload: ActionPayload,
+  graph: LogicGraph,
+  inputs: Readonly<Record<string, unknown>>,
+  outputs: Map<string, unknown>,
+  runtimeContext: PreviewRuntimeContext,
+): void {
+  if (payload.type === 'set-variable') {
+    runtimeContext.variables instanceof Map && runtimeContext.variables.set(payload.name, payload.value);
+    outputs.set(nodeId, { name: payload.name, value: payload.value });
+  } else if (payload.type === 'set-component-value') {
+    outputs.set(nodeId, { nodeId: payload.targetNodeId, value: payload.value });
+  } else if (payload.type === 'add-local-list-item') {
+    const itemId = runtimeContext.createLocalListItemId?.(payload.targetNodeId, nodeId) ?? generateId('local-list-item');
+    outputs.set(nodeId, { item: { id: itemId, listViewId: payload.targetNodeId, values: { ...payload.values } } });
+  } else if (payload.type === 'vector-store') {
+    outputs.set(nodeId, executeVectorStore(nodeId, payload, graph, inputs, outputs, runtimeContext));
+  } else if (payload.type === 'ai-agent') {
+    outputs.set(nodeId, executeAiAgent(nodeId, payload, graph, inputs, outputs, runtimeContext));
+  } else if (payload.type === 'chat-model') {
+    outputs.set(nodeId, { model: payload.model, profileId: payload.connectionProfileId });
+  } else if (isGranularRagPayload(payload)) {
+    outputs.set(nodeId, executeGranularRagAction(payload, inputs, runtimeContext));
+  } else if (payload.type === 'cv-liveness') {
+    outputs.set(nodeId, runtimeContext.data?.cvLiveness?.(payload) ?? { isLive: true, confidence: 0.99, reason: 'simulated' });
+  } else if (payload.type === 'cv-enroll') {
+    outputs.set(nodeId, runtimeContext.data?.cvEnroll?.(payload) ?? { credentialId: `credential_${payload.userId}`, enrolledAt: new Date().toISOString(), qualityScore: 0.95 });
+  } else if (payload.type === 'cv-verify') {
+    outputs.set(nodeId, runtimeContext.data?.cvVerify?.(payload) ?? { verified: true, confidence: 0.98, credentialId: payload.credentialId, reason: 'simulated' });
+  } else {
+    outputs.set(nodeId, payload);
+  }
 }
 
 export function resolveValueExpression(

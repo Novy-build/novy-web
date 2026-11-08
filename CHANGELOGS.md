@@ -5,6 +5,49 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-08 — Preview database persistence and truthful workflow branching
+
+#### Added
+- Added an explicit **Save data changes** option to Editor Preview. It is off by default; when
+  enabled, Insert, Update, and Delete Record actions write through the project data repository to
+  this browser's local project database.
+- Added preview record validation and user-facing database error feedback.
+
+#### Fixed
+- Database workflow nodes now await the actual preview operation before following their `success`
+  or `error` output, so failed inserts no longer navigate through the success path.
+- Get Record now returns the requested record instead of falling through to delete behavior.
+- Successful preview writes immediately refresh collection-bound ListViews and, in persistence
+  mode, the Data workspace's record state.
+
+#### Tests
+- Added domain runtime coverage for resolved and rejected database branches.
+- Added Preview coverage for opt-in persistence, required-field failure, blocked success
+  navigation, and asynchronous behavior effects.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 78 test files and 620 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+
+### 2026-11-08 — Layer send-to-front and send-to-back controls
+
+#### Added
+- Added **Bring to front** and **Send to back** layer ordering for Design widgets.
+- Added a compact per-layer **Layer order** menu with accessible menu semantics and
+  disabled states at the front/back boundaries.
+- Added `Alt+Shift+↑/↓` shortcuts for sending the focused layer to the front or back.
+- Extended `node/order` to support `'front'` and `'back'` in addition to forward/backward.
+
+#### Changed
+- Layer z-order still uses sibling array order; front moves a node to the end of its
+  sibling list and back moves it to the beginning.
+- The item-frame guard and boundary no-op behavior remain in place for all four order
+  directions.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 78 test files and 616 tests passed.
+- `npm run build` — passed.
+
 ### 2026-11-08 — Resizable split panes and canvas selection improvements
 
 #### Added
