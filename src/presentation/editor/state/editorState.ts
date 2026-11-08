@@ -4,21 +4,23 @@ import type {
   ComponentNode,
   ComponentType,
   ComponentAppearance,
+  ComponentPropertyBinding,
   CameraProps,
-  RepeaterProps,
+  ColumnProps,
   DividerProps,
   DropdownProps,
-  FormProps,
   ImageProps,
   InputProps,
-  ListProps,
+  ListViewProps,
   NodeGeometry,
   ProgressProps,
   RadioProps,
+  RowProps,
   SliderProps,
   SwitchProps,
   TextProps,
 } from '@domain/entities/componentNode';
+import { isChildBearingNode } from '@domain/entities/componentNode';
 import type {
   ActionPayload,
   Behavior,
@@ -59,10 +61,10 @@ export type EditorNodeAction =
   | { type: 'node/props-text'; nodeId: string; props: Partial<TextProps> }
   | { type: 'node/props-input'; nodeId: string; props: Partial<InputProps> }
   | { type: 'node/props-image'; nodeId: string; props: Partial<ImageProps> }
-  | { type: 'node/props-list'; nodeId: string; props: Partial<ListProps> }
-  | { type: 'node/props-repeater'; nodeId: string; props: Partial<RepeaterProps> }
+  | { type: 'node/props-column'; nodeId: string; props: Partial<ColumnProps> }
+  | { type: 'node/props-row'; nodeId: string; props: Partial<RowProps> }
+  | { type: 'node/props-listview'; nodeId: string; props: Partial<ListViewProps> }
   | { type: 'node/props-camera'; nodeId: string; props: Partial<CameraProps> }
-  | { type: 'node/props-form'; nodeId: string; props: Partial<FormProps> }
   | { type: 'node/props-checkbox'; nodeId: string; props: Partial<CheckboxProps> }
   | { type: 'node/props-radio'; nodeId: string; props: Partial<RadioProps> }
   | { type: 'node/props-switch'; nodeId: string; props: Partial<SwitchProps> }
@@ -77,6 +79,7 @@ export type EditorNodeAction =
   | { type: 'node/layer-visibility'; nodeId: string }
   | { type: 'node/layer-lock'; nodeId: string }
   | { type: 'node/appearance'; nodeId: string; appearance: ComponentAppearance }
+  | { type: 'node/bindings'; nodeId: string; bindings: ComponentPropertyBinding[] }
   | { type: 'node/responsive-reset'; nodeId: string }
   | {
       type: 'node/reparent';
@@ -159,7 +162,10 @@ export type EditorAssistantAction = {
 export type EditorChromeAction =
   | { type: 'device/set'; device: EditorDevice }
   | { type: 'zoom/set'; zoom: number }
-  | { type: 'snap/toggle' };
+  | { type: 'snap/toggle' }
+  | { type: 'design/item-template-open'; listViewId: string; sampleItemId?: string | null }
+  | { type: 'design/item-template-close' }
+  | { type: 'design/item-template-sample'; sampleItemId: string | null };
 
 export type EditorHistoryAction = { type: 'history/undo' } | { type: 'history/redo' };
 
@@ -182,6 +188,10 @@ export type EditorAction =
 
 export type EditorMode = 'design' | 'logic' | 'data';
 
+export type EditorDesignScope =
+  | { kind: 'screen' }
+  | { kind: 'list-item-template'; listViewId: string; sampleItemId: string | null };
+
 /**
  * The editor workspace state: one reducer for the document (with undo/redo
  * history), the active screen, selection, canvas chrome, and autosave status.
@@ -193,6 +203,7 @@ export interface EditorState {
   readonly future: readonly ProjectDocument[];
   readonly activeScreenId: string;
   readonly selectedNodeId: string | null;
+  readonly designScope: EditorDesignScope;
   /** Open behavior tab in the Logic workspace; falls back to the first behavior. */
   readonly activeBehaviorId: string | null;
   readonly device: EditorDevice;
@@ -212,6 +223,7 @@ export function createEditorState(document: ProjectDocument): EditorState {
     future: [],
     activeScreenId: document.screens[0]?.id ?? '',
     selectedNodeId: null,
+    designScope: { kind: 'screen' },
     activeBehaviorId: null,
     device: DEFAULT_EDITOR_DEVICE,    zoom: 1,
     isSnapEnabled: true,
@@ -251,7 +263,7 @@ export function findNodeInScreen(screen: Screen, nodeId: string): ComponentNode 
     if (entry.id === nodeId) {
       return entry;
     }
-    if (entry.type === 'container') {
+    if (isChildBearingNode(entry)) {
       const child = findNodeInScreen({ ...screen, nodes: entry.children }, nodeId);
       if (child) {
         return child;
@@ -266,7 +278,7 @@ export function flattenScreenNodes(nodes: readonly ComponentNode[]): ComponentNo
   const flat: ComponentNode[] = [];
   for (const node of nodes) {
     flat.push(node);
-    if (node.type === 'container') {
+    if (isChildBearingNode(node)) {
       flat.push(...flattenScreenNodes(node.children));
     }
   }

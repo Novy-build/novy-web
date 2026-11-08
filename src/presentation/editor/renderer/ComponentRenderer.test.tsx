@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ButtonNode, CameraNode, ComponentNode, ContainerNode, FormNode, ImageNode, InputNode, ListNode } from '@domain/entities/componentNode';
+import type { ButtonNode, CameraNode, ColumnNode, ComponentNode, ContainerNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
 import { ComponentRenderer } from './ComponentRenderer';
 import { CANVAS_PRESETS, ScreenFrame } from './ScreenFrame';
+import { makeListView } from '@test/editorFixtures';
 
 const BUTTON: ButtonNode = {
   id: 'node_save',
@@ -264,24 +265,124 @@ describe('ComponentRenderer', () => {
     expect(container.querySelector('[data-node-id="node_save"]')).toHaveAttribute('data-selected', 'true');
   });
 
-  it('renders list items', () => {
-    const list: ListNode = {
+  it('renders ListView items through its item template', () => {
+    const list: ListViewNode = {
       id: 'node_list',
-      type: 'list',
+      type: 'listview',
       x: 0,
       y: 0,
       w: 200,
       h: 120,
-      props: { items: ['Bañares, Peter Andrew', 'Briñas, Andrei'], scrollable: true, showDividers: true },
+      props: {
+        emptyText: 'No students', showDividers: true, scrollDirection: 'vertical',
+        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 6, itemBorderRadius: 10,
+        dataSource: {
+          kind: 'static',
+          fields: [{ id: 'value', label: 'Value', type: 'text' }],
+          items: [
+            { id: 'student-1', values: { value: 'Bañares, Peter Andrew' } },
+            { id: 'student-2', values: { value: 'Briñas, Andrei' } },
+          ],
+        },
+      },
+      children: [{
+        id: 'node_list_item', type: 'text', x: 24, y: 16, w: 160, h: 44,
+        props: { text: 'Student', level: 'body' },
+        bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'value' } }],
+      }],
     };
 
     render(<ComponentRenderer mode="preview" node={list} selected={false} />);
 
     expect(screen.getByText('Bañares, Peter Andrew')).toBeInTheDocument();
     expect(screen.getByText('Briñas, Andrei')).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'ListView' })).toHaveStyle({ gap: '6px' });
+    expect(screen.getAllByRole('listitem')[0]).toHaveStyle({ borderRadius: '10px', overflow: 'hidden' });
+    expect(screen.getAllByRole('listitem')[0]).toHaveStyle({ height: '60px' });
+    expect(document.querySelector('[data-node-id="node_list_item"]')).toHaveStyle({ left: '24px', top: '16px', width: '160px' });
   });
 
-  it('resolves collection-bound List items from renderer data context', () => {
+  it('reserves an undesigned ListView for canvas chrome while preview keeps its runtime empty state', () => {
+    const defaults = makeListView('empty-list');
+    const list: ListViewNode = {
+      ...defaults,
+      children: [],
+      props: {
+        ...defaults.props,
+        emptyText: 'Nothing saved yet',
+        dataSource: {
+          kind: 'static',
+          fields: [{ id: 'value', label: 'Value', type: 'text' }],
+          items: [],
+        },
+      },
+    };
+    const { rerender } = render(<ComponentRenderer mode="canvas" node={list} selected={false} />);
+
+    expect(screen.queryByText('Nothing saved yet')).not.toBeInTheDocument();
+
+    rerender(<ComponentRenderer mode="preview" node={list} selected={false} />);
+    expect(screen.getByText('Nothing saved yet')).toBeInTheDocument();
+  });
+
+  it('shows item-layout outlines on the canvas for a designed ListView with no records', () => {
+    const defaults = makeListView('outlined-list');
+    const list: ListViewNode = {
+      ...defaults,
+      y: 0,
+      props: {
+        ...defaults.props,
+        padding: 12,
+        itemSpacing: 10,
+        itemBorderRadius: 14,
+        dataSource: {
+          kind: 'static',
+          fields: [{ id: 'value', label: 'Value', type: 'text' }],
+          items: [],
+        },
+      },
+    };
+    const { rerender } = render(<ComponentRenderer mode="canvas" node={list} selected={false} />);
+
+    const outlines = screen.getByTestId('listview-item-outlines');
+    const items = screen.getAllByTestId('listview-item-outline');
+    expect(outlines).toHaveClass('flex-col');
+    expect(outlines).toHaveStyle({ gap: '10px' });
+    expect(items.length).toBeGreaterThan(1);
+    expect(items[0]).toHaveStyle({ borderRadius: '14px', height: '56px' });
+    expect(items[0]).toHaveAttribute('data-item-padding-gutter', '12');
+    expect(items[0]?.firstElementChild).toBeNull();
+    expect((items[0] as HTMLElement).style.boxShadow).toContain('inset 0 0 0 12px');
+    expect(screen.queryByText('No items yet')).not.toBeInTheDocument();
+
+    rerender(<ComponentRenderer mode="preview" node={list} selected={false} />);
+    expect(screen.queryByTestId('listview-item-outlines')).not.toBeInTheDocument();
+    expect(screen.getByText('No items yet')).toBeInTheDocument();
+  });
+
+  it('orients empty item outlines horizontally when the ListView scrolls sideways', () => {
+    const defaults = makeListView('horizontal-list');
+    const list: ListViewNode = {
+      ...defaults,
+      y: 0,
+      props: {
+        ...defaults.props,
+        scrollDirection: 'horizontal',
+        dataSource: {
+          kind: 'static',
+          fields: [{ id: 'value', label: 'Value', type: 'text' }],
+          items: [],
+        },
+      },
+    };
+    render(<ComponentRenderer mode="canvas" node={list} selected={false} />);
+
+    expect(screen.getByTestId('listview-item-outlines')).toHaveClass('flex-row');
+    expect(screen.getByTestId('listview-item-outline')).toHaveStyle({ height: '100%' });
+  });
+
+  it('resolves collection-bound ListView items from renderer data context', () => {
+    const onNodeEvent = vi.fn();
     const collection: DataCollection = {
       id: 'students', projectId: 'project', databaseId: 'database', name: 'Students',
       fields: [{ id: 'name', key: 'name', label: 'Name', type: 'text', required: true }],
@@ -291,9 +392,18 @@ describe('ComponentRenderer', () => {
       id: 'record', projectId: 'project', collectionId: 'students', values: { name: 'Ada Lovelace' },
       createdAt: new Date(), updatedAt: new Date(),
     };
-    const list: ListNode = {
-      id: 'list', type: 'list', x: 0, y: 0, w: 240, h: 160,
-      props: { items: [], scrollable: true, showDividers: true, dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' } },
+    const list: ListViewNode = {
+      id: 'list', type: 'listview', x: 0, y: 0, w: 240, h: 160,
+      props: {
+        emptyText: 'No students', showDividers: true, scrollDirection: 'vertical',
+        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 0, itemBorderRadius: 0,
+        dataSource: { kind: 'collection', collectionId: 'students', displayFieldIds: ['name'] },
+      },
+      children: [{
+        id: 'student_name', type: 'text', x: 0, y: 0, w: 240, h: 44,
+        props: { text: 'Name', level: 'body' },
+        bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'name' } }],
+      }],
     };
 
     render(
@@ -301,36 +411,69 @@ describe('ComponentRenderer', () => {
         dataContext={{ collections: [collection], recordsByCollection: new Map([['students', [record]]]) }}
         mode="preview"
         node={list}
+        onNodeEvent={onNodeEvent}
         selected={false}
       />,
     );
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Ada Lovelace'));
+    expect(onNodeEvent).toHaveBeenCalledWith('list', 'click', 'record', {
+      listItem: expect.objectContaining({ listViewId: 'list', itemId: 'record' }),
+    });
+    expect(onNodeEvent.mock.calls.filter(([nodeId]) => nodeId === 'list')).toHaveLength(1);
   });
 
-  it('renders an editable Form control and a static thumbnail variant', () => {
-    const form: FormNode = {
-      id: 'node_form',
-      type: 'form',
+  it('layers local additions around the active static runtime baseline', () => {
+    const list = makeListView('node_list');
+    render(
+      <ComponentRenderer
+        componentValues={new Map([['node_list', JSON.stringify([{ id: 'replacement', value: 'Replacement' }])]])}
+        dataContext={{
+          collections: [],
+          recordsByCollection: new Map(),
+          localItemsByListView: new Map([['node_list', [
+            { itemId: 'before', placement: 'prepend', values: { value: 'Before' } },
+            { itemId: 'after', placement: 'append', values: { value: 'After' } },
+          ]]]),
+        }}
+        mode="preview"
+        node={list}
+        selected={false}
+      />,
+    );
+
+    const items = within(screen.getByRole('list', { name: 'ListView' })).getAllByRole('listitem');
+    expect(items.map((item) => item.textContent)).toEqual(['Before', 'Replacement', 'After']);
+    expect(screen.queryByText('First')).not.toBeInTheDocument();
+  });
+
+  it('lays out Column children vertically and Row children horizontally', () => {
+    const row: RowNode = {
+      id: 'node_row',
+      type: 'row',
       x: 0,
       y: 0,
-      w: 320,
-      h: 260,
-      props: {
-        title: 'Contact us',
-        fields: [{ label: 'Email', placeholder: 'you@example.com', type: 'email' }],
-        submitLabel: 'Send',
-      },
+      w: 200,
+      h: 60,
+      props: { mainAxisAlignment: 'end', crossAxisAlignment: 'center', gap: 8, padding: 0 },
+      children: [
+        { ...BUTTON, id: 'row_first', x: 0, y: 0, w: 100, h: 44, props: { label: 'First', variant: 'solid' } },
+        { ...BUTTON, id: 'row_second', x: 0, y: 0, w: 100, h: 44, props: { label: 'Second', variant: 'outline' } },
+      ],
     };
-    const canvas = render(<ComponentRenderer mode="canvas" node={form} selected={false} />);
-    expect(screen.getByRole('form', { name: 'Contact us' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Email')).toHaveAttribute('type', 'email');
-    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument();
-
-    canvas.unmount();
-    render(<ComponentRenderer mode="thumbnail" node={form} selected={false} />);
-    expect(screen.queryByRole('form')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-    expect(screen.getByText('Contact us')).toBeInTheDocument();
+    const column: ColumnNode = {
+      id: 'node_column', type: 'column', x: 0, y: 0, w: 320, h: 180,
+      props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: 16 },
+      children: [
+        { id: 'column_title', type: 'text', x: 0, y: 0, w: 120, h: 28, props: { text: 'Contact us', level: 'title' } },
+        row,
+      ],
+    };
+    const { container } = render(<ComponentRenderer mode="canvas" node={column} selected={false} />);
+    expect(container.querySelector('[data-node-id="column_title"]')).toHaveStyle({ left: '16px', top: '16px', width: '288px' });
+    expect(container.querySelector('[data-node-id="node_row"]')).toHaveStyle({ left: '16px', top: '56px', width: '288px' });
+    expect(container.querySelector('[data-node-id="row_first"]')).toHaveStyle({ left: '80px', top: '8px' });
+    expect(container.querySelector('[data-node-id="row_second"]')).toHaveStyle({ left: '188px', top: '8px' });
   });
 
   it('shows an image placeholder until a src is set', () => {

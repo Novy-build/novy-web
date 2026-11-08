@@ -12,7 +12,9 @@ interface PaletteItemConfig {
 }
 
 export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
-  { type: 'container', label: 'Container', description: 'Card that groups components', category: 'Layout' },
+  { type: 'column', label: 'Column', description: 'Arrange children vertically', category: 'Layout' },
+  { type: 'row', label: 'Row', description: 'Arrange children horizontally', category: 'Layout' },
+  { type: 'container', label: 'Container', description: 'Free-form frame for children', category: 'Layout' },
   { type: 'text', label: 'Text', description: 'Heading or body copy', category: 'Basic' },
   { type: 'button', label: 'Button', description: 'Tap target with a label', category: 'Basic' },
   { type: 'image', label: 'Image', description: 'Picture with alt text', category: 'Basic' },
@@ -25,9 +27,7 @@ export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
   { type: 'dropdown', label: 'Dropdown', description: 'Select from a list of options', category: 'Form controls' },
   { type: 'slider', label: 'Slider', description: 'Pick a value from a range', category: 'Form controls' },
   { type: 'progress', label: 'Progress', description: 'Show completion status', category: 'Form controls' },
-  { type: 'list', label: 'List', description: 'Rows of repeating data', category: 'Data' },
-  { type: 'repeater', label: 'Repeater', description: 'Repeat a template for each record', category: 'Data' },
-  { type: 'form', label: 'Form', description: 'Fields with a submit action', category: 'Data' },
+  { type: 'listview', label: 'ListView', description: 'Scrollable repeated item template', category: 'Data' },
 ];
 
 const CATEGORY_ORDER: readonly PaletteCategory[] = ['Layout', 'Basic', 'Form controls', 'Data'];
@@ -69,7 +69,7 @@ export function ComponentsPalette({ onAddByType, isEmbedded = false }: Component
           label="Search components"
           name="palette-search"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Button, list…"
+          placeholder="Button, Column…"
           type="search"
           value={search}
         />

@@ -87,7 +87,7 @@ describe('DataWorkspace', () => {
     expect(await screen.findByRole('heading', { name: 'Create your first collection' })).toBeInTheDocument();
   });
 
-  it('binds a List to project records and renders them in Preview', async () => {
+  it('binds a ListView to project records and renders them in Preview', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);
     const project = (await repositories.projects.listProjects())[0]!;
@@ -110,7 +110,7 @@ describe('DataWorkspace', () => {
     await screen.findByRole('heading', { name: 'Students' });
     fireEvent.click(screen.getByRole('button', { name: 'design' }));
     fireEvent.click(screen.getByRole('tab', { name: 'assets' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add List' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add ListView' }));
     fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'collection' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));

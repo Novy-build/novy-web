@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Screen } from '@domain/entities/screen';
 import { COMPONENT_MIME } from './ComponentsPalette';
 import { EditorCanvas } from './EditorCanvas';
-import { makeButton, makeContainer, makeScreen, makeText } from '@test/editorFixtures';
+import { makeButton, makeContainer, makeListView, makeScreen, makeText } from '@test/editorFixtures';
 
 function canvasProps(overrides: Record<string, unknown> = {}) {
   return {
@@ -20,6 +20,7 @@ function canvasProps(overrides: Record<string, unknown> = {}) {
     onDuplicateSelected: vi.fn(),
     onDeleteSelected: vi.fn(),
     onAddBehavior: vi.fn(),
+    onEditItemTemplate: vi.fn(),
     onDropAt: vi.fn(),
     onReparentNode: vi.fn(),
     onDropIndicatorChange: vi.fn(),
@@ -94,6 +95,12 @@ describe('EditorCanvas', () => {
     const frame = screen.getByTestId('canvas-frame');
     expect(frame.style.width).toBe('780px');
     expect(screen.getByTestId('interaction-node_text').style.left).toBe('176px'); // 88 * 2
+  });
+
+  it('uses focused item-design bounds instead of the device viewport', () => {
+    render(<EditorCanvas {...canvasProps({ boundsOverride: { width: 320, height: 780 } })} />);
+
+    expect(screen.getByTestId('canvas-frame')).toHaveStyle({ width: '320px', height: '780px' });
   });
 
   it('selects a node on a click without travel', () => {
@@ -307,6 +314,54 @@ describe('EditorCanvas', () => {
     expect(props.onZoomChange).toHaveBeenCalledTimes(1);
   });
 
+  it('opens item design from an empty ListView prompt', () => {
+    const list = makeListView('list', {
+      y: 24,
+      children: [],
+      props: {
+        ...makeListView('defaults').props,
+        dataSource: {
+          kind: 'static',
+          fields: [{ id: 'value', label: 'Value', type: 'text' }],
+          items: [],
+        },
+      },
+    });
+    const props = canvasProps({ screen: makeScreen('screen_1', [list]) });
+    render(<EditorCanvas {...props} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+
+    expect(props.onEditItemTemplate).toHaveBeenCalledWith('list');
+    expect(props.onSelectNode).not.toHaveBeenCalled();
+    expect(props.onDragStart).not.toHaveBeenCalled();
+  });
+
+  it('keeps ListView templates out of screen-canvas interaction and drop targeting', () => {
+    const list = makeListView('list', { y: 24 });
+    const props = canvasProps({ screen: makeScreen('screen_1', [list]) });
+    render(<EditorCanvas {...props} />);
+
+    expect(screen.getByTestId('interaction-list')).toBeInTheDocument();
+    expect(screen.queryByTestId('interaction-list_item')).not.toBeInTheDocument();
+
+    const layer = screen.getByTestId('canvas-interactions');
+    dispatchDragEvent('dragover', layer, {
+      clientX: 100,
+      clientY: 100,
+      types: [COMPONENT_MIME],
+    });
+    expect(screen.queryByTestId('frame-drop-target')).not.toBeInTheDocument();
+
+    dispatchDragEvent('drop', layer, {
+      clientX: 100,
+      clientY: 100,
+      types: [COMPONENT_MIME],
+      getData: () => 'button',
+    });
+    expect(props.onDropAt).toHaveBeenCalledWith('button', 104, 104, null);
+  });
+
   it('ignores drops that carry no Novy component payload', () => {
     const props = canvasProps();
     render(<EditorCanvas {...props} />);
@@ -424,5 +479,40 @@ describe('EditorCanvas', () => {
 
     expect(screen.queryByTestId('alignment-guides')).not.toBeInTheDocument();
     expect(screen.queryByTestId('distance-indicators')).not.toBeInTheDocument();
+  });
+});
+  
+describe('EditorCanvas item frame selection', () => {
+  it('shows the item frame guide only when the frame is selected', () => {
+    const props = canvasProps({
+      boundsOverride: { width: 320, height: 780 },
+      itemFramePreview: { nodeId: 'frame_1', itemExtent: 120, padding: 12, spacing: 10, radius: 8, showDividers: true, direction: 'vertical' },
+      selectedNodeId: 'frame_1',
+    });
+    const { unmount: unmountFrame } = render(<EditorCanvas {...props} />);
+    expect(screen.getByTestId('item-frame-overlay')).toBeInTheDocument();
+    unmountFrame();
+
+    const childProps = canvasProps({
+      boundsOverride: { width: 320, height: 780 },
+      itemFramePreview: { nodeId: 'frame_1', itemExtent: 120, padding: 12, spacing: 10, radius: 8, showDividers: true, direction: 'vertical' },
+      selectedNodeId: 'node_text',
+    });
+    const { unmount } = render(<EditorCanvas {...childProps} />);
+    expect(screen.queryByTestId('item-frame-overlay')).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it('selects the item frame when clicking empty space inside it', () => {
+    const onSelectNode = vi.fn();
+    const props = canvasProps({
+      boundsOverride: { width: 320, height: 780 },
+      itemFramePreview: { nodeId: 'frame_1', itemExtent: 120, padding: 12, spacing: 10, radius: 8, showDividers: true, direction: 'vertical' },
+      onSelectNode,
+      selectedNodeId: 'node_text',
+    });
+    render(<EditorCanvas {...props} />);
+    fireEvent.pointerDown(screen.getByTestId('canvas-interactions'));
+    expect(onSelectNode).toHaveBeenCalledWith('frame_1');
   });
 });

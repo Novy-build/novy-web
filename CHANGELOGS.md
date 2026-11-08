@@ -5,6 +5,281 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-08 — Figma-like selectable item frame
+
+#### Changed
+- The repeated item frame is now a first-class selectable container in item design. It appears
+  as an **Item frame** root layer, can be selected from the canvas background or Layers, and
+  shows its own frame-only Inspector with `Item padding`, `Item spacing`, `Item border radius`,
+  and `Show dividers`.
+- The item-frame guide is now selection-driven: it appears only when the item frame is selected.
+  Selecting a widget shows only that widget's outline, removing the competing full-width dashed
+  box.
+- Opening item design now selects the item frame first. Escape steps from a widget to the frame,
+  then exits item design.
+
+#### Fixed
+- Prevented delete, duplicate, move, resize, nudge, reorder, rename, and lock actions on the
+  item frame, whose size is derived from the ListView and its content.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 75 test files and 596 tests passed.
+- `npm run build` — passed.
+
+### 2026-11-08 — ListView item frame controls in item design
+
+#### Changed
+- Moved `Item padding`, `Item spacing`, `Item border radius`, and `Show dividers` out of the
+  ListView inspector and into an always-visible **Item frame** section shown while item design
+  is open (including when no child is selected). The ListView inspector now keeps data source,
+  primary field, empty text, and scroll direction.
+- Added a live item-frame overlay to the item-design canvas: the repeated item's padded,
+  rounded container plus a ghost of the next item (including its divider) so padding, spacing,
+  radius, and dividers can be tuned in place.
+
+#### Technical
+- Extracted `listViewItemExtent` / `listViewItemExtentAtBreakpoint` into the domain layer and
+  reused them in `ComponentRenderer` and the editor to keep the overlay and the rendered extent
+  consistent.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 75 test files and 590 tests passed.
+- `npm run build` — passed.
+
+### 2026-11-08 — ListView item drag past centre
+
+#### Fixed
+- Removed frame-centre smart alignment in item design. The ListView frame is no longer an
+  alignment target there, so its centre line no longer snaps or draws as a boundary while
+  dragging direct item-template widgets; sibling alignment is preserved.
+- Changed the default size of a new direct item-template Row/Column root from 75% to half of the
+  padded cross-axis (floored to the 8 px grid), giving enough horizontal travel to move past the
+  frame centre. Existing saved rows keep their geometry.
+- Cleared stale alignment guides and distance indicators on pointer-down, window blur/cancel,
+  and selection, bounds, or device changes.
+- Replaced the canvas frame's 1 px CSS border with an inset ring so the rendered surface and
+  interaction layer share the same origin.
+
+#### Changed
+- Item-design Row/Column defaults now use half-width (144 px on the default 320 px ListView) instead
+  of 75% (224 px). Resize existing wide rows manually to gain travel.
+
+#### Tests
+- Updated item-frame default-size expectations to the new half-width geometry.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 73 test files and 585 tests passed.
+
+### 2026-11-08 — Free-form ListView item frames
+
+#### Fixed
+- Replaced the conflicting ListView item flow/render paths with one free-form item coordinate
+  system. Direct template widgets now retain and render their persisted `x`, `y`, `w`, and `h`
+  values in item design, repeated canvas output, preview, and generated Project JSON.
+- Sized the focused item-design canvas to the real repeated-item cross axis instead of the full
+  device viewport, eliminating the misleading empty area that appeared movable but was outside the
+  ListView item.
+- New Row and Column roots use an intrinsic 75% cross-axis size, leaving immediate placement room
+  after a palette drop instead of filling the complete item width or height.
+- Removed the now-misleading ListView **Cross axis alignment** and **Template widget gap** controls;
+  Row and Column widgets retain their own internal auto-layout controls.
+
+#### Migration
+- Raised Project DTO output to schema version 9. Schema-v8 and older ListView flow positions are
+  materialized into equivalent mobile, tablet, and desktop free-form child geometry during load so
+  existing templates do not overlap or change appearance.
+
+#### Tests
+- Added schema-v8 vertical, horizontal, and responsive migration coverage; focused item-frame bound
+  coverage; free-form repeated rendering assertions; and first-session Row/Column movement
+  regressions.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 73 test files and 585 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON in `PROGRESS.md` — parsed successfully.
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-08 — First-drop ListView item geometry
+
+#### Fixed
+- Normalized direct ListView item-template children against one padded geometry boundary during
+  palette insertion, dragging, Inspector position/size edits, resizing, keyboard nudging,
+  duplication, and reparent finalization.
+- Row and Column drops now fit the ListView item cross-axis immediately while retaining their
+  pointer position on the repeated item's content-driven axis. Widgets can therefore be moved in
+  the first item-design session without exiting and reopening it.
+- Preserved the resolved item-child geometry across closing and reopening item design, including
+  vertical and horizontal ListViews and responsive breakpoint overrides.
+- Removed the inner dotted rectangle from designed-empty ListView placeholders. The outer dashed
+  border is now the sole item outline, and item padding is represented by a subtle shaded inset
+  gutter instead of a second boundary.
+
+#### Tests
+- Added reducer regressions for first-session Row and Column drops, immediate movement,
+  close/reopen stability, smaller-widget pointer placement, horizontal ListViews, and padded
+  geometry mutations.
+- Updated renderer coverage to require one item boundary with a shaded padding gutter.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 73 test files and 583 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON in `PROGRESS.md` — parsed successfully.
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-08 — Designed-empty ListView item outlines
+
+#### Added
+- Added editor-only repeated-item outlines for ListViews that have an accepted item design but no
+  resolved static or collection records. The outlines fill the available scroll direction and show
+  the configured item bounds, padding inset, spacing, and corner radius without creating fake data.
+- Added explicit **Item spacing** and **Item border radius** Inspector controls; the existing padding
+  control is now labeled **Item padding**, while the internal root-widget gap is labeled
+  **Template widget gap**.
+
+#### Changed
+- Real repeated items now use the same persisted spacing and border-radius values shown by the
+  canvas outlines, including radius-based clipping. Preview/runtime empty-state text remains
+  unchanged and replaces outlines outside the design canvas.
+- Raised Project DTO output to schema version 8. Older ListViews migrate with zero item spacing and
+  radius to preserve their prior appearance; newly created ListViews default to 12px item padding,
+  8px item spacing, and an 8px item radius.
+
+#### Tests
+- Added factory, mapper/migration, validation, renderer, Inspector, and routed editor integration
+  coverage for item-layout persistence, outline geometry, horizontal layout, runtime replacement,
+  and legacy defaults.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 73 test files and 578 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON in `PROGRESS.md` — parsed successfully.
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-08 — Empty-by-default ListView item design
+
+#### Changed
+- New palette ListViews now start with no static records and no item-template widgets instead of
+  creating a sample record and bound Text widget.
+- Added an accessible canvas **Add item** prompt that explains the shared item design and opens the
+  existing focused item-design editor without creating runtime or persisted data.
+- Isolated ListView templates from normal screen editing: template widgets are no longer exposed as
+  screen-canvas interaction targets or normal Layers descendants, and ListViews no longer accept
+  palette drops, direct reparenting, or Layers nesting outside their own item-design scope.
+- Preserved existing saved, migrated, and catalog ListView records and item templates unchanged.
+
+#### Tests
+- Added factory, component-tree, reducer, renderer, canvas, Layers, prompt accessibility, and route
+  integration coverage for empty defaults, item-design navigation, and template-boundary rules.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 73 test files and 574 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON in `PROGRESS.md` — parsed successfully.
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-08 — Add Local List Item runtime action
+
+#### Added
+- Added a synchronous **Add Local List Item** Logic node for static ListViews, with explicit
+  append/prepend placement, schema-driven typed values, and dynamic input mappings.
+- Added created-item node output (`item.id`, `item.listViewId`, and `item.values`) for downstream
+  workflow steps.
+- Added isolated preview/runtime additions keyed by ListView ID. Additions layer around persisted
+  static seeds or existing component-value JSON replacements without mutating either source.
+- Kept generated-app capability inference client-only for this action; it does not require a
+  database runtime binding.
+
+#### Validation and UX
+- Restricted targets to existing static ListViews and added field existence and static-value type
+  validation; collection-bound ListViews continue to use Insert/Update/Delete Record.
+- Labeled the action as session-only and non-persistent in the Logic inspector, while preserving
+  normal synchronous `next` control flow.
+
+#### Tests
+- Added registry, configuration, mapper, runtime-output, renderer-merge, preview-integration, and
+  project-validation coverage for local ListView additions.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 72 test files and 564 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON in `PROGRESS.md` — parsed successfully.
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-08 — ListView mutation and backend synchronization decision
+
+#### Documented
+- Defined the planned **Add List Item** logic node as a local/generated-runtime action for
+  static ListViews only; it will not mutate Project JSON or persist records.
+- Defined the production collection flow as `On Click -> Insert Record -> success/error`, with the
+  backend returning the canonical record and the frontend updating or invalidating its collection
+  cache so bound ListViews rerender without a page refresh.
+- Reserved explicit Refresh Collection for external or stale-data refetches and documented
+  optimistic insertion, ID reconciliation, and rollback as later enhancements.
+- Warned against chaining Add List Item before Insert Record for the same collection-bound ListView
+  because it can duplicate rows and diverge from backend state.
+
+#### Verification
+- Representative Project JSON in `PROGRESS.md` — parsed successfully.
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-07 — ListView item-template design and typed bindings
+
+#### Added
+- Added a dedicated ListView item-design scope with a scoped canvas and Layers tree, sample-item
+  selection, template-root palette insertion, accessible enter/exit controls, and shared
+  undo/redo/autosave behavior.
+- Added typed component property bindings for Text, Image, Button, Checkbox, Switch, Progress, and
+  visibility, with static values retained as runtime fallbacks.
+- Added structured static ListView schemas and records plus current-row logic expressions and event
+  context for record-specific nested actions.
+
+#### Changed
+- Raised Project DTO output to schema version 7. Schema-v6 Text bindings and static string items
+  migrate deterministically while preserving component IDs, responsive metadata, and logic.
+- Generalized ListView rendering and validation around a provider-neutral `ListItemContext` and
+  nearest-ancestor ListView semantics.
+
+#### Tests
+- Added binding resolver and item-design reducer coverage, extended migration/runtime/renderer
+  tests, and updated schema-v7 mapper and generated-manifest expectations.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 72 test files and 555 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON in `PROGRESS.md` — parsed successfully.
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-07 — Flutter-style web widget composition
+
+#### Added
+- Added nestable Column and Row widgets with Flutter-style main-axis and cross-axis alignment,
+  gap, padding, responsive geometry, Layers integration, and Inspector controls.
+- Added a scrollable ListView widget with vertical or horizontal direction, static and collection
+  sources, search/sort metadata, dividers, empty states, and repeatable nested item templates.
+- Added ListView item-field bindings for Text widgets so collection records can populate composed
+  rows such as note cards.
+
+#### Changed
+- Removed List, Repeater, and Form from the live component union, palette, renderer, Inspector,
+  templates, generated-app capability detection, and AI proposal output.
+- Raised Project DTO output to schema version 6 and generalized component-tree recursion,
+  hit-testing, layer nesting, validation, runtime lookup, and duplication across Container, Column,
+  Row, and ListView children.
+- Reworked starter student, notes, and citation collections to use ListView.
+- Kept generated output scoped to responsive web applications; Flutter is the composition model,
+  not a native runtime target.
+
+#### Migration
+- Added safe schema-v5 List and Repeater conversion to ListView item templates.
+- Added Form conversion to Column + Text/Input/Button composition. Collection-bound Forms also
+  receive deterministic click/Insert Record workflows and component input mappings so saved data
+  entry behavior is retained.
+
+#### Tests
+- Added focused factory, mapper, migration, tree, renderer, palette, Inspector, preview, template,
+  validation, assistant, and RAG-target coverage for the new widget model.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 71 test files and 543 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON in `PROGRESS.md` — parsed successfully.
+- `git diff --check` — passed.
+
 ### 2026-11-07 — Collapsible Logic node groups
 
 #### Changed

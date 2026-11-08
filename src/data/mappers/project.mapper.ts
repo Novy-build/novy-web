@@ -1,10 +1,22 @@
-import type { ComponentNode } from '@domain/entities/componentNode';
-import type { Behavior, LogicEdge, LogicGraph, LogicNode } from '@domain/entities/logic';
+import {
+  geometryAtBreakpoint,
+  isChildBearingNode,
+  isHiddenAtBreakpoint,
+  type ColumnNode,
+  type ComponentNode,
+  type ListViewDataSource,
+  type ListViewNode,
+  type NodeGeometry,
+  type ResponsiveBreakpoint,
+  type TextNode,
+} from '@domain/entities/componentNode';
+import type { ActionInputMappings, Behavior, LogicEdge, LogicGraph, LogicNode } from '@domain/entities/logic';
 import type { Project, ProjectSummary } from '@domain/entities/project';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import type {
   BehaviorDTO,
   ComponentNodeDTO,
+  LegacyFormNodeDTO,
   LogicEdgeDTO,
   LogicGraphDTO,
   LogicNodeDTO,
@@ -21,7 +33,7 @@ import { normalizeLogicGraph } from '@domain/logic/graph';
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
-    schemaVersion: 5,
+    schemaVersion: 9,
     id: project.id,
     name: project.name,
     createdAt: project.createdAt.toISOString(),
@@ -32,7 +44,7 @@ export function mapProjectToDto(project: Project): ProjectDTO {
 
 export function mapProjectFromDto(dto: ProjectDTO): Project {
   const takenPaths = new Set(dto.screens.flatMap((screen) => screen.path ? [screen.path] : []));
-  const document: ProjectDocument = {
+  const mappedDocument: ProjectDocument = {
     screens: dto.screens.map((screen, index) => {
       const mapped = mapScreenFromDto(screen, index);
       if (screen.path) return mapped;
@@ -41,6 +53,14 @@ export function mapProjectFromDto(dto: ProjectDTO): Project {
       return path === mapped.path ? mapped : { ...mapped, path };
     }),
   };
+  const document = (dto.schemaVersion ?? 0) < 9
+    ? {
+        screens: mappedDocument.screens.map((screen) => ({
+          ...screen,
+          nodes: migrateListViewItemsToFreeform(screen.nodes),
+        })),
+      }
+    : mappedDocument;
   return {
     id: dto.id,
     name: dto.name,
@@ -48,6 +68,94 @@ export function mapProjectFromDto(dto: ProjectDTO): Project {
     updatedAt: new Date(dto.updatedAt),
     document,
   };
+}
+
+/** Schema-v8 and older ListViews laid out direct children as an implicit flow. */
+function migrateListViewItemsToFreeform(nodes: readonly ComponentNode[]): ComponentNode[] {
+  return nodes.map((node) => {
+    if (!isChildBearingNode(node)) return node;
+    if (node.type !== 'listview') {
+      return { ...node, children: migrateListViewItemsToFreeform(node.children) };
+    }
+
+    const mobile = legacyListViewChildGeometries(node, 'mobile');
+    const tablet = legacyListViewChildGeometries(node, 'tablet');
+    const desktop = legacyListViewChildGeometries(node, 'desktop');
+    return {
+      ...node,
+      children: node.children.map((child) => migrateListViewItemsToFreeform([
+        materializeFreeformGeometry(
+          child,
+          mobile.get(child.id) ?? geometryAtBreakpoint(child, 'mobile'),
+          tablet.get(child.id) ?? geometryAtBreakpoint(child, 'tablet'),
+          desktop.get(child.id) ?? geometryAtBreakpoint(child, 'desktop'),
+        ),
+      ])[0]!),
+    };
+  });
+}
+
+function materializeFreeformGeometry(
+  node: ComponentNode,
+  mobile: NodeGeometry,
+  tablet: NodeGeometry,
+  desktop: NodeGeometry,
+): ComponentNode {
+  const responsive = structuredClone(node.responsive ?? {});
+  for (const [breakpoint, geometry, inherited] of [
+    ['tablet', tablet, mobile],
+    ['desktop', desktop, tablet],
+  ] as const) {
+    const override = { ...(responsive[breakpoint] ?? {}) };
+    for (const field of ['x', 'y', 'w', 'h'] as const) {
+      if (geometry[field] === inherited[field]) delete override[field];
+      else override[field] = geometry[field];
+    }
+    if (Object.keys(override).length > 0) responsive[breakpoint] = override;
+    else delete responsive[breakpoint];
+  }
+  return {
+    ...node,
+    ...mobile,
+    responsive: Object.keys(responsive).length > 0 ? responsive : undefined,
+  };
+}
+
+/** Reproduces the schema-v8 direct-child flow before persisting its result. */
+function legacyListViewChildGeometries(
+  parent: ListViewNode,
+  breakpoint: ResponsiveBreakpoint,
+): ReadonlyMap<string, NodeGeometry> {
+  const parentGeometry = geometryAtBreakpoint(parent, breakpoint);
+  const direction = parent.props.scrollDirection === 'horizontal' ? 'horizontal' : 'vertical';
+  const padding = Math.max(0, parent.props.padding);
+  const gap = Math.max(0, parent.props.gap);
+  const resolved = new Map<string, NodeGeometry>();
+  let cursor = padding;
+
+  for (const child of parent.children) {
+    const geometry = geometryAtBreakpoint(child, breakpoint);
+    if (isHiddenAtBreakpoint(child, breakpoint)) {
+      resolved.set(child.id, geometry);
+      continue;
+    }
+    const crossSize = direction === 'vertical' ? parentGeometry.w : parentGeometry.h;
+    const childCross = direction === 'vertical' ? geometry.w : geometry.h;
+    const availableCross = Math.max(0, crossSize - padding * 2);
+    let crossOffset = padding;
+    if (parent.props.crossAxisAlignment === 'center') {
+      crossOffset += Math.max(0, availableCross - childCross) / 2;
+    }
+    if (parent.props.crossAxisAlignment === 'end') {
+      crossOffset += Math.max(0, availableCross - childCross);
+    }
+    const stretchedCross = parent.props.crossAxisAlignment === 'stretch' ? availableCross : childCross;
+    resolved.set(child.id, direction === 'vertical'
+      ? { x: crossOffset, y: cursor, w: stretchedCross, h: geometry.h }
+      : { x: cursor, y: crossOffset, w: geometry.w, h: stretchedCross });
+    cursor += (direction === 'vertical' ? geometry.h : geometry.w) + gap;
+  }
+  return resolved;
 }
 
 function uniqueMigratedScreenPath(
@@ -87,13 +195,26 @@ export function mapScreenToDto(screen: Screen): ScreenDTO {
 }
 
 export function mapScreenFromDto(dto: ScreenDTO, index = 0): Screen {
+  const legacyFormMigrations = collectLegacyFormMigrations(dto.nodes);
+  const behaviors = dto.behaviors.map(mapBehaviorFromDto);
+  const logicGraphs = dto.logicGraphs.map(mapLogicGraphFromDto);
   return {
     id: dto.id,
     name: dto.name,
     path: dto.path ?? (index === 0 ? '/' : `/${dto.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `screen-${index + 1}`}`),
     nodes: dto.nodes.map(mapNodeFromDto),
-    behaviors: dto.behaviors.map(mapBehaviorFromDto),
-    logicGraphs: dto.logicGraphs.map(mapLogicGraphFromDto),
+    behaviors: [
+      ...behaviors,
+      ...legacyFormMigrations
+        .map((migration) => migration.behavior)
+        .filter((behavior) => !behaviors.some((candidate) => candidate.id === behavior.id)),
+    ],
+    logicGraphs: [
+      ...logicGraphs,
+      ...legacyFormMigrations
+        .map((migration) => migration.graph)
+        .filter((graph) => !logicGraphs.some((candidate) => candidate.id === graph.id)),
+    ],
   };
 }
 
@@ -120,7 +241,10 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { text: node.props.text, level: node.props.level },
+        props: {
+          text: node.props.text,
+          level: node.props.level,
+        },
       };
     case 'input':
       return {
@@ -232,27 +356,35 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         h: node.h,
         props: { src: node.props.src, alt: node.props.alt, fit: node.props.fit },
       };
-    case 'list':
+    case 'column':
       return {
         id: node.id,
         ...editor,
-        type: 'list',
+        type: 'column',
         x: node.x,
         y: node.y,
         w: node.w,
         h: node.h,
-        props: {
-          items: [...node.props.items],
-          scrollable: node.props.scrollable,
-          showDividers: node.props.showDividers,
-          ...(node.props.dataSource ? { dataSource: structuredClone(node.props.dataSource) } : {}),
-        },
+        props: { ...node.props },
+        children: node.children.map(mapNodeToDto),
       };
-    case 'repeater':
+    case 'row':
       return {
         id: node.id,
         ...editor,
-        type: 'repeater',
+        type: 'row',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { ...node.props },
+        children: node.children.map(mapNodeToDto),
+      };
+    case 'listview':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'listview',
         x: node.x,
         y: node.y,
         w: node.w,
@@ -260,8 +392,15 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         props: {
           emptyText: node.props.emptyText,
           showDividers: node.props.showDividers,
-          ...(node.props.dataSource ? { dataSource: structuredClone(node.props.dataSource) } : {}),
+          scrollDirection: node.props.scrollDirection,
+          crossAxisAlignment: node.props.crossAxisAlignment,
+          gap: node.props.gap,
+          padding: node.props.padding,
+          itemSpacing: node.props.itemSpacing,
+          itemBorderRadius: node.props.itemBorderRadius,
+          dataSource: structuredClone(node.props.dataSource),
         },
+        children: node.children.map(mapNodeToDto),
       };
     case 'container':
       return {
@@ -274,22 +413,6 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         h: node.h,
         props: {},
         children: node.children.map(mapNodeToDto),
-      };
-    case 'form':
-      return {
-        id: node.id,
-        ...editor,
-        type: 'form',
-        x: node.x,
-        y: node.y,
-        w: node.w,
-        h: node.h,
-        props: {
-          title: node.props.title,
-          fields: node.props.fields.map((field) => ({ ...field })),
-          submitLabel: node.props.submitLabel,
-          ...(node.props.dataBinding ? { dataBinding: structuredClone(node.props.dataBinding) } : {}),
-        },
       };
   }
 }
@@ -312,12 +435,23 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
       return {
         id: dto.id,
         ...editor,
+        ...(dto.props.dataBinding && !dto.bindings?.some((binding) => binding.target === 'text.content')
+          ? {
+              bindings: [
+                ...(dto.bindings ?? []),
+                { target: 'text.content' as const, value: { ...dto.props.dataBinding } },
+              ],
+            }
+          : {}),
         type: 'text',
         x: dto.x,
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { text: dto.props.text, level: dto.props.level },
+        props: {
+          text: dto.props.text,
+          level: dto.props.level,
+        },
       };
     case 'input':
       return {
@@ -435,35 +569,54 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         props: { src: dto.props.src, alt: dto.props.alt, fit: dto.props.fit },
       };
     case 'list':
-      return {
-        id: dto.id,
-        ...editor,
-        type: 'list',
-        x: dto.x,
-        y: dto.y,
-        w: dto.w,
-        h: dto.h,
-        props: {
-          items: [...dto.props.items],
-          scrollable: dto.props.scrollable ?? true,
-          showDividers: dto.props.showDividers ?? true,
-          ...(dto.props.dataSource ? { dataSource: structuredClone(dto.props.dataSource) } : {}),
-        },
-      };
+      return migrateLegacyListNode(dto, editor);
     case 'repeater':
+      return migrateLegacyRepeaterNode(dto, editor);
+    case 'column':
       return {
         id: dto.id,
         ...editor,
-        type: 'repeater',
+        type: 'column',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { ...dto.props },
+        children: dto.children.map(mapNodeFromDto),
+      };
+    case 'row':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'row',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { ...dto.props },
+        children: dto.children.map(mapNodeFromDto),
+      };
+    case 'listview':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'listview',
         x: dto.x,
         y: dto.y,
         w: dto.w,
         h: dto.h,
         props: {
-          emptyText: dto.props.emptyText ?? 'No records yet',
-          showDividers: dto.props.showDividers ?? true,
-          ...(dto.props.dataSource ? { dataSource: structuredClone(dto.props.dataSource) } : {}),
+          emptyText: dto.props.emptyText,
+          showDividers: dto.props.showDividers,
+          scrollDirection: dto.props.scrollDirection,
+          crossAxisAlignment: dto.props.crossAxisAlignment,
+          gap: dto.props.gap,
+          padding: dto.props.padding,
+          itemSpacing: dto.props.itemSpacing ?? 0,
+          itemBorderRadius: dto.props.itemBorderRadius ?? 0,
+          dataSource: mapListViewDataSourceFromDto(dto.props.dataSource, dto.id),
         },
+        children: dto.children.map(mapNodeFromDto),
       };
     case 'container':
       return {
@@ -478,34 +631,246 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         children: dto.children.map(mapNodeFromDto),
       };
     case 'form':
-      return {
-        id: dto.id,
-        ...editor,
-        type: 'form',
-        x: dto.x,
-        y: dto.y,
-        w: dto.w,
-        h: dto.h,
-        props: {
-          title: dto.props.title,
-          fields: dto.props.fields.map((field) => ({ ...field })),
-          submitLabel: dto.props.submitLabel,
-          ...(dto.props.dataBinding ? { dataBinding: structuredClone(dto.props.dataBinding) } : {}),
-        },
-      };
+      return migrateLegacyFormNode(dto, editor);
   }
+}
+
+type NodeEditorMetadata = Partial<Pick<ComponentNode, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive' | 'bindings'>>;
+
+function mapListViewDataSourceFromDto(
+  source: Extract<ComponentNodeDTO, { type: 'listview' }>['props']['dataSource'],
+  listViewId: string,
+): ListViewDataSource {
+  if (source.kind === 'collection') return structuredClone(source);
+  if ('fields' in source) return structuredClone(source);
+  return migrateStaticStrings(source.items, listViewId);
+}
+
+function migrateStaticStrings(items: readonly string[], listViewId: string): ListViewDataSource {
+  return {
+    kind: 'static',
+    fields: [{ id: 'value', label: 'Value', type: 'text' }],
+    items: items.map((value, index) => ({
+      id: `${listViewId}__static_${index + 1}`,
+      values: { value },
+    })),
+  };
+}
+
+function migrateLegacyListNode(
+  dto: Extract<ComponentNodeDTO, { type: 'list' }>,
+  editor: NodeEditorMetadata,
+): ComponentNode {
+  const source: ListViewDataSource = dto.props.dataSource?.kind === 'collection'
+    ? {
+        kind: 'collection',
+        collectionId: dto.props.dataSource.collectionId,
+        displayFieldIds: [dto.props.dataSource.displayFieldId],
+      }
+    : migrateStaticStrings(dto.props.items, dto.id);
+  const fieldId = source.kind === 'collection' ? source.displayFieldIds[0] || 'value' : 'value';
+  return {
+    id: dto.id,
+    ...editor,
+    type: 'listview',
+    x: dto.x,
+    y: dto.y,
+    w: dto.w,
+    h: dto.h,
+    props: {
+      emptyText: 'No items yet',
+      showDividers: dto.props.showDividers ?? true,
+      scrollDirection: 'vertical',
+      crossAxisAlignment: 'stretch',
+      gap: 0,
+      padding: 0,
+      itemSpacing: 0,
+      itemBorderRadius: 0,
+      dataSource: source,
+    },
+    children: [boundItemText(`${dto.id}__item_text`, fieldId, Math.max(1, dto.w), 44)],
+  };
+}
+
+function migrateLegacyRepeaterNode(
+  dto: Extract<ComponentNodeDTO, { type: 'repeater' }>,
+  editor: NodeEditorMetadata,
+): ComponentNode {
+  const source: ListViewDataSource = dto.props.dataSource?.kind === 'collection'
+    ? structuredClone(dto.props.dataSource)
+    : migrateStaticStrings(dto.props.dataSource?.items ?? [], dto.id);
+  const fieldIds = source.kind === 'collection'
+    ? source.displayFieldIds
+    : ['title', 'snippet'];
+  return {
+    id: dto.id,
+    ...editor,
+    type: 'listview',
+    x: dto.x,
+    y: dto.y,
+    w: dto.w,
+    h: dto.h,
+    props: {
+      emptyText: dto.props.emptyText ?? 'No records yet',
+      showDividers: dto.props.showDividers ?? true,
+      scrollDirection: 'vertical',
+      crossAxisAlignment: 'stretch',
+      gap: 0,
+      padding: 0,
+      itemSpacing: 0,
+      itemBorderRadius: 0,
+      dataSource: source,
+    },
+    children: (fieldIds.length > 0 ? fieldIds : ['value']).map((fieldId, index) =>
+      boundItemText(`${dto.id}__item_text_${index}`, fieldId, Math.max(1, dto.w), 24)),
+  };
+}
+
+function boundItemText(id: string, fieldId: string, width: number, height: number): TextNode {
+  return {
+    id,
+    type: 'text',
+    x: 0,
+    y: 0,
+    w: width,
+    h: height,
+    props: {
+      text: fieldId === 'value' ? 'List item' : fieldId,
+      level: 'body',
+    },
+    bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId } }],
+  };
+}
+
+function migrateLegacyFormNode(dto: LegacyFormNodeDTO, editor: NodeEditorMetadata): ColumnNode {
+  const contentWidth = Math.max(1, dto.w - 32);
+  const title: TextNode = {
+    id: `${dto.id}__title`,
+    type: 'text',
+    x: 0,
+    y: 0,
+    w: contentWidth,
+    h: 28,
+    props: { text: dto.props.title, level: 'title' },
+  };
+  const fields: ComponentNode[] = dto.props.fields.map((field, index) => ({
+    id: `${dto.id}__field_${index}`,
+    type: 'input',
+    x: 0,
+    y: 0,
+    w: contentWidth,
+    h: 44,
+    props: {
+      label: field.label,
+      placeholder: field.placeholder,
+      inputType: field.type,
+      multiline: false,
+    },
+  }));
+  const submit: ComponentNode = {
+    id: `${dto.id}__submit`,
+    type: 'button',
+    x: 0,
+    y: 0,
+    w: contentWidth,
+    h: 44,
+    props: { label: dto.props.submitLabel, variant: 'solid' },
+  };
+  return {
+    id: dto.id,
+    ...editor,
+    type: 'column',
+    x: dto.x,
+    y: dto.y,
+    w: dto.w,
+    h: dto.h,
+    props: {
+      mainAxisAlignment: 'start',
+      crossAxisAlignment: 'stretch',
+      gap: 12,
+      padding: 16,
+    },
+    children: [title, ...fields, submit],
+  };
+}
+
+interface LegacyFormMigration {
+  behavior: Behavior;
+  graph: LogicGraph;
+}
+
+function collectLegacyFormMigrations(nodes: readonly ComponentNodeDTO[]): LegacyFormMigration[] {
+  const migrations: LegacyFormMigration[] = [];
+  for (const node of nodes) {
+    if (node.type === 'form' && node.props.dataBinding) {
+      const triggerId = `${node.id}__submit_trigger`;
+      const actionId = `${node.id}__submit_action`;
+      const graphId = `${node.id}__submit_graph`;
+      const submitId = `${node.id}__submit`;
+      const inputMappings: ActionInputMappings = {};
+      const values: Record<string, string> = {};
+      for (const binding of node.props.dataBinding.fields) {
+        if (!binding.dataFieldId) continue;
+        values[binding.dataFieldId] = '';
+        inputMappings[binding.dataFieldId] = {
+          source: 'component',
+          nodeId: `${node.id}__field_${binding.formFieldIndex}`,
+          property: 'value',
+        };
+      }
+      migrations.push({
+        behavior: {
+          id: `${node.id}__submit_behavior`,
+          name: `Submit ${node.props.title}`,
+          event: 'click',
+          graphId,
+          targetNodeId: submitId,
+        },
+        graph: {
+          id: graphId,
+          name: `Submit ${node.props.title}`,
+          sourceNodeId: submitId,
+          nodes: [
+            { kind: 'trigger', id: triggerId, event: 'click', position: { x: 80, y: 160 } },
+            {
+              kind: 'action',
+              id: actionId,
+              position: { x: 312, y: 160 },
+              payload: {
+                type: 'insert-record',
+                collectionId: node.props.dataBinding.collectionId,
+                values,
+              },
+              inputMappings,
+            },
+          ],
+          edges: [{
+            id: `${node.id}__submit_edge`,
+            fromNodeId: triggerId,
+            fromPort: 'next',
+            toNodeId: actionId,
+            toPort: 'in',
+          }],
+        },
+      });
+    }
+    if (node.type === 'container' || node.type === 'column' || node.type === 'row' || node.type === 'listview') {
+      migrations.push(...collectLegacyFormMigrations(node.children));
+    }
+  }
+  return migrations;
 }
 
 function mapNodeEditorToDto(
   node: ComponentNode,
-): Partial<Pick<ComponentNodeDTO, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive'>> {
-  return compactEditorMetadata(node.name, node.isHidden, node.isLocked, node.appearance, node.responsive);
+): Partial<Pick<ComponentNodeDTO, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive' | 'bindings'>> {
+  return compactEditorMetadata(node.name, node.isHidden, node.isLocked, node.appearance, node.responsive, node.bindings);
 }
 
 function mapNodeEditorFromDto(
   dto: ComponentNodeDTO,
-): Partial<Pick<ComponentNode, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive'>> {
-  return compactEditorMetadata(dto.name, dto.isHidden, dto.isLocked, dto.appearance, dto.responsive);
+): Partial<Pick<ComponentNode, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive' | 'bindings'>> {
+  return compactEditorMetadata(dto.name, dto.isHidden, dto.isLocked, dto.appearance, dto.responsive, dto.bindings);
 }
 
 function compactEditorMetadata(
@@ -514,13 +879,15 @@ function compactEditorMetadata(
   isLocked: boolean | undefined,
   appearance: ComponentNode['appearance'],
   responsive: ComponentNode['responsive'],
-): { name?: string; isHidden?: boolean; isLocked?: boolean; appearance?: ComponentNode['appearance']; responsive?: ComponentNode['responsive'] } {
+  bindings: ComponentNode['bindings'],
+): { name?: string; isHidden?: boolean; isLocked?: boolean; appearance?: ComponentNode['appearance']; responsive?: ComponentNode['responsive']; bindings?: ComponentNode['bindings'] } {
   return {
     ...(name !== undefined ? { name } : {}),
     ...(isHidden !== undefined ? { isHidden } : {}),
     ...(isLocked !== undefined ? { isLocked } : {}),
     ...(appearance !== undefined ? { appearance: structuredClone(appearance) } : {}),
     ...(responsive !== undefined ? { responsive: structuredClone(responsive) } : {}),
+    ...(bindings !== undefined ? { bindings: structuredClone(bindings) } : {}),
   };
 }
 

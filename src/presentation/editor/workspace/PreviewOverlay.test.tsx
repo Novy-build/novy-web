@@ -4,7 +4,7 @@ import type { PreviewEffect } from '@domain/logic/runtime';
 import type { Screen } from '@domain/entities/screen';
 import { createActionNode, createBehaviorBundle } from '@domain/factories/logic';
 import { appendAction, appendCondition, connectLogicPorts, updateCondition } from '@domain/logic/graph';
-import { makeButton, makeForm, makeList, makeScreen, makeText } from '@test/editorFixtures';
+import { makeButton, makeColumn, makeListView, makeScreen, makeText } from '@test/editorFixtures';
 import type { DataCollection } from '@domain/entities/appData';
 import { PreviewOverlay } from './PreviewOverlay';
 
@@ -206,7 +206,7 @@ describe('PreviewOverlay', () => {
     expect(screen.getByTestId('preview-toast')).toHaveTextContent('Try again');
   });
 
-  it('keeps Form-created records in isolated preview data and refreshes bound Lists', () => {
+  it('keeps composed input records in isolated preview data and refreshes bound ListViews', () => {
     const collection: DataCollection = {
       id: 'students',
       projectId: 'project',
@@ -219,32 +219,47 @@ describe('PreviewOverlay', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const list = makeList('list', {
+    const list = makeListView('listview', {
       props: {
-        items: [],
-        scrollable: true,
+        emptyText: 'No students yet',
         showDividers: true,
-        dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' },
+        scrollDirection: 'vertical',
+        crossAxisAlignment: 'stretch',
+        gap: 0,
+        padding: 0,
+        itemSpacing: 0,
+        itemBorderRadius: 0,
+        dataSource: { kind: 'collection', collectionId: 'students', displayFieldIds: ['name'] },
       },
+      children: [makeText('student_item', { props: { text: 'Student', level: 'body' }, bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'name' } }] })],
       y: 400,
     });
-    const form = makeForm('form', {
-      props: {
-        title: 'Add student',
-        fields: [
-          { label: 'Name', placeholder: 'Name', type: 'text' },
-          { label: 'Email', placeholder: 'Email', type: 'email' },
-        ],
-        submitLabel: 'Create student',
-        dataBinding: {
-          collectionId: 'students',
-          fields: [
-            { formFieldIndex: 0, dataFieldId: 'name' },
-            { formFieldIndex: 1, dataFieldId: 'email' },
-          ],
-        },
-      },
+    const nameInput = {
+      id: 'student_name', type: 'input' as const, x: 0, y: 0, w: 288, h: 44,
+      props: { label: 'Name', placeholder: 'Name', inputType: 'text' as const, multiline: false },
+    };
+    const emailInput = {
+      id: 'student_email', type: 'input' as const, x: 0, y: 0, w: 288, h: 44,
+      props: { label: 'Email', placeholder: 'Email', inputType: 'email' as const, multiline: false },
+    };
+    const submit = makeButton('student_submit', { x: 0, y: 0, w: 288, props: { label: 'Create student', variant: 'solid' } });
+    const column = makeColumn('student_form', [nameInput, emailInput, submit]);
+    const bundle = createBehaviorBundle('Create student', submit.id, 'click');
+    const graphWithInsert = appendAction(bundle.graph, {
+      type: 'insert-record', collectionId: 'students', values: { name: '', email: '' },
     });
+    const graph = {
+      ...graphWithInsert,
+      nodes: graphWithInsert.nodes.map((node) => node.kind === 'action'
+        ? {
+            ...node,
+            inputMappings: {
+              name: { source: 'component' as const, nodeId: nameInput.id, property: 'value' as const },
+              email: { source: 'component' as const, nodeId: emailInput.id, property: 'value' as const },
+            },
+          }
+        : node),
+    };
     render(
       <PreviewOverlay
         collections={[collection]}
@@ -252,7 +267,11 @@ describe('PreviewOverlay', () => {
         onClose={vi.fn()}
         projectName="Students"
         recordsByCollection={new Map([['students', []]])}
-        screens={[makeScreen('home', [form, list])]}
+        screens={[{
+          ...makeScreen('home', [column, list]),
+          behaviors: [bundle.behavior],
+          logicGraphs: [graph],
+        }]}
       />,
     );
 
@@ -260,7 +279,7 @@ describe('PreviewOverlay', () => {
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create student' }));
 
-    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Form created a preview record.');
+    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Preview record inserted.');
     expect(screen.getByText('Ada')).toBeInTheDocument();
   });
 
@@ -271,9 +290,14 @@ describe('PreviewOverlay', () => {
       createdAt: new Date(), updatedAt: new Date(),
     };
     const button = makeButton('button', { x: 24, y: 24 });
-    const list = makeList('list', {
+    const list = makeListView('listview', {
       y: 100,
-      props: { items: [], scrollable: true, showDividers: true, dataSource: { kind: 'collection', collectionId: 'students', displayFieldId: 'name' } },
+      props: {
+        emptyText: 'No students yet', showDividers: true, scrollDirection: 'vertical',
+        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 0, itemBorderRadius: 0,
+        dataSource: { kind: 'collection', collectionId: 'students', displayFieldIds: ['name'] },
+      },
+      children: [makeText('student_item', { props: { text: 'Student', level: 'body' }, bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'name' } }] })],
     });
     const base = makeScreen('home', [button, list]);
     const bundle = createBehaviorBundle('On click — Click me', 'button', 'click');
@@ -294,6 +318,33 @@ describe('PreviewOverlay', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
     expect(screen.getByTestId('preview-toast')).toHaveTextContent('Preview record inserted.');
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+  });
+
+  it('prepends session-only items without replacing static ListView seeds', () => {
+    const button = makeButton('button', { x: 24, y: 24 });
+    const list = makeListView('drafts', { y: 100 });
+    const base = makeScreen('home', [button, list]);
+    const bundle = createBehaviorBundle('Add draft', button.id, 'click');
+    const graph = appendAction(bundle.graph, {
+      type: 'add-local-list-item',
+      targetNodeId: list.id,
+      placement: 'prepend',
+      values: { value: 'Unsaved draft' },
+    });
+    render(
+      <PreviewOverlay
+        initialDevice="mobile"
+        onClose={vi.fn()}
+        projectName="Drafts"
+        screens={[{ ...base, behaviors: [bundle.behavior], logicGraphs: [graph] }]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
+
+    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Local list item added');
+    const items = within(screen.getByRole('list', { name: 'ListView' })).getAllByRole('listitem');
+    expect(items.map((item) => item.textContent)).toEqual(['Unsaved draft', 'First', 'Second']);
   });
 });
 

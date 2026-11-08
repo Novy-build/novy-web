@@ -27,6 +27,7 @@ const ACTION_TYPE_LABELS: Record<ActionPayload['type'], string> = {
   'refresh-collection': 'Refresh collection',
   'set-variable': 'Set variable',
   'set-component-value': 'Set component value',
+  'add-local-list-item': 'Add local list item',
   'document-load': 'Document loader',
   'text-split': 'Text splitter',
   'embedding-generate': 'Embedding model',

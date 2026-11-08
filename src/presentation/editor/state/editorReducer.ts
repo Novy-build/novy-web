@@ -1,5 +1,5 @@
 import type { ComponentNode, ComponentType } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isHiddenAtBreakpoint, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isChildBearingNode, isHiddenAtBreakpoint, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import { createComponentNode, getDefaultNodeSize } from '@domain/factories/componentNode';
 import { generateId } from '@domain/ids';
 import { screenPathFromName } from '@domain/factories/screen';
@@ -33,7 +33,7 @@ import {
   reparentLayerInTree,
 } from '@domain/componentTree';
 import type { ScreenFrameSize } from '@presentation/editor/renderer/ScreenFrame';
-import { clampNodeToBounds, deviceViewport, snapOrRaw } from './geometry';
+import { clampNodeToBounds, deviceViewport, MIN_NODE_SIZE, SNAP_GRID, snapOrRaw } from './geometry';
 import { behaviorDisplayName } from '../logic/behaviorLabels';
 import {
   createEditorState,
@@ -63,7 +63,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!exists) {
         return state;
       }
-      return { ...state, activeScreenId: action.screenId, selectedNodeId: null };
+      return { ...state, activeScreenId: action.screenId, selectedNodeId: null, designScope: { kind: 'screen' } };
     }
 
     case 'screen/add':
@@ -82,6 +82,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           document: { screens: [...document.screens, screen] },
           activeScreenId: screen.id,
           selectedNodeId: null,
+          designScope: { kind: 'screen' },
         } as EditorState;
       });
 
@@ -125,6 +126,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           document: { screens: remaining },
           activeScreenId,
           selectedNodeId: null,
+          designScope: { kind: 'screen' },
           activeBehaviorId: activeScreen.behaviors.some(
             (candidate) => candidate.id === state.activeBehaviorId,
           )
@@ -135,8 +137,22 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     // Selection & nodes -------------------------------------------------------
-    case 'node/select':
-      return { ...state, selectedNodeId: action.nodeId };
+    case 'node/select': {
+      if (state.designScope.kind !== 'list-item-template') {
+        return { ...state, selectedNodeId: action.nodeId };
+      }
+      const frameId = state.designScope.listViewId;
+      // The item frame is the fallback selection inside item design: there is
+      // never an empty selection, so the frame's Inspector and guide stay
+      // reachable without a separate deselection state.
+      if (action.nodeId === null) {
+        return { ...state, selectedNodeId: frameId };
+      }
+      if (action.nodeId === frameId || nodeBelongsToDesignScope(state, action.nodeId)) {
+        return { ...state, selectedNodeId: action.nodeId };
+      }
+      return state;
+    }
 
     case 'node/add':
       return addNode(state, action.nodeType, action.x, action.y, null);
@@ -148,13 +164,16 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return pushHistory(state, () => state);
 
     case 'node/move':
+      if (isItemFrame(state, action.nodeId)) return state;
       return updateNode(state, action.nodeId, (node) => {
         const current = geometryAtBreakpoint(node, state.device);
-        const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId, state.device);
-        const bounds = location?.parentWidth && location.parentHeight
-          ? { width: location.parentWidth, height: location.parentHeight }
-          : deviceViewport(state.device);
-        const next = clampNodeToBounds(
+        const bounds = resolveNodeGeometryBounds(
+          getActiveScreen(state).nodes,
+          action.nodeId,
+          state.device,
+          deviceViewport(state.device),
+        );
+        const next = clampNodeToGeometryBounds(
           { x: Math.round(action.x), y: Math.round(action.y), w: current.w, h: current.h },
           bounds,
         );
@@ -162,13 +181,16 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       });
 
     case 'node/layout-position': {
-      const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId, state.device);
-      const layoutBounds = location?.parentWidth && location.parentHeight
-        ? { width: location.parentWidth, height: location.parentHeight }
-        : deviceViewport(state.device);
+      if (isItemFrame(state, action.nodeId)) return state;
+      const layoutBounds = resolveNodeGeometryBounds(
+        getActiveScreen(state).nodes,
+        action.nodeId,
+        state.device,
+        deviceViewport(state.device),
+      );
       return updateNodeWithHistory(state, action.nodeId, (node) => {
         const current = geometryAtBreakpoint(node, state.device);
-        return applyBreakpointGeometry(node, clampNodeToBounds(
+        return applyBreakpointGeometry(node, clampNodeToGeometryBounds(
           { x: action.x, y: action.y, w: current.w, h: current.h },
           layoutBounds,
         ), state.device);
@@ -176,13 +198,16 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case 'node/layout-size': {
-      const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId, state.device);
-      const layoutBounds = location?.parentWidth && location.parentHeight
-        ? { width: location.parentWidth, height: location.parentHeight }
-        : deviceViewport(state.device);
+      if (isItemFrame(state, action.nodeId)) return state;
+      const layoutBounds = resolveNodeGeometryBounds(
+        getActiveScreen(state).nodes,
+        action.nodeId,
+        state.device,
+        deviceViewport(state.device),
+      );
       return updateNodeWithHistory(state, action.nodeId, (node) => {
         const current = geometryAtBreakpoint(node, state.device);
-        return applyBreakpointGeometry(node, clampNodeToBounds(
+        return applyBreakpointGeometry(node, clampNodeToGeometryBounds(
           { x: current.x, y: current.y, w: action.w, h: action.h },
           layoutBounds,
         ), state.device);
@@ -190,12 +215,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case 'node/resize': {
-      const location = getComponentTreeLocation(getActiveScreen(state).nodes, action.nodeId, state.device);
-      const resizeBounds = location?.parentWidth && location.parentHeight
-        ? { width: location.parentWidth, height: location.parentHeight }
-        : deviceViewport(state.device);
+      if (isItemFrame(state, action.nodeId)) return state;
+      const resizeBounds = resolveNodeGeometryBounds(
+        getActiveScreen(state).nodes,
+        action.nodeId,
+        state.device,
+        deviceViewport(state.device),
+      );
       return updateNode(state, action.nodeId, (node) => applyBreakpointGeometry(node,
-        clampNodeToBounds(
+        clampNodeToGeometryBounds(
           {
             x: Math.round(action.geometry.x),
             y: Math.round(action.geometry.y),
@@ -207,15 +235,19 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case 'node/nudge': {
+      if (isItemFrame(state, action.nodeId)) return state;
       const activeScreen = getActiveScreen(state);
       const location = getComponentTreeLocation(activeScreen.nodes, action.nodeId, state.device);
       if (!location) {
         return state;
       }
       return pushHistory(state, (document) => {
-        const bounds = location.parentWidth && location.parentHeight
-          ? { width: location.parentWidth, height: location.parentHeight }
-          : deviceViewport(state.device);
+        const bounds = resolveNodeGeometryBounds(
+          activeScreen.nodes,
+          action.nodeId,
+          state.device,
+          deviceViewport(state.device),
+        );
         return {
           ...state,
           document: replaceScreen(document, state.activeScreenId, (candidate) => ({
@@ -246,24 +278,32 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         node.type === 'image' ? { ...node, props: { ...node.props, ...action.props } } : node,
       );
 
-    case 'node/props-list':
+    case 'node/props-column':
       return updateNodeWithHistory(state, action.nodeId, (node) =>
-        node.type === 'list' ? { ...node, props: { ...node.props, ...action.props } } : node,
+        node.type === 'column' ? { ...node, props: { ...node.props, ...action.props } } : node,
       );
 
-    case 'node/props-repeater':
+    case 'node/props-row':
       return updateNodeWithHistory(state, action.nodeId, (node) =>
-        node.type === 'repeater' ? { ...node, props: { ...node.props, ...action.props } } : node,
+        node.type === 'row' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-listview':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'listview'
+          ? {
+              ...node,
+              props: { ...node.props, ...action.props },
+              children: action.props.dataSource?.kind === 'collection' && action.props.dataSource.displayFieldIds[0]
+                ? remapItemField(node.children, 'value', action.props.dataSource.displayFieldIds[0])
+                : node.children,
+            }
+          : node,
       );
 
     case 'node/props-camera':
       return updateNodeWithHistory(state, action.nodeId, (node) =>
         node.type === 'camera' ? { ...node, props: { ...node.props, ...action.props } } : node,
-      );
-
-    case 'node/props-form':
-      return updateNodeWithHistory(state, action.nodeId, (node) =>
-        node.type === 'form' ? { ...node, props: { ...node.props, ...action.props } } : node,
       );
 
     case 'node/props-checkbox':
@@ -302,12 +342,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       );
 
     case 'node/duplicate':
+      if (isItemFrame(state, action.nodeId)) return state;
       return duplicateNode(state, action.nodeId);
 
     case 'node/delete':
-      return deleteNode(state, action.nodeId);
+      if (isItemFrame(state, action.nodeId)) return state;
+      return normalizeDesignScope(deleteNode(state, action.nodeId));
 
     case 'node/order': {
+      if (isItemFrame(state, action.nodeId)) return state;
       const preCheck = getActiveScreen(state);
       const reordered = reorderInTree(preCheck.nodes, action.nodeId, action.direction);
       if (reordered === preCheck.nodes) {
@@ -323,18 +366,21 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case 'node/layer-rename':
+      if (isItemFrame(state, action.nodeId)) return state;
       return updateNodeWithHistory(state, action.nodeId, (node) => ({
         ...node,
         name: action.name.trim() || undefined,
       }));
 
     case 'node/layer-visibility':
+      if (isItemFrame(state, action.nodeId)) return state;
       return updateNodeWithHistory(state, action.nodeId, (node) => {
         const effectiveHidden = isHiddenAtBreakpoint(node, state.device);
         return setBreakpointHidden(node, !effectiveHidden, state.device);
       });
 
     case 'node/layer-lock':
+      if (isItemFrame(state, action.nodeId)) return state;
       return updateNodeWithHistory(state, action.nodeId, (node) => ({
         ...node,
         isLocked: node.isLocked ? undefined : true,
@@ -344,6 +390,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return updateNodeWithHistory(state, action.nodeId, (node) => ({
         ...node,
         appearance: Object.keys(action.appearance).length > 0 ? { ...action.appearance } : undefined,
+      }));
+
+    case 'node/bindings':
+      return updateNodeWithHistory(state, action.nodeId, (node) => ({
+        ...node,
+        bindings: action.bindings.length > 0 ? structuredClone(action.bindings) : undefined,
       }));
 
     case 'node/responsive-reset':
@@ -357,11 +409,19 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       });
 
     case 'node/reparent': {
+      if (isItemFrame(state, action.nodeId)) return state;
       const activeScreen = getActiveScreen(state);
+      const parentId = resolveDesignParentId(state, action.parentId);
+      if (
+        !nodeBelongsToDesignScope(state, action.nodeId)
+        || !canUseDesignParent(state, parentId)
+      ) {
+        return state;
+      }
       const moved = reparentNodeForCanvas(
         activeScreen.nodes,
         action.nodeId,
-        action.parentId,
+        parentId,
         action.absolutePosition,
         deviceViewport(state.device),
         state.device,
@@ -377,7 +437,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
             ...reparentNodeForCanvas(
               screen.nodes,
               action.nodeId,
-              action.parentId,
+              parentId,
               action.absolutePosition,
               deviceViewport(state.device),
               state.device,
@@ -390,7 +450,22 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case 'node/layer-move': {
+      if (isItemFrame(state, action.nodeId)) return state;
+      if (isItemFrame(state, action.targetId)) return state;
       const activeScreen = getActiveScreen(state);
+      const targetLocation = getComponentTreeLocation(activeScreen.nodes, action.targetId, state.device);
+      if (!targetLocation) {
+        return state;
+      }
+      const destinationParentId = action.position === 'inside'
+        ? action.targetId
+        : targetLocation.parentId;
+      if (
+        !nodeBelongsToDesignScope(state, action.nodeId)
+        || !canUseDesignParent(state, destinationParentId)
+      ) {
+        return state;
+      }
       const moved = moveLayerInTree(
         activeScreen.nodes,
         action.nodeId,
@@ -416,6 +491,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     // Logic workspace ------------------------------------------------------------
     case 'behavior/create': {
+      if (isItemFrame(state, action.targetNodeId)) return state;
       const screen = getActiveScreen(state);
       const target = findNodeInScreen(screen, action.targetNodeId);
       if (!target) {
@@ -753,6 +829,33 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'snap/toggle':
       return { ...state, isSnapEnabled: !state.isSnapEnabled };
 
+    case 'design/item-template-open': {
+      const screen = getActiveScreen(state);
+      const listView = findNodeInScreen(screen, action.listViewId);
+      if (listView?.type !== 'listview') return state;
+      return {
+        ...state,
+        designScope: {
+          kind: 'list-item-template',
+          listViewId: action.listViewId,
+          sampleItemId: action.sampleItemId ?? null,
+        },
+        selectedNodeId: listView.id,
+      };
+    }
+
+    case 'design/item-template-close':
+      return {
+        ...state,
+        selectedNodeId: state.designScope.kind === 'list-item-template' ? state.designScope.listViewId : state.selectedNodeId,
+        designScope: { kind: 'screen' },
+      };
+
+    case 'design/item-template-sample':
+      return state.designScope.kind === 'list-item-template'
+        ? { ...state, designScope: { ...state.designScope, sampleItemId: action.sampleItemId } }
+        : state;
+
     // Autosave ----------------------------------------------------------------
     case 'autosave/begin':
       return { ...state, isSaving: true };
@@ -762,10 +865,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     // History -----------------------------------------------------------------
     case 'history/undo':
-      return undo(state);
+      return normalizeDesignScope(undo(state));
 
     case 'history/redo':
-      return redo(state);
+      return normalizeDesignScope(redo(state));
 
     default:
       return state;
@@ -843,6 +946,151 @@ function selectionStillExists(
   return null;
 }
 
+/** Resolves the ListView item-template boundary that owns a nested node. */
+function findOwningListViewId(
+  nodes: readonly ComponentNode[],
+  nodeId: string,
+  ownerId: string | null = null,
+): string | null {
+  for (const node of nodes) {
+    if (node.id === nodeId) {
+      return ownerId;
+    }
+    if (!isChildBearingNode(node)) {
+      continue;
+    }
+    const nestedOwner = node.type === 'listview' ? node.id : ownerId;
+    if (findNodeInNodes(node.children, nodeId)) {
+      return findOwningListViewId(node.children, nodeId, nestedOwner);
+    }
+  }
+  return null;
+}
+
+function findNodeInNodes(
+  nodes: readonly ComponentNode[],
+  nodeId: string,
+): ComponentNode | undefined {
+  for (const node of nodes) {
+    if (node.id === nodeId) return node;
+    if (isChildBearingNode(node)) {
+      const nested = findNodeInNodes(node.children, nodeId);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
+
+function resolveDesignParentId(state: EditorState, parentId: string | null): string | null {
+  return state.designScope.kind === 'list-item-template' && parentId === null
+    ? state.designScope.listViewId
+    : parentId;
+}
+
+/**
+ * Screen editing may only use screen-level frames. Item-template editing may
+ * only use the active ListView itself or frames already inside its boundary.
+ */
+function canUseDesignParent(state: EditorState, parentId: string | null): boolean {
+  const screen = getActiveScreen(state);
+  if (parentId === null) {
+    return state.designScope.kind === 'screen';
+  }
+  const parent = findNodeInScreen(screen, parentId);
+  if (!parent || !isChildBearingNode(parent)) {
+    return false;
+  }
+  const boundaryId = parent.type === 'listview'
+    ? parent.id
+    : findOwningListViewId(screen.nodes, parent.id);
+  return state.designScope.kind === 'screen'
+    ? boundaryId === null
+    : boundaryId === state.designScope.listViewId;
+}
+
+function nodeBelongsToDesignScope(state: EditorState, nodeId: string): boolean {
+  const screen = getActiveScreen(state);
+  if (!findNodeInScreen(screen, nodeId)) {
+    return false;
+  }
+  const boundaryId = findOwningListViewId(screen.nodes, nodeId);
+  return state.designScope.kind === 'screen'
+    ? boundaryId === null
+    : boundaryId === state.designScope.listViewId;
+}
+
+function isItemFrame(state: EditorState, nodeId: string | null): nodeId is string {
+  return (
+    state.designScope.kind === 'list-item-template' &&
+    nodeId !== null &&
+    nodeId === state.designScope.listViewId
+  );
+}
+
+interface NodeGeometryBounds extends ScreenFrameSize {
+  x: number;
+  y: number;
+}
+
+/**
+ * Direct ListView children live inside the repeated item's padded content box.
+ * Every geometry mutation uses this resolver so the isolated item editor and
+ * the repeated renderer agree from the first palette drop onward.
+ */
+function childGeometryBounds(
+  parent: ComponentNode | null,
+  breakpoint: ResponsiveBreakpoint,
+  rootBounds: ScreenFrameSize,
+): NodeGeometryBounds {
+  if (!parent) {
+    return { x: 0, y: 0, ...rootBounds };
+  }
+  const parentGeometry = geometryAtBreakpoint(parent, breakpoint);
+  if (parent.type !== 'listview') {
+    return { x: 0, y: 0, width: parentGeometry.w, height: parentGeometry.h };
+  }
+  const padding = Math.max(0, parent.props.padding);
+  const isVertical = parent.props.scrollDirection === 'vertical';
+  return {
+    x: padding,
+    y: padding,
+    width: Math.max(1, (isVertical ? parentGeometry.w : rootBounds.width) - padding * 2),
+    height: Math.max(1, (isVertical ? rootBounds.height : parentGeometry.h) - padding * 2),
+  };
+}
+
+function resolveNodeGeometryBounds(
+  nodes: readonly ComponentNode[],
+  nodeId: string,
+  breakpoint: ResponsiveBreakpoint,
+  rootBounds: ScreenFrameSize,
+): NodeGeometryBounds {
+  const location = getComponentTreeLocation(nodes, nodeId, breakpoint);
+  const parent = location?.parentId
+    ? getComponentTreeLocation(nodes, location.parentId, breakpoint)?.node ?? null
+    : null;
+  return childGeometryBounds(parent, breakpoint, rootBounds);
+}
+
+function clampNodeToGeometryBounds(
+  geometry: NodeGeometry,
+  bounds: NodeGeometryBounds,
+): NodeGeometry {
+  const clamped = clampNodeToBounds(
+    {
+      ...geometry,
+      x: geometry.x - bounds.x,
+      y: geometry.y - bounds.y,
+    },
+    bounds,
+  );
+  return {
+    ...clamped,
+    x: clamped.x + bounds.x,
+    y: clamped.y + bounds.y,
+  };
+}
+
 function addNode(
   state: EditorState,
   nodeType: ComponentType,
@@ -851,19 +1099,51 @@ function addNode(
   parentId: string | null,
 ): EditorState {
   const activeScreen = getActiveScreen(state);
-  const parentLocation = parentId
-    ? getComponentTreeLocation(activeScreen.nodes, parentId, state.device)
+  const resolvedParentId = resolveDesignParentId(state, parentId);
+  if (!canUseDesignParent(state, resolvedParentId)) {
+    return state;
+  }
+  const parentLocation = resolvedParentId
+    ? getComponentTreeLocation(activeScreen.nodes, resolvedParentId, state.device)
     : null;
   const validParent =
-    parentLocation?.node.type === 'container' && !parentLocation.node.isLocked
+    parentLocation && isChildBearingNode(parentLocation.node) && !parentLocation.node.isLocked
       ? parentLocation
-      : null;
-  const parentGeometry = validParent ? geometryAtBreakpoint(validParent.node, state.device) : null;
-  const bounds = parentGeometry
-    ? { width: parentGeometry.w, height: parentGeometry.h }
-    : deviceViewport(state.device);
-  const { w, h } = getDefaultNodeSize(nodeType);
-  const geometry = clampNodeToBounds(
+      : resolvedParentId === null
+        ? null
+        : undefined;
+  if (validParent === undefined) {
+    return state;
+  }
+  const bounds = childGeometryBounds(
+    validParent?.node ?? null,
+    state.device,
+    deviceViewport(state.device),
+  );
+  const defaults = getDefaultNodeSize(nodeType);
+  const listParent = validParent?.node.type === 'listview' ? validParent.node : null;
+  const isDirectListLayout = listParent !== null && (nodeType === 'row' || nodeType === 'column');
+  // Direct item-template roots default to half of the padded cross-axis so they
+  // can travel the full content width instead of being pinned near the centre.
+  // Floor (do not round) the snapped value: rounding half of an even grid
+  // width can land one grid step above half, which re-collides with the centre.
+  const w = isDirectListLayout && listParent?.props.scrollDirection === 'vertical'
+    ? Math.min(
+        defaults.w,
+        state.isSnapEnabled
+          ? Math.max(MIN_NODE_SIZE.w, Math.floor((bounds.width / 2) / SNAP_GRID) * SNAP_GRID)
+          : Math.max(MIN_NODE_SIZE.w, Math.round(bounds.width / 2)),
+      )
+    : defaults.w;
+  const h = isDirectListLayout && listParent?.props.scrollDirection === 'horizontal'
+    ? Math.min(
+        defaults.h,
+        state.isSnapEnabled
+          ? Math.max(MIN_NODE_SIZE.h, Math.floor((bounds.height / 2) / SNAP_GRID) * SNAP_GRID)
+          : Math.max(MIN_NODE_SIZE.h, Math.round(bounds.height / 2)),
+      )
+    : defaults.h;
+  const geometry = clampNodeToGeometryBounds(
     {
       x: snapOrRaw(rawX - (validParent?.absoluteX ?? 0) - w / 2, state.isSnapEnabled),
       y: snapOrRaw(rawY - (validParent?.absoluteY ?? 0) - h / 2, state.isSnapEnabled),
@@ -875,12 +1155,14 @@ function addNode(
 
   return pushHistory(state, (document) => {
     const created = createComponentNode(nodeType);
-    const mobileBounds = validParent
-      ? { width: validParent.node.w, height: validParent.node.h }
-      : deviceViewport('mobile');
+    const mobileBounds = childGeometryBounds(
+      validParent?.node ?? null,
+      'mobile',
+      deviceViewport('mobile'),
+    );
     const mobileGeometry = state.device === 'mobile'
       ? geometry
-      : clampNodeToBounds(geometry, mobileBounds);
+      : clampNodeToGeometryBounds(geometry, mobileBounds);
     let node: ComponentNode = { ...created, ...mobileGeometry };
     if (state.device !== 'mobile') {
       node = applyBreakpointGeometry(node, geometry, state.device);
@@ -906,10 +1188,10 @@ function insertNodeAtParent(
     return [...nodes, node];
   }
   return nodes.map((candidate) => {
-    if (candidate.id === parentId && candidate.type === 'container') {
+    if (candidate.id === parentId && isChildBearingNode(candidate)) {
       return { ...candidate, children: [...candidate.children, node] };
     }
-    if (candidate.type === 'container') {
+    if (isChildBearingNode(candidate)) {
       return {
         ...candidate,
         children: insertNodeAtParent(candidate.children, parentId, node),
@@ -1003,12 +1285,9 @@ function reparentNodeForCanvas(
     responsive: Object.keys(responsive).length ? responsive : undefined,
   };
 
-  const location = getComponentTreeLocation(moved, nodeId, breakpoint);
-  const bounds = location?.parentWidth && location?.parentHeight
-    ? { width: location.parentWidth, height: location.parentHeight }
-    : rootBounds;
+  const bounds = resolveNodeGeometryBounds(moved, nodeId, breakpoint, rootBounds);
   const current = geometryAtBreakpoint(newNode, breakpoint);
-  const clamped = clampNodeToBounds(current, bounds);
+  const clamped = clampNodeToGeometryBounds(current, bounds);
   newNode = applyBreakpointGeometry(newNode, clamped, breakpoint);
 
   return remapTree(moved, nodeId, newNode);
@@ -1067,15 +1346,17 @@ function duplicateNode(state: EditorState, nodeId: string): EditorState {
     return state;
   }
 
-  const location = getComponentTreeLocation(screen.nodes, nodeId);
   return pushHistory(state, (document) => {
     const copy = cloneWithFreshIds(source);
-    const bounds = location?.parentWidth && location.parentHeight
-      ? { width: location.parentWidth, height: location.parentHeight }
-      : deviceViewport(state.device);
+    const bounds = resolveNodeGeometryBounds(
+      screen.nodes,
+      nodeId,
+      'mobile',
+      deviceViewport('mobile'),
+    );
     // +16 with no re-snap: duplicates stay axis-aligned with their source
     // even when the source itself sits between grid lines.
-    const geometry = clampNodeToBounds(
+    const geometry = clampNodeToGeometryBounds(
       { x: source.x + 16, y: source.y + 16, w: copy.w, h: copy.h },
       bounds,
     );
@@ -1142,15 +1423,44 @@ function applyNudge(
   node: ComponentNode,
   dx: number,
   dy: number,
-  bounds: ScreenFrameSize,
+  bounds: NodeGeometryBounds,
   breakpoint: ResponsiveBreakpoint,
 ): ComponentNode {
   const current = geometryAtBreakpoint(node, breakpoint);
-  const next = clampNodeToBounds(
+  const next = clampNodeToGeometryBounds(
     { x: Math.round(current.x + dx), y: Math.round(current.y + dy), w: current.w, h: current.h },
     bounds,
   );
   return applyBreakpointGeometry(node, next, breakpoint);
+}
+
+function normalizeDesignScope(state: EditorState): EditorState {
+  if (state.designScope.kind === 'screen') return state;
+  const screen = state.document.screens.find((candidate) => candidate.id === state.activeScreenId);
+  const owner = screen ? findNodeInScreen(screen, state.designScope.listViewId) : undefined;
+  return owner?.type === 'listview'
+    ? state
+    : { ...state, designScope: { kind: 'screen' } };
+}
+
+function remapItemField(
+  nodes: readonly ComponentNode[],
+  fromFieldId: string,
+  toFieldId: string,
+): ComponentNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    ...(node.bindings
+      ? {
+          bindings: node.bindings.map((binding) => binding.value.fieldId === fromFieldId
+            ? { ...binding, value: { ...binding.value, fieldId: toFieldId } }
+            : binding),
+        }
+      : {}),
+    ...(isChildBearingNode(node)
+      ? { children: remapItemField(node.children, fromFieldId, toFieldId) }
+      : {}),
+  })) as ComponentNode[];
 }
 
 function inheritedHiddenAtBreakpoint(node: ComponentNode, breakpoint: ResponsiveBreakpoint): boolean {
@@ -1325,7 +1635,7 @@ function remapTree(nodes: readonly ComponentNode[], nodeId: string, replacement:
     if (node.id === nodeId) {
       return replacement;
     }
-    if (node.type === 'container') {
+    if (isChildBearingNode(node)) {
       return { ...node, children: remapTree(node.children, nodeId, replacement) };
     }
     return node;
@@ -1353,7 +1663,7 @@ function insertSiblingInTree(
     return insertHere(nodes);
   }
   return nodes.map((node) =>
-    node.type === 'container'
+    isChildBearingNode(node)
       ? { ...node, children: insertSiblingInTree(node.children, sourceNodeId, copy) }
       : node,
   );
@@ -1363,7 +1673,7 @@ function pruneNode(nodes: readonly ComponentNode[], nodeId: string): ComponentNo
   return nodes
     .filter((node) => node.id !== nodeId)
     .map((node) =>
-      node.type === 'container' ? { ...node, children: pruneNode(node.children, nodeId) } : node,
+      isChildBearingNode(node) ? { ...node, children: pruneNode(node.children, nodeId) } : node,
     );
 }
 
@@ -1376,7 +1686,7 @@ function collectSubtreeIds(nodes: readonly ComponentNode[], nodeId: string): Set
       if (isRemoving) {
         ids.add(node.id);
       }
-      if (node.type === 'container') {
+      if (isChildBearingNode(node)) {
         walk(node.children, isRemoving);
       }
     }
@@ -1408,7 +1718,7 @@ function reorderInTree(
 
   let changed = false;
   const mapped = nodes.map((node) => {
-    if (node.type === 'container') {
+    if (isChildBearingNode(node)) {
       const nextChildren = reorderInTree(node.children, nodeId, direction);
       if (nextChildren !== node.children) {
         changed = true;
@@ -1424,8 +1734,8 @@ function cloneWithFreshIds(node: ComponentNode): ComponentNode {
   const clone = structuredClone(node) as ComponentNode;
   const reassign = (target: ComponentNode): ComponentNode => {
     const next = { ...target, id: generateId('node') };
-    if (next.type === 'container') {
-      next.children = next.children.map((child) => reassign(child));
+    if (isChildBearingNode(next)) {
+      return { ...next, children: next.children.map((child) => reassign(child)) };
     }
     return next;
   };

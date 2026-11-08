@@ -40,7 +40,7 @@
 **Entities** (pure, no React):
 - `User`, `Project`, `ProjectDocument { screens[] }`, `Screen`
 - `ComponentNode { id, type, x, y, w, h, props, children }`
-- `ComponentType` string union: `'button' | 'text' | 'input' | 'image' | 'container' | 'list' | ...`
+- `ComponentType` string union: `'button' | 'text' | 'input' | 'image' | 'container' | 'column' | 'row' | 'listview' | ...`
 - `LogicGraph { nodes, edges }`, `Behavior { event, graphId }`, `Template`, `DeploymentRecord`
 
 **Repository interfaces:** `AuthRepository`, `ProjectRepository` (list / create / rename / duplicate / delete / get + save document with debounced autosave), `TemplateRepository` (static JSON), `DeploymentRepository`.
@@ -88,7 +88,9 @@ Floating chip bottom-right -> AI Assistant slide-over sheet
 - **Design mode:** palette drag onto canvas, selection/resize, inspector edits props (label, placeholder, widths incl. Fill, colors via token picker), Behavior section lists bound events.
 - **Logic mode:** node palette (Triggers: Click/Change/Load -> Actions: Change text, Show message, Navigate to screen), bezier-connected cards, per-behavior graph tabs, node config inline. "Add behavior" from canvas drops here pre-targeted.
 - **AI Assistant (honest mock):** rule-based intents ("add a button", "make the text change when clicked", "create a list of students") return a structured proposed change with **Keep / Undo** wired to the same command stack, plus a visible "Demo responses — real AI arrives with the backend" badge.
-- **Positioning model:** free-form absolute (x/y/w/h) with 8px snap; auto-layout containers deferred.
+- **Positioning model:** free-form absolute (x/y/w/h) with 8px snap for screen, Container, and
+  ListView item-template children; Column and Row compute nested placement from child order and
+  axis-layout properties.
 - **Autosave:** debounced `saveDocument` via repository; Saving/Saved indicator. State = pure `useReducer` with past/present/future stacks (unit-testable undo/redo).
 
 ## 7 · Phase 7 — Deployment screen (M)
@@ -111,7 +113,7 @@ Per-project page: environment selector (Preview/Production mock), **Publish** ->
 
 ## 9 · Deferred (noted in code/docs)
 
-- Auto-layout containers
+- Additional responsive layout constraints beyond Column, Row, and ListView
 - Live collaboration
 - Real AI / Vercel / Supabase wiring (backend phase)
 - Multi-user
@@ -125,10 +127,10 @@ is excluded while Novy remains a single-builder product.
 | Gate | Scope | Gate | Status |
 |---|---|---|---|
 | 1 | Figma-style editor shell + hierarchical Layers | metadata/migration + layer interaction tests | ✅ done (typecheck + 364 tests + build green) |
-| 2 | Direct canvas manipulation + nested frames + Form | geometry/reparent/keyboard tests | ✅ done (typecheck + 380 tests + build green) |
+| 2 | Direct canvas manipulation + nested composition | geometry/reparent/keyboard tests | ✅ done (typecheck + 380 tests + build green) |
 | 3 | n8n-style Logic Builder + conditions/typed ports + searchable node library | graph/runtime/connection tests | ✅ done (typecheck + 404 tests + build green) |
 | 4 | Project Data workspace + schema/record CRUD | repository + CRUD + binding tests | ✅ done (typecheck + 419 tests + build green) |
 | 5 | Project validation + preview/deploy integration | validator + failure-preservation tests | ✅ done (typecheck + 423 tests + build green) |
 | 6 | PD6 traceability + final accessibility/regression | full test + build gate | ✅ done (typecheck + 425 tests + build green) |
-| 7 | Flutter-inspired component expansion (Checkbox, Radio, Switch, Dropdown, Slider, Progress, Divider + TextField/List/Button upgrades) | mapper/default/validation/palette tests | ✅ done (typecheck + 433 tests + build green) |
+| 7 | Flutter-inspired component expansion (Checkbox, Radio, Switch, Dropdown, Slider, Progress, Divider + TextField/ListView/Button upgrades) | mapper/default/validation/palette tests | ✅ done (typecheck + 433 tests + build green) |
 | 8 | Preview overlay fit: content-hugging window, device/zoom controls, always fits the viewport (fit-on-open, refit on device change and resize, manual zoom scrolls instead of overflowing) | zoom/fit/device/runtime tests | ✅ done (typecheck + 436 tests + build green) |

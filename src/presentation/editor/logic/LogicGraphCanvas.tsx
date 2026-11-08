@@ -518,6 +518,9 @@ function detailFor(node: LogicNode, targetLabelFor: (nodeId: string) => string |
     case 'refresh-collection': return node.payload.collectionId ? `Refresh ${node.payload.collectionId}` : 'Collection not set';
     case 'set-variable': return node.payload.name ? `Set ${node.payload.name}` : 'Variable not set';
     case 'set-component-value': return node.payload.targetNodeId ? `Set ${node.payload.targetNodeId}` : 'Component not set';
+    case 'add-local-list-item': return node.payload.targetNodeId
+      ? `${node.payload.placement === 'prepend' ? 'Prepend to' : 'Append to'} ${targetLabelFor(node.payload.targetNodeId) ?? node.payload.targetNodeId}`
+      : 'Static ListView not set';
     case 'document-load': return `${node.payload.source} document source`;
     case 'text-split': return `${node.payload.chunkSize} size · ${node.payload.chunkOverlap} overlap`;
     case 'embedding-generate': return node.payload.connectionProfileId || 'Embedding profile not set';

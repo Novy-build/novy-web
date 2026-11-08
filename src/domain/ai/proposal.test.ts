@@ -53,7 +53,7 @@ describe('applyAssistantProposal', () => {
     expect(screenOf(DOCUMENT).nodes).toHaveLength(2);
   });
 
-  it('adds text and list nodes with the proposed content', () => {
+  it('adds text and ListView nodes with the proposed content', () => {
     const withText = applyAssistantProposal(DOCUMENT, 'screen_1', { kind: 'add-text', text: 'Welcome' });
     expect(screenOf(withText).nodes[2]).toMatchObject({ type: 'text', props: { text: 'Welcome' } });
 
@@ -62,8 +62,18 @@ describe('applyAssistantProposal', () => {
       items: ['Ada', 'Alan', 'Grace'],
     });
     expect(screenOf(withList).nodes[2]).toMatchObject({
-      type: 'list',
-      props: { items: ['Ada', 'Alan', 'Grace'] },
+      type: 'listview',
+      props: {
+        dataSource: {
+          kind: 'static',
+          fields: [{ id: 'value', label: 'Value', type: 'text' }],
+          items: [
+            { id: expect.any(String), values: { value: 'Ada' } },
+            { id: expect.any(String), values: { value: 'Alan' } },
+            { id: expect.any(String), values: { value: 'Grace' } },
+          ],
+        },
+      },
     });
   });
 
@@ -144,7 +154,7 @@ describe('describeProposal', () => {
   it('summarizes every proposal kind for the chat card', () => {
     expect(describeProposal({ kind: 'add-button', label: 'Sign up' })).toBe('Add a button “Sign up”');
     expect(describeProposal({ kind: 'add-text', text: 'Welcome' })).toBe('Add text “Welcome”');
-    expect(describeProposal({ kind: 'add-list', items: ['a', 'b', 'c'] })).toBe('Add a list with 3 items');
+    expect(describeProposal({ kind: 'add-list', items: ['a', 'b', 'c'] })).toBe('Add a ListView with 3 items');
     expect(
       describeProposal({
         kind: 'change-text-on-click',

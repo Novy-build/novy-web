@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ComponentNode } from '@domain/entities/componentNode';
 import { LayersPanel } from './LayersPanel';
-import { makeButton, makeContainer, makeText } from '@test/editorFixtures';
+import { makeButton, makeContainer, makeListView, makeText } from '@test/editorFixtures';
 
 function renderLayers(nodes: readonly ComponentNode[], selectedNodeId: string | null = null) {
   const props = {
@@ -82,6 +82,14 @@ describe('LayersPanel', () => {
     expect(screen.getByTestId('layer-row-child')).toBeInTheDocument();
   });
 
+  it('keeps ListView template widgets hidden outside item design', () => {
+    renderLayers([makeListView('list')]);
+
+    expect(screen.getByTestId('layer-row-list')).toBeInTheDocument();
+    expect(screen.queryByTestId('layer-row-list_item')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Collapse ListView/ })).not.toBeInTheDocument();
+  });
+
   it('renames a layer inline on double-click', () => {
     const props = renderLayers([makeButton('node_button')]);
     const row = screen.getByTestId('layer-row-node_button');
@@ -139,9 +147,57 @@ describe('LayersPanel', () => {
     expect(props.onMove).toHaveBeenLastCalledWith('node_button', 'frame', 'inside');
   });
 
+  it('reorders beside a ListView instead of nesting into its item template', () => {
+    const props = renderLayers([makeButton('node_button'), makeListView('list')]);
+    const source = screen.getByTestId('layer-row-node_button');
+    const target = screen.getByTestId('layer-row-list');
+    const dataTransfer = {
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      setData: vi.fn(),
+      getData: vi.fn(() => 'node_button'),
+    };
+
+    fireEvent.dragStart(source, { dataTransfer });
+    fireEvent.dragOver(target, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer });
+
+    expect(props.onMove).toHaveBeenCalledWith('node_button', 'list', 'before');
+  });
+
   it('guides to the palette when empty', () => {
     renderLayers([]);
 
     expect(screen.getByRole('status')).toHaveTextContent('No components yet — add one from Assets.');
+  });
+});
+  
+describe('LayersPanel item frame root', () => {
+  it('renders a selectable item frame root above template children', () => {
+    const frame = makeListView('frame_1');
+    const props = {
+      nodes: [makeText('node_text')],
+      frame,
+      selectedNodeId: 'frame_1',
+      onSelect: vi.fn(),
+      onOrder: vi.fn(),
+      onRename: vi.fn(),
+      onToggleVisibility: vi.fn(),
+      onToggleLock: vi.fn(),
+      onMove: vi.fn(),
+    };
+    render(<LayersPanel {...props} />);
+
+    expect(screen.getByTestId('layer-row-frame_1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Item frame' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('layer-row-node_text')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /rename/i })).not.toBeInTheDocument();
+  });
+
+  it('collapses the item frame children', () => {
+    const frame = makeListView('frame_1');
+    render(<LayersPanel frame={frame} nodes={[makeText('node_text')]} selectedNodeId={null} onSelect={vi.fn()} onOrder={vi.fn()} onRename={vi.fn()} onToggleVisibility={vi.fn()} onToggleLock={vi.fn()} onMove={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Item frame' }));
+    expect(screen.queryByTestId('layer-row-node_text')).not.toBeInTheDocument();
   });
 });

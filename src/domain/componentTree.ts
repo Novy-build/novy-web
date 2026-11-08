@@ -1,4 +1,12 @@
-import { geometryAtBreakpoint, isHiddenAtBreakpoint, type ComponentNode, type ResponsiveBreakpoint } from './entities/componentNode';
+import {
+  childGeometriesAtBreakpoint,
+  geometryAtBreakpoint,
+  isChildBearingNode,
+  isHiddenAtBreakpoint,
+  type ComponentNode,
+  type NodeGeometry,
+  type ResponsiveBreakpoint,
+} from './entities/componentNode';
 
 export type LayerDropPosition = 'before' | 'inside';
 
@@ -30,7 +38,11 @@ export function getComponentTreeLocation(
   return locateNode(nodes, nodeId, null, 0, 0, null, null, breakpoint);
 }
 
-/** Finds the deepest unlocked frame under a design-space point. */
+/**
+ * Finds the deepest unlocked direct-manipulation frame under a design-space
+ * point. ListView children belong to a separate item-design scope, so a
+ * ListView is deliberately neither a drop target nor traversed here.
+ */
 export function findFrameAtPoint(
   nodes: readonly ComponentNode[],
   x: number,
@@ -44,16 +56,17 @@ export function findFrameAtPoint(
     originX: number,
     originY: number,
     ancestorBlocked: boolean,
+    geometryOverrides?: ReadonlyMap<string, NodeGeometry>,
   ): void {
     for (const node of list) {
       if (node.id === excludeNodeId || isHiddenAtBreakpoint(node, breakpoint)) {
         continue;
       }
-      const geometry = geometryAtBreakpoint(node, breakpoint);
+      const geometry = geometryOverrides?.get(node.id) ?? geometryAtBreakpoint(node, breakpoint);
       const absoluteX = originX + geometry.x;
       const absoluteY = originY + geometry.y;
       const blocked = ancestorBlocked || node.isLocked === true;
-      if (node.type === 'container') {
+      if (isChildBearingNode(node) && node.type !== 'listview') {
         const contains =
           x >= absoluteX &&
           x <= absoluteX + geometry.w &&
@@ -61,7 +74,13 @@ export function findFrameAtPoint(
           y <= absoluteY + geometry.h;
         if (contains && !blocked) {
           match = { id: node.id, x: absoluteX, y: absoluteY, w: geometry.w, h: geometry.h };
-          visit(node.children, absoluteX, absoluteY, blocked);
+          visit(
+            node.children,
+            absoluteX,
+            absoluteY,
+            blocked,
+            childGeometriesAtBreakpoint(node, breakpoint, geometry),
+          );
         }
       }
     }
@@ -85,7 +104,7 @@ export function reparentLayerInTree(
   const parent = parentId ? locateNode(nodes, parentId) : null;
   if (
     parentId &&
-    (!parent || parent.node.type !== 'container' || parent.node.isLocked || containsNode(source.node, parentId))
+    (!parent || !isChildBearingNode(parent.node) || parent.node.isLocked || containsNode(source.node, parentId))
   ) {
     return nodes;
   }
@@ -102,7 +121,7 @@ export function reparentLayerInTree(
     ];
   }
   const parentAfterDetach = locateNode(detached.nodes, parentId);
-  if (!parentAfterDetach || parentAfterDetach.node.type !== 'container') {
+  if (!parentAfterDetach || !isChildBearingNode(parentAfterDetach.node)) {
     return nodes;
   }
   return insertIntoFrame(
@@ -135,7 +154,7 @@ export function moveLayerInTree(
   if (!source || !target || containsNode(source.node, targetId)) {
     return nodes;
   }
-  if (position === 'inside' && (target.node.type !== 'container' || target.node.isLocked)) {
+  if (position === 'inside' && (!isChildBearingNode(target.node) || target.node.isLocked)) {
     return nodes;
   }
 
@@ -148,7 +167,7 @@ export function moveLayerInTree(
     return nodes;
   }
 
-  if (position === 'inside' && targetAfterDetach.node.type === 'container') {
+  if (position === 'inside' && isChildBearingNode(targetAfterDetach.node)) {
     const moved = withRelativePosition(
       detached.removed,
       source.absoluteX - targetAfterDetach.absoluteX,
@@ -181,10 +200,11 @@ function locateNode(
   parentWidth: number | null = null,
   parentHeight: number | null = null,
   breakpoint: ResponsiveBreakpoint = 'mobile',
+  geometryOverrides?: ReadonlyMap<string, NodeGeometry>,
 ): ComponentTreeLocation | null {
   for (let index = 0; index < nodes.length; index += 1) {
     const node = nodes[index]!;
-    const geometry = geometryAtBreakpoint(node, breakpoint);
+    const geometry = geometryOverrides?.get(node.id) ?? geometryAtBreakpoint(node, breakpoint);
     const absoluteX = parentAbsoluteX + geometry.x;
     const absoluteY = parentAbsoluteY + geometry.y;
     if (node.id === nodeId) {
@@ -200,7 +220,7 @@ function locateNode(
         parentHeight,
       };
     }
-    if (node.type === 'container') {
+    if (isChildBearingNode(node)) {
       const nested = locateNode(
         node.children,
         nodeId,
@@ -210,6 +230,7 @@ function locateNode(
         geometry.w,
         geometry.h,
         breakpoint,
+        childGeometriesAtBreakpoint(node, breakpoint, geometry),
       );
       if (nested) {
         return nested;
@@ -220,7 +241,7 @@ function locateNode(
 }
 
 function containsNode(node: ComponentNode, nodeId: string): boolean {
-  return node.type === 'container'
+  return isChildBearingNode(node)
     ? node.children.some((child) => child.id === nodeId || containsNode(child, nodeId))
     : false;
 }
@@ -238,7 +259,7 @@ function detachNode(
   }
   for (let index = 0; index < nodes.length; index += 1) {
     const node = nodes[index]!;
-    if (node.type !== 'container') {
+    if (!isChildBearingNode(node)) {
       continue;
     }
     const nested = detachNode(node.children, nodeId);
@@ -257,10 +278,10 @@ function insertIntoFrame(
   moving: ComponentNode,
 ): readonly ComponentNode[] {
   return nodes.map((node) => {
-    if (node.id === frameId && node.type === 'container') {
+    if (node.id === frameId && isChildBearingNode(node)) {
       return { ...node, children: [...node.children, moving] };
     }
-    if (node.type === 'container') {
+    if (isChildBearingNode(node)) {
       const children = insertIntoFrame(node.children, frameId, moving);
       return children === node.children ? node : { ...node, children: [...children] };
     }
@@ -279,14 +300,14 @@ function insertAtParent(
   }
   let changed = false;
   const mapped = nodes.map((node) => {
-    if (node.id === parentId && node.type === 'container') {
+    if (node.id === parentId && isChildBearingNode(node)) {
       changed = true;
       return {
         ...node,
         children: [...node.children.slice(0, index), moving, ...node.children.slice(index)],
       };
     }
-    if (node.type === 'container') {
+    if (isChildBearingNode(node)) {
       const children = insertAtParent(node.children, parentId, index, moving);
       if (children !== node.children) {
         changed = true;

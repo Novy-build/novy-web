@@ -96,7 +96,7 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(within(sidebar).getByRole('button', { name: 'Text — Hello, World!' })).toBeInTheDocument();
   });
 
-  it('places, edits, and previews the PD6 Form component', async () => {
+  it('places, edits, and previews a ListView component', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);
     const projects = await repositories.projects.listProjects();
@@ -104,18 +104,24 @@ describe('EditorPage (integration over the real route tree)', () => {
     await screen.findByTestId('canvas-frame');
 
     fireEvent.click(screen.getByRole('tab', { name: 'assets' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add Form' }));
-    fireEvent.change(screen.getByLabelText('Form title'), {
-      target: { value: 'Course registration' },
+    fireEvent.click(screen.getByRole('button', { name: 'Add ListView' }));
+    expect(screen.getByText('Design how each item displayed in this ListView should look.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+    expect(screen.getByText(/Item design/)).toBeInTheDocument();
+    expect(screen.getByTestId('canvas-frame')).toHaveStyle({ width: '320px', height: '800px' });
+    fireEvent.click(screen.getByRole('button', { name: 'Start with Text' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Text content' }), { target: { value: 'value' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Exit item design' }));
+    expect(screen.getByTestId('listview-item-outlines')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Static items'), {
+      target: { value: 'First note\nSecond note' },
     });
-    fireEvent.change(screen.getByLabelText('Submit button label'), {
-      target: { value: 'Register' },
-    });
+    expect(screen.queryByTestId('listview-item-outlines')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     const preview = await screen.findByRole('dialog');
-    expect(within(preview).getByRole('form', { name: 'Course registration' })).toBeInTheDocument();
-    expect(within(preview).getByRole('button', { name: 'Register' })).toBeInTheDocument();
+    expect(within(preview).getByText('First note')).toBeInTheDocument();
+    expect(within(preview).getByText('Second note')).toBeInTheDocument();
   });
 
   it('previews the active screen and closes again', async () => {

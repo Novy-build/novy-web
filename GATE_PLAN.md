@@ -1,5 +1,9 @@
 # Novy PD6 Redesign — Gates 3 to 6 Implementation Plan
 
+> Historical plan: references to List, Repeater, and Form below describe the schema-v5 model that
+> existed while these gates were implemented. The current schema-v9 editor uses Column, Row, and
+> ListView and migrates those legacy widgets on load.
+
 ## 1. Purpose
 
 This document is the implementation specification for the remaining PD6 interaction redesign.

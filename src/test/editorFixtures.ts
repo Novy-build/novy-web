@@ -1,4 +1,4 @@
-import type { ButtonNode, ComponentNode, ContainerNode, FormNode, ImageNode, ListNode, TextNode } from '@domain/entities/componentNode';
+import type { ButtonNode, ColumnNode, ComponentNode, ContainerNode, ImageNode, ListViewNode, TextNode } from '@domain/entities/componentNode';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 
 /**
@@ -59,35 +59,56 @@ export function makeImage(id: string, overrides: Partial<ImageNode> = {}): Image
   };
 }
 
-export function makeList(id: string, overrides: Partial<ListNode> = {}): ListNode {
+export function makeListView(id: string, overrides: Partial<ListViewNode> = {}): ListViewNode {
   return {
     id,
-    type: 'list',
+    type: 'listview',
     x: 24,
     y: 400,
     w: 320,
     h: 160,
-    props: { items: ['First', 'Second'], scrollable: true, showDividers: true },
+    props: {
+      emptyText: 'No items yet',
+      showDividers: true,
+      scrollDirection: 'vertical',
+      crossAxisAlignment: 'stretch',
+      gap: 0,
+      padding: 0,
+      itemSpacing: 8,
+      itemBorderRadius: 8,
+      dataSource: {
+        kind: 'static',
+        fields: [{ id: 'value', label: 'Value', type: 'text' }],
+        items: [
+          { id: 'first', values: { value: 'First' } },
+          { id: 'second', values: { value: 'Second' } },
+        ],
+      },
+    },
+    children: [{
+      id: `${id}_item`,
+      type: 'text',
+      x: 0,
+      y: 0,
+      w: 320,
+      h: 44,
+      props: { text: 'List item', level: 'body' },
+      bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'value' } }],
+    }],
     ...overrides,
   };
 }
 
-export function makeForm(id: string, overrides: Partial<FormNode> = {}): FormNode {
+export function makeColumn(id: string, children: ComponentNode[] = [], overrides: Partial<ColumnNode> = {}): ColumnNode {
   return {
     id,
-    type: 'form',
+    type: 'column',
     x: 24,
     y: 180,
     w: 320,
     h: 260,
-    props: {
-      title: 'Contact us',
-      fields: [
-        { label: 'Name', placeholder: 'Your name', type: 'text' },
-        { label: 'Email', placeholder: 'you@example.com', type: 'email' },
-      ],
-      submitLabel: 'Submit',
-    },
+    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: 16 },
+    children,
     ...overrides,
   };
 }

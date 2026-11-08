@@ -102,7 +102,7 @@ export function RagNodeConfig({
     case 'chat-output':
       return <ConfigGrid>
         <SelectField label="Answer Text component" value={payload.targetNodeId} onChange={(targetNodeId) => onChange({ ...payload, targetNodeId })} options={screenNodes.filter((node) => node.type === 'text').map((node) => [node.id, nodeLayerName(node)])} />
-        <SelectField label="Citation Repeater" value={payload.citationsNodeId ?? ''} onChange={(citationsNodeId) => onChange({ ...payload, citationsNodeId: citationsNodeId || undefined })} options={screenNodes.filter((node) => node.type === 'repeater').map((node) => [node.id, nodeLayerName(node)])} />
+        <SelectField label="Citation ListView" value={payload.citationsNodeId ?? ''} onChange={(citationsNodeId) => onChange({ ...payload, citationsNodeId: citationsNodeId || undefined })} options={screenNodes.filter((node) => node.type === 'listview').map((node) => [node.id, nodeLayerName(node)])} />
       </ConfigGrid>;
     case 'memory':
       return <ConfigGrid>

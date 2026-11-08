@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { EditorAction } from '../state/editorState';
 import { Inspector } from './Inspector';
-import { makeButton, makeContainer, makeForm, makeImage, makeList, makeText } from '@test/editorFixtures';
+import { makeButton, makeColumn, makeContainer, makeImage, makeListView, makeText } from '@test/editorFixtures';
 import type { DataCollection } from '@domain/entities/appData';
 
 const COLLECTION: DataCollection = {
@@ -24,10 +24,12 @@ function renderInspector(
   behaviors: Parameters<typeof Inspector>[0]['behaviors'] = [],
   collections: readonly DataCollection[] = [],
   device: Parameters<typeof Inspector>[0]['device'] = 'mobile',
+  onEditItemTemplate = vi.fn(),
+  itemFrame: Parameters<typeof Inspector>[0]['itemFrame'] = null,
 ) {
   const onAction = vi.fn<(action: EditorAction) => void>();
-  render(<Inspector behaviors={behaviors} collections={collections} device={device} node={node} onAction={onAction} onOpenLogic={onOpenLogic} />);
-  return { onAction, onOpenLogic };
+  render(<Inspector behaviors={behaviors} collections={collections} device={device} itemFrame={itemFrame} node={node} onAction={onAction} onEditItemTemplate={onEditItemTemplate} onOpenLogic={onOpenLogic} />);
+  return { onAction, onOpenLogic, onEditItemTemplate };
 }
 
 describe('Inspector', () => {
@@ -183,90 +185,142 @@ describe('Inspector', () => {
     });
   });
 
-  it('edits list items line by line', () => {
-    const { onAction } = renderInspector(makeList('node_1'));
+  it('edits ListView static items line by line', () => {
+    const { onAction } = renderInspector(makeListView('node_1'));
 
-    fireEvent.change(screen.getByLabelText('List items'), { target: { value: 'Alpha\nBeta\nGamma' } });
+    fireEvent.change(screen.getByLabelText('Static items'), { target: { value: 'Alpha\nBeta\nGamma' } });
 
     expect(onAction).toHaveBeenCalledWith({
-      type: 'node/props-list',
+      type: 'node/props-listview',
       nodeId: 'node_1',
-      props: { items: ['Alpha', 'Beta', 'Gamma'] },
-    });
-  });
-
-  it('binds a List to a collection display field', () => {
-    const { onAction } = renderInspector(makeList('node_list'), vi.fn(), [], [COLLECTION]);
-    fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'collection' } });
-
-    expect(onAction).toHaveBeenCalledWith({
-      type: 'node/props-list',
-      nodeId: 'node_list',
       props: {
         dataSource: {
-          kind: 'collection',
-          collectionId: 'collection_students',
-          displayFieldId: 'field_name',
-        },
-      },
-    });
-  });
-
-  it('edits Form title, fields, and submit label', () => {
-    const { onAction } = renderInspector(makeForm('node_form'));
-
-    fireEvent.change(screen.getByLabelText('Form title'), { target: { value: 'Join the course' } });
-    expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-form',
-      nodeId: 'node_form',
-      props: { title: 'Join the course' },
-    });
-
-    fireEvent.change(screen.getByLabelText('Field labels'), { target: { value: 'Student name\nEmail address' } });
-    expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-form',
-      nodeId: 'node_form',
-      props: {
-        fields: [
-          { label: 'Student name', placeholder: 'Your name', type: 'text' },
-          { label: 'Email address', placeholder: 'you@example.com', type: 'email' },
-        ],
-      },
-    });
-
-    fireEvent.change(screen.getByLabelText('Submit button label'), { target: { value: 'Join now' } });
-    expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-form',
-      nodeId: 'node_form',
-      props: { submitLabel: 'Join now' },
-    });
-  });
-
-  it('binds Form fields to collection fields', () => {
-    const { onAction } = renderInspector(makeForm('node_form'), vi.fn(), [], [COLLECTION]);
-    fireEvent.change(screen.getByLabelText('Submit to collection'), {
-      target: { value: 'collection_students' },
-    });
-
-    expect(onAction).toHaveBeenCalledWith({
-      type: 'node/props-form',
-      nodeId: 'node_form',
-      props: {
-        dataBinding: {
-          collectionId: 'collection_students',
-          fields: [
-            { formFieldIndex: 0, dataFieldId: 'field_name' },
-            { formFieldIndex: 1, dataFieldId: 'field_email' },
+          kind: 'static',
+          fields: [{ id: 'value', label: 'Value', type: 'text' }],
+          items: [
+            { id: 'first', values: { value: 'Alpha' } },
+            { id: 'second', values: { value: 'Beta' } },
+            { id: 'node_1__static_3', values: { value: 'Gamma' } },
           ],
         },
       },
     });
   });
 
+  it('opens the dedicated ListView item design scope', () => {
+    const onEditItemTemplate = vi.fn();
+    renderInspector(makeListView('node_1'), vi.fn(), [], [], 'mobile', onEditItemTemplate);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit item design' }));
+    expect(onEditItemTemplate).toHaveBeenCalledWith('node_1');
+  });
+
+  it('hides item frame fields outside item design', () => {
+    renderInspector(makeListView('node_1'));
+
+    expect(screen.queryByLabelText('Item padding')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Item spacing')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Item border radius')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Show dividers')).not.toBeInTheDocument();
+  });
+
+  it('edits the repeated item frame only while item design is open', () => {
+    const { onAction } = renderInspector(makeListView('list_frame'), vi.fn(), [], [], 'mobile', vi.fn(), makeListView('list_frame'));
+
+    fireEvent.change(screen.getByLabelText('Item padding'), { target: { value: '12' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-listview',
+      nodeId: 'list_frame',
+      props: { padding: 12 },
+    });
+
+    fireEvent.change(screen.getByLabelText('Item spacing'), { target: { value: '10' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-listview',
+      nodeId: 'list_frame',
+      props: { itemSpacing: 10 },
+    });
+
+    fireEvent.change(screen.getByLabelText('Item border radius'), { target: { value: '16' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-listview',
+      nodeId: 'list_frame',
+      props: { itemBorderRadius: 16 },
+    });
+
+    const checkbox = screen.getByLabelText('Show dividers');
+    fireEvent.click(checkbox);
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-listview',
+      nodeId: 'list_frame',
+      props: { showDividers: false },
+    });
+
+    expect(screen.queryByLabelText('Template widget gap')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Cross axis alignment')).not.toBeInTheDocument();
+  });
+
+  it('edits structured static fields and commits them in one action', () => {
+    const { onAction } = renderInspector(makeListView('node_1'));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit structured items' }));
+    const dialog = screen.getByRole('dialog', { name: 'Static ListView items' });
+    fireEvent.change(within(dialog).getByLabelText('Field 1 label'), { target: { value: 'Title' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save items' }));
+
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'node/props-listview',
+      nodeId: 'node_1',
+      props: {
+        dataSource: {
+          kind: 'static',
+          fields: [{ id: 'value', label: 'Title', type: 'text' }],
+          items: [
+            { id: 'first', values: { value: 'First' } },
+            { id: 'second', values: { value: 'Second' } },
+          ],
+        },
+      },
+    });
+  });
+
+  it('binds a ListView to a collection display field', () => {
+    const { onAction } = renderInspector(makeListView('node_list'), vi.fn(), [], [COLLECTION]);
+    fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'collection' } });
+
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'node/props-listview',
+      nodeId: 'node_list',
+      props: {
+        dataSource: {
+          kind: 'collection',
+          collectionId: 'collection_students',
+          displayFieldIds: ['field_name'],
+        },
+      },
+    });
+  });
+
+  it('edits Column axis alignment and spacing', () => {
+    const { onAction } = renderInspector(makeColumn('node_column'));
+
+    fireEvent.change(screen.getByLabelText('Main axis alignment'), { target: { value: 'space-between' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-column',
+      nodeId: 'node_column',
+      props: { mainAxisAlignment: 'space-between' },
+    });
+
+    fireEvent.change(screen.getByLabelText('Gap'), { target: { value: '20' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-column',
+      nodeId: 'node_column',
+      props: { gap: 20 },
+    });
+  });
+
   it('describes containers as content-free and offers Logic handoff', () => {
     const { onAction, onOpenLogic } = renderInspector(makeContainer('node_1'));
 
-    expect(screen.getByText('Containers have no content options in the MVP.')).toBeInTheDocument();
+    expect(screen.getByText('Containers keep free-form child positioning.')).toBeInTheDocument();
     expect(screen.getByText('Fixed for the MVP.')).toBeInTheDocument();
     expect(onAction).not.toHaveBeenCalled();
 

@@ -247,7 +247,7 @@ native mobile or desktop application targets.
 
 ## 8. Versioning and Compatibility
 
-The current Project DTO is `schemaVersion: 5`. Loading older documents must preserve all existing
+The current Project DTO is `schemaVersion: 9`. Loading older documents must preserve all existing
 components, behaviors, graph nodes, data references, and deployment history. Current migration rules
 include:
 
@@ -256,9 +256,21 @@ include:
 - converting legacy async `next` edges to `success`;
 - treating missing appearance, responsive geometry, and input mappings as inherited/default values.
 - expanding schema-v3 `rag-index`, `rag-query`, and `rag-remove` nodes into deterministic granular
-  ingestion, retrieval/generation, and vector-delete chains while preserving external edges.
+  ingestion, retrieval/generation, and vector-delete chains while preserving external edges;
+- converting schema-v5 List and Repeater widgets into ListView widgets with deterministic item
+  templates; and
+- converting schema-v5 Form widgets into Column + Text/Input/Button composition, including a
+  deterministic click-to-Insert Record graph when the legacy Form had a collection binding; and
+- defaulting schema-v7 ListViews to zero item spacing and radius so their repeated-item appearance
+  remains unchanged while schema-v8 projects persist explicit item-container layout; and
+- materializing schema-v8 ListView flow positions into explicit free-form item coordinates so
+  existing templates retain their visual placement under schema v9.
 
-Schema v5 distinguishes solid control edges from dashed typed resource edges. Vector Store actions
+Schema v9 retains the schema-v5 distinction between solid control edges and dashed typed resource
+edges while replacing live List/Form/Repeater widget types with Column, Row, and ListView.
+ListView repeats its nested `children` template for static values or collection records; Text
+children can read the current item through `dataBinding: { "source": "list-item", "fieldId": "..." }`.
+Vector Store actions
 consume attached Document Loader and Embedding resources for upsert, or expose a retrieval `tool`
 to an AI Agent. The Agent consumes generic Chat Model, Memory, Vector Store Tool, Prompt Template,
 and optional Reranker resources. Provider API keys remain backend-owned profile configuration.

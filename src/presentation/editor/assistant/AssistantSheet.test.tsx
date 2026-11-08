@@ -100,8 +100,10 @@ describe('AssistantSheet', () => {
     const dialog = ask('create a list of students');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Keep' }));
 
-    const list = getActiveScreen(latest.current!).nodes.find((node) => node.type === 'list');
-    expect(list?.type === 'list' ? list.props.items : []).toEqual([
+    const list = getActiveScreen(latest.current!).nodes.find((node) => node.type === 'listview');
+    expect(list?.type === 'listview' && list.props.dataSource.kind === 'static'
+      ? list.props.dataSource.items.map((item) => item.values.value)
+      : []).toEqual([
       'Ada Lovelace',
       'Alan Turing',
       'Grace Hopper',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Screen } from '../entities/screen';
 import type { LogicGraph } from '../entities/logic';
+import { makeListView } from '@test/editorFixtures';
 import { createActionNode, createBehaviorBundle } from '../factories/logic';
 import { appendAction, appendCondition, connectLogicPorts, updateCondition } from './graph';
 import {
@@ -141,6 +142,62 @@ describe('runClickBehavior', () => {
         kind: 'data-operation',
         payload: { type: 'insert-record', collectionId: 'students', values: { name: 'Ada' } },
       },
+    ]);
+  });
+
+  it('adds a typed local ListView item and exposes it to later node mappings', () => {
+    const { screen, graphId } = buildScreen();
+    const list = makeListView('local_list');
+    if (list.props.dataSource.kind === 'static') {
+      list.props.dataSource.fields = [
+        { id: 'value', label: 'Name', type: 'text' },
+        { id: 'score', label: 'Score', type: 'number' },
+        { id: 'active', label: 'Active', type: 'boolean' },
+      ];
+    }
+    const withList = { ...screen, nodes: [...screen.nodes, list] };
+    let graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'add-local-list-item',
+      targetNodeId: 'local_list',
+      placement: 'prepend',
+      values: { value: '', score: 0, active: false },
+    });
+    const addItem = graph.nodes.find((node) => node.kind === 'action' && node.payload.type === 'add-local-list-item')!;
+    if (addItem.kind === 'action') {
+      addItem.inputMappings = {
+        value: { source: 'component', nodeId: 'node_input', property: 'value' },
+        score: { source: 'literal', value: '42' },
+        active: { source: 'literal', value: 'true' },
+      };
+    }
+    graph = appendAction(graph, { type: 'show-message', message: '' });
+    const message = graph.nodes.find((node) => node.kind === 'action' && node.payload.type === 'show-message')!;
+    if (message.kind === 'action') {
+      message.inputMappings = {
+        message: { source: 'node-output', nodeId: addItem.id, path: 'item.values.value' },
+      };
+    }
+    const screenWithGraph = {
+      ...withList,
+      logicGraphs: withList.logicGraphs.map((item) => item.id === graphId ? graph : item),
+    };
+
+    expect(runClickBehavior(
+      { screens: [screenWithGraph] },
+      screenWithGraph,
+      'node_button',
+      {
+        componentValues: new Map([['node_input', 'Ada']]),
+        createLocalListItemId: () => 'local_ada',
+      },
+    )).toEqual([
+      {
+        kind: 'add-local-list-item',
+        listViewId: 'local_list',
+        placement: 'prepend',
+        item: { itemId: 'local_ada', values: { value: 'Ada', score: 42, active: true } },
+      },
+      { kind: 'show-message', message: 'Ada' },
     ]);
   });
 
@@ -392,6 +449,22 @@ describe('resolveValueExpression', () => {
       document,
       context,
     )).toBe(42);
+  });
+
+  it('resolves the current repeated ListView item', () => {
+    const { screen } = buildScreen();
+    expect(resolveValueExpression(
+      { source: 'list-item', fieldId: 'email' },
+      { screens: [screen] },
+      {
+        componentValues: new Map(),
+        listItem: {
+          listViewId: 'contacts',
+          itemId: 'contact-1',
+          values: { email: 'ada@example.com' },
+        },
+      },
+    )).toBe('ada@example.com');
   });
 });
 

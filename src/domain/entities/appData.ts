@@ -1,6 +1,22 @@
 export type DataFieldType = 'text' | 'number' | 'boolean' | 'date';
 export type DataValue = string | number | boolean | null;
 
+/** Runtime context supplied to widgets rendered inside one repeated ListView item. */
+export interface ListItemContext {
+  listViewId: string;
+  itemId: string;
+  values: Readonly<Record<string, DataValue>>;
+}
+
+export type ListItemPlacement = 'append' | 'prepend';
+
+/** One session-only item layered around a static ListView's persisted/runtime baseline. */
+export interface LocalListItemAddition {
+  itemId: string;
+  placement: ListItemPlacement;
+  values: Readonly<Record<string, DataValue>>;
+}
+
 export interface ProjectDatabase {
   id: string;
   projectId: string;

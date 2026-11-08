@@ -69,7 +69,7 @@ describe('generated app manifest', () => {
     expect(manifest).toMatchObject({
       manifestVersion: 1,
       generatedAt: '2026-11-07T12:00:00.000Z',
-      project: { schemaVersion: 5, id: 'project_notes' },
+      project: { schemaVersion: 9, id: 'project_notes' },
       appData: {
         database: { id: 'database_notes' },
         recordsIncluded: false,
@@ -99,5 +99,37 @@ describe('generated app manifest', () => {
   it('creates a stable, filesystem-safe export name', () => {
     expect(generatedAppManifestFilename(' Private Notes! ')).toBe('private-notes-handoff.json');
     expect(generatedAppManifestFilename('   ')).toBe('novy-project-handoff.json');
+  });
+
+  it('does not infer a database requirement for Add Local List Item', () => {
+    const localProject = structuredClone(project);
+    localProject.document.screens[0]!.nodes = [{
+      id: 'drafts', type: 'listview', x: 0, y: 0, w: 320, h: 160,
+      props: {
+        emptyText: 'No drafts', showDividers: true, scrollDirection: 'vertical',
+        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 0, itemBorderRadius: 0,
+        dataSource: {
+          kind: 'static', fields: [{ id: 'title', label: 'Title', type: 'text' }], items: [],
+        },
+      },
+      children: [],
+    }];
+    localProject.document.screens[0]!.logicGraphs = [{
+      id: 'local_graph', name: 'Add draft', sourceNodeId: 'drafts',
+      nodes: [
+        { kind: 'trigger', id: 'trigger', event: 'click', position: { x: 0, y: 0 } },
+        {
+          kind: 'action', id: 'add', position: { x: 200, y: 0 },
+          payload: {
+            type: 'add-local-list-item', targetNodeId: 'drafts', placement: 'append',
+            values: { title: 'Draft' },
+          },
+        },
+      ],
+      edges: [{ id: 'edge', fromNodeId: 'trigger', fromPort: 'next', toNodeId: 'add', toPort: 'in' }],
+    }];
+
+    const manifest = buildGeneratedAppManifest(localProject, null, []);
+    expect(manifest.runtime.requirements.map((requirement) => requirement.capability)).toEqual(['deployment']);
   });
 });

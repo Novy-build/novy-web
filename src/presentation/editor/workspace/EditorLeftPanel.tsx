@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ComponentNode, ComponentType } from '@domain/entities/componentNode';
+import type { ComponentNode, ComponentType, ListViewNode } from '@domain/entities/componentNode';
 import type { LayerDropPosition } from '@domain/componentTree';
 import { ComponentsPalette } from './ComponentsPalette';
 import { LayersPanel } from './LayersPanel';
@@ -9,6 +9,7 @@ type LeftPanelTab = 'layers' | 'assets';
 
 interface EditorLeftPanelProps {
   nodes: readonly ComponentNode[];
+  frame?: ListViewNode | null;
   selectedNodeId: string | null;
   onAddByType: (type: ComponentType) => void;
   onSelect: (nodeId: string) => void;
@@ -22,6 +23,7 @@ interface EditorLeftPanelProps {
 /** Figma-like left rail: Layers and Assets share one focused workspace panel. */
 export function EditorLeftPanel({
   nodes,
+  frame = null,
   selectedNodeId,
   onAddByType,
   onSelect,
@@ -83,6 +85,7 @@ export function EditorLeftPanel({
       >
         {activeTab === 'layers' ? (
           <LayersPanel
+            frame={frame}
             isEmbedded
             nodes={nodes}
             onMove={onMove}

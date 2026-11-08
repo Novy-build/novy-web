@@ -5,7 +5,7 @@ import type { ProjectDocument } from '@domain/entities/screen';
 import type { DataCollection } from '@domain/entities/appData';
 import { editorReducer } from '../state/editorReducer';
 import { createEditorState, getActiveScreen, type EditorState } from '../state/editorState';
-import { makeButton, makeScreen, makeText } from '@test/editorFixtures';
+import { makeButton, makeListView, makeScreen, makeText } from '@test/editorFixtures';
 import { LogicWorkspace } from './LogicWorkspace';
 
 const SCREEN = makeScreen('screen_home', [
@@ -190,6 +190,41 @@ describe('LogicWorkspace with a workflow', () => {
       collectionId: 'students',
       values: { student_name: 'Ada' },
     });
+  });
+
+  it('configures typed values and placement for a static ListView only', () => {
+    const document = seededWorkflow();
+    const list = makeListView('local_list');
+    list.name = 'Draft items';
+    if (list.props.dataSource.kind === 'static') {
+      list.props.dataSource.fields = [
+        { id: 'value', label: 'Title', type: 'text' },
+        { id: 'priority', label: 'Priority', type: 'number' },
+      ];
+    }
+    document.screens[0]!.nodes.push(list);
+    renderWorkspace(document);
+    fireEvent.click(screen.getByRole('button', { name: 'Add Local List Item' }));
+
+    const graph = getActiveScreen(latest.current!).logicGraphs[0]!;
+    const action = graph.nodes.find(
+      (node) => node.kind === 'action' && node.payload.type === 'add-local-list-item',
+    )!;
+    fireEvent.click(screen.getByTestId(`logic-node-${action.id}`));
+    expect(screen.getByText(/does not save to a collection or modify Project JSON/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Static ListView'), { target: { value: 'local_list' } });
+    fireEvent.change(screen.getByLabelText('Placement'), { target: { value: 'prepend' } });
+    fireEvent.change(screen.getAllByLabelText('Title')[0]!, { target: { value: 'Draft note' } });
+    fireEvent.change(screen.getAllByLabelText('Priority')[0]!, { target: { value: '3' } });
+
+    const updated = getActiveScreen(latest.current!).logicGraphs[0]!.nodes.find((node) => node.id === action.id);
+    expect(updated?.kind === 'action' ? updated.payload : null).toEqual({
+      type: 'add-local-list-item',
+      targetNodeId: 'local_list',
+      placement: 'prepend',
+      values: { value: 'Draft note', priority: 3 },
+    });
+    expect(screen.getByRole('button', { name: 'next output of Add local list item' })).toBeInTheDocument();
   });
 
   it('configures Send Email, dynamic inputs, and success/error ports', () => {

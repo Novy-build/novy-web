@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBehaviorBundle } from '@domain/factories/logic';
 import { appendAction } from '@domain/logic/graph';
 import type { Behavior, LogicGraph } from '@domain/entities/logic';
+import { geometryAtBreakpoint } from '@domain/entities/componentNode';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import { editorReducer } from './editorReducer';
 import { createEditorState, findNodeInScreen, getActiveScreen, type EditorState } from './editorState';
@@ -54,6 +55,275 @@ describe('load', () => {
     expect(state.hasUnsavedChanges).toBe(false);
   });
 });
+
+describe('ListView item design scope', () => {
+  function listState(): EditorState {
+    const document: ProjectDocument = {
+      screens: [{
+        ...SCREEN,
+        nodes: [{
+          id: 'list',
+          type: 'listview',
+          x: 24,
+          y: 24,
+          w: 320,
+          h: 240,
+          props: {
+            emptyText: 'No items',
+            showDividers: true,
+            scrollDirection: 'vertical',
+            crossAxisAlignment: 'stretch',
+            gap: 0,
+            padding: 12,
+            itemSpacing: 8,
+            itemBorderRadius: 8,
+            dataSource: {
+              kind: 'static',
+              fields: [{ id: 'value', label: 'Value', type: 'text' }],
+              items: [{ id: 'sample', values: { value: 'Ada' } }],
+            },
+          },
+          children: [{
+            id: 'item-text',
+            type: 'text',
+            x: 0,
+            y: 0,
+            w: 300,
+            h: 44,
+            props: { text: 'Fallback', level: 'body' },
+          }],
+        }],
+      }],
+    };
+    return createEditorState(document);
+  }
+
+  it('opens, samples, and closes without dirtying document history', () => {
+    const opened = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
+    expect(opened.designScope).toEqual({ kind: 'list-item-template', listViewId: 'list', sampleItemId: null });
+    expect(opened.selectedNodeId).toBe('list');
+    expect(opened.past).toHaveLength(0);
+    expect(opened.hasUnsavedChanges).toBe(false);
+
+    const sampled = editorReducer(opened, { type: 'design/item-template-sample', sampleItemId: 'sample' });
+    expect(sampled.designScope).toMatchObject({ sampleItemId: 'sample' });
+    const closed = editorReducer(sampled, { type: 'design/item-template-close' });
+    expect(closed.designScope).toEqual({ kind: 'screen' });
+    expect(closed.selectedNodeId).toBe('list');
+  });
+
+  it('does not delete the item frame while item design is open', () => {
+    const opened = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
+    const deleted = editorReducer(opened, { type: 'node/delete', nodeId: 'list' });
+    expect(deleted).toBe(opened);
+  });
+
+  it('rejects palette drops into a ListView from screen design', () => {
+    const state = listState();
+    const next = editorReducer(state, {
+      type: 'canvas/dropAt',
+      nodeType: 'button',
+      x: 120,
+      y: 120,
+      parentId: 'list',
+    });
+
+    expect(next).toBe(state);
+  });
+
+  it('adds widgets to the ListView only while its item design is active', () => {
+    const opened = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
+    const next = editorReducer(opened, {
+      type: 'canvas/dropAt',
+      nodeType: 'button',
+      x: 120,
+      y: 120,
+      parentId: 'list',
+    });
+    const list = findNodeInScreen(getActiveScreen(next), 'list');
+
+    expect(list?.type === 'listview' ? list.children : []).toHaveLength(2);
+    expect(list?.type === 'listview' ? list.children[1]?.type : null).toBe('button');
+    expect(next.past).toHaveLength(1);
+  });
+
+  it('fits a first Row drop to padded item bounds and moves it immediately', () => {
+    const opened = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
+    const dropped = editorReducer(opened, {
+      type: 'canvas/dropAt',
+      nodeType: 'row',
+      x: 184,
+      y: 144,
+      parentId: 'list',
+    });
+    const rowId = dropped.selectedNodeId!;
+    const inserted = findNodeInScreen(getActiveScreen(dropped), rowId);
+
+    expect(inserted).toMatchObject({ type: 'row', x: 88, y: 72, w: 144, h: 96 });
+
+    const moved = editorReducer(dropped, {
+      type: 'node/move',
+      nodeId: rowId,
+      x: 80,
+      y: 120,
+    });
+    const movedRow = findNodeInScreen(getActiveScreen(moved), rowId)!;
+    expect(geometryAtBreakpoint(movedRow, moved.device)).toMatchObject({
+      x: 80,
+      y: 120,
+      w: 144,
+      h: 96,
+    });
+
+    const closed = editorReducer(moved, { type: 'design/item-template-close' });
+    const reopened = editorReducer(closed, { type: 'design/item-template-open', listViewId: 'list' });
+    const reopenedRow = findNodeInScreen(getActiveScreen(reopened), rowId)!;
+    expect(geometryAtBreakpoint(reopenedRow, reopened.device)).toMatchObject({
+      x: 80,
+      y: 120,
+      w: 144,
+      h: 96,
+    });
+  });
+
+  it('preserves a first Column drop on the ListView item design main axis', () => {
+    const opened = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
+    const dropped = editorReducer(opened, {
+      type: 'canvas/dropAt',
+      nodeType: 'column',
+      x: 184,
+      y: 424,
+      parentId: 'list',
+    });
+    const column = findNodeInScreen(getActiveScreen(dropped), dropped.selectedNodeId!);
+
+    expect(column).toMatchObject({ type: 'column', x: 88, y: 280, w: 144, h: 240 });
+  });
+
+  it('uses padded height while preserving horizontal item-design placement', () => {
+    const base = listState();
+    const list = findNodeInScreen(getActiveScreen(base), 'list');
+    const horizontal = list?.type === 'listview'
+      ? createEditorState({
+          screens: [{
+            ...getActiveScreen(base),
+            nodes: [{ ...list, props: { ...list.props, scrollDirection: 'horizontal' } }],
+          }],
+        })
+      : base;
+    const opened = editorReducer(horizontal, { type: 'design/item-template-open', listViewId: 'list' });
+    const dropped = editorReducer(opened, {
+      type: 'canvas/dropAt',
+      nodeType: 'column',
+      x: 424,
+      y: 144,
+      parentId: 'list',
+    });
+
+    expect(geometryAtBreakpoint(
+      findNodeInScreen(getActiveScreen(dropped), dropped.selectedNodeId!)!,
+      dropped.device,
+    )).toMatchObject({
+      x: 240,
+      y: 72,
+      w: 320,
+      h: 104,
+    });
+  });
+
+  it('preserves a smaller widget drop position inside padded item bounds', () => {
+    const opened = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
+    const dropped = editorReducer(opened, {
+      type: 'canvas/dropAt',
+      nodeType: 'button',
+      x: 200,
+      y: 100,
+      parentId: 'list',
+    });
+
+    expect(findNodeInScreen(getActiveScreen(dropped), dropped.selectedNodeId!)).toMatchObject({
+      type: 'button',
+      x: 96,
+      y: 56,
+      w: 160,
+      h: 44,
+    });
+  });
+
+  it('keeps direct item-child resize, Inspector geometry, and nudge inside padding', () => {
+    let state = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
+    state = editorReducer(state, {
+      type: 'node/layout-size',
+      nodeId: 'item-text',
+      w: 500,
+      h: 300,
+    });
+    expect(geometryAtBreakpoint(findNodeInScreen(getActiveScreen(state), 'item-text')!, state.device))
+      .toMatchObject({ x: 12, y: 12, w: 296, h: 300 });
+
+    state = editorReducer(state, {
+      type: 'node/layout-position',
+      nodeId: 'item-text',
+      x: -100,
+      y: -100,
+    });
+    expect(geometryAtBreakpoint(findNodeInScreen(getActiveScreen(state), 'item-text')!, state.device))
+      .toMatchObject({ x: 12, y: 12 });
+
+    state = editorReducer(state, {
+      type: 'node/resize',
+      nodeId: 'item-text',
+      geometry: { x: 500, y: 900, w: 100, h: 40 },
+    });
+    expect(geometryAtBreakpoint(findNodeInScreen(getActiveScreen(state), 'item-text')!, state.device))
+      .toMatchObject({ x: 208, y: 748, w: 100, h: 40 });
+
+    state = editorReducer(state, { type: 'node/nudge', nodeId: 'item-text', dx: 100, dy: 100 });
+    expect(geometryAtBreakpoint(findNodeInScreen(getActiveScreen(state), 'item-text')!, state.device))
+      .toMatchObject({ x: 208, y: 748 });
+  });
+
+  it('prevents screen layers from being reparented into a ListView template', () => {
+    const base = listState();
+    const screen = getActiveScreen(base);
+    const state = createEditorState({
+      screens: [{ ...screen, nodes: [...screen.nodes, SCREEN.nodes[0]!] }],
+    });
+
+    expect(editorReducer(state, {
+      type: 'node/reparent',
+      nodeId: 'node_text',
+      parentId: 'list',
+    })).toBe(state);
+    expect(editorReducer(state, {
+      type: 'node/layer-move',
+      nodeId: 'node_text',
+      targetId: 'list',
+      position: 'inside',
+    })).toBe(state);
+  });
+
+  it('keeps item frame geometry and destructive actions locked', () => {
+    const opened = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
+    const frameId = opened.selectedNodeId!;
+    expect(frameId).toBe('list');
+
+    expect(editorReducer(opened, { type: 'node/delete', nodeId: frameId })).toBe(opened);
+    expect(editorReducer(opened, { type: 'node/duplicate', nodeId: frameId })).toBe(opened);
+    expect(editorReducer(opened, { type: 'node/nudge', nodeId: frameId, dx: 8, dy: 0 })).toBe(opened);
+    expect(editorReducer(opened, { type: 'node/move', nodeId: frameId, x: 10, y: 10 })).toBe(opened);
+    expect(editorReducer(opened, { type: 'node/resize', nodeId: frameId, geometry: { x: 0, y: 0, w: 10, h: 10 } })).toBe(opened);
+    expect(editorReducer(opened, { type: 'node/order', nodeId: frameId, direction: 'forward' })).toBe(opened);
+    expect(editorReducer(opened, { type: 'node/layer-rename', nodeId: frameId, name: 'Renamed' })).toBe(opened);
+  });
+
+  it('steps from child to frame to close on escape', () => {
+    const opened = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
+    const child = editorReducer(opened, { type: 'node/select', nodeId: 'item-text' });
+    expect(child.selectedNodeId).toBe('item-text');
+    const frame = editorReducer(child, { type: 'node/select', nodeId: null });
+    expect(frame.selectedNodeId).toBe('list');
+  });});
 
 describe('screens', () => {
   it('adds a screen and makes it active', () => {

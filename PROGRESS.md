@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-07
+**Last reviewed:** 2026-11-08
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app builder**. Native mobile and desktop application generation are outside the
@@ -111,7 +111,7 @@ event binding, and its referenced logic graph:
 
 ```json
 {
-  "schemaVersion": 5,
+  "schemaVersion": 9,
   "id": "project_notes",
   "name": "Notes App",
   "createdAt": "2026-11-07T08:00:00.000Z",
@@ -123,36 +123,124 @@ event binding, and its referenced logic graph:
       "path": "/",
       "nodes": [
         {
-          "id": "container_main",
+          "id": "column_main",
           "name": "Main content",
-          "type": "container",
+          "type": "column",
           "x": 24,
           "y": 32,
           "w": 342,
           "h": 300,
-          "props": {},
+          "props": {
+            "mainAxisAlignment": "start",
+            "crossAxisAlignment": "stretch",
+            "gap": 16,
+            "padding": 16
+          },
           "children": [
             {
-              "id": "button_details",
-              "name": "Open details",
-              "type": "button",
-              "x": 16,
-              "y": 24,
-              "w": 160,
+              "id": "row_actions",
+              "type": "row",
+              "x": 0,
+              "y": 0,
+              "w": 310,
               "h": 48,
-              "appearance": {
-                "backgroundColor": "#5551f2",
-                "textColor": "#ffffff",
-                "borderRadius": 10
-              },
-              "responsive": {
-                "tablet": { "x": 32, "w": 200 },
-                "desktop": { "x": 48, "w": 240 }
-              },
               "props": {
-                "label": "Open details",
-                "variant": "solid"
-              }
+                "mainAxisAlignment": "space-between",
+                "crossAxisAlignment": "center",
+                "gap": 12,
+                "padding": 0
+              },
+              "children": [
+                {
+                  "id": "button_details",
+                  "name": "Open details",
+                  "type": "button",
+                  "x": 0,
+                  "y": 0,
+                  "w": 160,
+                  "h": 48,
+                  "appearance": {
+                    "backgroundColor": "#5551f2",
+                    "textColor": "#ffffff",
+                    "borderRadius": 10
+                  },
+                  "responsive": {
+                    "tablet": { "w": 200 },
+                    "desktop": { "w": 240 }
+                  },
+                  "props": {
+                    "label": "Open details",
+                    "variant": "solid"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "listview_notes",
+              "type": "listview",
+              "x": 0,
+              "y": 0,
+              "w": 310,
+              "h": 200,
+              "props": {
+                "emptyText": "No notes yet",
+                "showDividers": true,
+                "scrollDirection": "vertical",
+                "crossAxisAlignment": "stretch",
+                 "gap": 0,
+                 "padding": 0,
+                 "itemSpacing": 0,
+                 "itemBorderRadius": 0,
+                 "dataSource": {
+                  "kind": "collection",
+                  "collectionId": "collection_notes",
+                  "displayFieldIds": ["field_title"]
+                }
+              },
+              "children": [
+                {
+                  "id": "text_note_title",
+                  "type": "text",
+                  "x": 0,
+                  "y": 0,
+                  "w": 310,
+                  "h": 44,
+                  "bindings": [
+                    {
+                      "target": "text.content",
+                      "value": { "source": "list-item", "fieldId": "field_title" }
+                    }
+                  ],
+                  "props": {
+                    "text": "Note title",
+                    "level": "body"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "listview_drafts",
+              "type": "listview",
+              "x": 0,
+              "y": 0,
+              "w": 310,
+              "h": 120,
+              "props": {
+                "emptyText": "No drafts yet",
+                "showDividers": true,
+                "scrollDirection": "vertical",
+                "crossAxisAlignment": "stretch",
+                 "gap": 0,
+                 "padding": 0,
+                 "itemSpacing": 0,
+                 "itemBorderRadius": 0,
+                 "dataSource": {
+                  "kind": "static",
+                  "fields": [{ "id": "title", "label": "Title", "type": "text" }],
+                  "items": []
+                }
+              },
+              "children": []
             }
           ]
         }
@@ -180,8 +268,19 @@ event binding, and its referenced logic graph:
             },
             {
               "kind": "action",
-              "id": "action_email",
+              "id": "action_add_draft",
               "position": { "x": 320, "y": 160 },
+              "payload": {
+                "type": "add-local-list-item",
+                "targetNodeId": "listview_drafts",
+                "placement": "append",
+                "values": { "title": "Unsaved draft" }
+              }
+            },
+            {
+              "kind": "action",
+              "id": "action_email",
+              "position": { "x": 560, "y": 160 },
               "payload": {
                 "type": "send-email",
                 "to": "",
@@ -195,7 +294,7 @@ event binding, and its referenced logic graph:
             {
               "kind": "action",
               "id": "action_navigate",
-              "position": { "x": 560, "y": 160 },
+              "position": { "x": 800, "y": 160 },
               "payload": {
                 "type": "navigate",
                 "targetScreenId": "screen_details"
@@ -204,8 +303,15 @@ event binding, and its referenced logic graph:
           ],
           "edges": [
             {
-              "id": "edge_click_to_email",
+              "id": "edge_click_to_draft",
               "fromNodeId": "trigger_click",
+              "fromPort": "next",
+              "toNodeId": "action_add_draft",
+              "toPort": "in"
+            },
+            {
+              "id": "edge_draft_to_email",
+              "fromNodeId": "action_add_draft",
               "fromPort": "next",
               "toNodeId": "action_email",
               "toPort": "in"
@@ -259,8 +365,42 @@ event binding, and its referenced logic graph:
 - Camera components serialize only labels and `facingMode`; captured media is transient runtime
   state and is never embedded in the project document.
 - Optional `name`, `isHidden`, and `isLocked` fields preserve editor-facing layer metadata.
-- A container stores nested components in `children`; child coordinates are relative to that
-  container.
+- Container, Column, Row, and ListView widgets store nested components in `children`.
+- Container keeps free-form child coordinates. Column and Row resolve child placement from their
+  main-axis alignment, cross-axis alignment, gap, padding, and child order.
+- ListView repeats its `children` as one shared free-form item template for structured static items
+  or collection records. Direct template children retain explicit responsive `x`, `y`, `w`, and `h`
+  geometry; nested Row and Column widgets still provide internal auto-layout. A focused **Edit item
+  design** scope reuses the canvas, Layers, history, and autosave paths while showing representative
+  item data and the true item cross-axis bounds.
+- New palette ListViews start with no static records and no item-template widgets. Their canvas
+  shows an accessible **Add item** prompt that opens the focused item-design scope without creating
+  a data record.
+- ListView item-template children are an editor boundary: they remain visible as repeated output but
+  are not directly selectable, nestable, or exposed in screen-level Layers. Widgets can only enter
+  or leave that template while its owning ListView item-design scope is active.
+- Direct item-template widgets use the same padded free-form geometry boundary for their first
+  palette drop, drag, resize, Inspector geometry edits, keyboard nudging, duplication, repeated
+  rendering, and reparent finalization. New Row/Column roots now default to half of the padded
+  cross-axis (144 px on the default 320 px ListView) instead of 75%, leaving travel room across
+  the item frame. In item design the ListView frame is no longer an alignment target, so its
+  centre guide no longer snaps or reads as a boundary; sibling alignment remains available.
+  The item frame is now a first-class selectable container in item design: it appears as an
+  **Item frame** root layer, can be selected from Layers or the canvas background, and exposes a
+  frame-only Inspector for Item padding, spacing, border radius, and dividers. Its guide is
+  selection-driven, so selecting a widget shows only that widget instead of a competing
+  full-width dashed box. Pointer
+  placement is retained, and close/reopen does not change responsive geometry. Legacy
+  ListView cross-axis/gap fields remain serialized only for schema compatibility and are not applied
+  to schema-v9 free-form item children.
+- Designed ListViews with no resolved records show editor-only repeated-item outlines after leaving
+  item design. The outlines reflect persisted item padding, spacing, radius, direction, and computed
+  template extent without creating records; preview/runtime continues to show the configured empty
+  state until real items exist. The outer dashed border is the sole item boundary; padding appears
+  as a shaded inset gutter rather than a second nested outline.
+- Optional typed `bindings` resolve current-item fields into Text content, Image source/alt, Button
+  labels, Checkbox/Switch state, Progress values, and component visibility while preserving static
+  property fallbacks.
 - Component ordering in `nodes` and `children` represents layer/paint ordering.
 
 #### How event bindings are represented
@@ -271,8 +411,8 @@ event binding, and its referenced logic graph:
 - `graphId` points to the `LogicGraphDTO` that defines what happens after the event.
 - The graph contains the trigger, conditions/actions, their canvas positions, and connecting edges.
 - Action payloads reference other components, screens, records, or collections by stable ID.
-- Optional `inputMappings` resolve named action inputs from literals, component state, session user
-  values, or previous-node outputs.
+- Optional `inputMappings` resolve named action inputs from literals, component state, the current
+  repeated ListView item, session user values, or previous-node outputs.
 - RAG and Computer Vision actions use provider-agnostic payloads. Their generated runtime inputs may
   reference temporary camera media, while outputs expose document IDs, answers/citations,
   liveness, credential IDs, verification results, confidence, and reason fields.
@@ -319,8 +459,20 @@ Implemented component types:
 - [x] Text input, including text, email, password, number, and multiline options.
 - [x] Image.
 - [x] Container/frame.
-- [x] List.
-- [x] Form.
+- [x] Column with vertical child composition and main/cross-axis controls.
+- [x] Row with horizontal child composition and main/cross-axis controls.
+- [x] ListView with vertical/horizontal scrolling, static or collection data, and composed item
+  templates.
+- [x] Dedicated ListView item-design scope with scoped canvas/Layers, sample selection, typed
+  property binding controls, palette insertion, undo/redo, and autosave reuse.
+- [x] Designed-empty ListView outlines with persisted item padding, spacing, border radius, and
+  vertical/horizontal geometry that real repeated items also consume.
+- [x] First-session ListView item geometry normalization for Row/Column drops and all direct
+  movement/resize paths, with stable close/reopen behavior and unambiguous padding gutters.
+- [x] Free-form ListView item frames with explicit responsive child coordinates, item-sized focused
+  canvases, movable intrinsic Row/Column defaults, and schema-v8 flow-layout migration.
+- [x] Structured static ListView fields/records and row-specific logic input mappings without
+  copying collection records into Project JSON.
 - [x] Checkbox.
 - [x] Radio group.
 - [x] Switch.
@@ -341,10 +493,12 @@ Implemented component types:
 - [x] Position and size editing through the Inspector.
 - [x] Duplicate and delete selected components.
 - [x] Bring components forward or send them backward.
-- [x] Nest components inside containers.
-- [x] Drag components between containers and the screen root while preserving their visual
+- [x] Nest components directly inside Container, Column, and Row widgets; edit ListView template
+  children only inside the owning ListView item-design scope.
+- [x] Drag components between child-bearing widgets and the screen root while preserving their visual
   position.
-- [x] Container-relative child coordinates.
+- [x] Container-relative child coordinates and computed linear child geometry for Flutter-style
+  widgets.
 - [x] Locked components ignore direct canvas manipulation.
 - [x] Hidden components remain persisted but are excluded from rendering.
 - [x] Bounds clamping for movement and resizing.
@@ -376,7 +530,7 @@ The viewport presets represent responsive web layouts; they do not generate nati
 ### Layers panel
 
 - [x] Hierarchical component tree with component-type icons and indentation.
-- [x] Expand and collapse nested containers.
+- [x] Expand and collapse all nested child-bearing widgets.
 - [x] Canvas and Layers selection synchronization.
 - [x] Inline layer renaming by double-click or `F2`.
 - [x] Visibility and lock controls.
@@ -464,6 +618,8 @@ Production execution remains a generated-app/backend responsibility.
 - [x] Change Text.
 - [x] Show Message.
 - [x] Navigate to Screen.
+- [x] Add Local List Item for typed static ListViews, with append/prepend placement, dynamic input
+  mappings, created-item node output, and isolated session-only state.
 
 ### Data action nodes
 
@@ -472,6 +628,26 @@ Production execution remains a generated-app/backend responsibility.
 - [x] Update Record.
 - [x] Delete Record.
 - [x] Refresh Collection/refetch effect.
+
+### Local ListView mutation and backend synchronization
+
+- [x] **Add Local List Item** appends or prepends a typed item to generated-app/preview runtime
+  state only. It does not mutate Project JSON, replace static seed items, or write to a database.
+- [ ] Add complementary local runtime operations only when required, such as Update List Item,
+  Remove List Item, and Clear List Items.
+- [ ] When the production backend is connected, successful Insert/Update/Delete Record actions must
+  return canonical record data and update or invalidate the frontend collection cache so every
+  collection-bound ListView rerenders automatically without a page refresh or a separate Add List
+  Item action.
+- [ ] Keep Refresh Collection as an explicit refetch tool for external or stale-data scenarios, not
+  as a mandatory step after every normal collection mutation.
+- [ ] Consider optimistic Insert Record as a later enhancement with temporary IDs, success
+  reconciliation, failure rollback, and visible error feedback.
+
+Do not recommend `Add Local List Item -> Insert Record` for the same collection-bound ListView. That
+sequence can duplicate rows and leave local state inconsistent when persistence fails. The normal
+persisted flow is `On Click -> Insert Record -> success/error`; the collection cache update drives
+the ListView. The local-only flow is `On Click -> Add Local List Item`.
 
 ### External action nodes
 
@@ -516,10 +692,13 @@ effects against isolated state.
 - [x] Create, update, and delete records.
 - [x] Confirmation before destructive data operations.
 - [x] Loading, empty, and retryable error states.
-- [x] List-to-collection data binding.
-- [x] Repeater component for record-driven UI with multiple display fields.
+- [x] ListView-to-collection data binding with multiple display fields, search/sort metadata, and a
+  repeatable nested item template.
 - [x] Logic variables, component-value actions, typed node outputs, and generalized conditions.
-- [x] Form-to-collection and form-field-to-data-field binding.
+- [x] Composed Input + Button collection writes through Insert Record workflows and component-value
+  input mappings.
+- [x] Schema-v5 List/Repeater/Form migration to ListView or composed Column widgets, including
+  deterministic Insert Record workflows for legacy bound Forms.
 - [x] Logic data nodes can target project collections.
 
 Collections and records currently use a local-storage repository. They are not connected to a
@@ -538,7 +717,7 @@ Implemented demo requests include:
 
 - [x] Add a button.
 - [x] Add text or a heading.
-- [x] Add a list, including the student-list example.
+- [x] Add a ListView, including the student-list example.
 - [x] Create a click behavior that changes text.
 
 No external AI model or AI SDK is connected.
@@ -584,7 +763,7 @@ No external AI model or AI SDK is connected.
   reranking, prompt compilation, generation, citations, memory, and biometric effects.
 - [x] Camera capture remains in isolated preview component state and is never written into Project
   JSON or project collections implicitly.
-- [x] Bound forms create isolated preview records.
+- [x] Composed inputs and buttons create isolated preview records through normal logic workflows.
 - [x] Preview state does not write real databases or invoke external services.
 
 ## 12. Deployment experience — frontend simulation
@@ -629,11 +808,12 @@ The repository includes automated coverage for:
   canvas interactions, alignment, layers, inspector, logic, data, preview, deployment, and shared
   UI components.
 
-Verification completed on 2026-11-07:
+Verification completed on 2026-11-08:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 71 test files and 542 tests passed.
-- `npm run build` — passed.
+- `npm test -- --run` — 73 test files and 585 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.
 
 ## 15. Current frontend boundaries and remaining integrations

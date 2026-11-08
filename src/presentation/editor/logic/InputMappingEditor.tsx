@@ -11,6 +11,7 @@ interface InputMappingEditorProps {
   logicNodes: readonly LogicNode[];
   currentNodeId: string;
   onChange: (mapping: ValueExpression | null) => void;
+  itemFields?: readonly { id: string; label: string }[];
 }
 
 type MappingSource = 'static' | ValueExpression['source'];
@@ -23,17 +24,18 @@ export function InputMappingEditor({
   logicNodes,
   currentNodeId,
   onChange,
+  itemFields = [],
 }: InputMappingEditorProps) {
   const source: MappingSource = mapping?.source ?? 'static';
   const componentSources = screenNodes.filter((node) =>
     node.type === 'input' || node.type === 'text' || node.type === 'checkbox' ||
     node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' ||
-    node.type === 'camera' || node.type === 'repeater');
+    node.type === 'camera' || node.type === 'listview');
   const outputSources = logicNodes.filter((node) => node.id !== currentNodeId && node.kind === 'action');
   const selectedOutputNode = mapping?.source === 'node-output'
     ? outputSources.find((node) => node.id === mapping.nodeId)
     : undefined;
-  const outputPaths = selectedOutputNode?.kind === 'action' ? knownOutputPaths(selectedOutputNode.payload.type) : [];
+  const outputPaths = selectedOutputNode?.kind === 'action' ? knownOutputPaths(selectedOutputNode) : [];
 
   function changeSource(next: MappingSource): void {
     switch (next) {
@@ -44,6 +46,7 @@ export function InputMappingEditor({
         onChange({ source: 'component', nodeId: node?.id ?? '', property: node?.type === 'text' ? 'text' : 'value' });
         break;
       }
+      case 'list-item': onChange({ source: 'list-item', fieldId: itemFields[0]?.id ?? '' }); break;
       case 'session': onChange({ source: 'session', path: 'user.email' }); break;
       case 'variable': onChange({ source: 'variable', name: '' }); break;
       case 'node-output': onChange({ source: 'node-output', nodeId: outputSources[0]?.id ?? '', path: 'result' }); break;
@@ -65,6 +68,7 @@ export function InputMappingEditor({
         <option value="static">Static action value</option>
         <option value="literal">Mapped literal</option>
         <option value="component">Component value</option>
+        {itemFields.length > 0 ? <option value="list-item">Current list item</option> : null}
         <option value="session">Session value</option>
         <option value="variable">Application variable</option>
         <option value="node-output">Previous node output</option>
@@ -91,6 +95,18 @@ export function InputMappingEditor({
         >
           <option value="">Choose component…</option>
           {componentSources.map((node) => <option key={node.id} value={node.id}>{nodeLayerName(node)}</option>)}
+        </select>
+      ) : null}
+
+      {mapping?.source === 'list-item' ? (
+        <select
+          aria-label={`${label} list item field`}
+          className="mt-2 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-xs text-ink"
+          onChange={(event) => onChange({ source: 'list-item', fieldId: event.target.value })}
+          value={mapping.fieldId}
+        >
+          <option value="">Choose item field…</option>
+          {itemFields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
         </select>
       ) : null}
 
@@ -145,8 +161,8 @@ export function InputMappingEditor({
   );
 }
 
-function knownOutputPaths(type: Extract<LogicNode, { kind: 'action' }>['payload']['type']): string[] {
-  switch (type) {
+function knownOutputPaths(node: Extract<LogicNode, { kind: 'action' }>): string[] {
+  switch (node.payload.type) {
     case 'document-load': return ['documents'];
     case 'text-split': return ['chunks'];
     case 'embedding-generate': return ['chunks', 'embeddings'];
@@ -167,6 +183,16 @@ function knownOutputPaths(type: Extract<LogicNode, { kind: 'action' }>['payload'
     case 'cv-enroll': return ['credentialId', 'enrolledAt', 'qualityScore'];
     case 'cv-verify': return ['verified', 'confidence', 'credentialId', 'reason'];
     case 'get-record': return ['record', 'record.id', 'record.values'];
+    case 'add-local-list-item': return [
+      'item',
+      'item.id',
+      'item.listViewId',
+      'item.values',
+      ...[...new Set([
+        ...Object.keys(node.payload.values),
+        ...Object.keys(node.inputMappings ?? {}),
+      ])].map((fieldId) => `item.values.${fieldId}`),
+    ];
     default: return [];
   }
 }

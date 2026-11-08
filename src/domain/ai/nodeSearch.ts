@@ -1,4 +1,5 @@
 import type { ComponentNode } from '../entities/componentNode';
+import { isChildBearingNode } from '../entities/componentNode';
 
 /**
  * Depth-first node lookups over a screen tree (top-level nodes plus container
@@ -27,7 +28,7 @@ export function findFirstNode(
     if (predicate(node)) {
       return node;
     }
-    if (node.type === 'container') {
+    if (isChildBearingNode(node)) {
       const child = findFirstNode(node.children, predicate);
       if (child) {
         return child;

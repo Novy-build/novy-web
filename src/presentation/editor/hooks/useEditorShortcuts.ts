@@ -9,6 +9,8 @@ interface ShortcutOptions {
   canUndo: boolean;
   canRedo: boolean;
   selectedNodeId: string | null;
+  isItemDesign?: boolean;
+  isFrameSelected?: boolean;
 }
 
 function isTypingInField(target: EventTarget | null): boolean {
@@ -31,7 +33,7 @@ function isTypingInField(target: EventTarget | null): boolean {
  *   Escape            clear selection
  * Typing in form fields never triggers editor shortcuts.
  */
-export function useEditorShortcuts({ dispatch, canUndo, canRedo, selectedNodeId }: ShortcutOptions): void {
+export function useEditorShortcuts({ dispatch, canUndo, canRedo, selectedNodeId, isItemDesign = false, isFrameSelected = false }: ShortcutOptions): void {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (isTypingInField(event.target)) {
@@ -40,8 +42,12 @@ export function useEditorShortcuts({ dispatch, canUndo, canRedo, selectedNodeId 
 
       const meta = event.metaKey || event.ctrlKey;
 
-      if (event.key === 'Escape') {
+      // Item design owns Escape so it can step from child to frame to close.
+      if (event.key === 'Escape' && !isItemDesign) {
         dispatch({ type: 'node/select', nodeId: null });
+        return;
+      }
+      if (event.key === 'Escape') {
         return;
       }
 
@@ -54,6 +60,13 @@ export function useEditorShortcuts({ dispatch, canUndo, canRedo, selectedNodeId 
         }
         event.preventDefault();
         dispatch({ type: event.shiftKey ? 'history/redo' : 'history/undo' });
+        return;
+      }
+
+      if (isFrameSelected) {
+        if (event.key === 'Delete' || event.key === 'Backspace' || (meta && event.key.toLowerCase() === 'd')) {
+          event.preventDefault();
+        }
         return;
       }
 
@@ -90,7 +103,7 @@ export function useEditorShortcuts({ dispatch, canUndo, canRedo, selectedNodeId 
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [dispatch, canUndo, canRedo, selectedNodeId]);
+  }, [dispatch, canUndo, canRedo, selectedNodeId, isItemDesign, isFrameSelected]);
 }
 
 const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {

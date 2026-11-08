@@ -1,11 +1,13 @@
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
-import type { ComponentNode, ResponsiveBreakpoint } from '@domain/entities/componentNode';
-import { isHiddenAtBreakpoint } from '@domain/entities/componentNode';
+import type { ChildBearingNode, ComponentNode, ListViewNode, ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import { isChildBearingNode, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
 import type { LayerDropPosition } from '@domain/componentTree';
 import { nodeDisplayLabel, nodeLayerName } from './nodeLabels';
 
 interface LayersPanelProps {
   nodes: readonly ComponentNode[];
+  /** Synthetic root layer for the focused item frame, shown above template children. */
+  frame?: ListViewNode | null;
   device?: ResponsiveBreakpoint;
   selectedNodeId: string | null;
   onSelect: (nodeId: string) => void;
@@ -23,15 +25,19 @@ interface LayerRow {
   parentId: string | null;
 }
 
+function acceptsDirectChildren(node: ComponentNode): node is ChildBearingNode {
+  return isChildBearingNode(node) && node.type !== 'listview';
+}
+
 const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
   button: '▭',
   text: 'T',
   input: '⌨',
   image: '◇',
   container: '#',
-  list: '☷',
-  repeater: '☰',
-  form: '▤',
+  column: '↕',
+  row: '↔',
+  listview: '☷',
   checkbox: '☑',
   radio: '◉',
   switch: '⏻',
@@ -45,6 +51,7 @@ const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
 /** Figma-inspired hierarchical layer tree with persisted layer controls. */
 export function LayersPanel({
   nodes,
+  frame = null,
   device = 'mobile',
   selectedNodeId,
   onSelect,
@@ -63,7 +70,8 @@ export function LayersPanel({
     id: string;
     position: LayerDropPosition;
   } | null>(null);
-  const rows = buildRows(nodes, collapsedIds);
+  const rows = buildRows(nodes, collapsedIds, frame ? 1 : 0);
+  const frameCollapsed = frame ? collapsedIds.has(frame.id) : false;
 
   function toggleExpanded(nodeId: string): void {
     setCollapsedIds((current) => {
@@ -107,7 +115,7 @@ export function LayersPanel({
       onOrder(row.node.id, 'backward');
     } else if (event.key === 'ArrowRight') {
       const rowAbove = rows[index - 1];
-      if (rowAbove?.node.type === 'container' && !rowAbove.node.isLocked) {
+      if (rowAbove && acceptsDirectChildren(rowAbove.node) && !rowAbove.node.isLocked) {
         event.preventDefault();
         onMove(row.node.id, rowAbove.node.id, 'inside');
       }
@@ -128,7 +136,7 @@ export function LayersPanel({
     const sourceId = draggingId ?? event.dataTransfer.getData('application/x-novy-layer');
     if (sourceId && sourceId !== target.id) {
       const position: LayerDropPosition =
-        target.type === 'container' && !event.altKey ? 'inside' : 'before';
+        acceptsDirectChildren(target) && !event.altKey ? 'inside' : 'before';
       onMove(sourceId, target.id, position);
     }
     setDraggingId(null);
@@ -144,19 +152,60 @@ export function LayersPanel({
       {!isEmbedded ? (
         <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Layers</h2>
       ) : null}
-      {rows.length === 0 ? (
+      {!frame && rows.length === 0 ? (
         <p className="p-2 text-sm text-ink-muted" role="status">
           No components yet — add one from Assets.
         </p>
       ) : (
         <ul aria-label="Component layers" className="grid gap-0.5" role="tree">
-          {rows.map((row, index) => {
+          {frame ? (
+            <li
+              aria-expanded={!frameCollapsed}
+              aria-level={1}
+              aria-pressed={frame.id === selectedNodeId}
+              className={`group flex min-h-8 items-center gap-0.5 rounded-md border border-transparent pr-1 transition-colors ${
+                frame.id === selectedNodeId ? 'border-brand-500/60 bg-brand-500/15' : 'hover:bg-canvas'
+              }`}
+              data-testid={`layer-row-${frame.id}`}
+              role="treeitem"
+            >
+              <button
+                aria-expanded={!frameCollapsed}
+                aria-label={`${frameCollapsed ? 'Expand' : 'Collapse'} Item frame`}
+                className="flex h-6 w-5 shrink-0 items-center justify-center text-[10px] text-ink-muted"
+                onClick={() => {
+                  const next = new Set(collapsedIds);
+                  if (next.has(frame.id)) next.delete(frame.id);
+                  else next.add(frame.id);
+                  setCollapsedIds(next);
+                }}
+                type="button"
+              >
+                {frameCollapsed ? '›' : '⌄'}
+              </button>
+              <span aria-hidden="true" className="w-4 shrink-0 text-center text-[11px] text-ink-muted">
+                {TYPE_ICONS.listview}
+              </span>
+              <button
+                aria-label="Item frame"
+                aria-pressed={frame.id === selectedNodeId}
+                className="min-w-0 flex-1 truncate px-1 py-1 text-left text-xs font-medium text-ink"
+                onClick={() => onSelect(frame.id)}
+                type="button"
+              >
+                Item frame
+                <span className="ml-2 rounded bg-brand-500/10 px-1 text-[10px] font-medium text-brand-700">auto</span>
+              </button>
+            </li>
+          ) : null}
+          {!frameCollapsed
+            ? rows.map((row, index) => {
             const { node, depth } = row;
             const isSelected = node.id === selectedNodeId;
             const isCollapsed = collapsedIds.has(node.id);
             return (
               <li
-                aria-expanded={node.type === 'container' ? !isCollapsed : undefined}
+                aria-expanded={acceptsDirectChildren(node) ? !isCollapsed : undefined}
                 aria-level={depth + 1}
                 className={`group flex min-h-8 items-center gap-0.5 rounded-md border border-transparent pr-1 transition-colors ${
                   isSelected ? 'border-brand-500/60 bg-brand-500/15' : 'hover:bg-canvas'
@@ -180,7 +229,7 @@ export function LayersPanel({
                     event.dataTransfer.dropEffect = 'move';
                     setDropTarget({
                       id: node.id,
-                      position: node.type === 'container' && !event.altKey ? 'inside' : 'before',
+                      position: acceptsDirectChildren(node) && !event.altKey ? 'inside' : 'before',
                     });
                   }
                 }}
@@ -189,7 +238,7 @@ export function LayersPanel({
                 role="treeitem"
                 style={{ paddingLeft: depth * 14 + 2 }}
               >
-                {node.type === 'container' ? (
+                {acceptsDirectChildren(node) ? (
                   <button
                     aria-expanded={!isCollapsed}
                     aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${nodeLayerName(node)}`}
@@ -275,7 +324,12 @@ export function LayersPanel({
                 </div>
               </li>
             );
-          })}
+          }) : null}
+          {frame && !frameCollapsed && nodes.length === 0 ? (
+            <li className="p-2 text-sm text-ink-muted" role="status">
+              This item frame is empty — add a component from Assets.
+            </li>
+          ) : null}
         </ul>
       )}
       {draggingId ? (
@@ -329,7 +383,7 @@ function buildRows(
   for (let index = nodes.length - 1; index >= 0; index -= 1) {
     const node = nodes[index]!;
     rows.push({ node, depth, parentId });
-    if (node.type === 'container' && !collapsedIds.has(node.id)) {
+    if (acceptsDirectChildren(node) && !collapsedIds.has(node.id)) {
       rows.push(...buildRows(node.children, collapsedIds, depth + 1, node.id));
     }
   }

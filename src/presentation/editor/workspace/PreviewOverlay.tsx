@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Screen } from '@domain/entities/screen';
-import type { DataCollection, DataRecord, DataValue } from '@domain/entities/appData';
+import type { DataCollection, DataRecord, LocalListItemAddition } from '@domain/entities/appData';
 import { generateId } from '@domain/ids';
-import type { ComponentNode } from '@domain/entities/componentNode';
 import type { ActionPayload, TriggerEvent } from '@domain/entities/logic';
 import { applyTextOverrides, runBehavior, type PreviewEffect } from '@domain/logic/runtime';
 import { Modal } from '@presentation/components/system/Modal';
@@ -13,6 +12,7 @@ import { DEFAULT_EDITOR_DEVICE } from '../state/geometry';
 import type { EditorDevice } from '../state/geometry';
 import { computeFitZoom } from '../state/geometry';
 import { CANVAS_PRESETS } from '../renderer/ScreenFrame';
+import type { RendererEventContext } from '../renderer/renderer';
 
 const TOAST_VISIBLE_MS = 2400;
 const PREVIEW_ZOOM_LIMITS = { min: 0.25, max: 2, step: 0.25 } as const;
@@ -65,6 +65,9 @@ export function PreviewOverlay({
   const [previewRecords, setPreviewRecords] = useState<ReadonlyMap<string, readonly DataRecord[]>>(
     () => new Map(recordsByCollection),
   );
+  const [localItemsByListView, setLocalItemsByListView] = useState<
+    ReadonlyMap<string, readonly LocalListItemAddition[]>
+  >(() => new Map());
   const knowledgeRef = useRef<Map<string, Record<string, unknown>>>(new Map());
   const memoryRef = useRef<Map<string, unknown[]>>(new Map());
   const [toast, setToast] = useState<Toast | null>(null);
@@ -139,7 +142,7 @@ export function PreviewOverlay({
   }
 
   const handleNodeEvent = useCallback(
-    (nodeId: string, event: TriggerEvent, value?: string): void => {
+    (nodeId: string, event: TriggerEvent, value?: string, eventContext?: RendererEventContext): void => {
       if (!screen) {
         return;
       }
@@ -154,7 +157,9 @@ export function PreviewOverlay({
         event,
         {
           componentValues: nextValues,
+          listItem: eventContext?.listItem,
           variables,
+          createLocalListItemId: () => generateId('preview-list-item'),
           data: previewRuntimeData(),
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
@@ -176,6 +181,7 @@ export function PreviewOverlay({
           case 'navigate':
             setTextOverrides(new Map()); // entering a screen resets its runtime state
             setComponentValues(new Map());
+            setLocalItemsByListView(new Map());
             setScreenId(effect.screenId);
             break;
           case 'data-operation':
@@ -192,6 +198,16 @@ export function PreviewOverlay({
             break;
           case 'set-component-value':
             setComponentValues((previous) => new Map([...previous, [effect.nodeId, effect.value]]));
+            break;
+          case 'add-local-list-item':
+            setLocalItemsByListView((previous) => {
+              const current = previous.get(effect.listViewId) ?? [];
+              return new Map([
+                ...previous,
+                [effect.listViewId, [...current, { ...effect.item, placement: effect.placement }]],
+              ]);
+            });
+            setToast({ id: Date.now(), message: 'Local list item added for this preview session.' });
             break;
           case 'vector-indexed':
             setToast({ id: Date.now(), message: `Indexed ${effect.insertedCount} chunks (simulated).` });
@@ -241,6 +257,7 @@ export function PreviewOverlay({
         {
           componentValues,
           variables,
+          createLocalListItemId: () => generateId('preview-list-item'),
           data: previewRuntimeData(),
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
@@ -288,29 +305,6 @@ export function PreviewOverlay({
       [payload.collectionId, current.filter((record) => record.id !== payload.recordId)],
     ]));
     setToast({ id: Date.now(), message: 'Preview record deleted.' });
-  }
-
-  function submitBoundForm(nodeId: string, values: string[]): void {
-    const node = screens.flatMap((candidate) => flattenNodes(candidate.nodes)).find((candidate) => candidate.id === nodeId);
-    if (!node || node.type !== 'form' || !node.props.dataBinding) return;
-    const mapped: Record<string, DataValue> = {};
-    for (const binding of node.props.dataBinding.fields) {
-      mapped[binding.dataFieldId] = values[binding.formFieldIndex] ?? '';
-    }
-    const now = new Date();
-    const record: DataRecord = {
-      id: generateId('preview-record'),
-      projectId: 'preview',
-      collectionId: node.props.dataBinding.collectionId,
-      values: mapped,
-      createdAt: now,
-      updatedAt: now,
-    };
-    setPreviewRecords((previous) => new Map([
-      ...previous,
-      [record.collectionId, [...(previous.get(record.collectionId) ?? []), record]],
-    ]));
-    setToast({ id: Date.now(), message: 'Form created a preview record.' });
   }
 
   useEffect(() => {
@@ -442,10 +436,9 @@ export function PreviewOverlay({
           <ScreenFrame
             breakpoint={previewDevice}
             componentValues={componentValues}
-            dataContext={{ collections, recordsByCollection: previewRecords }}
+            dataContext={{ collections, localItemsByListView, recordsByCollection: previewRecords }}
             mode="preview"
             onNodeEvent={handleNodeEvent}
-            onFormSubmit={submitBoundForm}
             screen={effectiveScreen}
             size={bounds}
             scale={zoom}
@@ -466,11 +459,5 @@ export function PreviewOverlay({
         </div>
       ) : null}
     </Modal>
-  );
-}
-
-function flattenNodes(nodes: readonly ComponentNode[]): ComponentNode[] {
-  return nodes.flatMap((node) =>
-    node.type === 'container' ? [node, ...flattenNodes(node.children)] : [node],
   );
 }

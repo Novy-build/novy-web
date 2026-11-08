@@ -1,5 +1,5 @@
-import type { ComponentNode } from '@domain/entities/componentNode';
-import type { DataCollection } from '@domain/entities/appData';
+import type { ComponentNode, ListViewItemField, ListViewNode } from '@domain/entities/componentNode';
+import type { DataCollection, DataValue } from '@domain/entities/appData';
 import type {
   ActionPayload,
   ActionInputMappings,
@@ -31,6 +31,7 @@ interface LogicNodeConfigProps {
   onDeleteBehavior: () => void;
   collections?: readonly DataCollection[];
   logicNodes: readonly LogicNode[];
+  listItemFields?: readonly { id: string; label: string }[];
 }
 
 /**
@@ -51,6 +52,7 @@ export function LogicNodeConfig({
   onDeleteBehavior,
   collections = [],
   logicNodes,
+  listItemFields = [],
 }: LogicNodeConfigProps) {
   if (!behavior) {
     return <EmptyDetails />;
@@ -189,6 +191,11 @@ export function LogicNodeConfig({
   const emailPayload = actionPayload.type === 'send-email' ? actionPayload : null;
   const selectedDataCollection = isDataPayload(actionPayload)
     ? collections.find((collection) => collection.id === actionPayload.collectionId) ?? null
+    : null;
+  const staticListViews = screenNodes.filter((candidate): candidate is ListViewNode =>
+    candidate.type === 'listview' && candidate.props.dataSource.kind === 'static');
+  const selectedLocalListView = actionPayload.type === 'add-local-list-item'
+    ? staticListViews.find((candidate) => candidate.id === actionPayload.targetNodeId) ?? null
     : null;
 
   return (
@@ -338,6 +345,74 @@ export function LogicNodeConfig({
         />
       ) : null}
 
+      {actionPayload.type === 'add-local-list-item' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-800">
+            Runtime only. This adds a temporary item for the current app session and does not save
+            to a collection or modify Project JSON.
+          </p>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="logic-local-listview">
+            Static ListView
+          </label>
+          <select
+            className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="logic-local-listview"
+            onChange={(event) => {
+              const target = staticListViews.find((candidate) => candidate.id === event.target.value);
+              configure({
+                ...actionPayload,
+                targetNodeId: event.target.value,
+                values: target?.props.dataSource.kind === 'static'
+                  ? Object.fromEntries(target.props.dataSource.fields
+                    .filter((field) => actionPayload.values[field.id] !== undefined)
+                    .map((field) => [field.id, actionPayload.values[field.id]!]))
+                  : {},
+              });
+            }}
+            value={actionPayload.targetNodeId}
+          >
+            <option value="">Choose a static ListView…</option>
+            {staticListViews.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{nodeLayerName(candidate)}</option>
+            ))}
+          </select>
+          {staticListViews.length === 0 ? (
+            <p className="text-xs text-ink-muted">Add a static ListView to this screen first. Collection-bound ListViews use Insert Record.</p>
+          ) : null}
+          <label className="text-xs font-medium text-ink-muted" htmlFor="logic-local-list-placement">
+            Placement
+          </label>
+          <select
+            className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="logic-local-list-placement"
+            onChange={(event) => configure({
+              ...actionPayload,
+              placement: event.target.value as 'append' | 'prepend',
+            })}
+            value={actionPayload.placement}
+          >
+            <option value="append">Append</option>
+            <option value="prepend">Prepend</option>
+          </select>
+          {selectedLocalListView?.props.dataSource.kind === 'static' ? (
+            <div className="grid gap-3">
+              <p className="text-xs font-medium text-ink-muted">Static field values</p>
+              {selectedLocalListView.props.dataSource.fields.map((field) => (
+                <LocalListFieldInput
+                  field={field}
+                  key={field.id}
+                  onChange={(value) => configure({
+                    ...actionPayload,
+                    values: { ...actionPayload.values, [field.id]: value },
+                  })}
+                  value={actionPayload.values[field.id] ?? null}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {actionPayload.type === 'cv-liveness' || actionPayload.type === 'cv-enroll' || actionPayload.type === 'cv-verify' ? (
         <div className="mt-4 grid gap-3">
           <label className="text-xs font-medium text-ink-muted">Media reference
@@ -386,13 +461,14 @@ export function LogicNodeConfig({
         </div>
       ) : null}
 
-      {actionInputDefinitions(actionPayload, selectedDataCollection).length > 0 ? (
+      {actionInputDefinitions(actionPayload, selectedDataCollection, selectedLocalListView).length > 0 ? (
         <div className="mt-5 grid gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Input mapping</p>
-          {actionInputDefinitions(actionPayload, selectedDataCollection).map((input) => (
+          {actionInputDefinitions(actionPayload, selectedDataCollection, selectedLocalListView).map((input) => (
             <InputMappingEditor
               currentNodeId={node.id}
               inputKey={input.key}
+              itemFields={listItemFields}
               key={input.key}
               label={input.label}
               logicNodes={logicNodes}
@@ -433,6 +509,7 @@ function isDataPayload(
 function actionInputDefinitions(
   payload: ActionPayload,
   collection: DataCollection | null,
+  localListView: ListViewNode | null,
 ): Array<{ key: string; label: string }> {
   switch (payload.type) {
     case 'change-text': return [{ key: 'text', label: 'New text' }];
@@ -443,6 +520,9 @@ function actionInputDefinitions(
       { key: 'body', label: 'Body' },
     ];
     case 'insert-record': return collection?.fields.map((field) => ({ key: field.id, label: field.label })) ?? [];
+    case 'add-local-list-item': return localListView?.props.dataSource.kind === 'static'
+      ? localListView.props.dataSource.fields.map((field) => ({ key: field.id, label: field.label }))
+      : [];
     case 'update-record': return [
       { key: '$recordId', label: 'Record ID' },
       ...(collection?.fields.map((field) => ({ key: field.id, label: field.label })) ?? []),
@@ -520,6 +600,40 @@ function actionInputDefinitions(
     default:
       return [];
   }
+}
+
+function LocalListFieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: ListViewItemField;
+  value: DataValue;
+  onChange: (value: DataValue) => void;
+}) {
+  if (field.type === 'boolean') {
+    return (
+      <label className="flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
+        <input checked={value === true} onChange={(event) => onChange(event.target.checked)} type="checkbox" />
+        {field.label}
+      </label>
+    );
+  }
+  return (
+    <label className="text-xs font-medium text-ink-muted">
+      {field.label}
+      <input
+        className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+        onChange={(event) => onChange(
+          field.type === 'number'
+            ? event.target.value === '' ? null : Number(event.target.value)
+            : event.target.value,
+        )}
+        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+        value={typeof value === 'string' || typeof value === 'number' ? value : ''}
+      />
+    </label>
+  );
 }
 
 /** Verb phrase per event so captions read naturally ("Click me is clicked"). */

@@ -32,8 +32,8 @@ Administration is intentionally excluded because Novy currently targets one appl
 ## UC-03 Design UI with Components and Templates
 
 - Routes: `/project/:id/editor`
-- Domain/data: `ComponentNode`, `ComponentType`, `ContainerNode`, `FormNode`, `ProjectDocument`,
-  `Screen`, `TemplateRepository`
+- Domain/data: `ComponentNode`, `ComponentType`, `ContainerNode`, `ColumnNode`, `RowNode`,
+  `ListViewNode`, `ProjectDocument`, `Screen`, `TemplateRepository`
 - Presentation: `EditorWorkspace`, `ComponentsPalette`, `EditorLeftPanel`, `LayersPanel`,
   `EditorCanvas`, `ScreenTabs`, `Inspector`, `ScreenFrame`, `ComponentRenderer`
 - Tests:
@@ -44,8 +44,12 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/presentation/editor/workspace/ComponentsPalette.test.tsx`
   - `src/presentation/editor/renderer/ComponentRenderer.test.tsx`
   - `src/data/mappers/project.mapper.test.ts`
-- Evidence: drag/drop, nested frames, reparenting, resize, visibility, locking, inline rename,
-  ordering, snap, pan, zoom, palette search, templates, Form component, autosave, undo/redo,\n  and Mobile/Tablet/Desktop canvas and preview device switching.
+- Evidence: drag/drop, free-form and linear nested composition, reparenting, resize, visibility,
+  locking, inline rename, ordering, snap, pan, zoom, palette search, templates, Column/Row/ListView
+  widgets, focused free-form ListView item-template editing with representative data and explicit
+  responsive child geometry, designed-empty item outlines that reflect persisted
+  padding/spacing/radius, typed property bindings, autosave, undo/redo, and Mobile/Tablet/Desktop
+  canvas and preview device switching.
 
 ## UC-04 Configure Logic and App Data
 
@@ -70,7 +74,9 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/domain/logic/runtime.test.ts`
 - Evidence: typed workflow ports, node positioning, If/Else branches, node dragging, connection
   validation, cycle prevention, searchable node library, component/data node configuration,
-  project-scoped collection CRUD, records, schema editing, List/Form bindings, granular RAG
+  project-scoped collection CRUD, records, schema editing, structured static ListView records,
+  typed ListView property bindings, current-row logic mappings, session-only Add Local List Item
+  actions, composed Input/Button record workflows, granular RAG
   ingestion/chat nodes, solid control and dashed typed resource edges, AI Agent/Vector Store
   composition, write-through indexing, structured output mappings, schema migration, and preview
   data effects.
@@ -139,7 +145,7 @@ Administration is intentionally excluded because Novy currently targets one appl
 | 7 Deployment | Complete | stepper + history tests |
 | 8 Polish | Complete | accessibility + error boundary + empty states |
 | PD6 Gate 1 Figma-style layers | Complete | metadata/migration + layer interaction tests |
-| PD6 Gate 2 Canvas manipulation + Form | Complete | geometry/reparent/keyboard tests |
+| PD6 Gate 2 Canvas manipulation + composition | Complete | geometry/reparent/keyboard tests |
 | PD6 Gate 3 Logic + node library | Complete | graph/runtime/connection tests |
 | PD6 Gate 4 Data workspace + bindings | Complete | repository/CRUD/binding tests |
 | PD6 Gate 5 Validation + preview/deploy | Complete | validator/failure-preservation tests |

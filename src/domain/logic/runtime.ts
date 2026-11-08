@@ -11,8 +11,11 @@ import type {
 } from '../entities/logic';
 import type { ProjectDocument, Screen } from '../entities/screen';
 import type { ComponentNode } from '../entities/componentNode';
+import type { DataFieldType, DataValue, ListItemContext } from '../entities/appData';
+import { isChildBearingNode } from '../entities/componentNode';
 import { removeLogicNodes } from './graph';
 import { isAsyncActionPayload } from './graph';
+import { generateId } from '../ids';
 
 /**
  * The published-app runtime: executes one behavior's chain and returns an
@@ -33,6 +36,12 @@ export type PreviewEffect =
   | { kind: 'email-simulated'; to: string; subject: string }
   | { kind: 'set-variable'; name: string; value: string }
   | { kind: 'set-component-value'; nodeId: string; value: string }
+  | {
+      kind: 'add-local-list-item';
+      listViewId: string;
+      placement: 'append' | 'prepend';
+      item: { itemId: string; values: Readonly<Record<string, DataValue>> };
+    }
   | { kind: 'vector-indexed'; insertedCount: number }
   | { kind: 'vector-deleted'; documentId: string }
   | { kind: 'chat-response'; nodeId: string; citationsNodeId?: string; answer: string; citations: RagCitation[] }
@@ -47,9 +56,12 @@ export interface RagCitation {
 
 export interface PreviewRuntimeContext {
   componentValues: ReadonlyMap<string, string>;
+  listItem?: ListItemContext;
   session?: { user?: { id?: string; name?: string; email?: string } };
   nodeOutputs?: ReadonlyMap<string, unknown>;
   variables?: ReadonlyMap<string, string>;
+  /** Runtime-owned ID factory; keeps workflow evaluation deterministic and testable. */
+  createLocalListItemId?: (listViewId: string, logicNodeId: string) => string;
   data?: {
     getRecord: (collectionId: string, recordId: string) => unknown;
     loadCollectionDocuments?: (collectionId: string, contentFieldId: string, titleFieldId?: string, documentIdFieldId?: string) => readonly unknown[];
@@ -125,6 +137,16 @@ export function runBehavior(
         outputs.set(node.id, { name: payload.name, value: payload.value });
       } else if (payload.type === 'set-component-value') {
         outputs.set(node.id, { nodeId: payload.targetNodeId, value: payload.value });
+      } else if (payload.type === 'add-local-list-item') {
+        const itemId = runtimeContext.createLocalListItemId?.(payload.targetNodeId, node.id)
+          ?? generateId('local-list-item');
+        outputs.set(node.id, {
+          item: {
+            id: itemId,
+            listViewId: payload.targetNodeId,
+            values: { ...payload.values },
+          },
+        });
       } else if (payload.type === 'get-record') {
         const record = runtimeContext.data?.getRecord(payload.collectionId, payload.recordId) ?? { id: payload.recordId };
         outputs.set(node.id, { record });
@@ -194,6 +216,8 @@ export function resolveValueExpression(
         .find((node) => node.id === expression.nodeId);
       return target?.type === 'text' ? target.props.text : '';
     }
+    case 'list-item':
+      return context.listItem?.values[expression.fieldId] ?? '';
     case 'session': {
       const user = context.session?.user;
       if (expression.path === 'user.id') return user?.id ?? '';
@@ -221,6 +245,11 @@ function applyActionInputMappings(
     case 'show-message': return { ...payload, message: resolve('message', payload.message) };
     case 'set-variable': return { ...payload, value: resolve('value', payload.value) };
     case 'set-component-value': return { ...payload, value: resolve('value', payload.value) };
+    case 'add-local-list-item':
+      return {
+        ...payload,
+        values: mappedLocalListItemValues(payload.targetNodeId, payload.values, mappings, document, context),
+      };
     case 'document-load': return {
       ...payload,
       sourceReference: resolve('sourceReference', payload.sourceReference),
@@ -655,6 +684,49 @@ function mappedRecordValues(
   return Object.fromEntries([...keys].map((key) => [key, resolve(key, values[key] ?? '')]));
 }
 
+function mappedLocalListItemValues(
+  targetNodeId: string,
+  values: Record<string, DataValue>,
+  mappings: ActionInputMappings,
+  document: ProjectDocument,
+  context: PreviewRuntimeContext,
+): Record<string, DataValue> {
+  const target = document.screens
+    .flatMap((screen) => flattenNodes(screen.nodes))
+    .find((node) => node.id === targetNodeId && node.type === 'listview');
+  const fields = target?.type === 'listview' && target.props.dataSource.kind === 'static'
+    ? target.props.dataSource.fields
+    : [];
+  const fieldTypeById = new Map(fields.map((field) => [field.id, field.type]));
+  const keys = new Set([
+    ...Object.keys(values),
+    ...Object.keys(mappings).filter((key) => !key.startsWith('$')),
+  ]);
+  return Object.fromEntries([...keys].map((key) => {
+    const candidate = mappings[key]
+      ? resolveValueExpression(mappings[key], document, context)
+      : values[key] ?? null;
+    return [key, coerceDataValue(candidate, fieldTypeById.get(key))];
+  }));
+}
+
+function coerceDataValue(value: unknown, type: DataFieldType | undefined): DataValue {
+  if (value === null || value === undefined) return null;
+  if (type === 'number') {
+    const numberValue = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  }
+  if (type === 'boolean') {
+    if (typeof value === 'boolean') return value;
+    if (value === 'true' || value === '1' || value === 1) return true;
+    if (value === 'false' || value === '0' || value === 0) return false;
+    return null;
+  }
+  if (type === 'text' || type === 'date') return runtimeText(value);
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+  return runtimeText(value);
+}
+
 function readOutputPath(value: unknown, path: string): unknown {
   let current: unknown = value;
   for (const segment of path.split('.').filter(Boolean)) {
@@ -688,7 +760,7 @@ function evaluateCondition(
 
 function flattenNodes(nodes: readonly ComponentNode[]): ComponentNode[] {
   return nodes.flatMap((node) =>
-    node.type === 'container' ? [node, ...flattenNodes(node.children)] : [node],
+    isChildBearingNode(node) ? [node, ...flattenNodes(node.children)] : [node],
   );
 }
 
@@ -807,6 +879,21 @@ function effectFor(
       return payload.name ? { kind: 'set-variable', name: payload.name, value: payload.value } : null;
     case 'set-component-value':
       return payload.targetNodeId ? { kind: 'set-component-value', nodeId: payload.targetNodeId, value: payload.value } : null;
+    case 'add-local-list-item': {
+      const target = document.screens
+        .flatMap((screen) => flattenNodes(screen.nodes))
+        .find((node) => node.id === payload.targetNodeId);
+      if (target?.type !== 'listview' || target.props.dataSource.kind !== 'static') return null;
+      const item = runtimeRecord(runtimeRecord(output).item);
+      const itemId = runtimeText(item.id);
+      if (!itemId) return null;
+      return {
+        kind: 'add-local-list-item',
+        listViewId: payload.targetNodeId,
+        placement: payload.placement,
+        item: { itemId, values: { ...payload.values } },
+      };
+    }
     case 'document-load':
     case 'text-split':
     case 'embedding-generate':
@@ -851,7 +938,7 @@ function overrideTree(
       changed = true;
       return { ...node, props: { ...node.props, text: overrides.get(node.id)! } };
     }
-    if (node.type === 'container') {
+    if (isChildBearingNode(node)) {
       const children = overrideTree(node.children, overrides);
       if (children !== node.children) {
         changed = true;

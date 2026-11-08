@@ -1,6 +1,7 @@
-import type { DataCollection } from '../entities/appData';
-import type { ComponentNode } from '../entities/componentNode';
-import type { ActionPayload, LogicGraph } from '../entities/logic';
+import type { DataCollection, DataFieldType, DataValue } from '../entities/appData';
+import { isChildBearingNode, type ComponentBindingTarget, type ComponentNode, type ListViewNode } from '../entities/componentNode';
+import { isBindingTargetAllowed, isFieldTypeCompatible } from '../bindings/componentBindings';
+import type { ActionPayload, LogicGraph, ValueExpression } from '../entities/logic';
 import { outputPortsFor, resourceInputPortsFor, resourceOutputPortsFor } from '../logic/graph';
 import type { ProjectDocument, Screen } from '../entities/screen';
 
@@ -20,6 +21,7 @@ export interface ValidationIssue {
   logicNodeId?: string;
   collectionId?: string;
   fieldId?: string;
+  bindingTarget?: ComponentBindingTarget;
 }
 
 export interface ValidationReport {
@@ -85,7 +87,7 @@ function validateScreenTree(
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
 ): void {
-  function visit(nodes: readonly ComponentNode[], parent?: ComponentNode): void {
+  function visit(nodes: readonly ComponentNode[], parent?: ComponentNode, itemSource?: ListViewNode): void {
     for (const node of nodes) {
       if (componentIds.has(node.id)) {
         issues.push(issue('component-duplicate-id', 'error', 'component', `Component id “${node.id}” is duplicated.`, { screenId, componentId: node.id }));
@@ -115,9 +117,9 @@ function validateScreenTree(
       if (parent?.type === 'container' && (node.x < 0 || node.y < 0 || node.x + node.w > parent.w || node.y + node.h > parent.h)) {
         issues.push(issue('component-outside-frame', 'warning', 'component', 'Component extends outside its parent frame.', { screenId, componentId: node.id }));
       }
-      validateComponentProps(node, screenId, collections, issues);
-      if (node.type === 'container') {
-        visit(node.children, node);
+      validateComponentProps(node, screenId, collections, issues, itemSource);
+      if (isChildBearingNode(node)) {
+        visit(node.children, node, node.type === 'listview' ? node : itemSource);
       }
     }
   }
@@ -129,8 +131,10 @@ function validateComponentProps(
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
   issues: ValidationIssue[],
+  itemSource?: ListViewNode,
 ): void {
   const base = { screenId, componentId: node.id };
+  validateComponentBindings(node, itemSource, screenId, collections, issues);
   switch (node.type) {
     case 'button':
       if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Button label is empty.', base));
@@ -144,25 +148,36 @@ function validateComponentProps(
     case 'image':
       if (node.props.src && !node.props.alt.trim()) issues.push(issue('component-alt', 'warning', 'component', 'Image should have alt text.', base));
       break;
-    case 'list':
-      if (node.props.dataSource?.kind === 'collection' && !collections.has(node.props.dataSource.collectionId)) {
-        issues.push(issue('data-missing-collection', 'error', 'data', 'List references a missing collection.', base));
+    case 'column':
+    case 'row':
+      if (node.props.gap < 0 || node.props.padding < 0) {
+        issues.push(issue('component-layout-spacing', 'error', 'component', 'Layout gap and padding cannot be negative.', base));
       }
       break;
-    case 'form':
-      if (!node.props.title.trim()) issues.push(issue('component-label', 'warning', 'component', 'Form title is empty.', base));
-      if (node.props.dataBinding) {
-        const collection = collections.get(node.props.dataBinding.collectionId);
+    case 'listview':
+      if (
+        node.props.gap < 0
+        || node.props.padding < 0
+        || node.props.itemSpacing < 0
+        || node.props.itemBorderRadius < 0
+      ) {
+        issues.push(issue('component-layout-spacing', 'error', 'component', 'ListView item layout values cannot be negative.', base));
+      }
+      if (node.props.dataSource.kind === 'collection') {
+        const collection = collections.get(node.props.dataSource.collectionId);
         if (!collection) {
-          issues.push(issue('data-missing-collection', 'error', 'data', 'Form references a missing collection.', base));
+          issues.push(issue('data-missing-collection', 'error', 'data', 'ListView references a missing collection.', base));
         } else {
-          for (const binding of node.props.dataBinding.fields) {
-            if (!collection.fields.some((field) => field.id === binding.dataFieldId)) {
-              issues.push(issue('data-missing-field', 'error', 'data', 'Form field is mapped to a missing data field.', base));
+          for (const fieldId of node.props.dataSource.displayFieldIds) {
+            if (fieldId && !collection.fields.some((field) => field.id === fieldId)) {
+              issues.push(issue('data-missing-field', 'error', 'data', 'ListView references a missing display field.', base));
             }
           }
         }
+      } else {
+        validateStaticListSource(node, screenId, issues);
       }
+      if (node.children.length === 0) issues.push(issue('component-list-template-empty', 'warning', 'component', 'ListView item template is empty.', base));
       break;
     case 'checkbox':
     case 'switch':
@@ -191,6 +206,81 @@ function validateComponentProps(
   }
 }
 
+function validateComponentBindings(
+  node: ComponentNode,
+  itemSource: ListViewNode | undefined,
+  screenId: string,
+  collections: ReadonlyMap<string, DataCollection>,
+  issues: ValidationIssue[],
+): void {
+  const seen = new Set<ComponentBindingTarget>();
+  for (const binding of node.bindings ?? []) {
+    const base = {
+      screenId,
+      componentId: node.id,
+      fieldId: binding.value.fieldId,
+      bindingTarget: binding.target,
+    };
+    if (seen.has(binding.target)) {
+      issues.push(issue('component-binding-duplicate', 'error', 'component', 'Component property has more than one item binding.', base));
+    }
+    seen.add(binding.target);
+    if (!isBindingTargetAllowed(node.type, binding.target)) {
+      issues.push(issue('component-binding-target', 'error', 'component', 'Binding target is not supported by this component.', base));
+    }
+    if (!itemSource) {
+      issues.push(issue('component-binding-context', 'error', 'component', 'Item binding must be inside a ListView item template.', base));
+      continue;
+    }
+    const field = itemSource.props.dataSource.kind === 'static'
+      ? itemSource.props.dataSource.fields.find((candidate) => candidate.id === binding.value.fieldId)
+      : collections.get(itemSource.props.dataSource.collectionId)?.fields.find((candidate) => candidate.id === binding.value.fieldId);
+    if (!field) {
+      issues.push(issue('component-binding-field', 'error', 'data', 'Item binding references a missing field.', base));
+    } else if (!isFieldTypeCompatible(binding.target, field.type)) {
+      issues.push(issue('component-binding-type', 'error', 'data', 'Item field type is incompatible with the bound property.', base));
+    }
+  }
+}
+
+function validateStaticListSource(
+  node: ListViewNode,
+  screenId: string,
+  issues: ValidationIssue[],
+): void {
+  if (node.props.dataSource.kind !== 'static') return;
+  const fieldIds = new Set<string>();
+  for (const field of node.props.dataSource.fields) {
+    const base = { screenId, componentId: node.id, fieldId: field.id };
+    if (!field.id.trim()) issues.push(issue('data-static-field-id', 'error', 'data', 'Static item field ID is required.', base));
+    if (fieldIds.has(field.id)) issues.push(issue('data-static-field-duplicate', 'error', 'data', 'Static item field ID is duplicated.', base));
+    fieldIds.add(field.id);
+  }
+  const itemIds = new Set<string>();
+  for (const item of node.props.dataSource.items) {
+    if (!item.id.trim()) issues.push(issue('data-static-item-id', 'error', 'data', 'Static item ID is required.', { screenId, componentId: node.id }));
+    if (itemIds.has(item.id)) issues.push(issue('data-static-item-duplicate', 'error', 'data', 'Static item ID is duplicated.', { screenId, componentId: node.id }));
+    itemIds.add(item.id);
+    for (const field of node.props.dataSource.fields) {
+      const value = item.values[field.id];
+      if (value !== undefined && !matchesDataFieldType(value, field.type)) {
+        issues.push(issue('data-static-item-type', 'error', 'data', 'Static item value does not match its field type.', {
+          screenId,
+          componentId: node.id,
+          fieldId: field.id,
+        }));
+      }
+    }
+  }
+}
+
+function matchesDataFieldType(value: DataValue, type: DataFieldType): boolean {
+  if (value === null) return true;
+  if (type === 'number') return typeof value === 'number' && Number.isFinite(value);
+  if (type === 'boolean') return typeof value === 'boolean';
+  return typeof value === 'string';
+}
+
 function validateLogic(
   screen: Screen,
   issues: ValidationIssue[],
@@ -208,6 +298,7 @@ function validateLogic(
     }
   }
   for (const graph of screen.logicGraphs) {
+    const graphItemSource = findNearestListView(screen.nodes, graph.sourceNodeId);
     const nodeIds = new Set(graph.nodes.map((node) => node.id));
     const triggerCount = graph.nodes.filter((node) => node.kind === 'trigger').length;
     if (triggerCount !== 1) {
@@ -251,12 +342,34 @@ function validateLogic(
       }
       if (node.kind === 'action') {
         validateActionPayload(node.payload, screen, collections, issues, screen.id, graph.id, node.id, screenIds);
+        const localListTarget = node.payload.type === 'add-local-list-item'
+          ? findComponentNode(screen.nodes, node.payload.targetNodeId)
+          : null;
         for (const expression of Object.values(node.inputMappings ?? {})) {
           if (expression.source === 'component' && !componentIds.has(expression.nodeId)) {
             issues.push(issue('logic-missing-input-source', 'error', 'logic', 'Action input references a missing component.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
           }
           if (expression.source === 'node-output' && !nodeIds.has(expression.nodeId)) {
             issues.push(issue('logic-missing-input-source', 'error', 'logic', 'Action input references a missing workflow node.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
+          }
+          validateListItemExpression(expression, graphItemSource, collections, issues, {
+            screenId: screen.id,
+            graphId: graph.id,
+            logicNodeId: node.id,
+          });
+        }
+        if (node.payload.type === 'add-local-list-item' && localListTarget?.type === 'listview' && localListTarget.props.dataSource.kind === 'static') {
+          const fieldIds = new Set(localListTarget.props.dataSource.fields.map((field) => field.id));
+          for (const key of Object.keys(node.inputMappings ?? {})) {
+            if (!fieldIds.has(key)) {
+              issues.push(issue('logic-local-list-field', 'error', 'logic', 'Add Local List Item maps a missing static field.', {
+                screenId: screen.id,
+                graphId: graph.id,
+                logicNodeId: node.id,
+                componentId: localListTarget.id,
+                fieldId: key,
+              }));
+            }
           }
         }
       }
@@ -267,10 +380,53 @@ function validateLogic(
         if (node.left.source === 'node-output' && !nodeIds.has(node.left.nodeId)) {
           issues.push(issue('logic-missing-condition-source', 'error', 'logic', 'Condition source node is missing.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
         }
+        validateListItemExpression(node.left, graphItemSource, collections, issues, {
+          screenId: screen.id,
+          graphId: graph.id,
+          logicNodeId: node.id,
+        });
       }
     }
     validateRequiredResources(graph, screen.id, issues);
   }
+}
+
+function validateListItemExpression(
+  expression: ValueExpression,
+  itemSource: ListViewNode | null,
+  collections: ReadonlyMap<string, DataCollection>,
+  issues: ValidationIssue[],
+  context: Pick<ValidationIssue, 'screenId' | 'graphId' | 'logicNodeId'>,
+): void {
+  if (expression.source !== 'list-item') return;
+  if (!itemSource) {
+    issues.push(issue('logic-list-item-context', 'error', 'logic', 'Current-item input requires a component inside a ListView template.', context));
+    return;
+  }
+  const exists = itemSource.props.dataSource.kind === 'static'
+    ? itemSource.props.dataSource.fields.some((field) => field.id === expression.fieldId)
+    : collections.get(itemSource.props.dataSource.collectionId)?.fields.some((field) => field.id === expression.fieldId) === true;
+  if (!exists) {
+    issues.push(issue('logic-list-item-field', 'error', 'logic', 'Current-item input references a missing field.', {
+      ...context,
+      componentId: itemSource.id,
+      fieldId: expression.fieldId,
+    }));
+  }
+}
+
+function findNearestListView(
+  nodes: readonly ComponentNode[],
+  targetId: string,
+  nearest: ListViewNode | null = null,
+): ListViewNode | null {
+  for (const node of nodes) {
+    if (node.id === targetId) return nearest;
+    if (!isChildBearingNode(node)) continue;
+    const result = findNearestListView(node.children, targetId, node.type === 'listview' ? node : nearest);
+    if (result) return result;
+  }
+  return null;
 }
 
 function validateRequiredResources(graph: LogicGraph, screenId: string, issues: ValidationIssue[]): void {
@@ -350,6 +506,42 @@ function validateActionPayload(
       if (!payload.targetNodeId) issues.push(issue('logic-empty-target', 'warning', 'logic', 'Component target is not set.', base));
       else if (!screen.nodes.flatMap(flattenNodeIds).includes(payload.targetNodeId)) issues.push(issue('logic-missing-target', 'error', 'logic', 'Component target is missing.', base));
       break;
+    case 'add-local-list-item': {
+      if (!payload.targetNodeId) {
+        issues.push(issue('logic-empty-target', 'warning', 'logic', 'Add Local List Item target is not set.', base));
+        break;
+      }
+      const target = findComponentNode(screen.nodes, payload.targetNodeId);
+      if (!target) {
+        issues.push(issue('logic-missing-target', 'error', 'logic', 'Add Local List Item target is missing.', base));
+        break;
+      }
+      if (target.type !== 'listview' || target.props.dataSource.kind !== 'static') {
+        issues.push(issue('logic-local-list-target', 'error', 'logic', 'Add Local List Item requires a static ListView target.', {
+          ...base,
+          componentId: target.id,
+        }));
+        break;
+      }
+      const fields = new Map(target.props.dataSource.fields.map((field) => [field.id, field]));
+      for (const [fieldId, value] of Object.entries(payload.values)) {
+        const field = fields.get(fieldId);
+        if (!field) {
+          issues.push(issue('logic-local-list-field', 'error', 'logic', 'Add Local List Item references a missing static field.', {
+            ...base,
+            componentId: target.id,
+            fieldId,
+          }));
+        } else if (!matchesDataFieldType(value, field.type)) {
+          issues.push(issue('logic-local-list-value-type', 'error', 'logic', 'Add Local List Item value does not match its static field type.', {
+            ...base,
+            componentId: target.id,
+            fieldId,
+          }));
+        }
+      }
+      break;
+    }
     case 'document-load':
       if (payload.source === 'inline' && !payload.text.trim()) issues.push(issue('logic-empty-document', 'warning', 'logic', 'Inline document text is empty.', base));
       if ((payload.source === 'url' || payload.source === 'file-reference') && !payload.sourceReference.trim()) issues.push(issue('logic-empty-document-source', 'warning', 'logic', 'Document source reference is empty.', base));
@@ -421,7 +613,18 @@ function validateActionPayload(
 }
 
 function flattenNodeIds(node: ComponentNode): string[] {
-  return node.type === 'container' ? [node.id, ...node.children.flatMap(flattenNodeIds)] : [node.id];
+  return isChildBearingNode(node) ? [node.id, ...node.children.flatMap(flattenNodeIds)] : [node.id];
+}
+
+function findComponentNode(nodes: readonly ComponentNode[], nodeId: string): ComponentNode | null {
+  for (const node of nodes) {
+    if (node.id === nodeId) return node;
+    if (isChildBearingNode(node)) {
+      const nested = findComponentNode(node.children, nodeId);
+      if (nested) return nested;
+    }
+  }
+  return null;
 }
 
 function wouldCreateCycle(graph: LogicGraph): boolean {

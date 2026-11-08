@@ -6,11 +6,12 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { ComponentNode, ComponentType, NodeGeometry, ResponsiveBreakpoint } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
+import { childGeometriesAtBreakpoint, geometryAtBreakpoint, isChildBearingNode, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import { findFrameAtPoint, getComponentTreeLocation, type FrameHit } from '@domain/componentTree';
-import { ScreenFrame } from '../renderer/ScreenFrame';
+import { ScreenFrame, type ScreenFrameSize } from '../renderer/ScreenFrame';
 import type { RendererDataContext } from '../renderer/renderer';
+import type { ListItemContext } from '@domain/entities/appData';
 import { SNAP_GRID, ZOOM_LIMITS, computeFitZoom, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
 import {
   ALIGNMENT_THRESHOLD,
@@ -21,10 +22,12 @@ import {
 } from '../state/alignment';
 import { COMPONENT_MIME } from './ComponentsPalette';
 import { SelectionOverlay } from './SelectionOverlay';
+import { ItemFrameOverlay } from './ItemFrameOverlay';
 import { DeviceToggle } from './DeviceToggle';
 import { ZoomPill } from './ZoomPill';
 import { AlignmentGuides } from './AlignmentGuides';
 import { DistanceIndicators } from './DistanceIndicators';
+import { ListViewDesignPrompt } from './ListViewDesignPrompt';
 /** Padding around the device frame inside the scrollable stage. */
 export const CANVAS_PAD_PX = 48;
 /** Pointer travel (screen px) before a press counts as a drag, not a click. */
@@ -36,8 +39,9 @@ const COMPONENT_TYPES: readonly ComponentType[] = [
   'input',
   'image',
   'container',
-  'list',
-  'form',
+  'column',
+  'row',
+  'listview',
   'checkbox',
   'radio',
   'switch',
@@ -55,6 +59,18 @@ function isComponentType(value: string): value is ComponentType {
 interface EditorCanvasProps {
   screen: Screen;
   device: EditorDevice;
+  /** Optional focused-design frame, such as one repeated ListView item. */
+  boundsOverride?: ScreenFrameSize;
+  /** Live preview of the repeated item frame in focused item design. */
+  itemFramePreview?: {
+    nodeId: string;
+    itemExtent: number;
+    padding: number;
+    spacing: number;
+    radius: number;
+    showDividers: boolean;
+    direction: 'vertical' | 'horizontal';
+  };
   zoom: number;
   isSnapEnabled: boolean;
   selectedNodeId: string | null;
@@ -67,6 +83,7 @@ interface EditorCanvasProps {
   onDuplicateSelected: () => void;
   onDeleteSelected: () => void;
   onAddBehavior: () => void;
+  onEditItemTemplate: (listViewId: string) => void;
   onDropAt: (nodeType: ComponentType, x: number, y: number, parentId: string | null) => void;
   onReparentNode: (
     nodeId: string,
@@ -78,6 +95,7 @@ interface EditorCanvasProps {
   onToggleSnap: () => void;
   onDeviceChange: (device: EditorDevice) => void;
   dataContext?: RendererDataContext;
+  itemContext?: ListItemContext;
 }
 
 interface InteractionTarget {
@@ -99,21 +117,29 @@ function flattenInteractionTargets(
   originY: number,
   breakpoint: ResponsiveBreakpoint,
   ancestorLocked = false,
+  geometryOverrides?: ReadonlyMap<string, NodeGeometry>,
 ): InteractionTarget[] {
   const targets: InteractionTarget[] = [];
   for (const node of nodes) {
     if (isHiddenAtBreakpoint(node, breakpoint)) {
       continue;
     }
-    const geometry = geometryAtBreakpoint(node, breakpoint);
+    const geometry = geometryOverrides?.get(node.id) ?? geometryAtBreakpoint(node, breakpoint);
     const absX = originX + geometry.x;
     const absY = originY + geometry.y;
     const isLocked = ancestorLocked || node.isLocked === true;
     if (!isLocked) {
       targets.push({ node, geometry, absX, absY });
     }
-    if (node.type === 'container') {
-      targets.push(...flattenInteractionTargets(node.children, absX, absY, breakpoint, isLocked));
+    if (isChildBearingNode(node) && node.type !== 'listview') {
+      targets.push(...flattenInteractionTargets(
+        node.children,
+        absX,
+        absY,
+        breakpoint,
+        isLocked,
+        childGeometriesAtBreakpoint(node, breakpoint, geometry),
+      ));
     }
   }
   return targets;
@@ -134,10 +160,10 @@ interface DragSession {
   parentOffsetY: number;
 }
 
-/** Ids of a node and everything nested inside it (containers only). */
+/** Ids of a node and everything nested inside it. */
 function collectSubtreeIds(node: ComponentNode): Set<string> {
   const ids = new Set<string>([node.id]);
-  if (node.type === 'container') {
+  if (isChildBearingNode(node)) {
     for (const child of node.children) {
       for (const id of collectSubtreeIds(child)) {
         ids.add(id);
@@ -155,6 +181,7 @@ function collectSubtreeIds(node: ComponentNode): Set<string> {
 export function EditorCanvas({
   screen,
   device,
+  boundsOverride,
   zoom,
   isSnapEnabled,
   selectedNodeId,
@@ -166,6 +193,7 @@ export function EditorCanvas({
   onDuplicateSelected,
   onDeleteSelected,
   onAddBehavior,
+  onEditItemTemplate,
   onDropAt,
   onReparentNode,
   onDropIndicatorChange,
@@ -173,6 +201,8 @@ export function EditorCanvas({
   onToggleSnap,
   onDeviceChange,
   dataContext,
+  itemContext,
+  itemFramePreview,
 }: EditorCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const interactionLayerRef = useRef<HTMLDivElement>(null);
@@ -183,7 +213,7 @@ export function EditorCanvas({
   const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuide[]>([]);
   const [distanceIndicators, setDistanceIndicators] = useState<DistanceIndicator[]>([]);
 
-  const bounds = deviceViewport(device);
+  const bounds = boundsOverride ?? deviceViewport(device);
   const targets = flattenInteractionTargets(screen.nodes, 0, 0, device);
   const frameWidth = bounds.width * zoom;
   const frameHeight = bounds.height * zoom;
@@ -193,6 +223,14 @@ export function EditorCanvas({
   const selectedLocation = selectedNodeId
     ? getComponentTreeLocation(screen.nodes, selectedNodeId, device)
     : null;
+
+  // Guides are gesture-scoped; clear them whenever the context they were
+  // computed against changes so they cannot linger after selection, bounds,
+  // or device changes.
+  useEffect(() => {
+    setAlignmentGuides([]);
+    setDistanceIndicators([]);
+  }, [selectedNodeId, bounds.width, bounds.height, device]);
 
   function computeFittedZoom(): number | null {
     const viewport = viewportRef.current;
@@ -310,7 +348,15 @@ export function EditorCanvas({
 
   function handleBackgroundPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
     if (!isSpacePressedRef.current && event.button !== 1 && event.target === event.currentTarget) {
-      onSelectNode(null);
+      if (itemFramePreview) {
+        const point = toDesignPoint(event.clientX, event.clientY);
+        const insideFrame = itemFramePreview.direction === 'vertical'
+          ? point.x >= 0 && point.x <= bounds.width && point.y >= 0 && point.y <= itemFramePreview.itemExtent
+          : point.x >= 0 && point.x <= itemFramePreview.itemExtent && point.y >= 0 && point.y <= bounds.height;
+        onSelectNode(insideFrame ? itemFramePreview.nodeId : null);
+      } else {
+        onSelectNode(null);
+      }
     }
   }
 
@@ -361,9 +407,16 @@ export function EditorCanvas({
         w: candidate.geometry.w,
         h: candidate.geometry.h,
       }));
+    // In focused item design the alignment frame is the whole ListView while
+    // children are clamped to its padded content box, so the frame's edges and
+    // centre are never actually reachable. Excluding it keeps sibling
+    // alignment (row-to-row, row-to-text) but removes the misleading centre
+    // guide that reads as a boundary. Normal screen editing keeps the frame.
     const alignmentTargets = [
       ...componentAlignmentTargets,
-      { x: 0, y: 0, w: bounds.width, h: bounds.height },
+      ...(boundsOverride
+        ? []
+        : [{ x: 0, y: 0, w: bounds.width, h: bounds.height }]),
     ];
 
     dragSessionRef.current = {
@@ -381,6 +434,10 @@ export function EditorCanvas({
       parentOffsetY,
     };
     capturePointer(event);
+    // A new gesture always starts without stale guides from a previous one
+    // (especially after a drag that ended outside the window).
+    setAlignmentGuides([]);
+    setDistanceIndicators([]);
 
     function handleMove(moveEvent: PointerEvent): void {
       const session = dragSessionRef.current;
@@ -428,6 +485,7 @@ export function EditorCanvas({
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleFinish);
       window.removeEventListener('pointercancel', handleCancel);
+      window.removeEventListener('blur', handleCancel);
     }
 
     function handleFinish(): void {
@@ -461,6 +519,7 @@ export function EditorCanvas({
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', handleFinish);
     window.addEventListener('pointercancel', handleCancel);
+    window.addEventListener('blur', handleCancel);
   }
 
   function handleDragOver(event: ReactDragEvent<HTMLDivElement>): void {
@@ -525,7 +584,7 @@ export function EditorCanvas({
           }}
         >
           <div
-            className="relative mx-auto shrink-0 border border-hairline bg-surface shadow-sm"
+            className="relative mx-auto shrink-0 bg-surface shadow-sm ring-1 ring-inset ring-hairline"
             data-testid="canvas-frame"
             style={{ height: frameHeight, width: frameWidth }}
           >
@@ -533,12 +592,26 @@ export function EditorCanvas({
               breakpoint={device}
               mode="canvas"
               dataContext={dataContext}
+              itemContext={itemContext}
               scale={zoom}
               screen={screen}
               selectedNodeId={selectedNodeId}
               onSelectNode={onSelectNode}
               size={bounds}
             />
+
+            {itemFramePreview && selectedNodeId === itemFramePreview.nodeId ? (
+              <ItemFrameOverlay
+                crossExtent={itemFramePreview.direction === 'vertical' ? bounds.width : bounds.height}
+                direction={itemFramePreview.direction}
+                itemExtent={itemFramePreview.itemExtent}
+                padding={itemFramePreview.padding}
+                radius={itemFramePreview.radius}
+                showDividers={itemFramePreview.showDividers}
+                spacing={itemFramePreview.spacing}
+                zoom={zoom}
+              />
+            ) : null}
 
             <div
               className="absolute inset-0"
@@ -562,7 +635,11 @@ export function EditorCanvas({
                     top: absY * zoom,
                     width: geometry.w * zoom,
                   }}
-                />
+                >
+                  {node.type === 'listview' && node.children.length === 0 ? (
+                    <ListViewDesignPrompt onActivate={() => onEditItemTemplate(node.id)} />
+                  ) : null}
+                </div>
               ))}
 
               {dropIndicator ? (

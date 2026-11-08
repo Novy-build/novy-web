@@ -41,35 +41,43 @@ const FIXTURE_SCREEN: Screen = {
       props: { label: 'Save', variant: 'solid' },
     },
     {
-      id: 'node_form',
-      type: 'form',
+      id: 'node_column',
+      type: 'column',
       x: 40,
       y: 280,
       w: 320,
       h: 260,
       props: {
-        title: 'Contact us',
-        fields: [{ label: 'Email', placeholder: 'you@example.com', type: 'email' }],
-        submitLabel: 'Send',
-        dataBinding: {
-          collectionId: 'contacts',
-          fields: [{ formFieldIndex: 0, dataFieldId: 'email' }],
-        },
+        mainAxisAlignment: 'start',
+        crossAxisAlignment: 'stretch',
+        gap: 12,
+        padding: 16,
       },
+      children: [
+        { id: 'node_form_title', type: 'text', x: 0, y: 0, w: 288, h: 28, props: { text: 'Contact us', level: 'title' } },
+        { id: 'node_form_email', type: 'input', x: 0, y: 0, w: 288, h: 44, props: { label: 'Email', placeholder: 'you@example.com', inputType: 'email', multiline: false } },
+        { id: 'node_form_submit', type: 'button', x: 0, y: 0, w: 288, h: 44, props: { label: 'Send', variant: 'solid' } },
+      ],
     },
     {
       id: 'node_list',
-      type: 'list',
+      type: 'listview',
       x: 40,
       y: 560,
       w: 280,
       h: 180,
       props: {
-        items: [],
-        scrollable: true,
+        emptyText: 'No contacts yet',
         showDividers: true,
-        dataSource: { kind: 'collection', collectionId: 'contacts', displayFieldId: 'email' },
+        scrollDirection: 'vertical',
+        crossAxisAlignment: 'stretch',
+        gap: 0,
+        padding: 0,
+        itemSpacing: 6,
+        itemBorderRadius: 10,
+        dataSource: { kind: 'collection', collectionId: 'contacts', displayFieldIds: ['email'] },
       },
+      children: [{ id: 'node_list_item', type: 'text', x: 0, y: 0, w: 280, h: 44, props: { text: 'Email', level: 'body' }, bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'email' } }] }],
     },
   ],
   behaviors: [{ id: 'behavior_1', name: 'Greet', event: 'click', graphId: 'graph_1', targetNodeId: 'node_button' }],
@@ -114,7 +122,7 @@ describe('project mapper', () => {
 
     expect(dto.createdAt).toBe('2026-01-01T10:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-02T12:30:00.000Z');
-    expect(dto.schemaVersion).toBe(5);
+    expect(dto.schemaVersion).toBe(9);
   });
 
   it('round-trips projects losslessly', () => {
@@ -128,6 +136,26 @@ describe('project mapper', () => {
     const restored = mapProjectFromDto(dto as never);
 
     expect(restored).toEqual(FIXTURE_PROJECT);
+  });
+
+  it('round-trips typed Add Local List Item actions', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.screens[0]!.logicGraphs[0]!.nodes.push({
+      kind: 'action',
+      id: 'add_local_item',
+      position: { x: 544, y: 160 },
+      payload: {
+        type: 'add-local-list-item',
+        targetNodeId: 'node_static_list',
+        placement: 'prepend',
+        values: { title: 'Draft', priority: 2, selected: true, due: null },
+      },
+      inputMappings: { title: { source: 'component', nodeId: 'node_form_email', property: 'value' } },
+    });
+
+    const restored = mapProjectFromDto(roundTrip(mapProjectToDto(project)) as ReturnType<typeof mapProjectToDto>);
+    const action = restored.document.screens[0]!.logicGraphs[0]!.nodes.find((node) => node.id === 'add_local_item');
+    expect(action).toEqual(project.document.screens[0]!.logicGraphs[0]!.nodes.at(-1));
   });
 
   it('assigns unique routes while loading legacy projects with repeated screen names', () => {

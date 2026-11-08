@@ -91,6 +91,18 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
     create: () => ({ kind: 'action', payload: { type: 'set-component-value', targetNodeId: '', value: '' } }),
   },
   {
+    id: 'add-local-list-item',
+    category: 'UI',
+    label: 'Add Local List Item',
+    description: 'Add a session-only item to a static ListView',
+    icon: '+',
+    keywords: ['listview', 'list', 'item', 'append', 'prepend', 'temporary', 'local'],
+    create: () => ({
+      kind: 'action',
+      payload: { type: 'add-local-list-item', targetNodeId: '', placement: 'append', values: {} },
+    }),
+  },
+  {
     id: 'navigate',
     category: 'UI',
     label: 'Navigate',

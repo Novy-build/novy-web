@@ -1,3 +1,5 @@
+import type { DataValue, ListItemPlacement } from './appData';
+
 /**
  * Visual logic model used by the Logic workspace (Phase 5).
  * A Behavior binds a component event to a LogicGraph; the graph is a small
@@ -240,6 +242,14 @@ export interface SetComponentValuePayload {
   value: string;
 }
 
+/** Adds a session-only item to a static ListView without persistence or Project JSON mutation. */
+export interface AddLocalListItemPayload {
+  type: 'add-local-list-item';
+  targetNodeId: string;
+  placement: ListItemPlacement;
+  values: Record<string, DataValue>;
+}
+
 export type ActionPayload =
   | ChangeTextPayload
   | ShowMessagePayload
@@ -253,6 +263,7 @@ export type ActionPayload =
   | RefreshCollectionPayload
   | SetVariablePayload
   | SetComponentValuePayload
+  | AddLocalListItemPayload
   | DocumentLoadPayload
   | TextSplitPayload
   | EmbeddingGeneratePayload
@@ -279,6 +290,7 @@ export type SessionValuePath = 'user.id' | 'user.name' | 'user.email';
 export type ValueExpression =
   | { source: 'literal'; value: string }
   | { source: 'component'; nodeId: string; property: 'value' | 'text' }
+  | { source: 'list-item'; fieldId: string }
   | { source: 'session'; path: SessionValuePath }
   | { source: 'variable'; name: string }
   | { source: 'node-output'; nodeId: string; path: string };

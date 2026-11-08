@@ -2,7 +2,7 @@
 
 ## Milestone 1 — Data-binding foundation
 
-- Data Repeater.
+- ListView with static and collection-backed item templates (replacing the legacy Data Repeater).
 - Item context.
 - Record-to-component property bindings.
 - Multiline note editor.

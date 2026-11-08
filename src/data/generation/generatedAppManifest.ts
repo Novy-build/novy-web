@@ -1,5 +1,5 @@
 import type { DataCollection, ProjectDatabase } from '@domain/entities/appData';
-import type { ComponentNode } from '@domain/entities/componentNode';
+import { isChildBearingNode, type ComponentNode } from '@domain/entities/componentNode';
 import type { ActionPayload, ValueExpression } from '@domain/entities/logic';
 import type { Project } from '@domain/entities/project';
 import type {
@@ -97,7 +97,7 @@ export function generatedAppManifestFilename(projectName: string): string {
 }
 
 function flattenNodes(nodes: readonly ComponentNode[]): ComponentNode[] {
-  return nodes.flatMap((node) => node.type === 'container'
+  return nodes.flatMap((node) => isChildBearingNode(node)
     ? [node, ...flattenNodes(node.children)]
     : [node]);
 }
@@ -107,13 +107,9 @@ function detectNodeCapabilities(
   requireCapability: (capability: RuntimeCapabilityId, source: string) => void,
 ): void {
   if (node.type === 'camera') requireCapability('camera', node.id);
-  if (node.type === 'list' && node.props.dataSource?.kind === 'collection') {
+  if (node.type === 'listview' && node.props.dataSource.kind === 'collection') {
     requireCapability('database', node.id);
   }
-  if (node.type === 'repeater' && node.props.dataSource?.kind === 'collection') {
-    requireCapability('database', node.id);
-  }
-  if (node.type === 'form' && node.props.dataBinding) requireCapability('database', node.id);
 }
 
 function detectActionCapabilities(
@@ -156,6 +152,9 @@ function detectActionCapabilities(
     case 'cv-verify':
       requireCapability('computer-vision', source);
       requireCapability('authentication', source);
+      return;
+    case 'add-local-list-item':
+      // Local ListView state is provided by the generated client runtime and needs no backend binding.
       return;
     default:
       return;

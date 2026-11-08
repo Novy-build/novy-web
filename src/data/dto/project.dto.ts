@@ -21,6 +21,10 @@ export interface ComponentNodeDTOBase {
     opacity?: number;
   };
   responsive?: Partial<Record<'tablet' | 'desktop', Partial<{ x: number; y: number; w: number; h: number; isHidden: boolean }>>>;
+  bindings?: Array<{
+    target: 'text.content' | 'image.source' | 'image.alt' | 'button.label' | 'checkbox.checked' | 'switch.checked' | 'progress.value' | 'component.visible';
+    value: { source: 'list-item'; fieldId: string };
+  }>;
 }
 
 export interface ButtonNodeDTO extends ComponentNodeDTOBase {
@@ -30,7 +34,11 @@ export interface ButtonNodeDTO extends ComponentNodeDTOBase {
 
 export interface TextNodeDTO extends ComponentNodeDTOBase {
   type: 'text';
-  props: { text: string; level: 'display' | 'title' | 'body' };
+  props: {
+    text: string;
+    level: 'display' | 'title' | 'body';
+    dataBinding?: { source: 'list-item'; fieldId: string };
+  };
 }
 
 export interface InputNodeDTO extends ComponentNodeDTOBase {
@@ -49,7 +57,49 @@ export interface ContainerNodeDTO extends ComponentNodeDTOBase {
   children: ComponentNodeDTO[];
 }
 
-export interface ListNodeDTO extends ComponentNodeDTOBase {
+export interface ColumnNodeDTO extends ComponentNodeDTOBase {
+  type: 'column';
+  props: {
+    mainAxisAlignment: 'start' | 'center' | 'end' | 'space-between' | 'space-around' | 'space-evenly';
+    crossAxisAlignment: 'start' | 'center' | 'end' | 'stretch';
+    gap: number;
+    padding: number;
+  };
+  children: ComponentNodeDTO[];
+}
+
+export interface RowNodeDTO extends ComponentNodeDTOBase {
+  type: 'row';
+  props: ColumnNodeDTO['props'];
+  children: ComponentNodeDTO[];
+}
+
+export interface ListViewNodeDTO extends ComponentNodeDTOBase {
+  type: 'listview';
+  props: {
+    emptyText: string;
+    showDividers: boolean;
+    scrollDirection: 'vertical' | 'horizontal';
+    crossAxisAlignment: 'start' | 'center' | 'end' | 'stretch';
+    gap: number;
+    padding: number;
+    /** Added in schema v8; older documents omit both item-container values. */
+    itemSpacing?: number;
+    itemBorderRadius?: number;
+    dataSource:
+      | { kind: 'static'; items: string[] }
+      | {
+          kind: 'static';
+          fields: Array<{ id: string; label: string; type: 'text' | 'number' | 'boolean' | 'date' }>;
+          items: Array<{ id: string; values: Record<string, string | number | boolean | null> }>;
+        }
+      | { kind: 'collection'; collectionId: string; displayFieldIds: string[]; sortFieldId?: string; sortDirection?: 'asc' | 'desc'; searchFieldId?: string; searchComponentId?: string };
+  };
+  children: ComponentNodeDTO[];
+}
+
+/** Schema-v5 compatibility only; migrated to ListView on load. */
+export interface LegacyListNodeDTO extends ComponentNodeDTOBase {
   type: 'list';
   props: {
     items: string[];
@@ -61,7 +111,8 @@ export interface ListNodeDTO extends ComponentNodeDTOBase {
   };
 }
 
-export interface RepeaterNodeDTO extends ComponentNodeDTOBase {
+/** Schema-v5 compatibility only; migrated to ListView on load. */
+export interface LegacyRepeaterNodeDTO extends ComponentNodeDTOBase {
   type: 'repeater';
   props: {
     emptyText?: string;
@@ -72,7 +123,8 @@ export interface RepeaterNodeDTO extends ComponentNodeDTOBase {
   };
 }
 
-export interface FormNodeDTO extends ComponentNodeDTOBase {
+/** Schema-v5 compatibility only; migrated to a composed Column on load. */
+export interface LegacyFormNodeDTO extends ComponentNodeDTOBase {
   type: 'form';
   props: {
     title: string;
@@ -135,9 +187,12 @@ export type ComponentNodeDTO =
   | InputNodeDTO
   | ImageNodeDTO
   | ContainerNodeDTO
-  | ListNodeDTO
-  | RepeaterNodeDTO
-  | FormNodeDTO
+  | ColumnNodeDTO
+  | RowNodeDTO
+  | ListViewNodeDTO
+  | LegacyListNodeDTO
+  | LegacyRepeaterNodeDTO
+  | LegacyFormNodeDTO
   | CheckboxNodeDTO
   | RadioNodeDTO
   | SwitchNodeDTO
@@ -407,6 +462,13 @@ export interface SetComponentValuePayloadDTO {
   value: string;
 }
 
+export interface AddLocalListItemPayloadDTO {
+  type: 'add-local-list-item';
+  targetNodeId: string;
+  placement: 'append' | 'prepend';
+  values: Record<string, string | number | boolean | null>;
+}
+
 export type ActionPayloadDTO =
   | ChangeTextPayloadDTO
   | ShowMessagePayloadDTO
@@ -420,6 +482,7 @@ export type ActionPayloadDTO =
   | RefreshCollectionPayloadDTO
   | SetVariablePayloadDTO
   | SetComponentValuePayloadDTO
+  | AddLocalListItemPayloadDTO
   | LegacyRagIndexPayloadDTO
   | LegacyRagQueryPayloadDTO
   | LegacyRagRemovePayloadDTO
@@ -446,6 +509,7 @@ export type ActionPayloadDTO =
 export type ValueExpressionDTO =
   | { source: 'literal'; value: string }
   | { source: 'component'; nodeId: string; property: 'value' | 'text' }
+  | { source: 'list-item'; fieldId: string }
   | { source: 'session'; path: 'user.id' | 'user.name' | 'user.email' }
   | { source: 'variable'; name: string }
   | { source: 'node-output'; nodeId: string; path: string };

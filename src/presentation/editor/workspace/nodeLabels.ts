@@ -7,9 +7,9 @@ export const NODE_TYPE_LABELS: Record<ComponentNode['type'], string> = {
   input: 'Text field',
   image: 'Image',
   container: 'Container',
-  list: 'List',
-  repeater: 'Repeater',
-  form: 'Form',
+  column: 'Column',
+  row: 'Row',
+  listview: 'ListView',
   checkbox: 'Checkbox',
   radio: 'Radio group',
   switch: 'Switch',
@@ -51,14 +51,14 @@ export function nodeDisplayLabel(node: ComponentNode): string {
       return node.props.label;
     case 'image':
       return node.props.alt.length > 0 ? node.props.alt : 'Untitled image';
-    case 'list':
-      return `${node.props.items.length} item${node.props.items.length === 1 ? '' : 's'}`;
-    case 'repeater':
-      return node.props.dataSource?.kind === 'collection' ? 'Collection repeater' : 'Repeater';
+    case 'listview':
+      return node.props.dataSource.kind === 'collection' ? 'Collection ListView' : 'ListView';
     case 'container':
       return 'Frame';
-    case 'form':
-      return node.props.title;
+    case 'column':
+      return 'Column';
+    case 'row':
+      return 'Row';
   }
 }
 

@@ -13,7 +13,7 @@ describe('createComponentNode', () => {
   });
 
   it('creates one node per palette type', () => {
-    const types = ['text', 'input', 'image', 'container', 'list', 'form'] as const;
+    const types = ['text', 'input', 'image', 'container', 'column', 'row', 'listview'] as const;
 
     types.forEach((type) => {
       expect(createComponentNode(type).type).toBe(type);
@@ -28,14 +28,22 @@ describe('createComponentNode', () => {
     }
   });
 
-  it('creates a configurable Form with accessible starter fields', () => {
-    const node = createComponentNode('form');
+  it('creates an empty ListView ready for item-design setup', () => {
+    const node = createComponentNode('listview');
 
-    expect(node.type).toBe('form');
-    if (node.type === 'form') {
-      expect(node.props.title).toBe('Contact us');
-      expect(node.props.fields).toHaveLength(2);
-      expect(node.props.submitLabel).toBe('Submit');
+    expect(node.type).toBe('listview');
+    if (node.type === 'listview') {
+      expect(node.props).toMatchObject({
+        padding: 12,
+        itemSpacing: 8,
+        itemBorderRadius: 8,
+      });
+      expect(node.props.dataSource).toEqual({
+        kind: 'static',
+        fields: [{ id: 'value', label: 'Value', type: 'text' }],
+        items: [],
+      });
+      expect(node.children).toEqual([]);
     }
   });
 

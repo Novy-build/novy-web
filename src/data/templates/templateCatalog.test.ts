@@ -21,12 +21,13 @@ describe('templateCatalog', () => {
     });
   });
 
-  it('provides the student list example from the product spec', () => {
+  it('provides the student ListView example from the product spec', () => {
     const students = TEMPLATE_CATALOG.find((template) => template.id === 'template_students');
 
     expect(students).toBeDefined();
-    const listNode = students?.screens[0].nodes.find((node) => node.type === 'list');
+    const listNode = students?.screens[0].nodes.find((node) => node.type === 'listview');
     expect(listNode).toBeDefined();
+    expect(listNode?.type === 'listview' ? listNode.children : []).toHaveLength(1);
   });
 
   it('provides a wired note app with biometric consent and fallback', () => {

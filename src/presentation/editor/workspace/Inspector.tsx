@@ -1,9 +1,24 @@
-import type { ChangeEvent } from 'react';
-import type { CameraProps, ComponentNode, DividerProps, InputProps, ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import { useState, type ChangeEvent } from 'react';
+import type {
+  CameraProps,
+  ComponentNode,
+  ComponentBindingTarget,
+  CrossAxisAlignment,
+  DividerProps,
+  InputProps,
+  MainAxisAlignment,
+  ListViewItemField,
+  ListViewNode,
+  ResponsiveBreakpoint,
+  StaticListViewItem,
+} from '@domain/entities/componentNode';
 import { geometryAtBreakpoint } from '@domain/entities/componentNode';
-import type { DataCollection } from '@domain/entities/appData';
+import type { DataCollection, DataFieldType, DataValue } from '@domain/entities/appData';
+import { bindingTargetsForComponent, isFieldTypeCompatible } from '@domain/bindings/componentBindings';
 import type { Behavior } from '@domain/entities/logic';
 import { TextInput } from '@presentation/components/ui/TextInput';
+import { Modal } from '@presentation/components/system/Modal';
+import { generateId } from '@domain/ids';
 import type { EditorAction } from '../state/editorState';
 import { NODE_TYPE_LABELS } from './nodeLabels';
 import { TRIGGER_EVENT_LABELS } from '../logic/behaviorLabels';
@@ -16,6 +31,15 @@ interface InspectorProps {
   onOpenLogic: () => void;
   collections?: readonly DataCollection[];
   device?: ResponsiveBreakpoint;
+  listItemFields?: readonly ListItemBindingField[];
+  itemFrame?: ListViewNode | null;
+  onEditItemTemplate?: (listViewId: string) => void;
+}
+
+export interface ListItemBindingField {
+  id: string;
+  label: string;
+  type: DataFieldType;
 }
 
 interface SegmentOption<T extends string> {
@@ -53,6 +77,53 @@ function SegmentedControl<T extends string>({
   );
 }
 
+const BINDING_TARGET_LABELS: Readonly<Record<ComponentBindingTarget, string>> = {
+  'text.content': 'Text content',
+  'image.source': 'Image source',
+  'image.alt': 'Alternative text',
+  'button.label': 'Button label',
+  'checkbox.checked': 'Checked state',
+  'switch.checked': 'Checked state',
+  'progress.value': 'Progress value',
+  'component.visible': 'Visibility',
+};
+
+function PropertyBindingControls({
+  node,
+  fields,
+  onChange,
+}: {
+  node: ComponentNode;
+  fields: readonly ListItemBindingField[];
+  onChange: (target: ComponentBindingTarget, fieldId: string) => void;
+}) {
+  return (
+    <div className="mt-4 grid gap-3 border-t border-hairline pt-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Item data bindings</p>
+      {bindingTargetsForComponent(node.type).map((definition) => {
+        const compatibleFields = fields.filter((field) => isFieldTypeCompatible(definition.target, field.type));
+        const selectedFieldId = node.bindings?.find((binding) => binding.target === definition.target)?.value.fieldId ?? '';
+        return (
+          <label className="grid gap-1 text-xs font-medium text-ink-muted" key={definition.target}>
+            {BINDING_TARGET_LABELS[definition.target]}
+            <select
+              className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+              onChange={(event) => onChange(definition.target, event.target.value)}
+              value={selectedFieldId}
+            >
+              <option value="">Static value</option>
+              {compatibleFields.map((field) => (
+                <option key={field.id} value={field.id}>{field.label}</option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
+      <p className="text-xs text-ink-muted">Static values remain as fallbacks when item data is missing.</p>
+    </div>
+  );
+}
+
 /**
  * Right-rail properties panel: content fields per component type, X/Y/W/H
  * layout, appearance controls, and the behavior stub that hands off to Logic
@@ -65,7 +136,21 @@ export function Inspector({
   onOpenLogic,
   collections = [],
   device = 'mobile',
+  listItemFields = [],
+  itemFrame = null,
+  onEditItemTemplate,
 }: InspectorProps) {
+  if (itemFrame && candidate?.id === itemFrame.id) {
+    return (
+      <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
+        <ItemFrameSection itemFrame={itemFrame} onAction={onAction} />
+        <p className="mt-2 text-xs text-ink-muted">
+          The frame fills the ListView and hugs its content. Select a widget to edit its own properties.
+        </p>
+      </section>
+    );
+  }
+
   if (candidate === null) {
     return (
       <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
@@ -79,10 +164,9 @@ export function Inspector({
 
   const node: ComponentNode = candidate;
   const effectiveGeometry = geometryAtBreakpoint(node, device);
-  const listCollectionSource = node.type === 'list' && node.props.dataSource?.kind === 'collection'
+  const listViewCollectionSource = node.type === 'listview' && node.props.dataSource.kind === 'collection'
     ? node.props.dataSource
     : null;
-  const formDataBinding = node.type === 'form' ? node.props.dataBinding ?? null : null;
   function numberFromEvent(event: ChangeEvent<HTMLInputElement>): number | null {
     const raw = event.target.value;
     if (raw.trim().length === 0) {
@@ -133,7 +217,7 @@ export function Inspector({
       ) : null}
 
       {node.type === 'text' ? (
-        <div className="mt-4">
+        <div className="mt-4 grid gap-3">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
           <TextInput
             label="Text content"
@@ -233,97 +317,233 @@ export function Inspector({
         </div>
       ) : null}
 
-      {node.type === 'list' ? (
+      {node.type === 'column' || node.type === 'row' ? (
         <div className="mt-4 grid gap-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
-          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-list-source">Data source</label>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Axis layout</p>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-main-axis">Main axis alignment</label>
           <select
             className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-            id="inspector-list-source"
+            id="inspector-main-axis"
+            onChange={(event) => onAction({
+              type: node.type === 'column' ? 'node/props-column' : 'node/props-row',
+              nodeId: node.id,
+              props: { mainAxisAlignment: event.target.value as MainAxisAlignment },
+            })}
+            value={node.props.mainAxisAlignment}
+          >
+            <option value="start">Start</option>
+            <option value="center">Center</option>
+            <option value="end">End</option>
+            <option value="space-between">Space between</option>
+            <option value="space-around">Space around</option>
+            <option value="space-evenly">Space evenly</option>
+          </select>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-cross-axis">Cross axis alignment</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-cross-axis"
+            onChange={(event) => onAction({
+              type: node.type === 'column' ? 'node/props-column' : 'node/props-row',
+              nodeId: node.id,
+              props: { crossAxisAlignment: event.target.value as CrossAxisAlignment },
+            })}
+            value={node.props.crossAxisAlignment}
+          >
+            <option value="start">Start</option>
+            <option value="center">Center</option>
+            <option value="end">End</option>
+            <option value="stretch">Stretch</option>
+          </select>
+          <TextInput
+            label="Gap"
+            name="inspector-layout-gap"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({
+                type: node.type === 'column' ? 'node/props-column' : 'node/props-row',
+                nodeId: node.id,
+                props: { gap: Math.max(0, parsed) },
+              });
+            }}
+            type="number"
+            value={node.props.gap}
+          />
+          <TextInput
+            label="Padding"
+            name="inspector-layout-padding"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({
+                type: node.type === 'column' ? 'node/props-column' : 'node/props-row',
+                nodeId: node.id,
+                props: { padding: Math.max(0, parsed) },
+              });
+            }}
+            type="number"
+            value={node.props.padding}
+          />
+          <p className="text-xs text-ink-muted">
+            {node.type === 'column' ? 'Children flow vertically.' : 'Children flow horizontally.'}
+          </p>
+        </div>
+      ) : null}
+
+      {node.type === 'listview' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">ListView</p>
+          <button
+            className="min-h-11 rounded-tile bg-brand-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+            id={`edit-item-template-${node.id}`}
+            onClick={() => onEditItemTemplate?.(node.id)}
+            type="button"
+          >
+            Edit item design
+          </button>
+          <p className="text-xs text-ink-muted">{node.children.length} root widget{node.children.length === 1 ? '' : 's'} in the shared item template.</p>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-source">Data source</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-listview-source"
             onChange={(event) => {
               if (event.target.value === 'static') {
-                onAction({ type: 'node/props-list', nodeId: node.id, props: { dataSource: { kind: 'static' } } });
+                onAction({
+                  type: 'node/props-listview',
+                  nodeId: node.id,
+                  props: {
+                    dataSource: {
+                      kind: 'static',
+                      fields: [{ id: 'value', label: 'Value', type: 'text' }],
+                      items: [],
+                    },
+                  },
+                });
                 return;
               }
               const collection = collections[0];
               onAction({
-                type: 'node/props-list',
+                type: 'node/props-listview',
                 nodeId: node.id,
                 props: {
                   dataSource: {
                     kind: 'collection',
                     collectionId: collection?.id ?? '',
-                    displayFieldId: collection?.fields[0]?.id ?? '',
+                    displayFieldIds: collection?.fields[0] ? [collection.fields[0].id] : [],
                   },
                 },
               });
             }}
-            value={node.props.dataSource?.kind ?? 'static'}
+            value={node.props.dataSource.kind}
           >
             <option value="static">Static items</option>
             <option value="collection">Collection</option>
           </select>
-          {listCollectionSource ? (
+          {listViewCollectionSource ? (
             <>
-              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-list-collection">Collection</label>
+              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-collection">Collection</label>
               <select
                 className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-                id="inspector-list-collection"
+                id="inspector-listview-collection"
                 onChange={(event) => {
                   const collection = collections.find((item) => item.id === event.target.value);
-                  onAction({ type: 'node/props-list', nodeId: node.id, props: { dataSource: { kind: 'collection', collectionId: event.target.value, displayFieldId: collection?.fields[0]?.id ?? '' } } });
+                  onAction({
+                    type: 'node/props-listview',
+                    nodeId: node.id,
+                    props: {
+                      dataSource: {
+                        kind: 'collection',
+                        collectionId: event.target.value,
+                        displayFieldIds: collection?.fields[0] ? [collection.fields[0].id] : [],
+                      },
+                    },
+                  });
                 }}
-                value={listCollectionSource.collectionId}
+                value={listViewCollectionSource.collectionId}
               >
                 <option value="">Choose a collection…</option>
                 {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
               </select>
-              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-list-field">Display field</label>
+              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-field">Primary display field</label>
               <select
                 className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-                id="inspector-list-field"
-                onChange={(event) => onAction({ type: 'node/props-list', nodeId: node.id, props: { dataSource: { ...listCollectionSource, displayFieldId: event.target.value } } })}
-                value={listCollectionSource.displayFieldId}
+                id="inspector-listview-field"
+                onChange={(event) => onAction({
+                  type: 'node/props-listview',
+                  nodeId: node.id,
+                  props: { dataSource: { ...listViewCollectionSource, displayFieldIds: event.target.value ? [event.target.value] : [] } },
+                })}
+                value={listViewCollectionSource.displayFieldIds[0] ?? ''}
               >
                 <option value="">Choose a field…</option>
-                {collections.find((collection) => collection.id === listCollectionSource.collectionId)?.fields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
+                {collections.find((collection) => collection.id === listViewCollectionSource.collectionId)?.fields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
               </select>
             </>
           ) : null}
-          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
-            <input
-              checked={node.props.scrollable}
-              onChange={(event) => onAction({ type: 'node/props-list', nodeId: node.id, props: { scrollable: event.target.checked } })}
-              type="checkbox"
-            />
-            Scrollable
-          </label>
-          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
-            <input
-              checked={node.props.showDividers}
-              onChange={(event) => onAction({ type: 'node/props-list', nodeId: node.id, props: { showDividers: event.target.checked } })}
-              type="checkbox"
-            />
-            Show dividers
-          </label>
-          <label className="mb-1 block text-xs font-medium text-ink-muted" htmlFor="inspector-list-items">
-            List items
-          </label>
-          <textarea
-            className="h-24 w-full rounded-tile border border-hairline bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:outline-brand-600"
-            id="inspector-list-items"
-            name="inspector-list-items"
-            onChange={(event) =>
-              onAction({
-                type: 'node/props-list',
-                nodeId: node.id,
-                props: { items: event.target.value.split('\n') },
-              })
-            }
-            value={node.props.items.join('\n')}
+          {node.props.dataSource.kind === 'static' ? (
+            <>
+              <StaticListItemsEditor node={node} onAction={onAction} />
+              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-items">Static items</label>
+              <textarea
+                className="h-24 w-full rounded-tile border border-hairline bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:outline-brand-600"
+                id="inspector-listview-items"
+                onChange={(event) => {
+                  const source = node.props.dataSource;
+                  if (source.kind !== 'static') return;
+                  const field = source.fields[0] ?? { id: 'value', label: 'Value', type: 'text' as const };
+                  const values = event.target.value.split('\n').filter((item) => item.length > 0);
+                  onAction({
+                    type: 'node/props-listview',
+                    nodeId: node.id,
+                    props: {
+                      dataSource: {
+                        kind: 'static',
+                        fields: source.fields.length > 0 ? source.fields : [field],
+                        items: values.map((value, index) => ({
+                          id: source.items[index]?.id ?? `${node.id}__static_${index + 1}`,
+                          values: { ...(source.items[index]?.values ?? {}), [field.id]: value },
+                        })),
+                      },
+                    },
+                  });
+                }}
+                value={node.props.dataSource.items.map((item) => String(item.values[node.props.dataSource.kind === 'static' ? (node.props.dataSource.fields[0]?.id ?? 'value') : 'value'] ?? '')).join('\n')}
+              />
+              <p className="text-xs text-ink-muted">One item per line.</p>
+            </>
+          ) : null}
+          <TextInput
+            label="Empty state text"
+            name="inspector-listview-empty"
+            onChange={(event) => onAction({ type: 'node/props-listview', nodeId: node.id, props: { emptyText: event.target.value } })}
+            value={node.props.emptyText}
           />
-          <p className="mt-1 text-xs text-ink-muted">One item per line.</p>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-direction">Scroll direction</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-listview-direction"
+            onChange={(event) => onAction({
+              type: 'node/props-listview',
+              nodeId: node.id,
+              props: { scrollDirection: event.target.value as 'vertical' | 'horizontal' },
+            })}
+            value={node.props.scrollDirection}
+          >
+            <option value="vertical">Vertical</option>
+            <option value="horizontal">Horizontal</option>
+          </select>
+          <p className="text-xs text-ink-muted">Nested widgets use free-form positions inside the item frame repeated for every record.</p>
         </div>
+      ) : null}
+
+      {listItemFields.length > 0 ? (
+        <PropertyBindingControls
+          fields={listItemFields}
+          node={node}
+          onChange={(target, fieldId) => {
+            const bindings = (node.bindings ?? []).filter((binding) => binding.target !== target);
+            if (fieldId) bindings.push({ target, value: { source: 'list-item', fieldId } });
+            onAction({ type: 'node/bindings', nodeId: node.id, bindings });
+          }}
+        />
       ) : null}
 
       {node.type === 'checkbox' ? (
@@ -541,105 +761,7 @@ export function Inspector({
       {node.type === 'container' ? (
         <div className="mt-4">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
-          <p className="text-sm text-ink-muted">Containers have no content options in the MVP.</p>
-        </div>
-      ) : null}
-
-      {node.type === 'form' ? (
-        <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
-          <TextInput
-            label="Form title"
-            name="inspector-form-title"
-            onChange={(event) =>
-              onAction({ type: 'node/props-form', nodeId: node.id, props: { title: event.target.value } })
-            }
-            value={node.props.title}
-          />
-          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-form-fields">
-            Field labels
-          </label>
-          <textarea
-            className="h-24 w-full rounded-tile border border-hairline bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:outline-brand-600"
-            id="inspector-form-fields"
-            onChange={(event) => {
-              const labels = event.target.value.split('\n');
-              onAction({
-                type: 'node/props-form',
-                nodeId: node.id,
-                props: {
-                  fields: labels.map((label, index) => ({
-                    label,
-                    placeholder: node.props.fields[index]?.placeholder ?? `Enter ${label.toLowerCase()}`,
-                    type: node.props.fields[index]?.type ?? 'text',
-                  })),
-                },
-              });
-            }}
-            value={node.props.fields.map((field) => field.label).join('\n')}
-          />
-          <p className="text-xs text-ink-muted">One field per line.</p>
-          <TextInput
-            label="Submit button label"
-            name="inspector-form-submit-label"
-            onChange={(event) =>
-              onAction({
-                type: 'node/props-form',
-                nodeId: node.id,
-                props: { submitLabel: event.target.value },
-              })
-            }
-            value={node.props.submitLabel}
-          />
-          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-form-collection">Submit to collection</label>
-          <select
-            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-            id="inspector-form-collection"
-            onChange={(event) => {
-              const collection = collections.find((item) => item.id === event.target.value);
-              onAction({
-                type: 'node/props-form',
-                nodeId: node.id,
-                props: {
-                  dataBinding: event.target.value
-                    ? {
-                        collectionId: event.target.value,
-                        fields: node.props.fields.map((_, index) => ({
-                          formFieldIndex: index,
-                          dataFieldId: collection?.fields[index]?.id ?? '',
-                        })),
-                      }
-                    : undefined,
-                },
-              });
-            }}
-            value={node.props.dataBinding?.collectionId ?? ''}
-          >
-            <option value="">No collection</option>
-            {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
-          </select>
-          {formDataBinding ? node.props.fields.map((field, index) => (
-            <label className="text-xs font-medium text-ink-muted" key={`${field.label}-${index}`}>
-              {field.label}
-              <select
-                className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-                onChange={(event) => onAction({
-                  type: 'node/props-form',
-                  nodeId: node.id,
-                  props: {
-                    dataBinding: {
-                      ...formDataBinding,
-                      fields: formDataBinding.fields.map((binding) => binding.formFieldIndex === index ? { ...binding, dataFieldId: event.target.value } : binding),
-                    },
-                  },
-                })}
-                value={formDataBinding.fields.find((binding) => binding.formFieldIndex === index)?.dataFieldId ?? ''}
-              >
-                <option value="">Choose a field…</option>
-                {collections.find((collection) => collection.id === formDataBinding.collectionId)?.fields.map((dataField) => <option key={dataField.id} value={dataField.id}>{dataField.label}</option>)}
-              </select>
-            </label>
-          )) : null}
+          <p className="text-sm text-ink-muted">Containers keep free-form child positioning.</p>
         </div>
       ) : null}
 
@@ -755,7 +877,7 @@ export function Inspector({
             value={node.props.fit}
           />
         ) : null}
-        {node.type === 'input' || node.type === 'container' || node.type === 'list' || node.type === 'form' || node.type === 'checkbox' || node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' || node.type === 'progress' || node.type === 'divider' || node.type === 'camera' ? (
+        {node.type === 'input' || node.type === 'container' || node.type === 'column' || node.type === 'row' || node.type === 'listview' || node.type === 'checkbox' || node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' || node.type === 'progress' || node.type === 'divider' || node.type === 'camera' ? (
           <p className="text-sm text-ink-muted">Fixed for the MVP.</p>
         ) : null}
       </div>
@@ -785,5 +907,190 @@ export function Inspector({
         </button>
       </div>
     </section>
+  );
+}
+
+function StaticListItemsEditor({
+  node,
+  onAction,
+}: {
+  node: ListViewNode;
+  onAction: (action: EditorAction) => void;
+}) {
+  const [draft, setDraft] = useState<{ fields: ListViewItemField[]; items: StaticListViewItem[] } | null>(null);
+  if (node.props.dataSource.kind !== 'static') return null;
+
+  function open(): void {
+    if (node.props.dataSource.kind !== 'static') return;
+    setDraft(structuredClone({ fields: node.props.dataSource.fields, items: node.props.dataSource.items }));
+  }
+
+  function updateField(index: number, patch: Partial<ListViewItemField>): void {
+    setDraft((current) => current ? {
+      ...current,
+      fields: current.fields.map((field, candidate) => candidate === index ? { ...field, ...patch } : field),
+    } : current);
+  }
+
+  function removeField(fieldId: string): void {
+    if (!window.confirm('Remove this field and its item values?')) return;
+    setDraft((current) => current ? {
+      fields: current.fields.filter((field) => field.id !== fieldId),
+      items: current.items.map((item) => {
+        const values = { ...item.values };
+        delete values[fieldId];
+        return { ...item, values };
+      }),
+    } : current);
+  }
+
+  return (
+    <>
+      <button className="min-h-11 rounded-tile border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink" onClick={open} type="button">
+        Edit structured items
+      </button>
+      {draft ? (
+        <Modal labelledBy="static-list-items-title" onClose={() => setDraft(null)} panelClassName="max-w-4xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-ink" id="static-list-items-title">Static ListView items</h2>
+              <p className="mt-1 text-sm text-ink-muted">Define typed fields and representative item records.</p>
+            </div>
+            <button aria-label="Close static items editor" className="min-h-11 min-w-11 rounded-tile text-ink-muted" onClick={() => setDraft(null)} type="button">×</button>
+          </div>
+
+          <section className="mt-5 grid gap-3" aria-labelledby="static-fields-title">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-ink" id="static-fields-title">Fields</h3>
+              <button className="min-h-11 rounded-tile border border-hairline px-3 text-sm font-medium text-ink" onClick={() => setDraft((current) => current ? {
+                ...current,
+                fields: [...current.fields, { id: uniqueFieldId(current.fields), label: 'New field', type: 'text' }],
+              } : current)} type="button">Add field</button>
+            </div>
+            {draft.fields.map((field, index) => (
+              <div className="grid grid-cols-[1fr_10rem_auto] items-end gap-2" key={field.id}>
+                <TextInput label={`Field ${index + 1} label`} name={`static-field-${field.id}`} onChange={(event) => updateField(index, { label: event.target.value })} value={field.label} />
+                <label className="grid gap-1 text-xs font-medium text-ink-muted">Type
+                  <select className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => updateField(index, { type: event.target.value as DataFieldType })} value={field.type}>
+                    <option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="date">Date</option>
+                  </select>
+                </label>
+                <button aria-label={`Remove ${field.label}`} className="min-h-11 rounded-tile border border-hairline px-3 text-sm text-red-600" onClick={() => removeField(field.id)} type="button">Remove</button>
+              </div>
+            ))}
+          </section>
+
+          <section className="mt-6 grid gap-3" aria-labelledby="static-records-title">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-ink" id="static-records-title">Items</h3>
+              <button className="min-h-11 rounded-tile border border-hairline px-3 text-sm font-medium text-ink" onClick={() => setDraft((current) => current ? {
+                ...current,
+                items: [...current.items, { id: generateId('list_item'), values: {} }],
+              } : current)} type="button">Add item</button>
+            </div>
+            {draft.items.length === 0 ? <p className="rounded-tile border border-dashed border-hairline p-4 text-sm text-ink-muted">No static items yet.</p> : null}
+            {draft.items.map((item, itemIndex) => (
+              <fieldset className="grid gap-3 rounded-tile border border-hairline p-3" key={item.id}>
+                <legend className="px-1 text-xs font-semibold text-ink-muted">Item {itemIndex + 1}</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {draft.fields.map((field) => (
+                    <StaticValueInput field={field} key={field.id} onChange={(value) => setDraft((current) => current ? {
+                      ...current,
+                      items: current.items.map((candidate) => candidate.id === item.id
+                        ? { ...candidate, values: { ...candidate.values, [field.id]: value } }
+                        : candidate),
+                    } : current)} value={item.values[field.id] ?? null} />
+                  ))}
+                </div>
+                <button className="min-h-11 justify-self-start rounded-tile border border-hairline px-3 text-sm text-red-600" onClick={() => setDraft((current) => current ? { ...current, items: current.items.filter((candidate) => candidate.id !== item.id) } : current)} type="button">Delete item</button>
+              </fieldset>
+            ))}
+          </section>
+
+          <div className="mt-6 flex justify-end gap-2">
+            <button className="min-h-11 rounded-tile border border-hairline px-4 text-sm font-medium text-ink" onClick={() => setDraft(null)} type="button">Cancel</button>
+            <button className="min-h-11 rounded-tile bg-brand-600 px-4 text-sm font-semibold text-white" onClick={() => {
+              onAction({ type: 'node/props-listview', nodeId: node.id, props: { dataSource: { kind: 'static', fields: draft.fields, items: draft.items } } });
+              setDraft(null);
+            }} type="button">Save items</button>
+          </div>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+function StaticValueInput({ field, value, onChange }: { field: ListViewItemField; value: DataValue; onChange: (value: DataValue) => void }) {
+  if (field.type === 'boolean') {
+    return <label className="flex min-h-11 items-center gap-2 text-sm text-ink"><input checked={value === true} onChange={(event) => onChange(event.target.checked)} type="checkbox" />{field.label}</label>;
+  }
+  return (
+    <label className="grid gap-1 text-xs font-medium text-ink-muted">{field.label}
+      <input
+        className="h-10 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+        onChange={(event) => onChange(field.type === 'number' ? (event.target.value === '' ? null : Number(event.target.value)) : event.target.value)}
+        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+        value={typeof value === 'string' || typeof value === 'number' ? value : ''}
+      />
+    </label>
+  );
+}
+
+function uniqueFieldId(fields: readonly ListViewItemField[]): string {
+  let index = fields.length + 1;
+  while (fields.some((field) => field.id === `field_${index}`)) index += 1;
+  return `field_${index}`;
+}
+
+function ItemFrameSection({
+  itemFrame,
+  onAction,
+}: {
+  itemFrame: ListViewNode;
+  onAction: (action: EditorAction) => void;
+}) {
+  return (
+    <div className="mb-4 rounded-tile border border-hairline p-3">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Item frame</p>
+      <p className="mb-2 text-xs text-ink-muted">Applies to every repeated item.</p>
+      <TextInput
+        label="Item padding"
+        name="inspector-item-frame-padding"
+        onChange={(event) => {
+          const parsed = Number(event.target.value);
+          if (Number.isFinite(parsed)) onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { padding: Math.max(0, parsed) } });
+        }}
+        type="number"
+        value={itemFrame.props.padding}
+      />
+      <TextInput
+        label="Item spacing"
+        name="inspector-item-frame-spacing"
+        onChange={(event) => {
+          const parsed = Number(event.target.value);
+          if (Number.isFinite(parsed)) onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { itemSpacing: Math.max(0, parsed) } });
+        }}
+        type="number"
+        value={itemFrame.props.itemSpacing}
+      />
+      <TextInput
+        label="Item border radius"
+        name="inspector-item-frame-radius"
+        onChange={(event) => {
+          const parsed = Number(event.target.value);
+          if (Number.isFinite(parsed)) onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { itemBorderRadius: Math.max(0, parsed) } });
+        }}
+        type="number"
+        value={itemFrame.props.itemBorderRadius}
+      />
+      <label className="mt-2 flex items-center gap-2 text-xs font-medium text-ink-muted">
+        <input
+          checked={itemFrame.props.showDividers}
+          onChange={(event) => onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { showDividers: event.target.checked } })}
+          type="checkbox"
+        />
+        Show dividers
+      </label>
+    </div>
   );
 }

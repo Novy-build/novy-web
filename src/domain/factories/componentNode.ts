@@ -4,15 +4,15 @@ import type {
   ComponentNode,
   ComponentType,
   ContainerNode,
+  ColumnNode,
   CameraNode,
   DividerNode,
   DropdownNode,
-  FormNode,
   ImageNode,
   InputNode,
-  ListNode,
+  ListViewNode,
   ProgressNode,
-  RepeaterNode,
+  RowNode,
   RadioNode,
   SliderNode,
   SwitchNode,
@@ -86,46 +86,56 @@ function createContainerNode(): ContainerNode {
   };
 }
 
-function createListNode(): ListNode {
+function createColumnNode(): ColumnNode {
   return {
     id: generateId('node'),
-    type: 'list',
-    x: 24,
-    y: 24,
-    w: 280,
-    h: 180,
-    props: { items: [], scrollable: true, showDividers: true },
-  };
-}
-
-function createRepeaterNode(): RepeaterNode {
-  return {
-    id: generateId('node'),
-    type: 'repeater',
+    type: 'column',
     x: 24,
     y: 24,
     w: 320,
-    h: 180,
-    props: { emptyText: 'No records yet', showDividers: true, dataSource: { kind: 'static', items: [] } },
+    h: 240,
+    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: 16 },
+    children: [],
   };
 }
 
-function createFormNode(): FormNode {
+function createRowNode(): RowNode {
   return {
     id: generateId('node'),
-    type: 'form',
+    type: 'row',
     x: 24,
     y: 24,
     w: 320,
-    h: 260,
+    h: 96,
+    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'center', gap: 12, padding: 16 },
+    children: [],
+  };
+}
+
+function createListViewNode(): ListViewNode {
+  return {
+    id: generateId('node'),
+    type: 'listview',
+    x: 24,
+    y: 24,
+    w: 320,
+    h: 240,
     props: {
-      title: 'Contact us',
-      fields: [
-        { label: 'Name', placeholder: 'Your name', type: 'text' },
-        { label: 'Email', placeholder: 'you@example.com', type: 'email' },
-      ],
-      submitLabel: 'Submit',
+      emptyText: 'No items yet',
+      showDividers: true,
+      scrollDirection: 'vertical',
+      crossAxisAlignment: 'stretch',
+      gap: 0,
+      padding: 12,
+      itemSpacing: 8,
+      itemBorderRadius: 8,
+      dataSource: {
+        kind: 'static',
+        fields: [{ id: 'value', label: 'Value', type: 'text' }],
+        items: [],
+      },
     },
+    children: [],
   };
 }
 
@@ -235,9 +245,9 @@ const factories: Record<ComponentType, NodeFactory> = {
   input: createInputNode,
   image: createImageNode,
   container: createContainerNode,
-  list: createListNode,
-  repeater: createRepeaterNode,
-  form: createFormNode,
+  column: createColumnNode,
+  row: createRowNode,
+  listview: createListViewNode,
   checkbox: createCheckboxNode,
   radio: createRadioNode,
   switch: createSwitchNode,

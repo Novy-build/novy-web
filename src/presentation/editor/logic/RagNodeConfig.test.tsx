@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { makeText } from '@test/editorFixtures';
+import { makeListView, makeText } from '@test/editorFixtures';
 import { RagNodeConfig } from './RagNodeConfig';
 
 describe('RagNodeConfig', () => {
@@ -21,21 +21,18 @@ describe('RagNodeConfig', () => {
 
   it('selects answer and citation targets for Chat Output', () => {
     const onChange = vi.fn();
-    const citationRepeater = {
-      id: 'citations', type: 'repeater' as const, x: 0, y: 0, w: 200, h: 120,
-      props: { emptyText: 'No citations', showDividers: true, dataSource: { kind: 'static' as const, items: [] } },
-    };
+    const citationListView = makeListView('citations');
     render(
       <RagNodeConfig
         collections={[]}
         onChange={onChange}
         payload={{ type: 'chat-output', targetNodeId: '', citationsNodeId: '' }}
-        screenNodes={[makeText('answer'), citationRepeater]}
+        screenNodes={[makeText('answer'), citationListView]}
       />,
     );
 
     fireEvent.change(screen.getByLabelText('Answer Text component'), { target: { value: 'answer' } });
-    fireEvent.change(screen.getByLabelText('Citation Repeater'), { target: { value: 'citations' } });
+    fireEvent.change(screen.getByLabelText('Citation ListView'), { target: { value: 'citations' } });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ targetNodeId: 'answer' }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ citationsNodeId: 'citations' }));
   });

@@ -30,6 +30,7 @@ describe('LogicNodeLibrary', () => {
     }
     expect(screen.getByRole('button', { name: 'If / Else' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change Text' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add Local List Item' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert to DB' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete from DB' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Document Loader' })).toBeInTheDocument();
@@ -70,6 +71,18 @@ describe('LogicNodeLibrary', () => {
     expect(onAdd).toHaveBeenNthCalledWith(2, {
       kind: 'action',
       payload: { type: 'delete-record', collectionId: '', recordId: '' },
+    });
+  });
+
+  it('creates a non-persistent local ListView action', () => {
+    const onAdd = vi.fn();
+    render(<LogicNodeLibrary onAdd={onAdd} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Local List Item' }));
+
+    expect(onAdd).toHaveBeenCalledWith({
+      kind: 'action',
+      payload: { type: 'add-local-list-item', targetNodeId: '', placement: 'append', values: {} },
     });
   });
 

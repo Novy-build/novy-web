@@ -162,16 +162,39 @@ const STUDENT_LIST: Template = {
       },
       {
         id: 'students_list',
-        type: 'list',
+        type: 'listview',
         x: 50,
         y: 164,
         w: 290,
         h: 260,
         props: {
-          items: ['Bañares, Peter Andrew', 'Briñas, Andrei', 'Muñoz, Carl'],
-          scrollable: true,
+          emptyText: 'No students yet.',
           showDividers: true,
+          scrollDirection: 'vertical',
+          crossAxisAlignment: 'stretch',
+          gap: 0,
+          padding: 0,
+          itemSpacing: 0,
+          itemBorderRadius: 0,
+          dataSource: {
+            kind: 'static',
+            fields: [{ id: 'value', label: 'Student name', type: 'text' }],
+            items: ['Bañares, Peter Andrew', 'Briñas, Andrei', 'Muñoz, Carl'].map((value, index) => ({
+              id: `student-${index + 1}`,
+              values: { value },
+            })),
+          },
         },
+        children: [{
+          id: 'students_list_item',
+          type: 'text',
+          x: 0,
+          y: 0,
+          w: 290,
+          h: 44,
+          props: { text: 'Student', level: 'body' },
+          bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'value' } }],
+        }],
       },
       {
         id: 'students_add',
@@ -221,7 +244,7 @@ const notesScreen = screen(NOTES_SCREEN_ID, 'Notes', [
   },
   {
     id: 'notes_list',
-    type: 'repeater',
+    type: 'listview',
     x: 24,
     y: 128,
     w: 320,
@@ -229,6 +252,12 @@ const notesScreen = screen(NOTES_SCREEN_ID, 'Notes', [
     props: {
       emptyText: 'No notes yet. Create your first note.',
       showDividers: true,
+      scrollDirection: 'vertical',
+      crossAxisAlignment: 'stretch',
+      gap: 0,
+      padding: 0,
+      itemSpacing: 0,
+      itemBorderRadius: 0,
       dataSource: {
         kind: 'collection',
         collectionId: '',
@@ -239,6 +268,7 @@ const notesScreen = screen(NOTES_SCREEN_ID, 'Notes', [
         searchComponentId: 'notes_search',
       },
     },
+    children: [],
   },
   {
     id: 'notes_ask',
@@ -314,7 +344,36 @@ const askNotesScreen = screen(ASK_NOTES_SCREEN_ID, 'Ask Notes', [
   { id: 'ask_submit', type: 'button', x: 24, y: 168, w: 152, h: 44, props: { label: 'Ask', variant: 'solid' } },
   { id: 'ask_index', type: 'button', x: 192, y: 168, w: 152, h: 44, props: { label: 'Index notes', variant: 'outline' } },
   { id: 'ask_answer', type: 'text', x: 24, y: 232, w: 320, h: 120, props: { text: 'Your answer will appear here.', level: 'body' } },
-  { id: 'ask_citations', type: 'repeater', x: 24, y: 368, w: 320, h: 160, props: { emptyText: 'No citations yet.', showDividers: true, dataSource: { kind: 'static', items: [] } } },
+  {
+    id: 'ask_citations',
+    type: 'listview',
+    x: 24,
+    y: 368,
+    w: 320,
+    h: 160,
+    props: {
+      emptyText: 'No citations yet.',
+      showDividers: true,
+      scrollDirection: 'vertical',
+      crossAxisAlignment: 'stretch',
+      gap: 0,
+      padding: 0,
+      itemSpacing: 0,
+      itemBorderRadius: 0,
+      dataSource: {
+        kind: 'static',
+        fields: [
+          { id: 'title', label: 'Title', type: 'text' },
+          { id: 'snippet', label: 'Snippet', type: 'text' },
+        ],
+        items: [],
+      },
+    },
+    children: [
+      { id: 'ask_citation_title', type: 'text', x: 0, y: 0, w: 320, h: 24, props: { text: 'Citation', level: 'body' }, bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'title' } }] },
+      { id: 'ask_citation_snippet', type: 'text', x: 0, y: 0, w: 320, h: 40, props: { text: 'Source excerpt', level: 'body' }, bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'snippet' } }] },
+    ],
+  },
   { id: 'ask_back', type: 'button', x: 24, y: 544, w: 320, h: 44, props: { label: 'Back to notes', variant: 'text' } },
 ]);
 

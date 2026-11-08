@@ -8,6 +8,8 @@ import type {
   TriggerEvent,
 } from '@domain/entities/logic';
 import type { DataCollection } from '@domain/entities/appData';
+import type { ComponentNode, ListViewNode } from '@domain/entities/componentNode';
+import { isChildBearingNode } from '@domain/entities/componentNode';
 import { normalizeLogicGraph } from '@domain/logic/graph';
 import {
   findNodeInScreen,
@@ -61,6 +63,13 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
   );
   const selectedNode = graph?.nodes.find((node) => node.id === selectedNodeId) ?? null;
   const flatNodes = flattenScreenNodes(screen.nodes);
+  const itemSource = behavior ? findNearestListView(screen.nodes, behavior.targetNodeId) : null;
+  const itemDataSource = itemSource?.props.dataSource;
+  const listItemFields = itemDataSource?.kind === 'static'
+    ? itemDataSource.fields
+    : itemDataSource?.kind === 'collection'
+      ? collections.find((collection) => collection.id === itemDataSource.collectionId)?.fields ?? []
+      : [];
   const tabs = screen.behaviors.map((candidate) => ({ id: candidate.id, label: candidate.name }));
 
   useEffect(() => {
@@ -226,6 +235,7 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
             currentScreenId={screen.id}
             node={selectedNode}
             logicNodes={graph?.nodes ?? []}
+            listItemFields={listItemFields}
             onConfigure={configureSelected}
             onConfigureInputMappings={configureInputMappings}
             onConfigureCondition={configureCondition}
@@ -240,4 +250,18 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
       </div>
     </section>
   );
+}
+
+function findNearestListView(
+  nodes: readonly ComponentNode[],
+  targetId: string,
+  nearest: ListViewNode | null = null,
+): ListViewNode | null {
+  for (const node of nodes) {
+    if (node.id === targetId) return nearest;
+    if (!isChildBearingNode(node)) continue;
+    const result = findNearestListView(node.children, targetId, node.type === 'listview' ? node : nearest);
+    if (result) return result;
+  }
+  return null;
 }

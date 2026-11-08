@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { makeButton, makeContainer, makeText } from '@test/editorFixtures';
-import { findFrameAtPoint, moveLayerInTree, reparentLayerInTree } from './componentTree';
+import { makeButton, makeColumn, makeContainer, makeListView, makeText } from '@test/editorFixtures';
+import { findFrameAtPoint, getComponentTreeLocation, moveLayerInTree, reparentLayerInTree } from './componentTree';
 
 describe('moveLayerInTree', () => {
   it('reparents a root layer into a frame without changing its absolute position', () => {
@@ -49,6 +49,18 @@ describe('canvas frame targeting', () => {
     expect(findFrameAtPoint([{ ...outer, isHidden: true }], 70, 80)).toBeNull();
   });
 
+  it('treats ListView item templates as a separate hit-testing boundary', () => {
+    const list = makeListView('list', {
+      x: 40,
+      y: 50,
+      w: 240,
+      h: 180,
+      children: [makeContainer('item-frame', [], { x: 0, y: 0, w: 240, h: 80 })],
+    });
+
+    expect(findFrameAtPoint([list], 70, 80)).toBeNull();
+  });
+
   it('reparents between a frame and root while preserving absolute geometry', () => {
     const child = makeButton('child', { x: 10, y: 15 });
     const frame = makeContainer('frame', [child], { x: 100, y: 120 });
@@ -81,5 +93,21 @@ describe('canvas frame targeting', () => {
       x: 40,
       y: 40,
     });
+  });
+
+  it('nests into Column widgets and resolves child positions from axis layout', () => {
+    const column = makeColumn('column', [], { x: 100, y: 120, w: 240, h: 220 });
+    const text = makeText('text', { x: 360, y: 300, w: 120, h: 36 });
+
+    const moved = reparentLayerInTree([column, text], 'text', 'column');
+    const location = getComponentTreeLocation(moved, 'text');
+
+    expect(moved.find((node) => node.id === 'column')?.type).toBe('column');
+    expect(location).toMatchObject({
+      parentId: 'column',
+      absoluteX: 116,
+      absoluteY: 136,
+    });
+    expect(findFrameAtPoint(moved, 130, 150)?.id).toBe('column');
   });
 });

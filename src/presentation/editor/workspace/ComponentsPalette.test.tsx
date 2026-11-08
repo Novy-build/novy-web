@@ -14,13 +14,17 @@ describe('ComponentsPalette', () => {
     expect(screen.getByRole('heading', { name: 'Layout' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Basic' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Data' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Add Column')).toBeInTheDocument();
+    expect(screen.getByLabelText('Add Row')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Container')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Text')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Button')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Text field')).toBeInTheDocument();
     expect(screen.getByLabelText('Add Image')).toBeInTheDocument();
-    expect(screen.getByLabelText('Add List')).toBeInTheDocument();
-    expect(screen.getByLabelText('Add Form')).toBeInTheDocument();
+    expect(screen.getByLabelText('Add ListView')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Add List')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Add Form')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Add Repeater')).not.toBeInTheDocument();
   });
 
   it('adds a component on click', () => {

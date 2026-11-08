@@ -1,9 +1,12 @@
+import type { DataFieldType, DataValue } from './appData';
+
 /**
  * The component palette for the MVP editor. One union member per palette
  * entry; every node is absolutely positioned (free-form canvas, 8px snap).
  *
- * Container children carry coordinates relative to their parent container,
- * so moving a container keeps its content attached.
+ * Child-bearing widgets keep a nested component tree. Container is the
+ * free-form frame; Column, Row, and ListView apply Flutter-style linear
+ * composition to their children.
  */
 export type ComponentType =
   | 'button'
@@ -11,9 +14,9 @@ export type ComponentType =
   | 'input'
   | 'image'
   | 'container'
-  | 'list'
-  | 'repeater'
-  | 'form'
+  | 'column'
+  | 'row'
+  | 'listview'
   | 'checkbox'
   | 'radio'
   | 'switch'
@@ -50,29 +53,64 @@ export interface ContainerProps {
   /* Visual styling is fixed for the MVP; reserved for future fill/radius specs. */
 }
 
-export interface ListProps {
-  items: string[];
-  scrollable: boolean;
-  showDividers: boolean;
-  dataSource?:
-    | { kind: 'static' }
-    | { kind: 'collection'; collectionId: string; displayFieldId: string };
+export type MainAxisAlignment =
+  | 'start'
+  | 'center'
+  | 'end'
+  | 'space-between'
+  | 'space-around'
+  | 'space-evenly';
+
+export type CrossAxisAlignment = 'start' | 'center' | 'end' | 'stretch';
+
+export interface LinearLayoutProps {
+  mainAxisAlignment: MainAxisAlignment;
+  crossAxisAlignment: CrossAxisAlignment;
+  gap: number;
+  padding: number;
 }
 
-export interface RepeaterProps {
+export interface ColumnProps extends LinearLayoutProps {}
+
+export interface RowProps extends LinearLayoutProps {}
+
+export interface ListViewItemField {
+  id: string;
+  label: string;
+  type: DataFieldType;
+}
+
+export interface StaticListViewItem {
+  id: string;
+  values: Record<string, DataValue>;
+}
+
+export type ListViewDataSource =
+  | { kind: 'static'; fields: ListViewItemField[]; items: StaticListViewItem[] }
+  | {
+      kind: 'collection';
+      collectionId: string;
+      displayFieldIds: string[];
+      sortFieldId?: string;
+      sortDirection?: 'asc' | 'desc';
+      searchFieldId?: string;
+      searchComponentId?: string;
+    };
+
+export interface ListViewProps {
   emptyText: string;
   showDividers: boolean;
-  dataSource?:
-    | { kind: 'static'; items: string[] }
-    | {
-        kind: 'collection';
-        collectionId: string;
-        displayFieldIds: string[];
-        sortFieldId?: string;
-        sortDirection?: 'asc' | 'desc';
-        searchFieldId?: string;
-        searchComponentId?: string;
-      };
+  scrollDirection: 'vertical' | 'horizontal';
+  crossAxisAlignment: CrossAxisAlignment;
+  /** Gap between root widgets inside one repeated item template. */
+  gap: number;
+  /** Inset between an item's outer bounds and its template widgets. */
+  padding: number;
+  /** Gap between repeated item containers. */
+  itemSpacing: number;
+  /** Corner radius applied to each repeated item container. */
+  itemBorderRadius: number;
+  dataSource: ListViewDataSource;
 }
 
 export interface CheckboxProps {
@@ -123,22 +161,6 @@ export interface CameraProps {
   captureLabel: string;
 }
 
-export interface FormField {
-  label: string;
-  placeholder: string;
-  type: 'text' | 'email' | 'number';
-}
-
-export interface FormProps {
-  title: string;
-  fields: FormField[];
-  submitLabel: string;
-  dataBinding?: {
-    collectionId: string;
-    fields: Array<{ formFieldIndex: number; dataFieldId: string }>;
-  };
-}
-
 export interface NodeGeometry {
   x: number;
   y: number;
@@ -167,6 +189,26 @@ export type ResponsiveGeometry = Partial<
   Record<Exclude<ResponsiveBreakpoint, 'mobile'>, ResponsiveNodeOverrides>
 >;
 
+export type ComponentBindingTarget =
+  | 'text.content'
+  | 'image.source'
+  | 'image.alt'
+  | 'button.label'
+  | 'checkbox.checked'
+  | 'switch.checked'
+  | 'progress.value'
+  | 'component.visible';
+
+export interface ListItemFieldBinding {
+  source: 'list-item';
+  fieldId: string;
+}
+
+export interface ComponentPropertyBinding {
+  target: ComponentBindingTarget;
+  value: ListItemFieldBinding;
+}
+
 export interface NodeBase extends NodeGeometry {
   id: string;
   /** Optional editor-facing name; old documents derive a label from content. */
@@ -179,6 +221,8 @@ export interface NodeBase extends NodeGeometry {
   appearance?: ComponentAppearance;
   /** Optional tablet/desktop geometry; omitted values inherit the mobile/base geometry. */
   responsive?: ResponsiveGeometry;
+  /** Typed dynamic properties resolved from the nearest repeated ListView item. */
+  bindings?: ComponentPropertyBinding[];
 }
 
 export function geometryAtBreakpoint(
@@ -265,19 +309,23 @@ export interface ContainerNode extends NodeBase {
   children: ComponentNode[];
 }
 
-export interface ListNode extends NodeBase {
-  type: 'list';
-  props: ListProps;
+export interface ColumnNode extends NodeBase {
+  type: 'column';
+  props: ColumnProps;
+  children: ComponentNode[];
 }
 
-export interface RepeaterNode extends NodeBase {
-  type: 'repeater';
-  props: RepeaterProps;
+export interface RowNode extends NodeBase {
+  type: 'row';
+  props: RowProps;
+  children: ComponentNode[];
 }
 
-export interface FormNode extends NodeBase {
-  type: 'form';
-  props: FormProps;
+export interface ListViewNode extends NodeBase {
+  type: 'listview';
+  props: ListViewProps;
+  /** Item-template widgets repeated for static values or collection records. */
+  children: ComponentNode[];
 }
 
 export interface CheckboxNode extends NodeBase {
@@ -326,9 +374,9 @@ export type ComponentNode =
   | InputNode
   | ImageNode
   | ContainerNode
-  | ListNode
-  | RepeaterNode
-  | FormNode
+  | ColumnNode
+  | RowNode
+  | ListViewNode
   | CheckboxNode
   | RadioNode
   | SwitchNode
@@ -338,16 +386,117 @@ export type ComponentNode =
   | DividerNode
   | CameraNode;
 
-/** Frames may nest any supported component, including another frame. */
-export const CONTAINER_CHILD_TYPES: readonly ComponentType[] = [
+export type ChildBearingNode = ContainerNode | ColumnNode | RowNode | ListViewNode;
+
+export function isChildBearingNode(node: ComponentNode): node is ChildBearingNode {
+  return node.type === 'container' || node.type === 'column' || node.type === 'row' || node.type === 'listview';
+}
+
+export function isLinearLayoutNode(node: ComponentNode): node is ColumnNode | RowNode | ListViewNode {
+  return node.type === 'column' || node.type === 'row' || node.type === 'listview';
+}
+
+/** Resolves the visual geometry of nested widgets inside a free-form or linear parent. */
+export function childGeometriesAtBreakpoint(
+  parent: ChildBearingNode,
+  breakpoint: ResponsiveBreakpoint,
+  parentGeometryOverride?: NodeGeometry,
+): ReadonlyMap<string, NodeGeometry> {
+  // A ListView repeats one free-form item frame. Its direct children retain
+  // persisted coordinates just like Container children; Row/Column widgets
+  // nested inside that frame still resolve their own linear auto-layout.
+  if (parent.type === 'container' || parent.type === 'listview') {
+    return new Map(parent.children.map((child) => [child.id, geometryAtBreakpoint(child, breakpoint)]));
+  }
+
+  const parentGeometry = parentGeometryOverride ?? geometryAtBreakpoint(parent, breakpoint);
+  const direction = parent.type === 'row' ? 'horizontal' : 'vertical';
+  const padding = Math.max(0, parent.props.padding);
+  const baseGap = Math.max(0, parent.props.gap);
+  const visibleChildren = parent.children.filter((child) => !isHiddenAtBreakpoint(child, breakpoint));
+  const mainSize = direction === 'vertical' ? parentGeometry.h : parentGeometry.w;
+  const crossSize = direction === 'vertical' ? parentGeometry.w : parentGeometry.h;
+  const childMainSizes = visibleChildren.map((child) => {
+    const geometry = geometryAtBreakpoint(child, breakpoint);
+    return direction === 'vertical' ? geometry.h : geometry.w;
+  });
+  const occupied = childMainSizes.reduce((total, size) => total + size, 0)
+    + baseGap * Math.max(0, visibleChildren.length - 1);
+  const remaining = Math.max(0, mainSize - padding * 2 - occupied);
+  const mainAlignment = parent.props.mainAxisAlignment;
+  let mainOffset = 0;
+  let gap = baseGap;
+  if (mainAlignment === 'center') mainOffset = remaining / 2;
+  if (mainAlignment === 'end') mainOffset = remaining;
+  if (mainAlignment === 'space-between' && visibleChildren.length > 1) gap += remaining / (visibleChildren.length - 1);
+  if (mainAlignment === 'space-around' && visibleChildren.length > 0) {
+    const distributed = remaining / visibleChildren.length;
+    mainOffset = distributed / 2;
+    gap += distributed;
+  }
+  if (mainAlignment === 'space-evenly' && visibleChildren.length > 0) {
+    const distributed = remaining / (visibleChildren.length + 1);
+    mainOffset = distributed;
+    gap += distributed;
+  }
+
+  const resolved = new Map<string, NodeGeometry>();
+  let cursor = padding + mainOffset;
+  for (const child of parent.children) {
+    const geometry = geometryAtBreakpoint(child, breakpoint);
+    if (isHiddenAtBreakpoint(child, breakpoint)) {
+      resolved.set(child.id, geometry);
+      continue;
+    }
+    const childCross = direction === 'vertical' ? geometry.w : geometry.h;
+    const availableCross = Math.max(0, crossSize - padding * 2);
+    let crossOffset = padding;
+    if (parent.props.crossAxisAlignment === 'center') crossOffset += Math.max(0, availableCross - childCross) / 2;
+    if (parent.props.crossAxisAlignment === 'end') crossOffset += Math.max(0, availableCross - childCross);
+    const stretchedCross = parent.props.crossAxisAlignment === 'stretch' ? availableCross : childCross;
+    resolved.set(child.id, direction === 'vertical'
+      ? { x: crossOffset, y: cursor, w: stretchedCross, h: geometry.h }
+      : { x: cursor, y: crossOffset, w: geometry.w, h: stretchedCross });
+    cursor += (direction === 'vertical' ? geometry.h : geometry.w) + gap;
+  }
+  return resolved;
+}
+
+/**
+ * Computes the repeated item's main-axis extent for a ListView, using the same
+ * child geometries that the renderer resolves. Returns the default empty-item
+ * extent when the template has no children.
+ */
+export function listViewItemExtent(
+  node: ListViewNode,
+  geometries: ReadonlyMap<string, NodeGeometry>,
+  breakpoint: ResponsiveBreakpoint,
+): number {
+  if (node.children.length === 0) return 44;
+  const horizontal = node.props.scrollDirection === 'horizontal';
+  return Math.max(
+    1,
+    ...node.children.map((child) => {
+      const geometry = geometries.get(child.id) ?? geometryAtBreakpoint(child, breakpoint);
+      return horizontal ? geometry.x + geometry.w + node.props.padding : geometry.y + geometry.h + node.props.padding;
+    }),
+  );
+}
+
+export function listViewItemExtentAtBreakpoint(node: ListViewNode, breakpoint: ResponsiveBreakpoint): number {
+  return listViewItemExtent(node, childGeometriesAtBreakpoint(node, breakpoint), breakpoint);
+}
+
+/** Child-bearing widgets may nest any supported component, including each other. */
+export const CHILD_WIDGET_TYPES: readonly ComponentType[] = [
   'button',
   'text',
   'input',
   'image',
-  'list',
-  'repeater',
   'container',
-  'form',
+  'column',
+  'row',
+  'listview',
   'checkbox',
   'radio',
   'switch',

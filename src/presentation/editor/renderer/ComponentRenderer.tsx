@@ -1,7 +1,8 @@
 import type { ComponentAppearance, ComponentNode } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
+import { childGeometriesAtBreakpoint, geometryAtBreakpoint, isHiddenAtBreakpoint, listViewItemExtent } from '@domain/entities/componentNode';
+import { resolveBoundBoolean, resolveBoundNumber, resolveBoundText } from '@domain/bindings/componentBindings';
 import { type CSSProperties, type PropsWithChildren } from 'react';
-import type { ComponentRendererProps } from './renderer';
+import type { ComponentRendererProps, RendererEventContext } from './renderer';
 import { ButtonNodeView } from './nodes/ButtonNodeView';
 import { CameraNodeView } from './nodes/CameraNodeView';
 import { CheckboxNodeView } from './nodes/CheckboxNodeView';
@@ -10,14 +11,13 @@ import { DividerNodeView } from './nodes/DividerNodeView';
 import { DropdownNodeView } from './nodes/DropdownNodeView';
 import { ImageNodeView } from './nodes/ImageNodeView';
 import { InputNodeView } from './nodes/InputNodeView';
-import { ListNodeView } from './nodes/ListNodeView';
-import { RepeaterNodeView } from './nodes/RepeaterNodeView';
+import { LinearLayoutNodeView } from './nodes/LinearLayoutNodeView';
+import { ListViewNodeView } from './nodes/ListViewNodeView';
 import { ProgressNodeView } from './nodes/ProgressNodeView';
 import { RadioNodeView } from './nodes/RadioNodeView';
 import { SliderNodeView } from './nodes/SliderNodeView';
 import { SwitchNodeView } from './nodes/SwitchNodeView';
 import { TextNodeView } from './nodes/TextNodeView';
-import { FormNodeView } from './nodes/FormNodeView';
 
 interface NodeFrameProps {
   geometry: Pick<ComponentNode, 'id' | 'x' | 'y' | 'w' | 'h'>;
@@ -26,7 +26,8 @@ interface NodeFrameProps {
   onSelect?: (nodeId: string) => void;
   /** Runtime hook for published behavior (preview overlay executes chains). */
   onNodeAction?: (nodeId: string) => void;
-  onNodeEvent?: (nodeId: string, event: 'click' | 'change', value?: string) => void;
+  onNodeEvent?: (nodeId: string, event: 'click' | 'change', value?: string, context?: RendererEventContext) => void;
+  eventContext?: RendererEventContext;
   appearance?: ComponentAppearance;
 }
 
@@ -35,7 +36,7 @@ interface NodeFrameProps {
  * it also owns hit-testing: the selection click reaches the deepest node
  * first (inner frames stop propagation).
  */
-function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, onNodeEvent, appearance, children }: PropsWithChildren<NodeFrameProps>) {
+function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, onNodeEvent, eventContext, appearance, children }: PropsWithChildren<NodeFrameProps>) {
   const selectionClass = interactive && selected ? ' ring-2 ring-brand-600' : '';
   return (
     <div
@@ -50,7 +51,8 @@ function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, on
             }
           : onNodeEvent || onNodeAction
             ? () => {
-                if (onNodeEvent) onNodeEvent(geometry.id, 'click');
+                 if (onNodeEvent && eventContext) onNodeEvent(geometry.id, 'click', undefined, eventContext);
+                 else if (onNodeEvent) onNodeEvent(geometry.id, 'click');
                 else onNodeAction?.(geometry.id);
               }
             : undefined
@@ -85,19 +87,25 @@ export function ComponentRenderer({
   onNodeValueChange,
   componentValues,
   dataContext,
-  onFormSubmit,
+  geometryOverride,
+  itemContext,
 }: ComponentRendererProps) {
-  if (isHiddenAtBreakpoint(node, breakpoint)) {
+  if (isHiddenAtBreakpoint(node, breakpoint) || !resolveBoundBoolean(node, 'component.visible', itemContext, true)) {
     return null;
   }
   const interactive = mode === 'canvas' && !node.isLocked;
-  const geometry = { id: node.id, ...geometryAtBreakpoint(node, breakpoint) };
+  const geometry = { id: node.id, ...(geometryOverride ?? geometryAtBreakpoint(node, breakpoint)) };
   const isSelected = selected || selectedNodeId === node.id;
   const renderStatic = mode === 'thumbnail';
   // Runtime clicks only exist in the reactive preview; canvas delegates to
   // selection and thumbnails stay inert dashboard tiles.
   const runtimeClick = mode === 'preview' && onNodeAction ? onNodeAction : undefined;
   const runtimeEvent = mode === 'preview' ? onNodeEvent : undefined;
+  const emitRuntimeEvent = (event: 'click' | 'change', value?: string): void => {
+    if (!runtimeEvent) return;
+    if (itemContext) runtimeEvent(node.id, event, value, { listItem: itemContext });
+    else runtimeEvent(node.id, event, value);
+  };
 
   const frame = (children: React.ReactNode) => (
     <NodeFrame
@@ -108,6 +116,7 @@ export function ComponentRenderer({
       onSelect={onSelect}
       onNodeAction={runtimeClick}
       onNodeEvent={runtimeEvent}
+      eventContext={itemContext ? { listItem: itemContext } : undefined}
     >
       {children}
     </NodeFrame>
@@ -115,9 +124,15 @@ export function ComponentRenderer({
 
   switch (node.type) {
     case 'button':
-      return frame(<ButtonNodeView props={node.props} renderStatic={renderStatic} />);
+      return frame(<ButtonNodeView props={{
+        ...node.props,
+        label: resolveBoundText(node, 'button.label', itemContext, node.props.label),
+      }} renderStatic={renderStatic} />);
     case 'text':
-      return frame(<TextNodeView props={node.props} />);
+      return frame(<TextNodeView props={{
+        ...node.props,
+        text: resolveBoundText(node, 'text.content', itemContext, node.props.text),
+      }} />);
     case 'input':
       return frame(
         <InputNodeView
@@ -125,39 +140,24 @@ export function ComponentRenderer({
           value={componentValues?.get(node.id)}
           onValueChange={(value) => {
             onNodeValueChange?.(node.id, value);
-            runtimeEvent?.(node.id, 'change', value);
+            emitRuntimeEvent('change', value);
           }}
           props={node.props}
           renderStatic={renderStatic}
         />,
       );
     case 'image':
-      return frame(<ImageNodeView props={node.props} />);
-    case 'list':
-      return frame(
-        <ListNodeView
-          items={resolveListItems(node.props.items, node.props.dataSource, dataContext)}
-          scrollable={node.props.scrollable}
-          showDividers={node.props.showDividers}
-        />,
-      );
-    case 'repeater':
-      return frame(
-        <RepeaterNodeView
-          componentValues={componentValues}
-          dataContext={dataContext}
-          onItemSelect={(recordId) => runtimeEvent?.(node.id, 'click', recordId)}
-          props={node.props}
-          renderStatic={renderStatic}
-          runtimeValue={componentValues?.get(node.id)}
-        />,
-      );
+      return frame(<ImageNodeView props={{
+        ...node.props,
+        src: resolveBoundText(node, 'image.source', itemContext, node.props.src),
+        alt: resolveBoundText(node, 'image.alt', itemContext, node.props.alt),
+      }} />);
     case 'checkbox':
       return frame(
         <CheckboxNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
-          props={node.props}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); emitRuntimeEvent('change', value); }}
+          props={{ ...node.props, checked: resolveBoundBoolean(node, 'checkbox.checked', itemContext, node.props.checked) }}
           renderStatic={renderStatic}
         />,
       );
@@ -165,7 +165,7 @@ export function ComponentRenderer({
       return frame(
         <RadioNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); emitRuntimeEvent('change', value); }}
           props={node.props}
           renderStatic={renderStatic}
         />,
@@ -174,8 +174,8 @@ export function ComponentRenderer({
       return frame(
         <SwitchNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
-          props={node.props}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); emitRuntimeEvent('change', value); }}
+          props={{ ...node.props, checked: resolveBoundBoolean(node, 'switch.checked', itemContext, node.props.checked) }}
           renderStatic={renderStatic}
         />,
       );
@@ -183,7 +183,7 @@ export function ComponentRenderer({
       return frame(
         <DropdownNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); emitRuntimeEvent('change', value); }}
           props={node.props}
           renderStatic={renderStatic}
         />,
@@ -192,13 +192,16 @@ export function ComponentRenderer({
       return frame(
         <SliderNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => { onNodeValueChange?.(node.id, value); runtimeEvent?.(node.id, 'change', value); }}
+          onValueChange={(value) => { onNodeValueChange?.(node.id, value); emitRuntimeEvent('change', value); }}
           props={node.props}
           renderStatic={renderStatic}
         />,
       );
     case 'progress':
-      return frame(<ProgressNodeView props={node.props} />);
+      return frame(<ProgressNodeView props={{
+        ...node.props,
+        value: resolveBoundNumber(node, 'progress.value', itemContext, node.props.value),
+      }} />);
     case 'divider':
       return frame(<DividerNodeView props={node.props} renderStatic={renderStatic} />);
     case 'camera':
@@ -207,42 +210,77 @@ export function ComponentRenderer({
           isPreview={mode === 'preview'}
           onCapture={(mediaReference) => {
             onNodeValueChange?.(node.id, mediaReference);
-            runtimeEvent?.(node.id, 'change', mediaReference);
+            emitRuntimeEvent('change', mediaReference);
           }}
           props={node.props}
           renderStatic={renderStatic}
         />,
       );
     case 'container':
+    case 'column':
+    case 'row': {
+      const childGeometries = childGeometriesAtBreakpoint(node, breakpoint, geometry);
+      const children = node.children.map((child) => (
+        <ComponentRenderer
+          key={child.id}
+          componentValues={componentValues}
+          breakpoint={breakpoint}
+          dataContext={dataContext}
+          geometryOverride={childGeometries.get(child.id)}
+          itemContext={itemContext}
+          mode={mode}
+          node={child}
+          onSelect={onSelect}
+          onNodeAction={runtimeClick}
+          onNodeEvent={runtimeEvent}
+          onNodeValueChange={onNodeValueChange}
+          selected={false}
+          selectedNodeId={selectedNodeId}
+        />
+      ));
       return frame(
-        <ContainerNodeView>
-          {node.children.map((child) => (
+        node.type === 'container'
+          ? <ContainerNodeView>{children}</ContainerNodeView>
+          : <LinearLayoutNodeView direction={node.type}>{children}</LinearLayoutNodeView>,
+      );
+    }
+    case 'listview': {
+      const childGeometries = childGeometriesAtBreakpoint(node, breakpoint, geometry);
+      const itemExtent = listViewItemExtent(node, childGeometries, breakpoint);
+      return frame(
+        <ListViewNodeView
+          componentValues={componentValues}
+          crossExtent={node.props.scrollDirection === 'vertical' ? geometry.w : geometry.h}
+          dataContext={dataContext}
+          itemExtent={itemExtent}
+          viewportExtent={node.props.scrollDirection === 'vertical' ? geometry.h : geometry.w}
+          mode={mode}
+          nodeId={node.id}
+          onItemSelect={(record) => runtimeEvent?.(node.id, 'click', record.itemId, { listItem: record })}
+          props={node.props}
+          renderItem={(record) => node.children.map((child) => (
             <ComponentRenderer
               key={child.id}
-              componentValues={componentValues}
               breakpoint={breakpoint}
+              componentValues={componentValues}
+              dataContext={dataContext}
+              geometryOverride={childGeometries.get(child.id)}
+              itemContext={record}
               mode={mode}
               node={child}
-              onSelect={onSelect}
               onNodeAction={runtimeClick}
               onNodeEvent={runtimeEvent}
               onNodeValueChange={onNodeValueChange}
-              dataContext={dataContext}
-              onFormSubmit={onFormSubmit}
+              onSelect={onSelect}
               selected={false}
               selectedNodeId={selectedNodeId}
             />
           ))}
-        </ContainerNodeView>,
-      );
-    case 'form':
-      return frame(
-        <FormNodeView
-          onSubmit={(values) => onFormSubmit?.(node.id, values)}
-          props={node.props}
-          renderStatic={renderStatic}
+          runtimeValue={componentValues?.get(node.id)}
+          templateHasChildren={node.children.length > 0}
         />,
       );
+    }
     default:
       return null;
   }
@@ -262,13 +300,3 @@ function appearanceStyle(appearance: ComponentAppearance | undefined): CSSProper
   };
 }
 
-function resolveListItems(
-  staticItems: string[],
-  source: Extract<ComponentNode, { type: 'list' }>['props']['dataSource'],
-  dataContext: ComponentRendererProps['dataContext'],
-): string[] {
-  if (!source || source.kind === 'static' || !dataContext) return staticItems;
-  return (dataContext.recordsByCollection.get(source.collectionId) ?? []).map((record) =>
-    String(record.values[source.displayFieldId] ?? ''),
-  );
-}

@@ -38,7 +38,7 @@ export function describeProposal(proposal: AssistantProposal): string {
     case 'add-text':
       return `Add text “${proposal.text}”`;
     case 'add-list':
-      return `Add a list with ${proposal.items.length} items`;
+      return `Add a ListView with ${proposal.items.length} items`;
     case 'change-text-on-click':
       return `On click, change the text to “${proposal.text}”`;
     default: {
@@ -128,9 +128,19 @@ function createConfiguredNode(
       return node.type === 'text' ? { ...node, props: { ...node.props, text: proposal.text } } : node;
     }
     case 'add-list': {
-      const node = createComponentNode('list');
-      return node.type === 'list'
-        ? { ...node, props: { ...node.props, items: [...proposal.items] } }
+      const node = createComponentNode('listview');
+      return node.type === 'listview'
+        ? {
+            ...node,
+            props: {
+              ...node.props,
+              dataSource: {
+                kind: 'static',
+                fields: [{ id: 'value', label: 'Value', type: 'text' }],
+                items: proposal.items.map((value, index) => ({ id: `${node.id}__static_${index + 1}`, values: { value } })),
+              },
+            },
+          }
         : node;
     }
     default: {
