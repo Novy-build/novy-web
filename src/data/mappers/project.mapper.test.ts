@@ -122,7 +122,7 @@ describe('project mapper', () => {
 
     expect(dto.createdAt).toBe('2026-01-01T10:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-02T12:30:00.000Z');
-    expect(dto.schemaVersion).toBe(9);
+    expect(dto.schemaVersion).toBe(10);
   });
 
   it('round-trips projects losslessly', () => {
@@ -136,6 +136,32 @@ describe('project mapper', () => {
     const restored = mapProjectFromDto(dto as never);
 
     expect(restored).toEqual(FIXTURE_PROJECT);
+  });
+
+  it('round-trips menu, app-theme, record-ID mapping and delete confirmation settings', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.screens[0]!.nodes.push(
+      { id: 'menu', type: 'dropdown', x: 0, y: 0, w: 44, h: 44, props: { label: 'Actions', placeholder: '', options: ['Edit', 'Delete'], selectedIndex: -1, presentation: 'menu' } },
+      { id: 'theme', type: 'switch', x: 0, y: 0, w: 160, h: 44, appearance: { backgroundColor: '#ffffff', dark: { backgroundColor: '#222222' } }, props: { label: 'Dark mode', checked: false, controlsTheme: true } },
+    );
+    project.document.screens[0]!.logicGraphs[0]!.nodes.push({
+      kind: 'action', id: 'delete', position: { x: 0, y: 0 },
+      payload: { type: 'delete-record', collectionId: 'contacts', recordId: '', confirm: true },
+      inputMappings: { '$recordId': { source: 'list-item', fieldId: '$id' } },
+    });
+    const restored = mapProjectFromDto(roundTrip(mapProjectToDto(project)) as ReturnType<typeof mapProjectToDto>);
+    expect(restored).toEqual(project);
+  });
+
+  it('preserves schema-v9 dropdown and switch behavior when new options are absent', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.screens[0]!.nodes.push(
+      { id: 'select', type: 'dropdown', x: 0, y: 0, w: 100, h: 44, props: { label: 'Choice', placeholder: 'Choose', options: ['A'], selectedIndex: -1 } },
+      { id: 'toggle', type: 'switch', x: 0, y: 0, w: 100, h: 44, props: { label: 'Toggle', checked: false } },
+    );
+    const dto = mapProjectToDto(project);
+    dto.schemaVersion = 9;
+    expect(mapProjectFromDto(dto)).toEqual(project);
   });
 
   it('round-trips typed Add Local List Item actions', () => {

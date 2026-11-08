@@ -33,7 +33,7 @@ import { normalizeLogicGraph } from '@domain/logic/graph';
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
-    schemaVersion: 9,
+    schemaVersion: 10,
     id: project.id,
     name: project.name,
     createdAt: project.createdAt.toISOString(),
@@ -288,7 +288,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, checked: node.props.checked },
+        props: { label: node.props.label, checked: node.props.checked, ...(node.props.controlsTheme ? { controlsTheme: true } : {}) },
       };
     case 'dropdown':
       return {
@@ -299,7 +299,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, placeholder: node.props.placeholder, options: [...node.props.options], selectedIndex: node.props.selectedIndex },
+        props: { label: node.props.label, placeholder: node.props.placeholder, options: [...node.props.options], selectedIndex: node.props.selectedIndex, ...(node.props.presentation === 'menu' ? { presentation: 'menu' } : {}) },
       };
     case 'slider':
       return {
@@ -500,7 +500,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { label: dto.props.label, checked: dto.props.checked },
+        props: { label: dto.props.label, checked: dto.props.checked, ...(dto.props.controlsTheme ? { controlsTheme: true } : {}) },
       };
     case 'dropdown':
       return {
@@ -511,7 +511,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { label: dto.props.label, placeholder: dto.props.placeholder, options: [...dto.props.options], selectedIndex: dto.props.selectedIndex },
+        props: { label: dto.props.label, placeholder: dto.props.placeholder, options: [...dto.props.options], selectedIndex: dto.props.selectedIndex, ...(dto.props.presentation === 'menu' ? { presentation: 'menu' } : {}) },
       };
     case 'slider':
       return {

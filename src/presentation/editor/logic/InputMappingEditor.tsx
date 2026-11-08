@@ -1,5 +1,7 @@
 import type { ComponentNode } from '@domain/entities/componentNode';
 import type { LogicNode, ValueExpression } from '@domain/entities/logic';
+import { CURRENT_ITEM_ID_FIELD } from '@domain/entities/logic';
+import type { DataCollection } from '@domain/entities/appData';
 import { nodeLayerName } from '../workspace/nodeLabels';
 import { logicNodeTitle } from './logicLabels';
 
@@ -12,6 +14,7 @@ interface InputMappingEditorProps {
   currentNodeId: string;
   onChange: (mapping: ValueExpression | null) => void;
   itemFields?: readonly { id: string; label: string }[];
+  collections?: readonly DataCollection[];
 }
 
 type MappingSource = 'static' | ValueExpression['source'];
@@ -25,6 +28,7 @@ export function InputMappingEditor({
   currentNodeId,
   onChange,
   itemFields = [],
+  collections = [],
 }: InputMappingEditorProps) {
   const source: MappingSource = mapping?.source ?? 'static';
   const componentSources = screenNodes.filter((node) =>
@@ -35,7 +39,11 @@ export function InputMappingEditor({
   const selectedOutputNode = mapping?.source === 'node-output'
     ? outputSources.find((node) => node.id === mapping.nodeId)
     : undefined;
-  const outputPaths = selectedOutputNode?.kind === 'action' ? knownOutputPaths(selectedOutputNode) : [];
+  const outputPaths = selectedOutputNode?.kind === 'action' ? knownOutputPaths(selectedOutputNode, collections) : [];
+  const outputCollectionId = selectedOutputNode?.kind === 'action' && selectedOutputNode.payload.type === 'get-record'
+    ? selectedOutputNode.payload.collectionId
+    : '';
+  const recordFields = collections.find((collection) => collection.id === outputCollectionId)?.fields ?? [];
 
   function changeSource(next: MappingSource): void {
     switch (next) {
@@ -106,6 +114,7 @@ export function InputMappingEditor({
           value={mapping.fieldId}
         >
           <option value="">Choose item field…</option>
+          <option value={CURRENT_ITEM_ID_FIELD}>Current item ID</option>
           {itemFields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
         </select>
       ) : null}
@@ -144,6 +153,17 @@ export function InputMappingEditor({
             <option value="">Choose node…</option>
             {outputSources.map((node) => <option key={node.id} value={node.id}>{logicNodeTitle(node)}</option>)}
           </select>
+          {recordFields.length > 0 ? (
+            <select
+              aria-label={`${label} record field`}
+              className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-xs text-ink"
+              onChange={(event) => onChange({ ...mapping, path: event.target.value })}
+              value={recordFields.some((field) => mapping.path === `record.values.${field.id}`) ? mapping.path : ''}
+            >
+              <option value="">Choose a record field…</option>
+              {recordFields.map((field) => <option key={field.id} value={`record.values.${field.id}`}>{field.label}</option>)}
+            </select>
+          ) : null}
           <input
             aria-label={`${label} output path`}
             className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-xs text-ink"
@@ -161,7 +181,7 @@ export function InputMappingEditor({
   );
 }
 
-function knownOutputPaths(node: Extract<LogicNode, { kind: 'action' }>): string[] {
+function knownOutputPaths(node: Extract<LogicNode, { kind: 'action' }>, collections: readonly DataCollection[]): string[] {
   switch (node.payload.type) {
     case 'document-load': return ['documents'];
     case 'text-split': return ['chunks'];
@@ -182,7 +202,14 @@ function knownOutputPaths(node: Extract<LogicNode, { kind: 'action' }>): string[
     case 'cv-liveness': return ['isLive', 'confidence', 'reason'];
     case 'cv-enroll': return ['credentialId', 'enrolledAt', 'qualityScore'];
     case 'cv-verify': return ['verified', 'confidence', 'credentialId', 'reason'];
-    case 'get-record': return ['record', 'record.id', 'record.values'];
+    case 'get-record': {
+      const collectionId = node.payload.collectionId;
+      return [
+        'record', 'record.id', 'record.values',
+        ...(collections.find((collection) => collection.id === collectionId)?.fields
+          .map((field) => `record.values.${field.id}`) ?? []),
+      ];
+    }
     case 'add-local-list-item': return [
       'item',
       'item.id',

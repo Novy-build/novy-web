@@ -5,6 +5,36 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-08 — Reusable notes-app builder flows
+
+#### Added
+- Added a reusable **Actions menu** presentation for Dropdown widgets. Its options emit change
+  events and retain the current ListView item's context, so card-specific workflows can act on
+  the selected record. Menu interactions support keyboard navigation, Escape, and focus return.
+- Exposed **Get Record**, variable names and defaults, component-prefill targets, variable and
+  previous-output conditions, labeled record fields, and the current item ID in the Logic editor.
+- Added optional Delete Record confirmation and keyboard access to repeated ListView items.
+- Added a Switch option for preview-app light/dark theme control and optional dark-theme component
+  colors, scoped independently from Novy's own editor theme.
+- Added a multi-screen notes workflow test covering two bound card fields, local persistence,
+  create, edit/prefill, update, confirmed delete, theme switching, failures, and duplicate saves.
+
+#### Changed
+- Project DTO schema is now version 10. Existing dropdowns, switches, appearances, and delete
+  actions without the new optional fields retain their previous behavior.
+- Preview asks before discarding sandbox record changes when persistence is enabled, prevents
+  repeated submissions of the same workflow, and avoids stale collection snapshots after writes.
+- Fixed newline editing of Dropdown options and made preview workflow errors accessible alerts.
+- The existing advanced notes starter was not replaced or automatically provisioned; this change
+  improves reusable builder capabilities rather than adding a ready-made basic notes template.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 80 test files and 636 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON — parsed and behavior graph references checked.
+- `git diff --check` — passed.
+
 ### 2026-11-08 — Preview database persistence and truthful workflow branching
 
 #### Added

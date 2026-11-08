@@ -19,6 +19,7 @@ export interface ComponentNodeDTOBase {
     borderColor?: string;
     borderRadius?: number;
     opacity?: number;
+    dark?: { backgroundColor?: string; textColor?: string; borderColor?: string };
   };
   responsive?: Partial<Record<'tablet' | 'desktop', Partial<{ x: number; y: number; w: number; h: number; isHidden: boolean }>>>;
   bindings?: Array<{
@@ -153,12 +154,12 @@ export interface RadioNodeDTO extends ComponentNodeDTOBase {
 
 export interface SwitchNodeDTO extends ComponentNodeDTOBase {
   type: 'switch';
-  props: { label: string; checked: boolean };
+  props: { label: string; checked: boolean; controlsTheme?: boolean };
 }
 
 export interface DropdownNodeDTO extends ComponentNodeDTOBase {
   type: 'dropdown';
-  props: { label: string; placeholder: string; options: string[]; selectedIndex: number };
+  props: { label: string; placeholder: string; options: string[]; selectedIndex: number; presentation?: 'select' | 'menu' };
 }
 
 export interface SliderNodeDTO extends ComponentNodeDTOBase {
@@ -261,6 +262,7 @@ export interface DeleteRecordPayloadDTO {
   type: 'delete-record';
   collectionId: string;
   recordId: string;
+  confirm?: boolean;
 }
 
 export interface SendEmailPayloadDTO {

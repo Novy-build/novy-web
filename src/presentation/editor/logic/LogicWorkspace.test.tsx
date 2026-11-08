@@ -192,6 +192,53 @@ describe('LogicWorkspace with a workflow', () => {
     });
   });
 
+  it('configures Get Record, a variable, and a component prefill without editing JSON', () => {
+    const document = seededWorkflow();
+    document.screens[0]!.nodes.push({
+      id: 'note_title', type: 'input', x: 0, y: 120, w: 200, h: 44,
+      props: { label: 'Title', placeholder: '', inputType: 'text', multiline: false },
+    });
+    renderWorkspace(document);
+    fireEvent.click(screen.getByRole('button', { name: 'Get Record' }));
+    let graph = getActiveScreen(latest.current!).logicGraphs[0]!;
+    const getRecord = graph.nodes.find((node) => node.kind === 'action' && node.payload.type === 'get-record')!;
+    fireEvent.click(screen.getByTestId(`logic-node-${getRecord.id}`));
+    fireEvent.change(screen.getByLabelText('Collection'), { target: { value: 'students' } });
+    fireEvent.change(screen.getByLabelText('Value source'), { target: { value: 'variable' } });
+    fireEvent.change(screen.getByLabelText('Record ID variable name'), { target: { value: 'selectedId' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set Variable' }));
+    graph = getActiveScreen(latest.current!).logicGraphs[0]!;
+    const variable = graph.nodes.find((node) => node.kind === 'action' && node.payload.type === 'set-variable')!;
+    fireEvent.click(screen.getByTestId(`logic-node-${variable.id}`));
+    fireEvent.change(screen.getByLabelText('Variable name'), { target: { value: 'mode' } });
+    fireEvent.change(screen.getByLabelText('Default value'), { target: { value: 'edit' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set Component Value' }));
+    graph = getActiveScreen(latest.current!).logicGraphs[0]!;
+    const prefill = graph.nodes.find((node) => node.kind === 'action' && node.payload.type === 'set-component-value')!;
+    fireEvent.click(screen.getByTestId(`logic-node-${prefill.id}`));
+    fireEvent.change(screen.getByLabelText('Target component'), { target: { value: 'note_title' } });
+    fireEvent.change(screen.getByLabelText('Value source'), { target: { value: 'node-output' } });
+    fireEvent.change(screen.getByLabelText('Component value node output source'), { target: { value: getRecord.id } });
+    fireEvent.change(screen.getByLabelText('Component value record field'), { target: { value: 'record.values.student_name' } });
+
+    graph = getActiveScreen(latest.current!).logicGraphs[0]!;
+    expect(graph.nodes.find((node) => node.id === getRecord.id)).toMatchObject({ payload: { collectionId: 'students' }, inputMappings: { '$recordId': { source: 'variable', name: 'selectedId' } } });
+    expect(graph.nodes.find((node) => node.id === variable.id)).toMatchObject({ payload: { name: 'mode', value: 'edit' } });
+    expect(graph.nodes.find((node) => node.id === prefill.id)).toMatchObject({ payload: { targetNodeId: 'note_title' }, inputMappings: { value: { source: 'node-output', nodeId: getRecord.id, path: 'record.values.student_name' } } });
+  });
+
+  it('allows conditions to compare an application variable', () => {
+    renderWorkspace(seededWorkflow());
+    fireEvent.click(screen.getByRole('button', { name: 'If / Else' }));
+    const condition = getActiveScreen(latest.current!).logicGraphs[0]!.nodes.find((node) => node.kind === 'condition')!;
+    fireEvent.click(screen.getByTestId(`logic-node-${condition.id}`));
+    fireEvent.change(screen.getByLabelText('Value source'), { target: { value: 'variable' } });
+    fireEvent.change(screen.getByLabelText('Variable name'), { target: { value: 'mode' } });
+    expect(getActiveScreen(latest.current!).logicGraphs[0]!.nodes.find((node) => node.id === condition.id)).toMatchObject({ left: { source: 'variable', name: 'mode' } });
+  });
+
   it('configures typed values and placement for a static ListView only', () => {
     const document = seededWorkflow();
     const list = makeListView('local_list');

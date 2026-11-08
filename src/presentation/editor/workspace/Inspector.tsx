@@ -612,12 +612,31 @@ export function Inspector({
             />
             On by default
           </label>
+          <label className="flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={node.props.controlsTheme === true}
+              onChange={(event) => onAction({ type: 'node/props-switch', nodeId: node.id, props: { controlsTheme: event.target.checked } })}
+              type="checkbox"
+            />
+            Control app light/dark theme
+          </label>
+          {node.props.controlsTheme ? <p className="text-xs text-ink-muted">This affects the previewed app, not the Novy editor.</p> : null}
         </div>
       ) : null}
 
       {node.type === 'dropdown' ? (
         <div className="mt-4 grid gap-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-dropdown-presentation">Presentation</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-dropdown-presentation"
+            onChange={(event) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { presentation: event.target.value === 'menu' ? 'menu' : 'select' } })}
+            value={node.props.presentation ?? 'select'}
+          >
+            <option value="select">Dropdown</option>
+            <option value="menu">Actions menu</option>
+          </select>
           <TextInput
             label="Label"
             name="inspector-dropdown-label"
@@ -634,9 +653,10 @@ export function Inspector({
           <textarea
             className="h-24 w-full rounded-tile border border-hairline bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:outline-brand-600"
             id="inspector-dropdown-options"
-            onChange={(event) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { options: event.target.value.split('\\n').filter((item) => item.trim().length > 0) } })}
-            value={node.props.options.join('\\n')}
+            onChange={(event) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { options: event.target.value.split('\n') } })}
+            value={node.props.options.join('\n')}
           />
+          {node.props.presentation === 'menu' ? <p className="text-xs text-ink-muted">Each option emits a change event. Use If / Else to choose its workflow.</p> : null}
           <TextInput
             label="Selected index (-1 for none)"
             name="inspector-dropdown-selected"
@@ -842,6 +862,32 @@ export function Inspector({
             value={node.appearance?.borderRadius ?? 0}
           />
         </div>
+        <details className="mb-3 rounded-tile border border-hairline p-2">
+          <summary className="cursor-pointer text-xs font-medium text-ink">Dark theme colors</summary>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {([
+              ['backgroundColor', 'Dark background'],
+              ['textColor', 'Dark text color'],
+              ['borderColor', 'Dark border color'],
+            ] as const).map(([key, label]) => (
+              <TextInput
+                key={key}
+                label={label}
+                name={`inspector-dark-${key}`}
+                onChange={(event) => {
+                  const dark = { ...node.appearance?.dark };
+                  if (event.target.value) dark[key] = event.target.value;
+                  else delete dark[key];
+                  const hasColors = Object.keys(dark).length > 0;
+                  onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, dark: hasColors ? dark : undefined } });
+                }}
+                placeholder="Inherit"
+                value={node.appearance?.dark?.[key] ?? ''}
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-ink-muted">Blank colors inherit the normal appearance.</p>
+        </details>
         {node.type === 'button' ? (
           <SegmentedControl
             ariaLabel="Button variant"

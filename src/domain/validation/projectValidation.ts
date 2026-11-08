@@ -1,7 +1,7 @@
 import type { DataCollection, DataFieldType, DataValue } from '../entities/appData';
 import { isChildBearingNode, type ComponentBindingTarget, type ComponentNode, type ListViewNode } from '../entities/componentNode';
 import { isBindingTargetAllowed, isFieldTypeCompatible } from '../bindings/componentBindings';
-import type { ActionPayload, LogicGraph, ValueExpression } from '../entities/logic';
+import { CURRENT_ITEM_ID_FIELD, type ActionInputMappings, type ActionPayload, type LogicGraph, type ValueExpression } from '../entities/logic';
 import { outputPortsFor, resourceInputPortsFor, resourceOutputPortsFor } from '../logic/graph';
 import type { ProjectDocument, Screen } from '../entities/screen';
 
@@ -341,7 +341,7 @@ function validateLogic(
         }
       }
       if (node.kind === 'action') {
-        validateActionPayload(node.payload, screen, collections, issues, screen.id, graph.id, node.id, screenIds);
+        validateActionPayload(node.payload, screen, collections, issues, screen.id, graph.id, node.id, screenIds, node.inputMappings);
         const localListTarget = node.payload.type === 'add-local-list-item'
           ? findComponentNode(screen.nodes, node.payload.targetNodeId)
           : null;
@@ -403,6 +403,7 @@ function validateListItemExpression(
     issues.push(issue('logic-list-item-context', 'error', 'logic', 'Current-item input requires a component inside a ListView template.', context));
     return;
   }
+  if (expression.fieldId === CURRENT_ITEM_ID_FIELD) return;
   const exists = itemSource.props.dataSource.kind === 'static'
     ? itemSource.props.dataSource.fields.some((field) => field.id === expression.fieldId)
     : collections.get(itemSource.props.dataSource.collectionId)?.fields.some((field) => field.id === expression.fieldId) === true;
@@ -461,6 +462,7 @@ function validateActionPayload(
   graphId: string,
   logicNodeId: string,
   screenIds: Set<string>,
+  inputMappings?: ActionInputMappings,
 ): void {
   const base = { screenId, graphId, logicNodeId };
   switch (payload.type) {
@@ -478,16 +480,14 @@ function validateActionPayload(
     case 'get-records':
       break;
     case 'get-record':
-      if (!payload.recordId) issues.push(issue('logic-empty-record', 'warning', 'logic', 'Record ID is not set.', base));
-      break;
     case 'insert-record':
     case 'update-record':
     case 'delete-record':
       if (!payload.collectionId || !collections.has(payload.collectionId)) {
         issues.push(issue('data-missing-collection', 'error', 'logic', 'Database node references a missing collection.', base));
       }
-      if (payload.type === 'update-record' || payload.type === 'delete-record') {
-        if (!payload.recordId) issues.push(issue('logic-empty-record', 'warning', 'logic', 'Record ID is not set.', base));
+      if (payload.type === 'get-record' || payload.type === 'update-record' || payload.type === 'delete-record') {
+        if (!payload.recordId && !inputMappings?.['$recordId'] && !inputMappings?.recordId) issues.push(issue('logic-empty-record', 'warning', 'logic', 'Record ID is not set.', base));
       }
       break;
     case 'refresh-collection':

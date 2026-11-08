@@ -69,6 +69,27 @@
   border-radius: inherit !important;
 }
 
+/* Built-app theme tokens are scoped to the previewed app, not Novy's shell. */
+.novy-app-theme-light {
+  color-scheme: light;
+  --color-canvas: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #fafbfc;
+  --color-hairline: #e5e6ea;
+  --color-ink: #0e1013;
+  --color-ink-muted: #565b66;
+}
+
+.novy-app-theme-dark {
+  color-scheme: dark;
+  --color-canvas: #0b0d11;
+  --color-surface: #15181e;
+  --color-surface-subtle: #1a1e25;
+  --color-hairline: #262a33;
+  --color-ink: #eef0f4;
+  --color-ink-muted: #aeb4c0;
+}
+
 @layer base {
   * {
     box-sizing: border-box;

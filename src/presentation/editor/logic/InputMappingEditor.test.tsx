@@ -89,6 +89,8 @@ describe('InputMappingEditor', () => {
     fireEvent.change(screen.getByLabelText('Value source'), { target: { value: 'list-item' } });
     expect(onChange).toHaveBeenLastCalledWith({ source: 'list-item', fieldId: 'email' });
     expect(screen.getByLabelText('Subject list item field')).toHaveValue('email');
+    fireEvent.change(screen.getByLabelText('Subject list item field'), { target: { value: '$id' } });
+    expect(onChange).toHaveBeenLastCalledWith({ source: 'list-item', fieldId: '$id' });
   });
 
   it('suggests individual Add Local List Item output fields', () => {

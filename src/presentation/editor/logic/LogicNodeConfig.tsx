@@ -8,6 +8,7 @@ import type {
   LogicNode,
   TriggerEvent,
 } from '@domain/entities/logic';
+import { CURRENT_ITEM_ID_FIELD } from '@domain/entities/logic';
 import { logicNodeTitle } from './logicLabels';
 import { nodeDisplayLabel, nodeLayerName } from '../workspace/nodeLabels';
 import { InputMappingEditor } from './InputMappingEditor';
@@ -109,9 +110,38 @@ export function LogicNodeConfig({
 
   if (node.kind === 'condition') {
     const needsValue = node.operator !== 'is-empty' && node.operator !== 'is-not-empty';
+    const sourceNodes = screenNodes.filter((candidate) =>
+      candidate.type === 'input' || candidate.type === 'text' || candidate.type === 'dropdown' ||
+      candidate.type === 'switch' || candidate.type === 'checkbox' || candidate.type === 'listview');
     return (
       <div>
         <h3 className="text-sm font-semibold text-ink">If / Else</h3>
+        <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="condition-source-type">Value source</label>
+        <select
+          className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+          id="condition-source-type"
+          onChange={(event) => {
+            const source = event.target.value;
+            if (source === 'component') {
+              const target = sourceNodes[0];
+              onConfigureCondition(node.id, { left: { source: 'component', nodeId: target?.id ?? '', property: target?.type === 'text' ? 'text' : 'value' } });
+            } else if (source === 'variable') {
+              onConfigureCondition(node.id, { left: { source: 'variable', name: '' } });
+            } else if (source === 'node-output') {
+              onConfigureCondition(node.id, { left: { source: 'node-output', nodeId: '', path: '' } });
+            } else if (source === 'list-item') {
+              onConfigureCondition(node.id, { left: { source: 'list-item', fieldId: CURRENT_ITEM_ID_FIELD } });
+            }
+          }}
+          value={node.left.source === 'variable' || node.left.source === 'node-output' || node.left.source === 'list-item' ? node.left.source : 'component'}
+        >
+          <option value="component">Component value</option>
+          <option value="variable">Application variable</option>
+          <option value="node-output">Previous node output</option>
+          {listItemFields.length > 0 ? <option value="list-item">Current list item</option> : null}
+        </select>
+        {node.left.source === 'component' ? (
+          <>
         <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="condition-source">
           Source component
         </label>
@@ -131,12 +161,38 @@ export function LogicNodeConfig({
           value={node.left.source === 'component' ? node.left.nodeId : ''}
         >
           <option value="">Choose a component…</option>
-          {screenNodes
-            .filter((candidate) => candidate.type === 'input' || candidate.type === 'text')
-            .map((candidate) => (
+          {sourceNodes.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>{nodeLayerName(candidate)}</option>
             ))}
         </select>
+          </>
+        ) : null}
+        {node.left.source === 'variable' ? (
+          <label className="mt-4 block text-xs font-medium text-ink-muted">Variable name
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onConfigureCondition(node.id, { left: { source: 'variable', name: event.target.value } })} value={node.left.name} />
+          </label>
+        ) : null}
+        {node.left.source === 'node-output' ? (
+          <div className="mt-4 grid gap-2">
+            <label className="text-xs font-medium text-ink-muted">Source node
+              <select className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onConfigureCondition(node.id, { left: { source: 'node-output', nodeId: event.target.value, path: node.left.source === 'node-output' ? node.left.path : '' } })} value={node.left.nodeId}>
+                <option value="">Choose node…</option>
+                {logicNodes.filter((candidate) => candidate.kind === 'action').map((candidate) => <option key={candidate.id} value={candidate.id}>{logicNodeTitle(candidate)}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-medium text-ink-muted">Output path
+              <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onConfigureCondition(node.id, { left: { source: 'node-output', nodeId: node.left.source === 'node-output' ? node.left.nodeId : '', path: event.target.value } })} value={node.left.path} />
+            </label>
+          </div>
+        ) : null}
+        {node.left.source === 'list-item' ? (
+          <label className="mt-4 block text-xs font-medium text-ink-muted">Current item field
+            <select className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onConfigureCondition(node.id, { left: { source: 'list-item', fieldId: event.target.value } })} value={node.left.fieldId}>
+              <option value={CURRENT_ITEM_ID_FIELD}>Current item ID</option>
+              {listItemFields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
+            </select>
+          </label>
+        ) : null}
 
         <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="condition-operator">
           Operator
@@ -315,6 +371,12 @@ export function LogicNodeConfig({
               />
             </>
           ) : null}
+          {actionPayload.type === 'delete-record' ? (
+            <label className="mt-4 flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
+              <input checked={actionPayload.confirm === true} onChange={(event) => configure({ ...actionPayload, confirm: event.target.checked })} type="checkbox" />
+              Confirm before deleting
+            </label>
+          ) : null}
           {'values' in actionPayload && selectedDataCollection ? (
             <div className="mt-4 grid gap-3">
               <p className="text-xs font-medium text-ink-muted">Field values</p>
@@ -343,6 +405,30 @@ export function LogicNodeConfig({
           payload={actionPayload}
           screenNodes={screenNodes}
         />
+      ) : null}
+
+      {actionPayload.type === 'set-variable' ? (
+        <div className="mt-4 grid gap-3">
+          <label className="block text-xs font-medium text-ink-muted">Variable name
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, name: event.target.value })} value={actionPayload.name} />
+          </label>
+          <label className="block text-xs font-medium text-ink-muted">Default value
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, value: event.target.value })} value={actionPayload.value} />
+          </label>
+        </div>
+      ) : null}
+      {actionPayload.type === 'set-component-value' ? (
+        <div className="mt-4 grid gap-3">
+          <label className="block text-xs font-medium text-ink-muted">Target component
+            <select className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, targetNodeId: event.target.value })} value={actionPayload.targetNodeId}>
+              <option value="">Choose a component…</option>
+              {screenNodes.filter((candidate) => candidate.type === 'input' || candidate.type === 'listview').map((candidate) => <option key={candidate.id} value={candidate.id}>{nodeLayerName(candidate)}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs font-medium text-ink-muted">Default value
+            <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, value: event.target.value })} value={actionPayload.value} />
+          </label>
+        </div>
       ) : null}
 
       {actionPayload.type === 'add-local-list-item' ? (
@@ -466,6 +552,7 @@ export function LogicNodeConfig({
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Input mapping</p>
           {actionInputDefinitions(actionPayload, selectedDataCollection, selectedLocalListView).map((input) => (
             <InputMappingEditor
+              collections={collections}
               currentNodeId={node.id}
               inputKey={input.key}
               itemFields={listItemFields}
@@ -498,8 +585,9 @@ export function LogicNodeConfig({
 
 function isDataPayload(
   payload: ActionPayload,
-): payload is Extract<ActionPayload, { type: 'get-records' | 'insert-record' | 'update-record' | 'delete-record' | 'refresh-collection' }> {
+): payload is Extract<ActionPayload, { type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record' | 'refresh-collection' }> {
   return payload.type === 'get-records' ||
+    payload.type === 'get-record' ||
     payload.type === 'insert-record' ||
     payload.type === 'update-record' ||
     payload.type === 'delete-record' ||
@@ -527,7 +615,8 @@ function actionInputDefinitions(
       { key: '$recordId', label: 'Record ID' },
       ...(collection?.fields.map((field) => ({ key: field.id, label: field.label })) ?? []),
     ];
-    case 'delete-record': return [{ key: '$recordId', label: 'Record ID' }];
+    case 'delete-record':
+    case 'get-record': return [{ key: '$recordId', label: 'Record ID' }];
     case 'cv-liveness': return [{ key: 'mediaReference', label: 'Camera media' }];
     case 'cv-enroll': return [
       { key: 'mediaReference', label: 'Camera media' },

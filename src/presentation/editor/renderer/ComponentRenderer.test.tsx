@@ -421,6 +421,18 @@ describe('ComponentRenderer', () => {
       listItem: expect.objectContaining({ listViewId: 'list', itemId: 'record' }),
     });
     expect(onNodeEvent.mock.calls.filter(([nodeId]) => nodeId === 'list')).toHaveLength(1);
+    fireEvent.keyDown(screen.getByRole('listitem', { name: /Ada Lovelace/ }), { key: 'Enter' });
+    expect(onNodeEvent.mock.calls.filter(([nodeId]) => nodeId === 'list')).toHaveLength(2);
+  });
+
+  it('keeps an actions menu selectable on the design canvas', () => {
+    const onSelect = vi.fn();
+    render(<ComponentRenderer mode="canvas" node={{
+      id: 'menu', type: 'dropdown', x: 0, y: 0, w: 44, h: 44,
+      props: { label: 'Actions', placeholder: '', options: ['Edit'], selectedIndex: -1, presentation: 'menu' },
+    }} onSelect={onSelect} selected={false} />);
+    fireEvent.click(screen.getByText('⋮'));
+    expect(onSelect).toHaveBeenCalledWith('menu');
   });
 
   it('layers local additions around the active static runtime baseline', () => {

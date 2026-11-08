@@ -58,7 +58,7 @@ describe('project migration', () => {
     expect(reloaded).toEqual(restored);
   });
 
-  it('migrates schema-v6 ListView data and item layout to schema v9', () => {
+  it('migrates schema-v6 ListView data and item layout to the current schema', () => {
     const restored = mapProjectFromDto({
       schemaVersion: 6,
       id: 'schema_6',
@@ -97,7 +97,7 @@ describe('project migration', () => {
     }]);
     expect(list?.type === 'listview' ? list.props.itemSpacing : null).toBe(0);
     expect(list?.type === 'listview' ? list.props.itemBorderRadius : null).toBe(0);
-    expect(mapProjectToDto(restored).schemaVersion).toBe(9);
+    expect(mapProjectToDto(restored).schemaVersion).toBe(10);
   });
 
   it('materializes schema-v8 ListView flow layouts as free-form item geometry', () => {
@@ -239,7 +239,7 @@ describe('project migration', () => {
     });
 
     const repersisted = mapProjectToDto(restored);
-    expect(repersisted.schemaVersion).toBe(9);
+    expect(repersisted.schemaVersion).toBe(10);
     expect(repersisted.screens[0]!.nodes.map((node) => node.type)).toEqual(['listview', 'listview', 'column']);
   });
 });

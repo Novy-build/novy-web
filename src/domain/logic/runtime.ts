@@ -16,6 +16,7 @@ import { isChildBearingNode } from '../entities/componentNode';
 import { removeLogicNodes } from './graph';
 import { isAsyncActionPayload } from './graph';
 import { generateId } from '../ids';
+import { CURRENT_ITEM_ID_FIELD } from '../entities/logic';
 
 /**
  * The published-app runtime: executes one behavior's chain and returns an
@@ -346,6 +347,7 @@ export function resolveValueExpression(
       return target?.type === 'text' ? target.props.text : '';
     }
     case 'list-item':
+      if (expression.fieldId === CURRENT_ITEM_ID_FIELD) return context.listItem?.itemId ?? '';
       return context.listItem?.values[expression.fieldId] ?? '';
     case 'session': {
       const user = context.session?.user;

@@ -4,6 +4,7 @@ import type { EditorAction } from '../state/editorState';
 import { Inspector } from './Inspector';
 import { makeButton, makeColumn, makeContainer, makeImage, makeListView, makeText } from '@test/editorFixtures';
 import type { DataCollection } from '@domain/entities/appData';
+import { createComponentNode } from '@domain/factories/componentNode';
 
 const COLLECTION: DataCollection = {
   id: 'collection_students',
@@ -33,6 +34,40 @@ function renderInspector(
 }
 
 describe('Inspector', () => {
+  it('offers a reusable actions-menu presentation and accepts newline-separated options', () => {
+    const node = createComponentNode('dropdown');
+    const { onAction } = renderInspector(node);
+    fireEvent.change(screen.getByLabelText('Presentation'), { target: { value: 'menu' } });
+    expect(onAction).toHaveBeenCalledWith({ type: 'node/props-dropdown', nodeId: node.id, props: { presentation: 'menu' } });
+    fireEvent.change(screen.getByLabelText('Options'), { target: { value: 'Edit\nDelete\n' } });
+    expect(onAction).toHaveBeenCalledWith({ type: 'node/props-dropdown', nodeId: node.id, props: { options: ['Edit', 'Delete', ''] } });
+  });
+
+  it('can configure a switch to control the previewed app theme', () => {
+    const node = createComponentNode('switch');
+    const { onAction } = renderInspector(node);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Control app light/dark theme' }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'node/props-switch', nodeId: node.id, props: { controlsTheme: true } });
+  });
+
+  it('edits dark-theme colors without replacing the base appearance', () => {
+    const node = makeButton('button', { appearance: { backgroundColor: '#ffffff' } });
+    const { onAction } = renderInspector(node);
+    fireEvent.click(screen.getByText('Dark theme colors'));
+    fireEvent.change(screen.getByLabelText('Dark background'), { target: { value: '#222222' } });
+    expect(onAction).toHaveBeenCalledWith({ type: 'node/appearance', nodeId: node.id, appearance: { backgroundColor: '#ffffff', dark: { backgroundColor: '#222222' } } });
+  });
+
+  it('binds item Text content to a collection field through the Inspector', () => {
+    const node = makeText('note_title');
+    const onAction = vi.fn<(action: EditorAction) => void>();
+    render(<Inspector behaviors={[]} listItemFields={COLLECTION.fields} node={node} onAction={onAction} onOpenLogic={vi.fn()} />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Text content' }), { target: { value: 'field_name' } });
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'node/bindings', nodeId: node.id,
+      bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'field_name' } }],
+    });
+  });
   it('hints to select a component when nothing is selected', () => {
     renderInspector(null);
 

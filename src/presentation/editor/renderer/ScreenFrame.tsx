@@ -4,6 +4,7 @@ import type { RendererDataContext, RendererEventContext, RendererMode } from './
 import type { TriggerEvent } from '@domain/entities/logic';
 import type { ListItemContext } from '@domain/entities/appData';
 import { ComponentRenderer } from './ComponentRenderer';
+import { AppThemeContext, type AppTheme } from './AppThemeContext';
 
 /** Design-space dimensions rendered by ScreenFrame (MVP presets). */
 export interface ScreenFrameSize {
@@ -34,6 +35,8 @@ export interface ScreenFrameProps {
   dataContext?: RendererDataContext;
   componentValues?: ReadonlyMap<string, string>;
   itemContext?: ListItemContext;
+  appTheme?: AppTheme;
+  onAppThemeChange?: (theme: AppTheme) => void;
 }
 
 /**
@@ -55,6 +58,8 @@ export function ScreenFrame({
   componentValues,
   dataContext,
   itemContext,
+  appTheme,
+  onAppThemeChange,
 }: ScreenFrameProps) {
   const outerWidth = Math.round(size.width * scale);
   const outerHeight = Math.round(size.height * scale);
@@ -70,8 +75,9 @@ export function ScreenFrame({
       data-screen-id={screen?.id ?? ''}
       style={{ height: outerHeight, width: outerWidth }}
     >
+      <AppThemeContext.Provider value={appTheme && onAppThemeChange ? { theme: appTheme, setTheme: onAppThemeChange } : null}>
       <div
-        className="relative overflow-hidden bg-surface"
+        className={`relative overflow-hidden bg-surface ${appTheme ? `novy-app-theme-${appTheme}` : ''}`}
         style={{
           height: size.height,
           width: size.width,
@@ -97,6 +103,7 @@ export function ScreenFrame({
           />
         ))}
       </div>
+      </AppThemeContext.Provider>
     </div>
   );
 }

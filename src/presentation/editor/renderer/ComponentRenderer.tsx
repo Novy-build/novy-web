@@ -1,6 +1,7 @@
 import type { ComponentAppearance, ComponentNode } from '@domain/entities/componentNode';
 import { childGeometriesAtBreakpoint, geometryAtBreakpoint, isHiddenAtBreakpoint, listViewItemExtent } from '@domain/entities/componentNode';
 import { resolveBoundBoolean, resolveBoundNumber, resolveBoundText } from '@domain/bindings/componentBindings';
+import { useAppTheme } from './AppThemeContext';
 import { type CSSProperties, type PropsWithChildren } from 'react';
 import type { ComponentRendererProps, RendererEventContext } from './renderer';
 import { ButtonNodeView } from './nodes/ButtonNodeView';
@@ -90,6 +91,7 @@ export function ComponentRenderer({
   geometryOverride,
   itemContext,
 }: ComponentRendererProps) {
+  const appTheme = useAppTheme();
   if (isHiddenAtBreakpoint(node, breakpoint) || !resolveBoundBoolean(node, 'component.visible', itemContext, true)) {
     return null;
   }
@@ -110,7 +112,7 @@ export function ComponentRenderer({
   const frame = (children: React.ReactNode) => (
     <NodeFrame
       geometry={geometry}
-      appearance={node.appearance}
+      appearance={resolveThemeAppearance(node.appearance, appTheme?.theme === 'dark')}
       interactive={interactive}
       selected={isSelected}
       onSelect={onSelect}
@@ -174,7 +176,12 @@ export function ComponentRenderer({
       return frame(
         <SwitchNodeView
           isPreview={mode === 'preview'}
-          onValueChange={(value) => { onNodeValueChange?.(node.id, value); emitRuntimeEvent('change', value); }}
+          checked={node.props.controlsTheme && appTheme ? appTheme.theme === 'dark' : undefined}
+          onValueChange={(value) => {
+            if (node.props.controlsTheme && appTheme) appTheme.setTheme(value === 'true' ? 'dark' : 'light');
+            onNodeValueChange?.(node.id, value);
+            emitRuntimeEvent('change', value);
+          }}
           props={{ ...node.props, checked: resolveBoundBoolean(node, 'switch.checked', itemContext, node.props.checked) }}
           renderStatic={renderStatic}
         />,
@@ -183,6 +190,7 @@ export function ComponentRenderer({
       return frame(
         <DropdownNodeView
           isPreview={mode === 'preview'}
+          itemLabel={itemContext ? String(itemContext.values.value ?? '') : undefined}
           onValueChange={(value) => { onNodeValueChange?.(node.id, value); emitRuntimeEvent('change', value); }}
           props={node.props}
           renderStatic={renderStatic}
@@ -284,6 +292,13 @@ export function ComponentRenderer({
     default:
       return null;
   }
+}
+
+function resolveThemeAppearance(appearance: ComponentAppearance | undefined, dark: boolean): ComponentAppearance | undefined {
+  if (!appearance) return undefined;
+  const { dark: darkColors, ...base } = appearance;
+  const resolved = dark && darkColors ? { ...base, ...darkColors } : base;
+  return Object.keys(resolved).length > 0 ? resolved : undefined;
 }
 
 function appearanceStyle(appearance: ComponentAppearance | undefined): CSSProperties {

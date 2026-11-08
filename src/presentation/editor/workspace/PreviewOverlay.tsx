@@ -19,6 +19,8 @@ import type { EditorDevice } from '../state/geometry';
 import { computeFitZoom } from '../state/geometry';
 import { CANVAS_PRESETS } from '../renderer/ScreenFrame';
 import type { RendererEventContext } from '../renderer/renderer';
+import type { AppTheme } from '../renderer/AppThemeContext';
+import { findNodeInScreen } from '../state/editorState';
 
 const TOAST_VISIBLE_MS = 2400;
 const PREVIEW_ZOOM_LIMITS = { min: 0.25, max: 2, step: 0.25 } as const;
@@ -45,6 +47,7 @@ export interface PreviewPersistenceActions {
 interface Toast {
   id: number;
   message: string;
+  kind?: 'error';
 }
 
 /**
@@ -82,6 +85,13 @@ export function PreviewOverlay({
   const previewRecordsRef = useRef(previewRecords);
   previewRecordsRef.current = previewRecords;
   const [persistDataChanges, setPersistDataChanges] = useState(false);
+  const sandboxDirtyRef = useRef(false);
+  const activeClicksRef = useRef(new Set<string>());
+  const [pendingClicks, setPendingClicks] = useState(0);
+  const activeOperationsRef = useRef(0);
+  const [pendingOperations, setPendingOperations] = useState(0);
+  const [appTheme, setAppTheme] = useState<AppTheme>(() =>
+    document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   const [localItemsByListView, setLocalItemsByListView] = useState<
     ReadonlyMap<string, readonly LocalListItemAddition[]>
   >(() => new Map());
@@ -163,6 +173,15 @@ export function PreviewOverlay({
       if (!screen) {
         return;
       }
+      const clickKey = `${screen.id}:${nodeId}:${eventContext?.listItem?.itemId ?? ''}`;
+      const sourceNode = findNodeInScreen(screen, nodeId);
+      const isMenuChoice = event === 'change' && sourceNode?.type === 'dropdown' && sourceNode.props.presentation === 'menu';
+      const lockEvent = event === 'click' || isMenuChoice;
+      if (lockEvent && activeClicksRef.current.has(clickKey)) return;
+      if (lockEvent) {
+        activeClicksRef.current.add(clickKey);
+        setPendingClicks((current) => current + 1);
+      }
       const nextValues = value === undefined
         ? componentValues
         : new Map([...componentValues, [nodeId, value]]);
@@ -181,7 +200,14 @@ export function PreviewOverlay({
           executeDataOperation: applyDataOperation,
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
-      ).then(applyPreviewEffects);
+      ).then(applyPreviewEffects).catch((error: unknown) => {
+        setToast({ id: Date.now(), message: error instanceof Error ? error.message : 'Workflow failed.', kind: 'error' });
+      }).finally(() => {
+        if (lockEvent) {
+          activeClicksRef.current.delete(clickKey);
+          setPendingClicks((current) => Math.max(0, current - 1));
+        }
+      });
     },
     [componentValues, persistDataChanges, persistence, screens, screen, variables],
   );
@@ -205,7 +231,7 @@ export function PreviewOverlay({
             void applyDataOperation(effect.payload);
             break;
           case 'data-operation-error':
-            setToast({ id: Date.now(), message: effect.message });
+            setToast({ id: Date.now(), message: effect.message, kind: 'error' });
             break;
           case 'refresh-collection':
             setToast({ id: Date.now(), message: `Refreshed collection ${effect.collectionId}.` });
@@ -282,13 +308,26 @@ export function PreviewOverlay({
           executeDataOperation: applyDataOperation,
           session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
-      ).then(applyPreviewEffects);
+      ).then(applyPreviewEffects).catch((error: unknown) => {
+        setToast({ id: Date.now(), message: error instanceof Error ? error.message : 'Workflow failed.', kind: 'error' });
+      });
     }
     // Execute once when a screen is entered; runtime state changes must not retrigger On Load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen?.id]);
 
   async function applyDataOperation(payload: DataOperationPayload): Promise<unknown> {
+    activeOperationsRef.current += 1;
+    setPendingOperations((current) => current + 1);
+    try {
+      return await performDataOperation(payload);
+    } finally {
+      activeOperationsRef.current -= 1;
+      setPendingOperations((current) => Math.max(0, current - 1));
+    }
+  }
+
+  async function performDataOperation(payload: DataOperationPayload): Promise<unknown> {
     const collection = collections.find((candidate) => candidate.id === payload.collectionId);
     if (!collection) throw new Error('Collection not found.');
     const current = previewRecordsRef.current.get(payload.collectionId) ?? [];
@@ -315,7 +354,9 @@ export function PreviewOverlay({
             createdAt: now,
             updatedAt: now,
           };
-      replacePreviewCollection(payload.collectionId, [...current, record]);
+      const latest = previewRecordsRef.current.get(payload.collectionId) ?? [];
+      replacePreviewCollection(payload.collectionId, [...latest, record]);
+      if (!persistDataChanges) sandboxDirtyRef.current = true;
       setToast({ id: Date.now(), message: persistDataChanges ? 'Record saved to project data.' : 'Preview record inserted.' });
       return { record };
     }
@@ -330,19 +371,24 @@ export function PreviewOverlay({
         : { ...existing, values, updatedAt: new Date() };
       replacePreviewCollection(
         payload.collectionId,
-        current.map((record) => record.id === payload.recordId ? updated : record),
+        (previewRecordsRef.current.get(payload.collectionId) ?? []).map((record) => record.id === payload.recordId ? updated : record),
       );
+      if (!persistDataChanges) sandboxDirtyRef.current = true;
       setToast({ id: Date.now(), message: persistDataChanges ? 'Record update saved to project data.' : 'Preview record updated.' });
       return { record: updated };
     }
     if (!current.some((record) => record.id === payload.recordId)) throw new Error('Record not found.');
+    if (payload.confirm && !window.confirm('Delete this record? This cannot be undone.')) {
+      throw new Error('Deletion cancelled.');
+    }
     if (persistDataChanges && persistence) {
       await persistence.deleteRecord(payload.collectionId, payload.recordId);
     }
     replacePreviewCollection(
       payload.collectionId,
-      current.filter((record) => record.id !== payload.recordId),
+      (previewRecordsRef.current.get(payload.collectionId) ?? []).filter((record) => record.id !== payload.recordId),
     );
+    if (!persistDataChanges) sandboxDirtyRef.current = true;
     setToast({ id: Date.now(), message: persistDataChanges ? 'Record deleted from project data.' : 'Preview record deleted.' });
     return { deletedRecordId: payload.recordId, collectionId: payload.collectionId };
   }
@@ -351,6 +397,18 @@ export function PreviewOverlay({
     const next = new Map([...previewRecordsRef.current, [collectionId, records]]);
     previewRecordsRef.current = next;
     setPreviewRecords(next);
+  }
+
+  function changePersistence(enabled: boolean): void {
+    if (activeOperationsRef.current > 0 || activeClicksRef.current.size > 0) return;
+    if (enabled && sandboxDirtyRef.current && !window.confirm(
+      'Switching to project data discards temporary preview record changes. Continue?',
+    )) return;
+    const next = new Map(recordsByCollection);
+    previewRecordsRef.current = next;
+    setPreviewRecords(next);
+    sandboxDirtyRef.current = false;
+    setPersistDataChanges(enabled);
   }
 
   useEffect(() => {
@@ -463,8 +521,9 @@ export function PreviewOverlay({
             <label className="flex min-h-11 items-center gap-2 rounded-tile border border-hairline bg-surface px-3 text-xs font-medium text-ink">
               <input
                 checked={persistDataChanges}
-                disabled={!persistence}
-                onChange={(event) => setPersistDataChanges(event.target.checked)}
+                aria-describedby="preview-data-mode-hint"
+                disabled={!persistence || pendingClicks > 0 || pendingOperations > 0}
+                onChange={(event) => changePersistence(event.target.checked)}
                 type="checkbox"
               />
               Save data changes
@@ -489,28 +548,30 @@ export function PreviewOverlay({
       >
         <div className="m-auto shrink-0">
           <ScreenFrame
+            appTheme={appTheme}
             breakpoint={previewDevice}
             componentValues={componentValues}
             dataContext={{ collections, localItemsByListView, recordsByCollection: previewRecords }}
             mode="preview"
             onNodeEvent={handleNodeEvent}
+            onAppThemeChange={setAppTheme}
             screen={effectiveScreen}
             size={bounds}
             scale={zoom}
           />
         </div>
       </div>
-      <p aria-live="polite" className="mt-2 shrink-0 text-center text-xs text-ink-muted" ref={footerRef}>
+      <p aria-live="polite" className="mt-2 shrink-0 text-center text-xs text-ink-muted" id="preview-data-mode-hint" ref={footerRef}>
         {persistDataChanges
-          ? 'Database actions save to this browser’s project data. Other preview state remains isolated.'
-          : 'Click, change, and screen-load behaviors run against isolated preview state.'}
+          ? 'Database actions create, update, and delete this browser’s project records. Other preview state remains isolated.'
+          : 'Click, change, and screen-load behaviors run against isolated preview state. Enabling Save data changes allows database actions to create, update, and delete project records on this browser.'}
       </p>
       {toast ? (
         <div
           className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-tile bg-ink px-4 py-2 text-sm text-surface shadow-lg"
           data-testid="preview-toast"
           key={toast.id}
-          role="status"
+          role={toast.kind === 'error' ? 'alert' : 'status'}
         >
           {toast.message}
         </div>

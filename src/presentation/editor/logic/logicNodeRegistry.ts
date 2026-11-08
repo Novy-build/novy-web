@@ -130,6 +130,15 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
     create: () => ({ kind: 'action', payload: { type: 'insert-record', collectionId: '', values: {} } }),
   },
   {
+    id: 'get-record',
+    category: 'Database',
+    label: 'Get Record',
+    description: 'Read one record by its ID',
+    icon: '⌕',
+    keywords: ['get', 'read', 'record', 'database', 'edit'],
+    create: () => ({ kind: 'action', payload: { type: 'get-record', collectionId: '', recordId: '' } }),
+  },
+  {
     id: 'update-db',
     category: 'Database',
     label: 'Update in DB',

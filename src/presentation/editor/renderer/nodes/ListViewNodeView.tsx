@@ -79,7 +79,8 @@ export function ListViewNodeView({
     >
       {visibleRecords.map((record, index) => (
         <div
-          className={`relative shrink-0 ${
+          aria-label={mode === 'preview' ? `${String(record.values.value ?? 'Item')}. Press Enter or Space to open.` : undefined}
+          className={`relative shrink-0 ${mode === 'preview' ? 'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600' : ''} ${
             props.showDividers && index > 0
               ? isVertical ? 'border-t border-hairline' : 'border-l border-hairline'
               : ''
@@ -90,7 +91,14 @@ export function ListViewNodeView({
             if ((event.target as HTMLElement).closest('button,input,select,textarea,a,[role="button"]')) return;
             onItemSelect?.(record);
           } : undefined}
+          onKeyDown={mode === 'preview' ? (event) => {
+            if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onItemSelect?.(record);
+          } : undefined}
           role="listitem"
+          tabIndex={mode === 'preview' ? 0 : undefined}
           style={isVertical
             ? {
                 width: '100%',

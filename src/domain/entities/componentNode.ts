@@ -127,6 +127,8 @@ export interface RadioProps {
 export interface SwitchProps {
   label: string;
   checked: boolean;
+  /** When enabled, this switch controls the previewed app's theme. */
+  controlsTheme?: boolean;
 }
 
 export interface DropdownProps {
@@ -134,6 +136,8 @@ export interface DropdownProps {
   placeholder: string;
   options: string[];
   selectedIndex: number;
+  /** Action menus emit the chosen option through the normal change event. */
+  presentation?: 'select' | 'menu';
 }
 
 export interface SliderProps {
@@ -177,6 +181,8 @@ export interface ComponentAppearance {
   borderColor?: string;
   borderRadius?: number;
   opacity?: number;
+  /** Optional dark-theme color overrides; omitted colors inherit base appearance. */
+  dark?: { backgroundColor?: string; textColor?: string; borderColor?: string };
 }
 
 /** Mobile uses the base geometry; larger web breakpoints may override individual values. */

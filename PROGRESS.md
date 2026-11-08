@@ -111,7 +111,7 @@ event binding, and its referenced logic graph:
 
 ```json
 {
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "id": "project_notes",
   "name": "Notes App",
   "createdAt": "2026-11-07T08:00:00.000Z",
@@ -162,7 +162,8 @@ event binding, and its referenced logic graph:
                   "appearance": {
                     "backgroundColor": "#5551f2",
                     "textColor": "#ffffff",
-                    "borderRadius": 10
+                    "borderRadius": 10,
+                    "dark": { "backgroundColor": "#4338ca", "textColor": "#ffffff" }
                   },
                   "responsive": {
                     "tablet": { "w": 200 },
@@ -203,7 +204,7 @@ event binding, and its referenced logic graph:
                   "type": "text",
                   "x": 0,
                   "y": 0,
-                  "w": 310,
+                  "w": 240,
                   "h": 44,
                   "bindings": [
                     {
@@ -214,6 +215,36 @@ event binding, and its referenced logic graph:
                   "props": {
                     "text": "Note title",
                     "level": "body"
+                  }
+                },
+                {
+                  "id": "text_note_description",
+                  "type": "text",
+                  "x": 0,
+                  "y": 44,
+                  "w": 240,
+                  "h": 44,
+                  "bindings": [
+                    {
+                      "target": "text.content",
+                      "value": { "source": "list-item", "fieldId": "field_description" }
+                    }
+                  ],
+                  "props": { "text": "Note description", "level": "body" }
+                },
+                {
+                  "id": "menu_note_actions",
+                  "type": "dropdown",
+                  "x": 260,
+                  "y": 0,
+                  "w": 44,
+                  "h": 44,
+                  "props": {
+                    "label": "Note actions",
+                    "placeholder": "",
+                    "options": ["Edit", "Delete"],
+                    "selectedIndex": -1,
+                    "presentation": "menu"
                   }
                 }
               ]
@@ -241,6 +272,15 @@ event binding, and its referenced logic graph:
                 }
               },
               "children": []
+            },
+            {
+              "id": "switch_app_theme",
+              "type": "switch",
+              "x": 0,
+              "y": 0,
+              "w": 200,
+              "h": 44,
+              "props": { "label": "Dark mode", "checked": false, "controlsTheme": true }
             }
           ]
         }
@@ -252,6 +292,13 @@ event binding, and its referenced logic graph:
           "event": "click",
           "graphId": "graph_open_details",
           "targetNodeId": "button_details"
+        },
+        {
+          "id": "behavior_note_actions",
+          "name": "On change — Note actions",
+          "event": "change",
+          "graphId": "graph_note_actions",
+          "targetNodeId": "menu_note_actions"
         }
       ],
       "logicGraphs": [
@@ -324,6 +371,28 @@ event binding, and its referenced logic graph:
               "toPort": "in"
             }
           ]
+        },
+        {
+          "id": "graph_note_actions",
+          "name": "On change — Note actions",
+          "sourceNodeId": "menu_note_actions",
+          "nodes": [
+            { "kind": "trigger", "id": "trigger_note_actions", "event": "change", "position": { "x": 80, "y": 160 } },
+            {
+              "kind": "condition", "id": "condition_delete", "position": { "x": 320, "y": 160 },
+              "left": { "source": "component", "nodeId": "menu_note_actions", "property": "value" },
+              "operator": "equals", "compareValue": "Delete"
+            },
+            {
+              "kind": "action", "id": "action_delete_note", "position": { "x": 560, "y": 160 },
+              "payload": { "type": "delete-record", "collectionId": "collection_notes", "recordId": "", "confirm": true },
+              "inputMappings": { "$recordId": { "source": "list-item", "fieldId": "$id" } }
+            }
+          ],
+          "edges": [
+            { "id": "edge_actions_condition", "fromNodeId": "trigger_note_actions", "fromPort": "next", "toNodeId": "condition_delete", "toPort": "in" },
+            { "id": "edge_condition_delete", "fromNodeId": "condition_delete", "fromPort": "true", "toNodeId": "action_delete_note", "toPort": "in" }
+          ]
         }
       ]
     },
@@ -361,6 +430,12 @@ event binding, and its referenced logic graph:
   only the properties they specify. Tablet inherits omitted values from mobile; Desktop inherits
   omitted values from the resolved Tablet layout. Breakpoint overrides may also set `isHidden`.
 - Optional typed `appearance` values are shared by editor, preview, thumbnails, and generated JSON.
+  Schema-v10 adds optional `appearance.dark` background/text/border overrides. Blank dark colors
+  inherit their base appearance. Older documents without these fields keep their previous colors.
+- A Dropdown with `props.presentation: "menu"` renders as an accessible actions menu and emits a
+  change event containing the chosen option. Omitted presentation retains the original select.
+- A Switch with `props.controlsTheme: true` controls the previewed app's light/dark theme, without
+  changing the Novy editor theme. This is preview-session state, not a production theme service.
 - `type` selects the renderer/generator component and `props` stores its typed configuration.
 - Camera components serialize only labels and `facingMode`; captured media is transient runtime
   state and is never embedded in the project document.
@@ -413,6 +488,10 @@ event binding, and its referenced logic graph:
 - Action payloads reference other components, screens, records, or collections by stable ID.
 - Optional `inputMappings` resolve named action inputs from literals, component state, the current
   repeated ListView item, session user values, or previous-node outputs.
+- For a workflow triggered inside an item template, `{ "source": "list-item", "fieldId": "$id" }`
+  resolves the current item's stable ID. For Get Record, `record.values.<field-id>` references a
+  returned collection field; the Logic inspector offers field labels for these paths.
+- Delete Record may set `confirm: true` to request confirmation before deleting in Preview.
 - RAG and Computer Vision actions use provider-agnostic payloads. Their generated runtime inputs may
   reference temporary camera media, while outputs expose document IDs, answers/citations,
   liveness, credential IDs, verification results, confidence, and reason fields.
@@ -583,7 +662,8 @@ Configurable events:
 - [x] Change.
 - [x] Screen load.
 
-Click, change, and screen-load behaviors execute in the frontend preview against isolated state.
+Click, change, and screen-load behaviors execute in the frontend preview. Collection operations
+use isolated state by default, or the browser-local project repository when explicitly enabled.
 Production execution remains a generated-app/backend responsibility.
 
 ## 7. Logic Builder
@@ -609,6 +689,9 @@ Production execution remains a generated-app/backend responsibility.
 - [x] Component, variable, and previous-node output references in conditions.
 - [x] Dynamic action input mappings from literals, component values/text/media, application
   variables, session user values, and previous-node output paths.
+- [x] Get Record, variable names, component-prefill targets, variable/previous-output conditions,
+  labeled returned record fields, and current ListView item IDs configurable in the Logic workspace.
+- [x] Optional confirmation for Delete Record, with cancellation following the error branch.
 - [x] Success/error output ports for async database, email, RAG, and Computer Vision actions, including legacy-port
   migration.
 - [x] Connection validation, cycle prevention, self-loop prevention, and incoming-edge limits.
@@ -763,6 +846,10 @@ No external AI model or AI SDK is connected.
 - [x] Change-text effects.
 - [x] Toast/message effects.
 - [x] Navigation between project screens.
+- [x] Nested, collection-bound card content and per-item Dropdown actions menus, with keyboard
+  navigation and current-record context for edit/delete workflows.
+- [x] App-scoped light/dark theme switching from an opted-in Switch and optional per-widget dark
+  colors. The preview theme initially matches the editor and is independent for that session.
 - [x] Isolated preview copies of collection records.
 - [x] Simulated get, insert, update, and delete data effects.
 - [x] Database actions await validation/repository completion before following success or error
@@ -770,6 +857,8 @@ No external AI model or AI SDK is connected.
 - [x] Optional **Save data changes** mode writes preview Insert/Update/Delete actions to this
   browser's project-data repository and synchronizes collection-bound ListViews and the Data
   workspace. The mode is off by default.
+- [x] `docs/notes-app-workflow.md` documents how to compose and test a basic notes flow using
+  the reusable editor, Logic, data-binding, actions-menu, and theme controls.
 - [x] Simulated collection refresh/refetch and Send Email success effects.
 - [x] Simulated granular document loading, chunking, embeddings, isolated vector indexing/search,
   reranking, prompt compilation, generation, citations, memory, and biometric effects.
@@ -778,6 +867,9 @@ No external AI model or AI SDK is connected.
 - [x] Composed inputs and buttons create isolated preview records through normal logic workflows.
 - [x] Default Preview state remains isolated. Opt-in saved changes affect only the browser-local
   project-data repository; Preview does not write a production database or invoke external services.
+- [x] Switching from modified sandbox records to saved project data requests confirmation and
+  discards the temporary records rather than implicitly persisting them. Repeated click/menu
+  submissions are guarded while the same workflow is running.
 
 ## 12. Deployment experience — frontend simulation
 
@@ -824,7 +916,7 @@ The repository includes automated coverage for:
 Verification completed on 2026-11-08:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 78 test files and 620 tests passed.
+- `npm test -- --run` — 80 test files and 636 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.

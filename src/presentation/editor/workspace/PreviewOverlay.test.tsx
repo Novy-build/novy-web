@@ -397,7 +397,7 @@ describe('PreviewOverlay', () => {
 
     await waitFor(() => expect(createRecord).toHaveBeenCalledWith(collection.id, { title: 'Persistent note' }));
     expect(screen.getByTestId('preview-toast')).toHaveTextContent('Record saved to project data.');
-    expect(screen.getByText(/Database actions save to this browser/)).toBeInTheDocument();
+    expect(screen.getByText(/Database actions create, update, and delete/)).toBeInTheDocument();
   });
 
   it('does not follow the success path when insert validation fails', async () => {

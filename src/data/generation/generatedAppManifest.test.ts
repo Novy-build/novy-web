@@ -69,7 +69,7 @@ describe('generated app manifest', () => {
     expect(manifest).toMatchObject({
       manifestVersion: 1,
       generatedAt: '2026-11-07T12:00:00.000Z',
-      project: { schemaVersion: 9, id: 'project_notes' },
+      project: { schemaVersion: 10, id: 'project_notes' },
       appData: {
         database: { id: 'database_notes' },
         recordsIncluded: false,

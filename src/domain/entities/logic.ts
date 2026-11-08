@@ -63,6 +63,7 @@ export interface DeleteRecordPayload {
   type: 'delete-record';
   collectionId: string;
   recordId: string;
+  confirm?: boolean;
 }
 
 export interface SendEmailPayload {
@@ -285,6 +286,9 @@ export type ActionPayload =
   | CvVerifyPayload;
 
 export type SessionValuePath = 'user.id' | 'user.name' | 'user.email';
+
+/** Reserved current-item field selector for the repeated record's stable ID. */
+export const CURRENT_ITEM_ID_FIELD = '$id';
 
 /** Serializable expression used to construct action inputs in the generated app/runtime. */
 export type ValueExpression =

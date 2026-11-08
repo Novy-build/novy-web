@@ -124,6 +124,23 @@ describe('validateProject', () => {
     ]));
   });
 
+  it('accepts current item IDs only within a repeated ListView item', () => {
+    const list = makeListView('list');
+    list.children.push(makeButton('item_action'));
+    const home = makeScreen('screen_home', [list, makeButton('outside')]);
+    home.behaviors = [{ id: 'behavior', name: 'Item action', event: 'click', graphId: 'graph', targetNodeId: 'item_action' }];
+    home.logicGraphs = [{
+      id: 'graph', name: 'Item action', sourceNodeId: 'item_action',
+      nodes: [
+        { kind: 'trigger', id: 'trigger', event: 'click', position: { x: 0, y: 0 } },
+        { kind: 'action', id: 'set_id', position: { x: 100, y: 0 }, payload: { type: 'set-variable', name: 'selectedId', value: '' }, inputMappings: { value: { source: 'list-item', fieldId: '$id' } } },
+      ], edges: [{ id: 'edge', fromNodeId: 'trigger', fromPort: 'next', toNodeId: 'set_id', toPort: 'in' }],
+    }];
+    expect(validateProject(documentWith(home)).issues.map((issue) => issue.code)).not.toContain('logic-list-item-field');
+    home.logicGraphs[0]!.sourceNodeId = 'outside';
+    expect(validateProject(documentWith(home)).issues.map((issue) => issue.code)).toContain('logic-list-item-context');
+  });
+
   it('validates unique routes, action mappings, async ports, email, and refresh references', () => {
     const home = makeScreen('screen_home', [makeButton('node_button')]);
     const duplicate = makeScreen('screen_other', [], 'Other');
