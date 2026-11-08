@@ -9,6 +9,7 @@ import type {
 } from '../dto/generatedApp.dto';
 import { mapCollectionToDto, mapDatabaseToDto } from '../mappers/appData.mapper';
 import { mapProjectToDto } from '../mappers/project.mapper';
+import { mapProjectToGeneratedLayout } from './generatedLayout';
 
 interface CapabilityDefinition {
   configurationOwner: RuntimeRequirementDTO['configurationOwner'];
@@ -69,6 +70,7 @@ export function buildGeneratedAppManifest(
     manifestVersion: 1,
     generatedAt: generatedAt.toISOString(),
     project: mapProjectToDto(project),
+    layout: mapProjectToGeneratedLayout(project),
     appData: {
       database: database ? mapDatabaseToDto(database) : null,
       collections: collections.map(mapCollectionToDto),

@@ -5,6 +5,48 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-08 — Resizable split panes and canvas selection improvements
+
+#### Added
+- Added `useResizablePane` and `ResizeHandle` primitives for accessible, pointer- and
+  keyboard-driven split panes.
+- Added horizontal drag resizing to the Design, Logic, and Data side panels.
+- Added a vertical drag resize handle for the Validation pane in the Design inspector.
+- Added Backspace/Delete removal for selected Logic graph nodes, and made the trigger node
+  protected from accidental deletion.
+- Added click-away deselection when clicking the dotted Design grid or empty Logic graph
+  space.
+
+#### Changed
+- Replaced fixed sidebar widths with persisted, clamped resizable widths.
+- Removed the lightning glyph from the Behavior action in the Design selection toolbar.
+- Scoped Design keyboard shortcuts to Design mode so they no longer fire in Logic/Data mode.
+- Made Logic node and edge selection mutually exclusive for clearer keyboard deletion.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 78 test files and 608 tests passed.
+- `npm run build` — passed.
+
+### 2026-11-08 — Generated layout item-frame container projection
+
+#### Added
+- Added `GeneratedLayoutDTO`, `GeneratedLayoutNodeDTO`, and `GeneratedItemFrameDTO` to the
+  generated-app handoff contract.
+- Added `mapProjectToGeneratedLayout`, which projects screens and components into a normalized
+  layout where each ListView's repeated item frame is an explicit `container` with `role:
+  repeated-item`, stable ID, constraints, padding, spacing, radius, dividers, and template children.
+- Added `layout` to `GeneratedAppManifestDTO`, populated by `buildGeneratedAppManifest`.
+
+#### Changed
+- In the generated layout projection, ListView template children move into `itemFrame.children`;
+  the persisted Project DTO still keeps its existing `children` array and schema version 9.
+
+#### Tests
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 77 test files and 599 tests passed.
+- `npm run build` — passed.
+
 ### 2026-11-08 — Figma-like selectable item frame
 
 #### Changed

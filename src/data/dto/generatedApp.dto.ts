@@ -26,6 +26,7 @@ export interface GeneratedAppManifestDTO {
   manifestVersion: 1;
   generatedAt: string;
   project: ProjectDTO;
+  layout: GeneratedLayoutDTO;
   appData: {
     database: ProjectDatabaseDTO | null;
     collections: DataCollectionDTO[];
@@ -41,4 +42,46 @@ export interface GeneratedAppManifestDTO {
     rawMediaIncluded: false;
     biometricTemplatesIncluded: false;
   };
+}
+
+export interface GeneratedItemFrameDTO {
+  id: string;
+  kind: 'container';
+  role: 'repeated-item';
+  constraints: {
+    crossAxis: 'fill-listview';
+    mainAxis: 'hug-content';
+  };
+  padding: number;
+  itemSpacing: number;
+  itemBorderRadius: number;
+  showDividers: boolean;
+  children: readonly GeneratedLayoutNodeDTO[];
+}
+
+export interface GeneratedLayoutNodeDTO {
+  id: string;
+  type: import('./project.dto').ComponentNodeDTO['type'];
+  name?: string;
+  isHidden?: boolean;
+  isLocked?: boolean;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  appearance?: import('./project.dto').ComponentNodeDTOBase['appearance'];
+  responsive?: import('./project.dto').ComponentNodeDTOBase['responsive'];
+  bindings?: import('./project.dto').ComponentNodeDTOBase['bindings'];
+  props: Record<string, unknown>;
+  children?: readonly GeneratedLayoutNodeDTO[];
+  itemFrame?: GeneratedItemFrameDTO;
+}
+
+export interface GeneratedLayoutDTO {
+  layoutVersion: 1;
+  screens: readonly {
+    screenId: string;
+    path: string;
+    nodes: readonly GeneratedLayoutNodeDTO[];
+  }[];
 }

@@ -7,6 +7,7 @@ interface ShortcutOptions {
   canUndo?: boolean;
   canRedo?: boolean;
   selectedNodeId?: string | null;
+  isActive?: boolean;
 }
 
 function mountShortcuts(options: ShortcutOptions = {}) {
@@ -18,6 +19,7 @@ function mountShortcuts(options: ShortcutOptions = {}) {
         dispatch: actions,
         canUndo: current?.canUndo === undefined ? (options.canUndo ?? false) : current.canUndo,
         canRedo: current?.canRedo === undefined ? (options.canRedo ?? false) : current.canRedo,
+        isActive: current?.isActive === undefined ? (options.isActive ?? true) : current.isActive,
         selectedNodeId:
           current?.selectedNodeId === undefined
             ? (options.selectedNodeId === undefined ? 'node_1' : options.selectedNodeId)
@@ -110,6 +112,14 @@ describe('useEditorShortcuts', () => {
     const { actions } = mountShortcuts({ selectedNodeId: null });
 
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+
+    expect(actions).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when inactive', () => {
+    const { actions } = mountShortcuts({ isActive: false });
+
+    fireEvent.keyDown(document.body, { key: 'Delete' });
 
     expect(actions).not.toHaveBeenCalled();
   });

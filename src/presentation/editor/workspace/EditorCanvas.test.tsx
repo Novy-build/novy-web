@@ -165,6 +165,15 @@ describe('EditorCanvas', () => {
     expect(props.onSelectNode).toHaveBeenCalledWith(null);
   });
 
+  it('deselects when pressing the dotted grid outside the device frame', () => {
+    const props = canvasProps();
+    render(<EditorCanvas {...props} />);
+
+    fireEvent.pointerDown(screen.getByTestId('canvas-stage'));
+
+    expect(props.onSelectNode).toHaveBeenCalledWith(null);
+  });
+
   it('shows the snap indicator while a palette item is dragged over', () => {
     const props = canvasProps();
     render(<EditorCanvas {...props} />);
@@ -443,6 +452,9 @@ describe('EditorCanvas', () => {
     fireEvent.click(screen.getByLabelText('Delete selected component'));
     fireEvent.click(screen.getByLabelText('Duplicate selected component'));
     fireEvent.click(screen.getByLabelText('Add behavior to selected component'));
+
+    expect(screen.getByLabelText('Add behavior to selected component')).toHaveTextContent('Behavior');
+    expect(screen.getByLabelText('Add behavior to selected component')).not.toHaveTextContent('⚡');
 
     expect(props.onDeleteSelected).toHaveBeenCalledTimes(1);
     expect(props.onDuplicateSelected).toHaveBeenCalledTimes(1);

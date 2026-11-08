@@ -147,7 +147,7 @@ export function SelectionOverlay({
           Delete
         </OverlayAction>
         <OverlayAction label="Add behavior to selected component" onClick={onAddBehavior}>
-          ⚡ Behavior
+          Behavior
         </OverlayAction>
       </div>
     </>

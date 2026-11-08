@@ -31,6 +31,8 @@ import { useProjectData } from '../data/useProjectData';
 import { useProjectValidation } from '../validation/useProjectValidation';
 import { ValidationPanel } from '../validation/ValidationPanel';
 import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
+import { ResizeHandle } from '../layout/ResizeHandle';
+import { useResizablePane } from '../layout/useResizablePane';
 import type { ListItemBindingField } from './Inspector';
 import { getComponentTreeLocation } from '@domain/componentTree';
 
@@ -48,6 +50,22 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isValidationOpen, setIsValidationOpen] = useState(false);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+  const { size: inspectorWidth, isDragging: isInspectorDragging, startResize: startInspectorResize, onKeyDown: inspectorKeyDown, reset: resetInspectorWidth } = useResizablePane({
+    defaultSize: 288,
+    minSize: 240,
+    maxSize: 520,
+    orientation: 'horizontal',
+    storageKey: 'novy.editor.layout.v1.inspector',
+    grow: -1,
+  });
+  const { size: validationHeight, isDragging: isValidationDragging, startResize: startValidationResize, onKeyDown: validationKeyDown, reset: resetValidationHeight } = useResizablePane({
+    defaultSize: 200,
+    minSize: 120,
+    maxSize: 360,
+    orientation: 'vertical',
+    storageKey: 'novy.editor.layout.v1.inspector-validation',
+    grow: -1,
+  });
 
   const activeScreen = getActiveScreen(state);
   const selectedNode = state.selectedNodeId ? findNodeInScreen(activeScreen, state.selectedNodeId) : undefined;
@@ -104,6 +122,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     dispatch,
     canUndo: state.past.length > 0,
     canRedo: state.future.length > 0,
+    isActive: mode === 'design',
     isFrameSelected: state.designScope.kind === 'list-item-template' && state.selectedNodeId === state.designScope.listViewId,
     isItemDesign: state.designScope.kind === 'list-item-template',
     selectedNodeId: state.selectedNodeId,
@@ -335,59 +354,93 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
               side="right"
             />
           ) : (
-          <aside className="relative flex w-72 shrink-0 flex-col overflow-hidden border-l border-hairline bg-surface" id="design-inspector-panel">
-            <PanelCollapseButton
-              className="absolute right-0 top-0 z-30 bg-surface"
-              controls="design-inspector-panel"
-              isCollapsed={false}
-              label="inspector panel"
-              onToggle={() => setIsInspectorCollapsed(true)}
-              side="right"
-            />
-            <Inspector
-              behaviors={activeScreen.behaviors}
-              collections={projectData.collections}
-              device={state.device}
-              itemFrame={activeTemplate}
-               listItemFields={listItemFields}
-              node={selectedNode ?? null}
-              onAction={(action: EditorAction) => dispatch(action)}
-              onOpenLogic={() => setMode('logic')}
-              onEditItemTemplate={(listViewId) => dispatch({ type: 'design/item-template-open', listViewId })}
-            />
-            <div className="border-t border-hairline">
-              <button
-                aria-expanded={isValidationOpen}
-                className="flex w-full items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-muted"
-                onClick={() => setIsValidationOpen((current) => !current)}
-                type="button"
-              >
-                Validation
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${validation.isValid ? 'bg-signal-valid/10 text-signal-valid' : 'bg-signal-invalid/10 text-signal-invalid'}`}>
-                  {validation.isValid ? 'Valid' : validation.issues.filter((issue) => issue.severity === 'error').length}
-                </span>
-              </button>
-              {isValidationOpen ? <ValidationPanel onIssueSelect={(issue) => {
-                if (issue.screenId) dispatch({ type: 'screen/select', screenId: issue.screenId });
-                if (issue.componentId) dispatch({ type: 'node/select', nodeId: issue.componentId });
-              }} report={validation} /> : null}
-            </div>
-            <div className="border-t border-hairline">
-              <LayersPanel
-                frame={activeTemplate}
-                isEmbedded
-                 device={state.device}
-                  nodes={designNodes}
-                onMove={(nodeId, targetId, position) => dispatch({ type: 'node/layer-move', nodeId, targetId, position })}
-                onOrder={(nodeId, direction) => dispatch({ type: 'node/order', nodeId, direction })}
-                onRename={(nodeId, name) => dispatch({ type: 'node/layer-rename', nodeId, name })}
-                onSelect={(nodeId) => dispatch({ type: 'node/select', nodeId })}
-                onToggleLock={(nodeId) => dispatch({ type: 'node/layer-lock', nodeId })}
-                onToggleVisibility={(nodeId) => dispatch({ type: 'node/layer-visibility', nodeId })}
-                selectedNodeId={state.selectedNodeId}
+            <>
+              <ResizeHandle
+                controls="design-inspector-panel"
+                isDragging={isInspectorDragging}
+                label="Resize inspector panel"
+                max={520}
+                min={240}
+                onDoubleClick={resetInspectorWidth}
+                onKeyDown={inspectorKeyDown}
+                onPointerDown={startInspectorResize}
+                orientation="horizontal"
+                value={inspectorWidth}
               />
-            </div>
-          </aside>
+              <aside className="relative flex shrink-0 flex-col overflow-hidden border-l border-hairline bg-surface" id="design-inspector-panel" style={{ width: inspectorWidth }}>
+                <PanelCollapseButton
+                  className="absolute right-0 top-0 z-30 bg-surface"
+                  controls="design-inspector-panel"
+                  isCollapsed={false}
+                  label="inspector panel"
+                  onToggle={() => setIsInspectorCollapsed(true)}
+                  side="right"
+                />
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                  <Inspector
+                    behaviors={activeScreen.behaviors}
+                    collections={projectData.collections}
+                    device={state.device}
+                    itemFrame={activeTemplate}
+                    listItemFields={listItemFields}
+                    node={selectedNode ?? null}
+                    onAction={(action: EditorAction) => dispatch(action)}
+                    onOpenLogic={() => setMode('logic')}
+                    onEditItemTemplate={(listViewId) => dispatch({ type: 'design/item-template-open', listViewId })}
+                  />
+                </div>
+                <div className="shrink-0 border-t border-hairline">
+                  <button
+                    aria-expanded={isValidationOpen}
+                    className="flex w-full items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-muted"
+                    onClick={() => setIsValidationOpen((current) => !current)}
+                    type="button"
+                  >
+                    Validation
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${validation.isValid ? 'bg-signal-valid/10 text-signal-valid' : 'bg-signal-invalid/10 text-signal-invalid'}`}>
+                      {validation.isValid ? 'Valid' : validation.issues.filter((issue) => issue.severity === 'error').length}
+                    </span>
+                  </button>
+                  {isValidationOpen ? (
+                    <div className="flex shrink-0 flex-col overflow-hidden border-t border-hairline" style={{ height: validationHeight }}>
+                      <ResizeHandle
+                        controls="design-validation-panel"
+                        isDragging={isValidationDragging}
+                        label="Resize validation panel"
+                        max={360}
+                        min={120}
+                        onDoubleClick={resetValidationHeight}
+                        onKeyDown={validationKeyDown}
+                        onPointerDown={startValidationResize}
+                        orientation="vertical"
+                        value={validationHeight}
+                      />
+                      <div className="min-h-0 flex-1 overflow-y-auto" id="design-validation-panel">
+                        <ValidationPanel onIssueSelect={(issue) => {
+                          if (issue.screenId) dispatch({ type: 'screen/select', screenId: issue.screenId });
+                          if (issue.componentId) dispatch({ type: 'node/select', nodeId: issue.componentId });
+                        }} report={validation} />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="shrink-0 border-t border-hairline">
+                  <LayersPanel
+                    frame={activeTemplate}
+                    isEmbedded
+                    device={state.device}
+                    nodes={designNodes}
+                    onMove={(nodeId, targetId, position) => dispatch({ type: 'node/layer-move', nodeId, targetId, position })}
+                    onOrder={(nodeId, direction) => dispatch({ type: 'node/order', nodeId, direction })}
+                    onRename={(nodeId, name) => dispatch({ type: 'node/layer-rename', nodeId, name })}
+                    onSelect={(nodeId) => dispatch({ type: 'node/select', nodeId })}
+                    onToggleLock={(nodeId) => dispatch({ type: 'node/layer-lock', nodeId })}
+                    onToggleVisibility={(nodeId) => dispatch({ type: 'node/layer-visibility', nodeId })}
+                    selectedNodeId={state.selectedNodeId}
+                  />
+                </div>
+              </aside>
+            </>
           )}
         </div>
       ) : mode === 'logic' ? (

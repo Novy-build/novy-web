@@ -426,7 +426,8 @@ the typed `payload`; optional `inputMappings` override named fields at runtime.
 ### Generated-app backend handoff manifest
 
 The Deployment page can export a versioned generated-app handoff manifest. It contains the complete
-`ProjectDTO`, project database and collection schemas, routes, responsive media-query thresholds,
+`ProjectDTO`, a normalized `GeneratedLayoutDTO` that projects ListView repeated-item frames as
+explicit containers, project database and collection schemas, routes, responsive media-query thresholds,
 and inferred runtime requirements for authentication, data, email, RAG, Computer Vision, camera
 permissions, and deployment. The manifest deliberately excludes app records, secrets, raw camera
 captures, and biometric templates. It is a frontend-to-backend contract, not generated React code
@@ -513,6 +514,10 @@ Implemented component types:
 - [x] Space-drag and middle-button canvas panning.
 - [x] Responsive web viewport presets for mobile, tablet, and desktop widths.
 - [x] Independently minimizable Design, Logic, and Data side panels with narrow restore rails.
+- [x] Horizontally resizable Design, Logic, and Data side panels with persisted, clamped widths and keyboard-accessible separators.
+- [x] Vertically resizable Validation pane in the Design inspector with a persisted height.
+- [x] Backspace/Delete removes the selected Design widget or non-trigger Logic node from the keyboard.
+- [x] Clicking empty canvas or grid space clears the current selection.
 - [x] Mobile/base component geometry with optional tablet and desktop overrides.
 - [x] Breakpoint-specific visibility plus a mobile-first cascade for layout and visibility.
 - [x] Field-level responsive overrides that preserve inheritance when a breakpoint is edited.
@@ -739,7 +744,7 @@ No external AI model or AI SDK is connected.
   validation.
 - [x] RAG document/query validation plus Computer Vision media, user, and biometric-consent
   validation.
-- [x] Validation badge and issue panel in the editor.
+- [x] Validation badge and issue panel in the editor, with a vertically resizable split pane.
 - [x] Preview and deployment blocking when project validation contains errors.
 
 ## 11. Interactive preview

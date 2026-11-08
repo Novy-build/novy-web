@@ -360,6 +360,16 @@ export function EditorCanvas({
     }
   }
 
+  function handleStagePointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0 || isSpacePressedRef.current) {
+      return;
+    }
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    onSelectNode(null);
+  }
+
   function beginCanvasPan(event: ReactPointerEvent<HTMLDivElement>): void {
     if (event.button !== 1 && !isSpacePressedRef.current) {
       return;
@@ -576,6 +586,7 @@ export function EditorCanvas({
         <div
           className="min-h-full w-max min-w-full p-12"
           data-testid="canvas-stage"
+          onPointerDown={handleStagePointerDown}
           style={{
             backgroundSize: `${SNAP_GRID * zoom}px ${SNAP_GRID * zoom}px`,
             backgroundImage: isSnapEnabled

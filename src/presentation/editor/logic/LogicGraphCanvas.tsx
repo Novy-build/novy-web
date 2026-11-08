@@ -35,7 +35,8 @@ const DRAG_THRESHOLD = 4;
 interface LogicGraphCanvasProps {
   graph: LogicGraph;
   selectedNodeId: string | null;
-  onSelectNode: (nodeId: string) => void;
+  onSelectNode: (nodeId: string | null) => void;
+  onDeleteNode: (nodeId: string) => void;
   onDropLibraryNode: (node: LogicLibraryNode, position: { x: number; y: number }) => void;
   onNodeDragStart: () => void;
   onMoveNode: (nodeId: string, x: number, y: number) => void;
@@ -60,6 +61,7 @@ export function LogicGraphCanvas({
   graph,
   selectedNodeId,
   onSelectNode,
+  onDeleteNode,
   onDropLibraryNode,
   onNodeDragStart,
   onMoveNode,
@@ -77,18 +79,43 @@ export function LogicGraphCanvas({
   const [feedback, setFeedback] = useState('');
 
   useEffect(() => {
+    function isTypingTarget(target: EventTarget | null): boolean {
+      return (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      );
+    }
     function down(event: KeyboardEvent): void {
-      if (event.code === 'Space' && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)) {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+      if (event.code === 'Space') {
         spacePressed.current = true;
       }
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId) {
-        event.preventDefault();
-        onDeleteEdge(selectedEdgeId);
-        setSelectedEdgeId(null);
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (selectedEdgeId) {
+          event.preventDefault();
+          onDeleteEdge(selectedEdgeId);
+          setSelectedEdgeId(null);
+          return;
+        }
+        if (selectedNodeId) {
+          const selectedNode = graph.nodes.find((node) => node.id === selectedNodeId);
+          if (selectedNode && selectedNode.kind !== 'trigger') {
+            event.preventDefault();
+            onDeleteNode(selectedNodeId);
+            onSelectNode(null);
+          }
+          return;
+        }
       }
       if (event.key === 'Escape') {
         setConnectionSource(null);
         setConnectionPoint(null);
+        onSelectNode(null);
+        setSelectedEdgeId(null);
       }
     }
     function up(event: KeyboardEvent): void {
@@ -102,7 +129,7 @@ export function LogicGraphCanvas({
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [onDeleteEdge, selectedEdgeId]);
+  }, [graph, onDeleteEdge, onDeleteNode, onSelectNode, selectedEdgeId, selectedNodeId]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -277,6 +304,13 @@ export function LogicGraphCanvas({
       <div
         className="absolute inset-0"
         data-testid="logic-world"
+        onPointerDown={(event) => {
+          if (event.button !== 0 || spacePressed.current || event.target !== event.currentTarget) {
+            return;
+          }
+          onSelectNode(null);
+          setSelectedEdgeId(null);
+        }}
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`, transformOrigin: '0 0' }}
       >
         <svg aria-label="Logic connections" className="absolute left-0 top-0 overflow-visible" height="1" width="1">
@@ -286,7 +320,10 @@ export function LogicGraphCanvas({
               graph={graph}
               isSelected={selectedEdgeId === edge.id}
               key={edge.id}
-              onSelect={() => setSelectedEdgeId(edge.id)}
+              onSelect={() => {
+                onSelectNode(null);
+                setSelectedEdgeId(edge.id);
+              }}
             />
           ))}
           {temporaryStart && connectionPoint ? (
@@ -347,7 +384,10 @@ export function LogicGraphCanvas({
               aria-label={logicNodeTitle(node)}
               className="h-full w-full rounded-panel p-3 text-left"
               data-testid={`logic-node-${node.id}`}
-              onClick={() => onSelectNode(node.id)}
+              onClick={() => {
+                setSelectedEdgeId(null);
+                onSelectNode(node.id);
+              }}
               type="button"
             >
               <span className="block text-sm font-semibold text-ink">{logicNodeTitle(node)}</span>

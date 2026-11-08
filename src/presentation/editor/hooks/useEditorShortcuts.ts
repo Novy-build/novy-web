@@ -9,6 +9,7 @@ interface ShortcutOptions {
   canUndo: boolean;
   canRedo: boolean;
   selectedNodeId: string | null;
+  isActive?: boolean;
   isItemDesign?: boolean;
   isFrameSelected?: boolean;
 }
@@ -33,8 +34,11 @@ function isTypingInField(target: EventTarget | null): boolean {
  *   Escape            clear selection
  * Typing in form fields never triggers editor shortcuts.
  */
-export function useEditorShortcuts({ dispatch, canUndo, canRedo, selectedNodeId, isItemDesign = false, isFrameSelected = false }: ShortcutOptions): void {
+export function useEditorShortcuts({ dispatch, canUndo, canRedo, selectedNodeId, isActive = true, isItemDesign = false, isFrameSelected = false }: ShortcutOptions): void {
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
     function handleKeyDown(event: KeyboardEvent): void {
       if (isTypingInField(event.target)) {
         return;
@@ -103,7 +107,7 @@ export function useEditorShortcuts({ dispatch, canUndo, canRedo, selectedNodeId,
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [dispatch, canUndo, canRedo, selectedNodeId, isItemDesign, isFrameSelected]);
+  }, [dispatch, canUndo, canRedo, selectedNodeId, isActive, isItemDesign, isFrameSelected]);
 }
 
 const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {

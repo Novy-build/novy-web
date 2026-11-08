@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { makeButton } from '@test/editorFixtures';
 import { EditorLeftPanel } from './EditorLeftPanel';
@@ -43,5 +43,21 @@ describe('EditorLeftPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand editor sidebar' }));
     expect(screen.getByRole('tab', { name: 'layers', selected: true })).toBeInTheDocument();
+  });
+
+  it('resizes the sidebar by dragging its separator', () => {
+    renderPanel();
+
+    const handle = screen.getByRole('separator', { name: 'Resize editor sidebar' });
+    const panel = screen.getByRole('complementary', { name: /editor sidebar/i });
+    fireEvent.pointerDown(handle, { clientX: 100 });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 140 }));
+    });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('pointerup'));
+    });
+
+    expect(panel).toHaveStyle({ width: '296px' });
   });
 });

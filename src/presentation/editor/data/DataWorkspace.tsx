@@ -8,6 +8,8 @@ import { RecordDialog } from './RecordDialog';
 import { RecordsTable } from './RecordsTable';
 import type { ProjectDataController } from './useProjectData';
 import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
+import { ResizeHandle } from '../layout/ResizeHandle';
+import { useResizablePane } from '../layout/useResizablePane';
 
 type DataTab = 'schema' | 'records';
 
@@ -23,6 +25,14 @@ export function DataWorkspace({ data }: { data: ProjectDataController }) {
   const [deleteRecordTarget, setDeleteRecordTarget] = useState<DataRecord | null>(null);
   const [deleteCollectionOpen, setDeleteCollectionOpen] = useState(false);
   const [isCollectionsCollapsed, setIsCollectionsCollapsed] = useState(false);
+  const { size: collectionsWidth, isDragging: isCollectionsDragging, startResize: startCollectionsResize, onKeyDown: collectionsKeyDown, reset: resetCollectionsWidth } = useResizablePane({
+    defaultSize: 256,
+    minSize: 200,
+    maxSize: 480,
+    orientation: 'horizontal',
+    storageKey: 'novy.editor.layout.v1.data-collections',
+    grow: 1,
+  });
 
   useEffect(() => {
     if (selectedId && data.collections.some((collection) => collection.id === selectedId)) return;
@@ -101,7 +111,8 @@ export function DataWorkspace({ data }: { data: ProjectDataController }) {
           side="left"
         />
       ) : (
-      <aside className="flex w-64 shrink-0 flex-col border-r border-hairline bg-surface" aria-label="Collections" id="data-collections-panel">
+      <>
+      <aside className="flex shrink-0 flex-col border-r border-hairline bg-surface" aria-label="Collections" id="data-collections-panel" style={{ width: collectionsWidth }}>
         <div className="border-b border-hairline p-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-ink">Collections</h2>
@@ -138,6 +149,19 @@ export function DataWorkspace({ data }: { data: ProjectDataController }) {
           <Button className="mt-2" disabled={!newName.trim()} isBlock isLoading={creating} type="submit">Create collection</Button>
         </form>
       </aside>
+      <ResizeHandle
+        controls="data-collections-panel"
+        isDragging={isCollectionsDragging}
+        label="Resize collections panel"
+        max={480}
+        min={200}
+        onDoubleClick={resetCollectionsWidth}
+        onKeyDown={collectionsKeyDown}
+        onPointerDown={startCollectionsResize}
+        orientation="horizontal"
+        value={collectionsWidth}
+      />
+      </>
       )}
 
       {collection ? (

@@ -25,6 +25,7 @@ function renderCanvas(graph: LogicGraph = graphWithOrphan()) {
     onMoveNode: vi.fn(),
     onConnect: vi.fn(),
     onDeleteEdge: vi.fn(),
+    onDeleteNode: vi.fn(),
     targetLabelFor: vi.fn(() => 'Input'),
     screenNameFor: vi.fn(() => 'About'),
   };
@@ -134,6 +135,60 @@ describe('LogicGraphCanvas', () => {
     fireEvent.keyDown(window, { key: 'Delete' });
 
     expect(props.onDeleteEdge).toHaveBeenCalledWith(graph.edges[0]!.id);
+  });
+
+  it('deselects when clicking empty graph space', () => {
+    const props = renderCanvas();
+
+    fireEvent.pointerDown(screen.getByTestId('logic-world'));
+
+    expect(props.onSelectNode).toHaveBeenCalledWith(null);
+  });
+
+  it('deletes a selected action node from the keyboard', () => {
+    const graph = graphWithOrphan();
+    const action = graph.nodes[1]!;
+    const baseProps = {
+      graph,
+      selectedNodeId: action.id,
+      onSelectNode: vi.fn(),
+      onDeleteNode: vi.fn(),
+      onDropLibraryNode: vi.fn(),
+      onNodeDragStart: vi.fn(),
+      onMoveNode: vi.fn(),
+      onConnect: vi.fn(),
+      onDeleteEdge: vi.fn(),
+      targetLabelFor: vi.fn(() => 'Input'),
+      screenNameFor: vi.fn(() => 'About'),
+    };
+    render(<LogicGraphCanvas {...baseProps} />);
+
+    fireEvent.keyDown(window, { key: 'Backspace' });
+
+    expect(baseProps.onDeleteNode).toHaveBeenCalledWith(action.id);
+  });
+
+  it('does not delete a trigger node from the keyboard', () => {
+    const graph = graphWithOrphan();
+    const trigger = graph.nodes[0]!;
+    const baseProps = {
+      graph,
+      selectedNodeId: trigger.id,
+      onSelectNode: vi.fn(),
+      onDeleteNode: vi.fn(),
+      onDropLibraryNode: vi.fn(),
+      onNodeDragStart: vi.fn(),
+      onMoveNode: vi.fn(),
+      onConnect: vi.fn(),
+      onDeleteEdge: vi.fn(),
+      targetLabelFor: vi.fn(() => 'Input'),
+      screenNameFor: vi.fn(() => 'About'),
+    };
+    render(<LogicGraphCanvas {...baseProps} />);
+
+    fireEvent.keyDown(window, { key: 'Backspace' });
+
+    expect(baseProps.onDeleteNode).not.toHaveBeenCalled();
   });
 
   it('accepts node-library drops and exposes pan/zoom controls', () => {

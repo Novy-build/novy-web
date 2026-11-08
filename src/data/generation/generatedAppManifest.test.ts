@@ -93,6 +93,8 @@ describe('generated app manifest', () => {
       'email',
       'rag',
     ]);
+    expect(manifest.layout.screens[0]?.nodes).toHaveLength(1);
+    expect(manifest.layout.screens[0]?.nodes[0]?.itemFrame).toBeUndefined();
     expect(JSON.stringify(manifest)).not.toContain('data:image');
   });
 

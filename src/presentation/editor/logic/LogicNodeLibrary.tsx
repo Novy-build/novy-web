@@ -58,7 +58,7 @@ export function LogicNodeLibrary({
   }
 
   return (
-    <aside className="flex h-full min-h-0 w-64 shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface" aria-label="Logic nodes">
+    <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-surface" aria-label="Logic nodes">
       <div className="border-b border-hairline p-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink">Nodes</h2>

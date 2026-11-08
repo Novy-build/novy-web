@@ -26,6 +26,8 @@ import { LogicNodeLibrary } from './LogicNodeLibrary';
 import type { LogicLibraryNode } from './logicNodeRegistry';
 import { nodeDisplayLabel } from '../workspace/nodeLabels';
 import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
+import { ResizeHandle } from '../layout/ResizeHandle';
+import { useResizablePane } from '../layout/useResizablePane';
 
 interface LogicWorkspaceProps {
   state: EditorState;
@@ -48,6 +50,22 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
   const [libraryMessage, setLibraryMessage] = useState('');
   const [isNodesCollapsed, setIsNodesCollapsed] = useState(false);
   const [isDetailsCollapsed, setIsDetailsCollapsed] = useState(false);
+  const { size: nodesWidth, isDragging: isNodesDragging, startResize: startNodesResize, onKeyDown: nodesKeyDown, reset: resetNodesWidth } = useResizablePane({
+    defaultSize: 256,
+    minSize: 200,
+    maxSize: 480,
+    orientation: 'horizontal',
+    storageKey: 'novy.editor.layout.v1.logic-nodes',
+    grow: 1,
+  });
+  const { size: detailsWidth, isDragging: isDetailsDragging, startResize: startDetailsResize, onKeyDown: detailsKeyDown, reset: resetDetailsWidth } = useResizablePane({
+    defaultSize: 288,
+    minSize: 240,
+    maxSize: 520,
+    orientation: 'horizontal',
+    storageKey: 'novy.editor.layout.v1.logic-details',
+    grow: -1,
+  });
 
   const active = getActiveLogic(state);
   const behavior = active?.behavior ??
@@ -110,11 +128,16 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
     });
   }
 
-  function removeSelectedStep(): void {
-    if (behavior && graph && selectedNodeId) {
-      dispatch({ type: 'graph/action-delete', graphId: graph.id, nodeId: selectedNodeId });
-      setSelectedNodeId(null);
+  function removeSelectedStep(nodeId: string | null = selectedNodeId): void {
+    if (!behavior || !graph || !nodeId) {
+      return;
     }
+    const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+    if (!node || node.kind === 'trigger') {
+      return;
+    }
+    dispatch({ type: 'graph/action-delete', graphId: graph.id, nodeId });
+    setSelectedNodeId(null);
   }
 
   function removeWorkflow(): void {
@@ -173,18 +196,33 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
             side="left"
           />
         ) : (
-          <div className="min-h-0 shrink-0 self-stretch" id="logic-nodes-panel">
-            <LogicNodeLibrary
-              onAdd={addLibraryNode}
-              onCollapse={() => setIsNodesCollapsed(true)}
+          <>
+            <div className="min-h-0 shrink-0 self-stretch" id="logic-nodes-panel" style={{ width: nodesWidth }}>
+              <LogicNodeLibrary
+                onAdd={addLibraryNode}
+                onCollapse={() => setIsNodesCollapsed(true)}
+              />
+            </div>
+            <ResizeHandle
+              controls="logic-nodes-panel"
+              isDragging={isNodesDragging}
+              label="Resize nodes panel"
+              max={480}
+              min={200}
+              onDoubleClick={resetNodesWidth}
+              onKeyDown={nodesKeyDown}
+              onPointerDown={startNodesResize}
+              orientation="horizontal"
+              value={nodesWidth}
             />
-          </div>
+          </>
         )}
         <div className="relative flex min-w-0 flex-1">
           <LogicGraphCanvas
             graph={renderedGraph}
             onConnect={connectNodes}
             onDeleteEdge={(edgeId) => graph && dispatch({ type: 'graph/edge-delete', graphId: graph.id, edgeId })}
+            onDeleteNode={removeSelectedStep}
             onDropLibraryNode={addLibraryNode}
             onMoveNode={(nodeId, x, y) =>
               graph && dispatch({ type: 'graph/node-move', graphId: graph.id, nodeId, x, y })
@@ -220,32 +258,46 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
             side="right"
           />
         ) : (
-        <aside className="relative w-72 shrink-0 overflow-y-auto border-l border-hairline bg-surface p-4" id="logic-details-panel">
-          <PanelCollapseButton
-            className="absolute right-0 top-0 z-30 bg-surface"
-            controls="logic-details-panel"
-            isCollapsed={false}
-            label="details panel"
-            onToggle={() => setIsDetailsCollapsed(true)}
-            side="right"
-          />
-          <LogicNodeConfig
-            behavior={behavior}
-            collections={collections}
-            currentScreenId={screen.id}
-            node={selectedNode}
-            logicNodes={graph?.nodes ?? []}
-            listItemFields={listItemFields}
-            onConfigure={configureSelected}
-            onConfigureInputMappings={configureInputMappings}
-            onConfigureCondition={configureCondition}
-            onConfigureTrigger={configureTrigger}
-            onDeleteBehavior={removeWorkflow}
-            onRemoveSelected={removeSelectedStep}
-            screenNodes={flatNodes}
-            screens={state.document.screens.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
-          />
-        </aside>
+          <>
+            <ResizeHandle
+              controls="logic-details-panel"
+              isDragging={isDetailsDragging}
+              label="Resize details panel"
+              max={520}
+              min={240}
+              onDoubleClick={resetDetailsWidth}
+              onKeyDown={detailsKeyDown}
+              onPointerDown={startDetailsResize}
+              orientation="horizontal"
+              value={detailsWidth}
+            />
+            <aside className="relative shrink-0 overflow-y-auto border-l border-hairline bg-surface p-4" id="logic-details-panel" style={{ width: detailsWidth }}>
+              <PanelCollapseButton
+                className="absolute right-0 top-0 z-30 bg-surface"
+                controls="logic-details-panel"
+                isCollapsed={false}
+                label="details panel"
+                onToggle={() => setIsDetailsCollapsed(true)}
+                side="right"
+              />
+              <LogicNodeConfig
+                behavior={behavior}
+                collections={collections}
+                currentScreenId={screen.id}
+                node={selectedNode}
+                logicNodes={graph?.nodes ?? []}
+                listItemFields={listItemFields}
+                onConfigure={configureSelected}
+                onConfigureInputMappings={configureInputMappings}
+                onConfigureCondition={configureCondition}
+                onConfigureTrigger={configureTrigger}
+                onDeleteBehavior={removeWorkflow}
+                onRemoveSelected={removeSelectedStep}
+                screenNodes={flatNodes}
+                screens={state.document.screens.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
+              />
+            </aside>
+          </>
         )}
       </div>
     </section>
