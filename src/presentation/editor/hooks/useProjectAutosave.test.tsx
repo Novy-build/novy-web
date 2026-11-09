@@ -1,8 +1,8 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Project } from '@domain/entities/project';
 import type { ProjectDocument } from '@domain/entities/screen';
-import type { PropsWithChildren } from 'react';
+import { useState, type PropsWithChildren } from 'react';
 import { RepositoriesProvider } from '@main/providers/RepositoriesProvider';
 import { createStubRepositories, STUB_USER } from '@test/stubRepositories';
 import { makeDocument, makeScreen } from '@test/editorFixtures';
@@ -33,7 +33,8 @@ function renderSave(options: HarnessOptions = {}) {
   const repositories = createStubRepositories({ sessionUser: STUB_USER });
   const save = vi.spyOn(repositories.projects, 'saveProjectDocument').mockResolvedValue(STUB_PROJECT);
   const onBegin = vi.fn(() => undefined);
-  const onSaved = vi.fn((_savedAt: Date) => undefined);
+  const onSaved = vi.fn((_savedAt: Date, _savedDocument: ProjectDocument) => undefined);
+  const onFailed = vi.fn((_message: string) => undefined);
 
   const wrapper = ({ children }: PropsWithChildren) => (
     <RepositoriesProvider repositories={repositories}>{children}</RepositoriesProvider>
@@ -48,12 +49,13 @@ function renderSave(options: HarnessOptions = {}) {
         isSaving: current.isSaving ?? false,
         onBegin,
         onSaved,
+        onFailed,
         delayMs: current.delayMs,
       }),
     { initialProps: options, wrapper },
   );
 
-  return { save, onBegin, onSaved, rerender };
+  return { save, onBegin, onSaved, onFailed, rerender };
 }
 
 describe('useProjectAutosave', () => {
@@ -79,7 +81,7 @@ describe('useProjectAutosave', () => {
     expect(save).toHaveBeenCalledTimes(1);
     expect(save).toHaveBeenCalledWith('project_1', DOC_A);
     expect(onBegin).toHaveBeenCalledTimes(1);
-    expect(onSaved).toHaveBeenCalledWith(expect.any(Date));
+    expect(onSaved).toHaveBeenCalledWith(expect.any(Date), DOC_A);
   });
 
   it('stays idle when nothing is unsaved', async () => {
@@ -125,11 +127,42 @@ describe('useProjectAutosave', () => {
     expect(save).toHaveBeenCalledTimes(1);
   });
 
+  it('finishes an in-flight save after the saving-state rerender', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    let resolveSave: (project: Project) => void = () => undefined;
+    const save = vi.spyOn(repositories.projects, 'saveProjectDocument').mockImplementation(
+      () => new Promise<Project>((resolve) => { resolveSave = resolve; }),
+    );
+    const onBegin = vi.fn();
+    const onSaved = vi.fn();
+    const onFailed = vi.fn();
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <RepositoriesProvider repositories={repositories}>{children}</RepositoriesProvider>
+    );
+    const { rerender } = renderHook(
+      (isSaving: boolean) => useProjectAutosave({
+        projectId: 'project_1', document: DOC_A, hasUnsavedChanges: true, isSaving,
+        onBegin, onSaved, onFailed,
+      }),
+      { initialProps: false, wrapper },
+    );
+
+    await vi.advanceTimersByTimeAsync(DEFAULT_AUTOSAVE_DELAY_MS);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(onBegin).toHaveBeenCalledTimes(1);
+    rerender(true);
+    await act(async () => resolveSave(STUB_PROJECT));
+
+    expect(onSaved).toHaveBeenCalledWith(expect.any(Date), DOC_A);
+    expect(onFailed).not.toHaveBeenCalled();
+  });
+
   it('logs failures instead of pretending the save landed', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     vi.spyOn(repositories.projects, 'saveProjectDocument').mockRejectedValue(new Error('offline'));
     const onBegin = vi.fn(() => undefined);
-    const onSaved = vi.fn((_savedAt: Date) => undefined);
+    const onSaved = vi.fn((_savedAt: Date, _savedDocument: ProjectDocument) => undefined);
+    const onFailed = vi.fn((_message: string) => undefined);
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     const wrapper = ({ children }: PropsWithChildren) => (
@@ -144,6 +177,7 @@ describe('useProjectAutosave', () => {
           isSaving: false,
           onBegin,
           onSaved,
+          onFailed,
         }),
       { wrapper },
     );
@@ -152,5 +186,41 @@ describe('useProjectAutosave', () => {
 
     expect(warnSpy.mock.calls[0]?.[0]).toBe('[novy] autosave failed:');
     expect(onSaved).not.toHaveBeenCalled();
+    expect(onFailed).toHaveBeenCalledWith('offline');
+  });
+
+  it('clears the failed busy state and retries the dirty document', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const save = vi.spyOn(repositories.projects, 'saveProjectDocument')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(STUB_PROJECT);
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <RepositoriesProvider repositories={repositories}>{children}</RepositoriesProvider>
+    );
+    const lifecycle: string[] = [];
+    const { result } = renderHook(() => {
+      const [isSaving, setIsSaving] = useState(false);
+      const [hasUnsavedChanges, setHasUnsavedChanges] = useState(true);
+      useProjectAutosave({
+        projectId: 'project_1',
+        document: DOC_A,
+        hasUnsavedChanges,
+        isSaving,
+        onBegin: () => { lifecycle.push('begin'); setIsSaving(true); },
+        onSaved: () => { lifecycle.push('saved'); setIsSaving(false); setHasUnsavedChanges(false); },
+        onFailed: () => { lifecycle.push('failed'); setIsSaving(false); },
+      });
+      return { isSaving, hasUnsavedChanges };
+    }, { wrapper });
+
+    await act(async () => vi.advanceTimersByTimeAsync(DEFAULT_AUTOSAVE_DELAY_MS));
+    expect(lifecycle).toEqual(['begin', 'failed']);
+    expect(result.current).toEqual({ isSaving: false, hasUnsavedChanges: true });
+
+    await act(async () => vi.advanceTimersByTimeAsync(DEFAULT_AUTOSAVE_DELAY_MS));
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(lifecycle).toEqual(['begin', 'failed', 'begin', 'saved']);
+    expect(result.current).toEqual({ isSaving: false, hasUnsavedChanges: false });
   });
 });

@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-08
+**Last reviewed:** 2026-11-09
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app builder**. Native mobile and desktop application generation are outside the
@@ -111,7 +111,7 @@ event binding, and its referenced logic graph:
 
 ```json
 {
-  "schemaVersion": 10,
+  "schemaVersion": 11,
   "id": "project_notes",
   "name": "Notes App",
   "createdAt": "2026-11-07T08:00:00.000Z",
@@ -130,11 +130,14 @@ event binding, and its referenced logic graph:
           "y": 32,
           "w": 342,
           "h": 300,
+          "appearance": {
+            "borderStyle": "dashed"
+          },
           "props": {
             "mainAxisAlignment": "start",
             "crossAxisAlignment": "stretch",
             "gap": 16,
-            "padding": 16
+            "padding": { "mode": "all", "top": 16, "right": 16, "bottom": 16, "left": 16 }
           },
           "children": [
             {
@@ -148,7 +151,7 @@ event binding, and its referenced logic graph:
                 "mainAxisAlignment": "space-between",
                 "crossAxisAlignment": "center",
                 "gap": 12,
-                "padding": 0
+                "padding": { "mode": "all", "top": 0, "right": 0, "bottom": 0, "left": 0 }
               },
               "children": [
                 {
@@ -171,7 +174,9 @@ event binding, and its referenced logic graph:
                   },
                   "props": {
                     "label": "Open details",
-                    "variant": "solid"
+                    "variant": "solid",
+                    "icon": "arrow-right",
+                    "iconPosition": "right"
                   }
                 }
               ]
@@ -189,7 +194,7 @@ event binding, and its referenced logic graph:
                 "scrollDirection": "vertical",
                 "crossAxisAlignment": "stretch",
                  "gap": 0,
-                 "padding": 0,
+                 "padding": { "mode": "all", "top": 0, "right": 0, "bottom": 0, "left": 0 },
                  "itemSpacing": 0,
                  "itemBorderRadius": 0,
                  "dataSource": {
@@ -214,7 +219,9 @@ event binding, and its referenced logic graph:
                   ],
                   "props": {
                     "text": "Note title",
-                    "level": "body"
+                    "level": "body",
+                    "fontSize": 18,
+                    "fontWeight": "semibold"
                   }
                 },
                 {
@@ -262,7 +269,7 @@ event binding, and its referenced logic graph:
                 "scrollDirection": "vertical",
                 "crossAxisAlignment": "stretch",
                  "gap": 0,
-                 "padding": 0,
+                 "padding": { "mode": "all", "top": 0, "right": 0, "bottom": 0, "left": 0 },
                  "itemSpacing": 0,
                  "itemBorderRadius": 0,
                  "dataSource": {
@@ -432,6 +439,9 @@ event binding, and its referenced logic graph:
 - Optional typed `appearance` values are shared by editor, preview, thumbnails, and generated JSON.
   Schema-v10 adds optional `appearance.dark` background/text/border overrides. Blank dark colors
   inherit their base appearance. Older documents without these fields keep their previous colors.
+- Every appearance color field pairs its labeled hex input with a native color picker. The picker
+  normalizes shorthand hex for the swatch, while the text input continues to accept free-form CSS
+  color strings; appearance values and DTO shapes are unchanged.
 - A Dropdown with `props.presentation: "menu"` renders as an accessible actions menu and emits a
   change event containing the chosen option. Omitted presentation retains the original select.
 - A Switch with `props.controlsTheme: true` controls the previewed app's light/dark theme, without
@@ -443,6 +453,21 @@ event binding, and its referenced logic graph:
 - Container, Column, Row, and ListView widgets store nested components in `children`.
 - Container keeps free-form child coordinates. Column and Row resolve child placement from their
   main-axis alignment, cross-axis alignment, gap, padding, and child order.
+- Column, Row, and the ListView repeated-item frame persist padding as a schema-v11 `PaddingValue`
+  with Flutter-style **All**, **Symmetric**, and **Only** display modes. All four sides stay stored so
+  switching modes is non-destructive; layout math and renderers consume each side independently.
+  Container remains free-form and intentionally has no padding control.
+- Container, Column, and Row expose optional `appearance.borderStyle` (`solid`, `dashed`, or `none`)
+  in the Inspector. Omitted values preserve the existing shell defaults (Column/Row dashed,
+  Container solid); **None** hides both the frame and shell border even if a border color is saved.
+  Explicit styles without a saved border color use the theme hairline color.
+- Buttons expose an optional curated Lucide `props.icon` and `props.iconPosition` (`left` or
+  `right`). The icon is decorative (`aria-hidden`), inherits the button text color, and is omitted
+  from older saved buttons; unknown persisted icon names are ignored by the DTO mapper.
+- Text nodes expose optional `props.fontSize` (positive pixels) and `props.fontWeight`
+  (`normal`, `medium`, `semibold`, or `bold`) overrides. Omitted values fall back to the selected
+  `level` preset; custom sizes render with a proportional line height. Invalid persisted values are
+  ignored by the DTO mapper.
 - ListView repeats its `children` as one shared free-form item template for structured static items
   or collection records. Direct template children retain explicit responsive `x`, `y`, `w`, and `h`
   geometry; nested Row and Column widgets still provide internal auto-layout. A focused **Edit item
@@ -472,7 +497,7 @@ event binding, and its referenced logic graph:
   item design. The outlines reflect persisted item padding, spacing, radius, direction, and computed
   template extent without creating records; preview/runtime continues to show the configured empty
   state until real items exist. The outer dashed border is the sole item boundary; padding appears
-  as a shaded inset gutter rather than a second nested outline.
+  as shaded per-side inset gutters rather than a second nested outline.
 - Optional typed `bindings` resolve current-item fields into Text content, Image source/alt, Button
   labels, Checkbox/Switch state, Progress values, and component visibility while preserving static
   property fallbacks.
@@ -519,7 +544,7 @@ or a deployable application bundle.
 - [x] Design, Logic, and Data workspaces.
 - [x] Return-to-projects navigation.
 - [x] Inline project renaming.
-- [x] Saving, saved, and unsaved status feedback.
+- [x] Saving, saved, unsaved, and retryable save-failure status feedback.
 - [x] Project validation badge.
 - [x] Undo and redo controls.
 - [x] Preview and Deploy actions.
@@ -534,8 +559,8 @@ or a deployable application bundle.
 
 Implemented component types:
 
-- [x] Button.
-- [x] Text.
+- [x] Button with an optional curated icon and left/right icon placement.
+- [x] Text with display/title/body presets plus optional font-size and font-weight overrides.
 - [x] Text input, including text, email, password, number, and multiline options.
 - [x] Image.
 - [x] Container/frame.
@@ -571,6 +596,16 @@ Implemented component types:
 - [x] Resize components with selection handles.
 - [x] Non-wrapping selection actions positioned outside the selected component bounds.
 - [x] Position and size editing through the Inspector.
+- [x] Flutter-style All, Symmetric, and Only padding modes for Column/Row layout and ListView item
+  frames, with persisted per-side values, non-destructive mode switching, and asymmetric layout
+  math, canvas outlines, item-frame guides, and schema-v10 numeric-padding migration.
+- [x] Solid, dashed, and none border styles for Container, Column, and Row layout nodes, persisted
+  through optional `appearance.borderStyle` and rendered consistently in canvas, preview,
+  thumbnails, and generated-layout appearance data.
+- [x] Optional curated Button icons with left/right placement, decorative accessibility behavior,
+  persisted `props.icon`/`props.iconPosition`, and backward-compatible label-only defaults.
+- [x] Optional Text font-size and font-weight overrides with level-preset fallbacks, proportional
+  custom line height, persisted typography values, and invalid-value rejection at the DTO boundary.
 - [x] Duplicate and delete selected components.
 - [x] Bring components forward or send them backward.
 - [x] Nest components directly inside Container, Column, and Row widgets; edit ListView template
@@ -603,6 +638,8 @@ Implemented component types:
 - [x] Breakpoint-aware movement, resizing, addition, duplication, nested bounds, reparenting,
   rendering, preview, thumbnails, and Inspector controls.
 - [x] Typed background, text, border, corner-radius, and opacity appearance controls.
+- [x] Native color pickers beside the base and dark-theme appearance hex inputs, with shorthand
+  normalization and free-form hex editing preserved.
 - [x] Automatic refitting when the active viewport preset changes.
 - [x] Smart edge and center alignment guides.
 - [x] Optional smart snapping to nearby components and the active frame.
@@ -631,7 +668,9 @@ The viewport presets represent responsive web layouts; they do not generate nati
 
 - [x] Document-level undo and redo history.
 - [x] One history entry per drag or resize gesture.
-- [x] Debounced project autosave through the project repository.
+- [x] Debounced project autosave through the project repository. In-flight saves survive the
+  Saving-state rerender; failures clear the busy state and retry; newer edits remain dirty until
+  their own snapshot is saved.
 - [x] `Ctrl/Cmd + Z` to undo.
 - [x] `Ctrl/Cmd + Shift + Z` to redo.
 - [x] `Ctrl/Cmd + D` to duplicate.
@@ -913,10 +952,10 @@ The repository includes automated coverage for:
   canvas interactions, alignment, layers, inspector, logic, data, preview, deployment, and shared
   UI components.
 
-Verification completed on 2026-11-08:
+Verification completed on 2026-11-09:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 80 test files and 636 tests passed.
+- `npm test -- --run` — 82 test files and 682 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.

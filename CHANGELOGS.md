@@ -5,6 +5,131 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-09 — Inspector color pickers
+
+#### Added
+- Added native color pickers beside the **Background**, **Text color**, **Border color**, **Dark
+  background**, **Dark text color**, and **Dark border color** Inspector fields. The existing
+  labeled hex inputs remain, so users can type any CSS color or choose one visually.
+- Color swatches normalize shorthand hex (`#abc` → `#aabbcc`) and use a safe fallback for values the
+  native picker cannot represent. Stored appearance data and schema compatibility are unchanged.
+
+#### Tests
+- Added ColorField coverage for labeled text input, native picker output, shorthand
+  normalization, unsupported-value fallback, and free-form hex editing; added Inspector coverage
+  for base and dark-theme picker updates.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 82 test files and 682 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-09 — Text font size and weight overrides
+
+#### Added
+- Added optional **Font size (px)** and **Font weight** controls to the Text Inspector. Four weight
+  choices mirror the level presets: Normal, Medium, Semibold, and Bold.
+- Text nodes persist optional `props.fontSize` and `props.fontWeight`. Blank controls clear the
+  overrides, so display, title, and body levels keep their existing preset typography.
+- Custom sizes render with a proportional line height to avoid clipping larger text in the canvas,
+  preview, thumbnails, and generated-layout payloads.
+
+#### Tests
+- Added renderer coverage for overridden and preset typography, Inspector coverage for setting and
+  clearing both properties, mapper round-trip and invalid-value rejection, and domain weight-guard
+  coverage.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 81 test files and 677 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-09 — Button icons
+
+#### Added
+- Added a curated Lucide icon picker and **Left**/**Right** placement control to the Button
+  Inspector. The decorative icon inherits the button text color and renders beside the label in the
+  canvas, preview, thumbnails, and generated-layout payloads.
+- Persisted optional `props.icon` and `props.iconPosition` on Button nodes. Buttons saved before
+  icons keep their label-only rendering, and unknown persisted icon names are dropped at the DTO
+  boundary.
+
+#### Tests
+- Added renderer coverage for left/right decorative icons and static thumbnail rendering, Inspector
+  coverage for icon selection, placement, and removal, mapper round-trip and unknown-icon
+  validation, and domain guard coverage.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 81 test files and 672 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-09 — Layout border style controls
+
+#### Added
+- Added **Solid**, **Dashed**, and **None** border styles for Container, Column, and Row layout nodes
+  in the Inspector. The component frame and layout shell render the selected style consistently in
+  the canvas, preview, thumbnails, and generated-layout appearance data.
+- Border style is persisted as optional `appearance.borderStyle`, so older projects without the
+  field keep their existing solid/dashed layout defaults.
+
+#### Changed
+- Choosing **None** suppresses the layout border even when a border color remains saved.
+- Border styles without a saved border color use the theme hairline color, keeping dashed and solid
+  outlines visible in light and dark themes without changing stored colors.
+
+#### Tests
+- Added renderer coverage for solid/dashed/none layout frames and shells, legacy border-color-only
+  appearance, and Container shells; added Inspector coverage for layout-only controls and defaults;
+  added mapper round-trip coverage for border-style appearance values.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 81 test files and 665 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-09 — Flutter-style per-side padding controls
+
+#### Added
+- Added **All**, **Symmetric**, and **Only** padding modes to the Inspector for Column and Row
+  layout padding and ListView repeated-item padding. All four sides stay stored, so switching modes
+  never discards values.
+- Column and Row child layout, ListView item extent, focused item-design bounds, repeated-item
+  outlines, and the item-frame padding guide now resolve top/right/bottom/left independently.
+
+#### Changed
+- Project DTO schema is now version 11. Column, Row, and ListView padding serialize as
+  `{ mode, top, right, bottom, left }`; schema-v10 and older numeric padding migrates to
+  `mode: "all"` without changing saved geometry. Container remains free-form without a padding
+  control.
+- Generated-layout repeated-item padding now uses the same per-side transport shape.
+
+#### Tests
+- Added focused coverage for padding helpers, all three Inspector modes and non-destructive mode
+  switching, asymmetric Column/Row layout, asymmetric ListView extents and outlines, item-frame
+  guides, reducer bounds, validation, mapper round-trips, and schema-v10 migration.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 81 test files and 658 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-08 — Autosave no longer remains stuck on Saving
+
+#### Fixed
+- Fixed the autosave effect cancelling its own completion callback when `onBegin` changed the UI
+  to **Saving…**. Completed repository writes now transition to the saved state.
+- Save failures now exit the busy state, retain the dirty document, show an accessible
+  **Save failed — retrying…** message, and re-arm the debounced retry.
+- Autosave completion now identifies the exact document snapshot that was written. Edits made
+  while an older snapshot is saving remain unsaved and trigger a follow-up save instead of being
+  incorrectly cleared.
+- Stale save results from a previous project or an unmounted editor no longer update the active
+  editor state.
+
+#### Tests
+- Added regression coverage for the Saving-state rerender, failure recovery and retry, preserving
+  newer edits during an in-flight save, and accessible failure status.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 80 test files and 641 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
 ### 2026-11-08 — Reusable notes-app builder flows
 
 #### Added
@@ -30,7 +155,7 @@ first, and retain previous entries as project history.
 
 #### Verification
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 80 test files and 636 tests passed.
+- `npm test -- --run` — 80 test files and 636 tests passed at completion of that change.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - Representative Project JSON — parsed and behavior graph references checked.
 - `git diff --check` — passed.

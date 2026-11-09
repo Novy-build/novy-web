@@ -18,6 +18,7 @@ import type {
   SwitchNode,
   TextNode,
 } from '../entities/componentNode';
+import { createPadding } from '../entities/componentNode';
 import { generateId } from '../ids';
 
 /**
@@ -94,7 +95,7 @@ function createColumnNode(): ColumnNode {
     y: 24,
     w: 320,
     h: 240,
-    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: 16 },
+    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: createPadding(16) },
     children: [],
   };
 }
@@ -107,7 +108,7 @@ function createRowNode(): RowNode {
     y: 24,
     w: 320,
     h: 96,
-    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'center', gap: 12, padding: 16 },
+    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'center', gap: 12, padding: createPadding(16) },
     children: [],
   };
 }
@@ -126,7 +127,7 @@ function createListViewNode(): ListViewNode {
       scrollDirection: 'vertical',
       crossAxisAlignment: 'stretch',
       gap: 0,
-      padding: 12,
+      padding: createPadding(12),
       itemSpacing: 8,
       itemBorderRadius: 8,
       dataSource: {

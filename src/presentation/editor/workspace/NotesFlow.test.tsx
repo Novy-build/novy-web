@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalStorageAppDataRepository } from '@data/repositories/local/LocalStorageAppDataRepository';
 import type { DataCollection, DataRecord, DataValue } from '@domain/entities/appData';
 import type { ComponentNode } from '@domain/entities/componentNode';
+import { createPadding } from '@domain/entities/componentNode';
 import type { ActionInputMappings, ActionPayload, LogicGraph, LogicNode, LogicOutputPort, TriggerEvent } from '@domain/entities/logic';
 import { CURRENT_ITEM_ID_FIELD } from '@domain/entities/logic';
 import { createActionNode, createBehaviorBundle, createConditionNode } from '@domain/factories/logic';
@@ -43,7 +44,7 @@ function notesScreens(collection: DataCollection) {
   const column: ComponentNode = {
     id: 'card_column', type: 'column', x: 0, y: 0, w: 250, h: 80,
     appearance: { backgroundColor: '#eeeeee', dark: { backgroundColor: '#222222' } },
-    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 2, padding: 0 },
+    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 2, padding: createPadding(0) },
     children: [title, description],
   };
   const menu: ComponentNode = {
@@ -52,7 +53,7 @@ function notesScreens(collection: DataCollection) {
   };
   const list = makeListView('notes_list', {
     y: 120,
-    props: { emptyText: 'No notes yet', showDividers: false, scrollDirection: 'vertical', crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 8, itemBorderRadius: 8,
+    props: { emptyText: 'No notes yet', showDividers: false, scrollDirection: 'vertical', crossAxisAlignment: 'stretch', gap: 0, padding: createPadding(0), itemSpacing: 8, itemBorderRadius: 8,
       dataSource: { kind: 'collection', collectionId: collection.id, displayFieldIds: ['title_field'] } },
     children: [column, menu],
   });

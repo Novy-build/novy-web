@@ -1,5 +1,5 @@
 import type { DataCollection, DataFieldType, DataValue } from '../entities/appData';
-import { isChildBearingNode, type ComponentBindingTarget, type ComponentNode, type ListViewNode } from '../entities/componentNode';
+import { isChildBearingNode, isValidPadding, type ComponentBindingTarget, type ComponentNode, type ListViewNode } from '../entities/componentNode';
 import { isBindingTargetAllowed, isFieldTypeCompatible } from '../bindings/componentBindings';
 import { CURRENT_ITEM_ID_FIELD, type ActionInputMappings, type ActionPayload, type LogicGraph, type ValueExpression } from '../entities/logic';
 import { outputPortsFor, resourceInputPortsFor, resourceOutputPortsFor } from '../logic/graph';
@@ -150,14 +150,14 @@ function validateComponentProps(
       break;
     case 'column':
     case 'row':
-      if (node.props.gap < 0 || node.props.padding < 0) {
+      if (node.props.gap < 0 || !isValidPadding(node.props.padding)) {
         issues.push(issue('component-layout-spacing', 'error', 'component', 'Layout gap and padding cannot be negative.', base));
       }
       break;
     case 'listview':
       if (
         node.props.gap < 0
-        || node.props.padding < 0
+        || !isValidPadding(node.props.padding)
         || node.props.itemSpacing < 0
         || node.props.itemBorderRadius < 0
       ) {

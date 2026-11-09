@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '@domain/entities/project';
+import { createPadding } from '@domain/entities/componentNode';
 import { mapProjectToGeneratedLayout } from './generatedLayout';
 
 const project: Project = {
@@ -25,7 +26,7 @@ const project: Project = {
           scrollDirection: 'vertical',
           crossAxisAlignment: 'stretch',
           gap: 0,
-          padding: 12,
+          padding: createPadding(12),
           itemSpacing: 10,
           itemBorderRadius: 8,
           dataSource: { kind: 'static', fields: [{ id: 'title', label: 'Title', type: 'text' }], items: [] },
@@ -58,7 +59,7 @@ describe('generated layout', () => {
       kind: 'container',
       role: 'repeated-item',
       constraints: { crossAxis: 'fill-listview', mainAxis: 'hug-content' },
-      padding: 12,
+      padding: createPadding(12),
       itemSpacing: 10,
       itemBorderRadius: 8,
       showDividers: true,

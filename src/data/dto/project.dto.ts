@@ -3,6 +3,17 @@
  * and logic. Dates serialize as ISO-8601 strings over the wire.
  */
 
+import type { ButtonIconName, TextFontWeight } from '@domain/entities/componentNode';
+
+/** Schema v11 padding transport. Schema v10 and older used a single number. */
+export interface PaddingDTO {
+  mode: 'all' | 'symmetric' | 'only';
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 export interface ComponentNodeDTOBase {
   id: string;
   /** Optional for backward compatibility with documents saved before the Layers redesign. */
@@ -17,6 +28,7 @@ export interface ComponentNodeDTOBase {
     backgroundColor?: string;
     textColor?: string;
     borderColor?: string;
+    borderStyle?: 'solid' | 'dashed' | 'none';
     borderRadius?: number;
     opacity?: number;
     dark?: { backgroundColor?: string; textColor?: string; borderColor?: string };
@@ -30,7 +42,13 @@ export interface ComponentNodeDTOBase {
 
 export interface ButtonNodeDTO extends ComponentNodeDTOBase {
   type: 'button';
-  props: { label: string; variant: 'solid' | 'outline' | 'text' };
+  props: {
+    label: string;
+    variant: 'solid' | 'outline' | 'text';
+    /** Optional for backward compatibility with buttons saved before icons. */
+    icon?: ButtonIconName;
+    iconPosition?: 'left' | 'right';
+  };
 }
 
 export interface TextNodeDTO extends ComponentNodeDTOBase {
@@ -38,6 +56,9 @@ export interface TextNodeDTO extends ComponentNodeDTOBase {
   props: {
     text: string;
     level: 'display' | 'title' | 'body';
+    /** Optional pixel size override; omitted uses the level preset. */
+    fontSize?: number;
+    fontWeight?: TextFontWeight;
     dataBinding?: { source: 'list-item'; fieldId: string };
   };
 }
@@ -64,7 +85,7 @@ export interface ColumnNodeDTO extends ComponentNodeDTOBase {
     mainAxisAlignment: 'start' | 'center' | 'end' | 'space-between' | 'space-around' | 'space-evenly';
     crossAxisAlignment: 'start' | 'center' | 'end' | 'stretch';
     gap: number;
-    padding: number;
+    padding: PaddingDTO | number;
   };
   children: ComponentNodeDTO[];
 }
@@ -83,7 +104,7 @@ export interface ListViewNodeDTO extends ComponentNodeDTOBase {
     scrollDirection: 'vertical' | 'horizontal';
     crossAxisAlignment: 'start' | 'center' | 'end' | 'stretch';
     gap: number;
-    padding: number;
+    padding: PaddingDTO | number;
     /** Added in schema v8; older documents omit both item-container values. */
     itemSpacing?: number;
     itemBorderRadius?: number;

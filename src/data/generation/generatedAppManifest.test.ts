@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DataCollection, ProjectDatabase } from '@domain/entities/appData';
+import { createPadding } from '@domain/entities/componentNode';
 import type { Project } from '@domain/entities/project';
 import { buildGeneratedAppManifest, generatedAppManifestFilename } from './generatedAppManifest';
 
@@ -69,7 +70,7 @@ describe('generated app manifest', () => {
     expect(manifest).toMatchObject({
       manifestVersion: 1,
       generatedAt: '2026-11-07T12:00:00.000Z',
-      project: { schemaVersion: 10, id: 'project_notes' },
+      project: { schemaVersion: 11, id: 'project_notes' },
       appData: {
         database: { id: 'database_notes' },
         recordsIncluded: false,
@@ -109,7 +110,7 @@ describe('generated app manifest', () => {
       id: 'drafts', type: 'listview', x: 0, y: 0, w: 320, h: 160,
       props: {
         emptyText: 'No drafts', showDividers: true, scrollDirection: 'vertical',
-        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 0, itemBorderRadius: 0,
+        crossAxisAlignment: 'stretch', gap: 0, padding: createPadding(0), itemSpacing: 0, itemBorderRadius: 0,
         dataSource: {
           kind: 'static', fields: [{ id: 'title', label: 'Title', type: 'text' }], items: [],
         },

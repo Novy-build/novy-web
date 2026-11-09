@@ -7,6 +7,7 @@ function autosave(overrides: Partial<AutosaveStatus> = {}): AutosaveStatus {
     isSaving: false,
     hasUnsavedChanges: false,
     lastSavedAt: new Date('2026-01-01T10:00:00Z'),
+    error: null,
     ...overrides,
   };
 }
@@ -103,6 +104,7 @@ describe('EditorTopBar', () => {
 
   it('describes the autosave state', () => {
     expect(autosaveStatusText(autosave({ isSaving: true }), new Date())).toBe('Saving…');
+    expect(autosaveStatusText(autosave({ error: 'offline' }), new Date())).toBe('Save failed — retrying… (offline)');
     expect(autosaveStatusText(autosave({ hasUnsavedChanges: true }), new Date())).toBe('Unsaved changes');
     expect(
       autosaveStatusText(autosave({ lastSavedAt: new Date('2026-01-01T10:00:00Z') }), new Date('2026-01-01T10:04:00Z')),
@@ -110,5 +112,10 @@ describe('EditorTopBar', () => {
     expect(autosaveStatusText(autosave({ lastSavedAt: null }), new Date())).toBe(
       'Changes save automatically',
     );
+  });
+
+  it('announces autosave failures as an alert', () => {
+    renderTopBar({ saving: autosave({ error: 'offline', hasUnsavedChanges: true }) });
+    expect(screen.getByRole('alert')).toHaveTextContent('Save failed — retrying… (offline)');
   });
 });

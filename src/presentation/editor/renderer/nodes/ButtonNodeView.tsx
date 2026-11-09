@@ -1,4 +1,5 @@
 import type { ButtonProps } from '@domain/entities/componentNode';
+import { ButtonIcon } from './buttonIcons';
 
 /**
  * Visual twin of the published button widget. `renderStatic` renders a
@@ -13,9 +14,17 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
         ? 'bg-transparent text-brand-600'
         : 'bg-brand-600 text-white';
   const widgetClass = `flex h-full w-full items-center justify-center rounded-tile text-sm font-medium transition-colors ${variantClass}`;
+  const iconPosition = props.iconPosition ?? 'left';
+  const content = (
+    <span className="inline-flex min-w-0 items-center justify-center gap-2">
+      {props.icon && iconPosition === 'left' ? <ButtonIcon name={props.icon} /> : null}
+      <span className="truncate">{props.label}</span>
+      {props.icon && iconPosition === 'right' ? <ButtonIcon name={props.icon} /> : null}
+    </span>
+  );
 
   if (renderStatic) {
-    return <div className={widgetClass}>{props.label}</div>;
+    return <div className={widgetClass}>{content}</div>;
   }
 
   return (
@@ -23,7 +32,7 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
       type="button"
       className={widgetClass}
     >
-      {props.label}
+      {content}
     </button>
   );
 }

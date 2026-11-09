@@ -1,10 +1,12 @@
+import type { EdgeInsets } from '@domain/entities/componentNode';
+
 export interface ItemFrameOverlayProps {
   /** Cross-axis size of the repeated item (ListView width for vertical). */
   crossExtent: number;
   /** Computed main-axis extent of the repeated item. */
   itemExtent: number;
   /** Repeated-item padding, drawn as an inset gutter. */
-  padding: number;
+  padding: EdgeInsets;
   /** Gap between repeated items. */
   spacing: number;
   /** Corner radius of the repeated item container. */
@@ -34,17 +36,23 @@ export function ItemFrameOverlay({
 }: ItemFrameOverlayProps) {
   const vertical = direction === 'vertical';
   const safeExtent = Math.max(1, itemExtent);
-  const innerInset = Math.min(Math.max(0, padding), safeExtent / 2, Math.max(1, crossExtent) / 2);
-  const frameWidth = (vertical ? crossExtent : safeExtent) * zoom;
-  const frameHeight = (vertical ? safeExtent : crossExtent) * zoom;
+  const unscaledWidth = vertical ? crossExtent : safeExtent;
+  const unscaledHeight = vertical ? safeExtent : crossExtent;
+  const frameWidth = unscaledWidth * zoom;
+  const frameHeight = unscaledHeight * zoom;
   const radiusPx = Math.max(0, radius) * zoom;
-  const insetPx = innerInset * zoom;
+  const maxHorizontalInset = Math.max(1, unscaledWidth) / 2;
+  const maxVerticalInset = Math.max(1, unscaledHeight) / 2;
+  const leftInset = Math.min(Math.max(0, padding.left), maxHorizontalInset);
+  const rightInset = Math.min(Math.max(0, padding.right), maxHorizontalInset);
+  const topInset = Math.min(Math.max(0, padding.top), maxVerticalInset);
+  const bottomInset = Math.min(Math.max(0, padding.bottom), maxVerticalInset);
   const spacingPx = Math.max(0, spacing) * zoom;
   const ghostMainOffset = (safeExtent + Math.max(0, spacing)) * zoom;
 
-  const innerWidth = Math.max(1, frameWidth - insetPx * 2);
-  const innerHeight = Math.max(1, frameHeight - insetPx * 2);
-  const innerRadiusPx = Math.max(0, radius - innerInset) * zoom;
+  const innerWidth = Math.max(1, frameWidth - (leftInset + rightInset) * zoom);
+  const innerHeight = Math.max(1, frameHeight - (topInset + bottomInset) * zoom);
+  const innerRadiusPx = Math.max(0, radius - Math.min(leftInset, rightInset, topInset, bottomInset)) * zoom;
 
   return (
     <div
@@ -69,15 +77,15 @@ export function ItemFrameOverlay({
           width: frameWidth,
         }}
       />
-      {insetPx > 0 ? (
+      {leftInset + rightInset + topInset + bottomInset > 0 ? (
         <div
           className="absolute border border-dashed border-brand-500/70"
           data-testid="item-frame-padding"
           style={{
             borderRadius: innerRadiusPx,
             height: innerHeight,
-            left: insetPx,
-            top: insetPx,
+            left: leftInset * zoom,
+            top: topInset * zoom,
             width: innerWidth,
           }}
         />

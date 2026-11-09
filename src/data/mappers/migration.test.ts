@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { geometryAtBreakpoint } from '@domain/entities/componentNode';
+import { createPadding, geometryAtBreakpoint } from '@domain/entities/componentNode';
 import { mapProjectFromDto, mapProjectToDto } from './project.mapper';
 
 function legacyProjectDto() {
@@ -97,7 +97,7 @@ describe('project migration', () => {
     }]);
     expect(list?.type === 'listview' ? list.props.itemSpacing : null).toBe(0);
     expect(list?.type === 'listview' ? list.props.itemBorderRadius : null).toBe(0);
-    expect(mapProjectToDto(restored).schemaVersion).toBe(10);
+    expect(mapProjectToDto(restored).schemaVersion).toBe(11);
   });
 
   it('materializes schema-v8 ListView flow layouts as free-form item geometry', () => {
@@ -166,6 +166,46 @@ describe('project migration', () => {
 
     const reloaded = mapProjectFromDto(mapProjectToDto(restored));
     expect(reloaded).toEqual(restored);
+  });
+
+  it('migrates schema-v10 numeric padding to per-side padding', () => {
+    const restored = mapProjectFromDto({
+      schemaVersion: 10,
+      id: 'schema_10',
+      name: 'Schema 10',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+      screens: [{
+        id: 'screen', name: 'Home', path: '/', behaviors: [], logicGraphs: [],
+        nodes: [
+          {
+            id: 'column', type: 'column', x: 0, y: 0, w: 320, h: 240,
+            props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 8, padding: 16 },
+            children: [],
+          },
+          {
+            id: 'list', type: 'listview', x: 0, y: 260, w: 320, h: 200,
+            props: {
+              emptyText: 'Empty', showDividers: false, scrollDirection: 'vertical',
+              crossAxisAlignment: 'stretch', gap: 0, padding: 12,
+              itemSpacing: 4, itemBorderRadius: 8,
+              dataSource: { kind: 'static', fields: [], items: [] },
+            },
+            children: [],
+          },
+        ],
+      }],
+    } as never);
+
+    const [column, list] = restored.document.screens[0]!.nodes;
+    expect(column?.type === 'column' ? column.props.padding : null).toEqual(createPadding(16));
+    expect(list?.type === 'listview' ? list.props.padding : null).toEqual(createPadding(12));
+
+    const repersisted = mapProjectToDto(restored);
+    expect(repersisted.schemaVersion).toBe(11);
+    expect(repersisted.screens[0]!.nodes[0]).toMatchObject({
+      props: { padding: createPadding(16) },
+    });
   });
 
   it('migrates legacy List, Repeater, and Form widgets without dropping content or bindings', () => {
@@ -239,7 +279,7 @@ describe('project migration', () => {
     });
 
     const repersisted = mapProjectToDto(restored);
-    expect(repersisted.schemaVersion).toBe(10);
+    expect(repersisted.schemaVersion).toBe(11);
     expect(repersisted.screens[0]!.nodes.map((node) => node.type)).toEqual(['listview', 'listview', 'column']);
   });
 });

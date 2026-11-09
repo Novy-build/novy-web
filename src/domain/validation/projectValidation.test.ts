@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createPadding } from '../entities/componentNode';
 import type { DataCollection } from '../entities/appData';
 import type { ProjectDocument } from '../entities/screen';
-import { makeButton, makeListView, makeScreen, makeText } from '@test/editorFixtures';
+import { makeButton, makeColumn, makeListView, makeScreen, makeText } from '@test/editorFixtures';
 import { validateProject } from './projectValidation';
 
 function documentWith(...screens: ReturnType<typeof makeScreen>[]): ProjectDocument {
@@ -60,7 +61,7 @@ describe('validateProject', () => {
       makeListView('node_list', {
         props: {
           emptyText: 'No records', showDividers: true, scrollDirection: 'vertical',
-          crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 0, itemBorderRadius: 0,
+          crossAxisAlignment: 'stretch', gap: 0, padding: createPadding(0), itemSpacing: 0, itemBorderRadius: 0,
           dataSource: { kind: 'collection', collectionId: 'ghost', displayFieldIds: ['field'] },
         },
       }),
@@ -99,6 +100,26 @@ describe('validateProject', () => {
     const report = validateProject(documentWith(makeScreen('screen_home', [list])));
 
     expect(report.issues).toContainEqual(expect.objectContaining({ code: 'component-layout-spacing' }));
+  });
+
+  it('rejects negative per-side layout padding', () => {
+    const column = makeColumn('column', [], {
+      props: {
+        mainAxisAlignment: 'start',
+        crossAxisAlignment: 'stretch',
+        gap: 0,
+        padding: { mode: 'only', top: -1, right: 0, bottom: 0, left: 0 },
+      },
+    });
+    const list = makeListView('list', {
+      props: {
+        ...makeListView('defaults').props,
+        padding: { mode: 'only', top: 0, right: 0, bottom: -2, left: 0 },
+      },
+    });
+    const report = validateProject(documentWith(makeScreen('screen_home', [column, list])));
+
+    expect(report.issues.filter((issue) => issue.code === 'component-layout-spacing')).toHaveLength(2);
   });
 
   it('validates typed item bindings and structured static records', () => {

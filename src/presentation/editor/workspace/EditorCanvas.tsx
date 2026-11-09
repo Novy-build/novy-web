@@ -5,7 +5,7 @@ import {
   type DragEvent as ReactDragEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import type { ComponentNode, ComponentType, NodeGeometry, ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import type { ComponentNode, ComponentType, EdgeInsets, NodeGeometry, ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import { childGeometriesAtBreakpoint, geometryAtBreakpoint, isChildBearingNode, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import { findFrameAtPoint, getComponentTreeLocation, type FrameHit } from '@domain/componentTree';
@@ -65,7 +65,7 @@ interface EditorCanvasProps {
   itemFramePreview?: {
     nodeId: string;
     itemExtent: number;
-    padding: number;
+    padding: EdgeInsets;
     spacing: number;
     radius: number;
     showDividers: boolean;

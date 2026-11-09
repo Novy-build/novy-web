@@ -6,6 +6,7 @@ import { createActionNode, createBehaviorBundle } from '@domain/factories/logic'
 import { appendAction, appendCondition, connectLogicPorts, updateCondition } from '@domain/logic/graph';
 import { makeButton, makeColumn, makeListView, makeScreen, makeText } from '@test/editorFixtures';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
+import { createPadding } from '@domain/entities/componentNode';
 import { PreviewOverlay } from './PreviewOverlay';
 
 beforeEach(() => {
@@ -227,7 +228,7 @@ describe('PreviewOverlay', () => {
         scrollDirection: 'vertical',
         crossAxisAlignment: 'stretch',
         gap: 0,
-        padding: 0,
+        padding: createPadding(0),
         itemSpacing: 0,
         itemBorderRadius: 0,
         dataSource: { kind: 'collection', collectionId: 'students', displayFieldIds: ['name'] },
@@ -295,7 +296,7 @@ describe('PreviewOverlay', () => {
       y: 100,
       props: {
         emptyText: 'No students yet', showDividers: true, scrollDirection: 'vertical',
-        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 0, itemBorderRadius: 0,
+        crossAxisAlignment: 'stretch', gap: 0, padding: createPadding(0), itemSpacing: 0, itemBorderRadius: 0,
         dataSource: { kind: 'collection', collectionId: 'students', displayFieldIds: ['name'] },
       },
       children: [makeText('student_item', { props: { text: 'Student', level: 'body' }, bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'name' } }] })],
@@ -336,7 +337,7 @@ describe('PreviewOverlay', () => {
       y: 100,
       props: {
         emptyText: 'No students yet', showDividers: true, scrollDirection: 'vertical',
-        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 0, itemBorderRadius: 0,
+        crossAxisAlignment: 'stretch', gap: 0, padding: createPadding(0), itemSpacing: 0, itemBorderRadius: 0,
         dataSource: { kind: 'collection', collectionId: collection.id, displayFieldIds: ['name'] },
       },
       children: [makeText('student_item', { bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'name' } }] })],
@@ -396,7 +397,7 @@ describe('PreviewOverlay', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(createRecord).toHaveBeenCalledWith(collection.id, { title: 'Persistent note' }));
-    expect(screen.getByTestId('preview-toast')).toHaveTextContent('Record saved to project data.');
+    expect(await screen.findByTestId('preview-toast')).toHaveTextContent('Record saved to project data.');
     expect(screen.getByText(/Database actions create, update, and delete/)).toBeInTheDocument();
   });
 

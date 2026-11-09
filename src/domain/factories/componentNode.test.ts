@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createPadding } from '../entities/componentNode';
 import { createComponentNode, getDefaultNodeSize } from './componentNode';
 
 describe('createComponentNode', () => {
@@ -34,7 +35,7 @@ describe('createComponentNode', () => {
     expect(node.type).toBe('listview');
     if (node.type === 'listview') {
       expect(node.props).toMatchObject({
-        padding: 12,
+        padding: createPadding(12),
         itemSpacing: 8,
         itemBorderRadius: 8,
       });

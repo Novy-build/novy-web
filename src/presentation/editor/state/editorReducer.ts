@@ -1,5 +1,5 @@
 import type { ComponentNode, ComponentType } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isChildBearingNode, isHiddenAtBreakpoint, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isChildBearingNode, isHiddenAtBreakpoint, resolveEdgeInsets, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import { createComponentNode, getDefaultNodeSize } from '@domain/factories/componentNode';
 import { generateId } from '@domain/ids';
 import { screenPathFromName } from '@domain/factories/screen';
@@ -858,10 +858,19 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     // Autosave ----------------------------------------------------------------
     case 'autosave/begin':
-      return { ...state, isSaving: true };
+      return { ...state, isSaving: true, autosaveError: null };
 
     case 'autosave/end':
-      return { ...state, isSaving: false, hasUnsavedChanges: false, lastSavedAt: action.savedAt };
+      return {
+        ...state,
+        isSaving: false,
+        hasUnsavedChanges: action.savedDocument !== state.document,
+        lastSavedAt: action.savedAt,
+        autosaveError: null,
+      };
+
+    case 'autosave/fail':
+      return { ...state, isSaving: false, hasUnsavedChanges: true, autosaveError: action.message };
 
     // History -----------------------------------------------------------------
     case 'history/undo':
@@ -1049,13 +1058,15 @@ function childGeometryBounds(
   if (parent.type !== 'listview') {
     return { x: 0, y: 0, width: parentGeometry.w, height: parentGeometry.h };
   }
-  const padding = Math.max(0, parent.props.padding);
+  const padding = resolveEdgeInsets(parent.props.padding);
   const isVertical = parent.props.scrollDirection === 'vertical';
+  const widthExtent = isVertical ? parentGeometry.w : rootBounds.width;
+  const heightExtent = isVertical ? rootBounds.height : parentGeometry.h;
   return {
-    x: padding,
-    y: padding,
-    width: Math.max(1, (isVertical ? parentGeometry.w : rootBounds.width) - padding * 2),
-    height: Math.max(1, (isVertical ? rootBounds.height : parentGeometry.h) - padding * 2),
+    x: padding.left,
+    y: padding.top,
+    width: Math.max(1, widthExtent - padding.left - padding.right),
+    height: Math.max(1, heightExtent - padding.top - padding.bottom),
   };
 }
 

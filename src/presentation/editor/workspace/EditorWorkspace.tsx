@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useState } from 'react';
 import type { Project } from '@domain/entities/project';
 import type { ComponentNode, ComponentType, ListViewNode } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isChildBearingNode, listViewItemExtentAtBreakpoint } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isChildBearingNode, listViewItemExtentAtBreakpoint, resolveEdgeInsets } from '@domain/entities/componentNode';
 import type { DataRecord, DataValue, ListItemContext } from '@domain/entities/appData';
 import type { TriggerEvent } from '@domain/entities/logic';
 import { deviceViewport } from '../state/geometry';
@@ -115,7 +115,8 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     hasUnsavedChanges: state.hasUnsavedChanges,
     isSaving: state.isSaving,
     onBegin: () => dispatch({ type: 'autosave/begin' }),
-    onSaved: (savedAt: Date) => dispatch({ type: 'autosave/end', savedAt }),
+    onSaved: (savedAt: Date, savedDocument) => dispatch({ type: 'autosave/end', savedAt, savedDocument }),
+    onFailed: (message) => dispatch({ type: 'autosave/fail', message }),
   });
 
   useEditorShortcuts({
@@ -132,6 +133,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     isSaving: state.isSaving,
     hasUnsavedChanges: state.hasUnsavedChanges,
     lastSavedAt: state.lastSavedAt,
+    error: state.autosaveError,
   };
 
   function addFromPalette(nodeType: ComponentType): void {
@@ -284,7 +286,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
               itemFramePreview={activeTemplate ? {
                 nodeId: activeTemplate.id,
                 itemExtent: templateItemExtent,
-                padding: activeTemplate.props.padding,
+                padding: resolveEdgeInsets(activeTemplate.props.padding),
                 spacing: activeTemplate.props.itemSpacing,
                 radius: activeTemplate.props.itemBorderRadius,
                 showDividers: activeTemplate.props.showDividers,

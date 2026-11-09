@@ -4,6 +4,7 @@ import type { EditorAction } from '../state/editorState';
 import { Inspector } from './Inspector';
 import { makeButton, makeColumn, makeContainer, makeImage, makeListView, makeText } from '@test/editorFixtures';
 import type { DataCollection } from '@domain/entities/appData';
+import { createPadding } from '@domain/entities/componentNode';
 import { createComponentNode } from '@domain/factories/componentNode';
 
 const COLLECTION: DataCollection = {
@@ -89,6 +90,41 @@ describe('Inspector', () => {
     });
   });
 
+  it('adds a curated button icon and reveals its position control', () => {
+    const { onAction } = renderInspector(makeButton('node_1'));
+
+    expect(screen.queryByLabelText('Icon position')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Button icon'), { target: { value: 'check' } });
+
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-button',
+      nodeId: 'node_1',
+      props: { icon: 'check' },
+    });
+  });
+
+  it('changes the icon side and removes icon data without discarding content', () => {
+    const { onAction } = renderInspector(makeButton('node_1', {
+      props: { label: 'Save', variant: 'solid', icon: 'check', iconPosition: 'right' },
+    }));
+
+    const position = screen.getByLabelText('Icon position');
+    expect(position).toHaveValue('right');
+    fireEvent.change(position, { target: { value: 'left' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-button',
+      nodeId: 'node_1',
+      props: { iconPosition: 'left' },
+    });
+
+    fireEvent.change(screen.getByLabelText('Button icon'), { target: { value: '' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-button',
+      nodeId: 'node_1',
+      props: { icon: undefined, iconPosition: undefined },
+    });
+  });
+
   it('switches the button variant from Appearance', () => {
     const { onAction } = renderInspector(makeButton('node_1'));
 
@@ -163,6 +199,74 @@ describe('Inspector', () => {
     });
   });
 
+  it('sets base and dark appearance colors through the color pickers', () => {
+    const node = makeButton('node_1', {
+      appearance: {
+        backgroundColor: '#ffffff',
+        dark: { textColor: '#eeeeee', backgroundColor: '#123456' },
+      },
+    });
+    const { onAction } = renderInspector(node);
+
+    fireEvent.change(screen.getByLabelText('Background picker'), { target: { value: '#112233' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'node_1',
+      appearance: {
+        backgroundColor: '#112233',
+        dark: { textColor: '#eeeeee', backgroundColor: '#123456' },
+      },
+    });
+
+    fireEvent.click(screen.getByText('Dark theme colors'));
+    fireEvent.change(screen.getByLabelText('Dark background picker'), { target: { value: '#000000' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'node_1',
+      appearance: {
+        backgroundColor: '#ffffff',
+        dark: { textColor: '#eeeeee', backgroundColor: '#000000' },
+      },
+    });
+  });
+
+  it('edits the border style for Column and Row layout nodes', () => {
+    const node = makeColumn('column_1', [], {
+      appearance: { backgroundColor: '#ffffff', borderColor: '#112233' },
+    });
+    const { onAction } = renderInspector(node);
+
+    const group = screen.getByRole('group', { name: 'Border style' });
+    expect(within(group).getByRole('button', { name: 'Dashed' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(within(group).getByRole('button', { name: 'None' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'column_1',
+      appearance: { backgroundColor: '#ffffff', borderColor: '#112233', borderStyle: 'none' },
+    });
+  });
+
+  it('shows the solid border default for Container layout nodes', () => {
+    const container = makeContainer('container_1');
+    const { onAction } = renderInspector(container);
+
+    const group = screen.getByRole('group', { name: 'Border style' });
+    expect(within(group).getByRole('button', { name: 'Solid' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(within(group).getByRole('button', { name: 'Dashed' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'container_1',
+      appearance: { borderStyle: 'dashed' },
+    });
+  });
+
+  it('hides the border style control for non-layout nodes', () => {
+    renderInspector(makeText('text_1'));
+    expect(screen.queryByRole('group', { name: 'Border style' })).not.toBeInTheDocument();
+  });
+
   it('shows effective desktop geometry and resets responsive overrides', () => {
     const node = makeButton('node_1', {
       responsive: { desktop: { x: 420, y: 64, w: 240, h: 52 } },
@@ -192,6 +296,40 @@ describe('Inspector', () => {
       type: 'node/props-text',
       nodeId: 'node_1',
       props: { level: 'title' },
+    });
+  });
+
+  it('edits and clears text font size and weight overrides', () => {
+    const { onAction } = renderInspector(makeText('node_1', {
+      props: { text: 'Hello, World!', level: 'body', fontSize: 20, fontWeight: 'bold' },
+    }));
+
+    fireEvent.change(screen.getByLabelText('Font size (px)'), { target: { value: '32' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-text',
+      nodeId: 'node_1',
+      props: { fontSize: 32 },
+    });
+
+    fireEvent.change(screen.getByLabelText('Font weight'), { target: { value: 'semibold' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-text',
+      nodeId: 'node_1',
+      props: { fontWeight: 'semibold' },
+    });
+
+    fireEvent.change(screen.getByLabelText('Font size (px)'), { target: { value: '' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-text',
+      nodeId: 'node_1',
+      props: { fontSize: undefined },
+    });
+
+    fireEvent.change(screen.getByLabelText('Font weight'), { target: { value: '' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-text',
+      nodeId: 'node_1',
+      props: { fontWeight: undefined },
     });
   });
 
@@ -265,7 +403,7 @@ describe('Inspector', () => {
     expect(onAction).toHaveBeenLastCalledWith({
       type: 'node/props-listview',
       nodeId: 'list_frame',
-      props: { padding: 12 },
+      props: { padding: createPadding(12) },
     });
 
     fireEvent.change(screen.getByLabelText('Item spacing'), { target: { value: '10' } });

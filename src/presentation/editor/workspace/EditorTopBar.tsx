@@ -6,6 +6,7 @@ export interface AutosaveStatus {
   isSaving: boolean;
   hasUnsavedChanges: boolean;
   lastSavedAt: Date | null;
+  error: string | null;
 }
 
 interface EditorTopBarProps {
@@ -27,6 +28,9 @@ interface EditorTopBarProps {
 export function autosaveStatusText(saving: AutosaveStatus, now: Date): string {
   if (saving.isSaving) {
     return 'Saving…';
+  }
+  if (saving.error) {
+    return `Save failed — retrying… (${saving.error})`;
   }
   if (saving.hasUnsavedChanges) {
     return 'Unsaved changes';
@@ -126,7 +130,7 @@ export function EditorTopBar({
               {projectName}
             </button>
           )}
-          <p aria-live="polite" className="shrink-0 text-xs font-mono text-ink-muted">
+          <p aria-live="polite" className="shrink-0 text-xs font-mono text-ink-muted" role={error || saving.error ? 'alert' : 'status'}>
             {error ?? autosaveStatusText(saving, new Date())}
           </p>
           <span

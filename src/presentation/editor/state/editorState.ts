@@ -171,7 +171,8 @@ export type EditorHistoryAction = { type: 'history/undo' } | { type: 'history/re
 
 export type EditorAutosaveAction =
   | { type: 'autosave/begin' }
-  | { type: 'autosave/end'; savedAt: Date };
+  | { type: 'autosave/end'; savedAt: Date; savedDocument: ProjectDocument }
+  | { type: 'autosave/fail'; message: string };
 
 export type EditorLoadedAction = { type: 'document/set'; document: ProjectDocument };
 
@@ -213,6 +214,7 @@ export interface EditorState {
   readonly hasUnsavedChanges: boolean;
   readonly isSaving: boolean;
   readonly lastSavedAt: Date | null;
+  readonly autosaveError: string | null;
 }
 
 // ZOOM_LIMITS is re-exported from ./geometry to keep a single source of truth.
@@ -231,6 +233,7 @@ export function createEditorState(document: ProjectDocument): EditorState {
     hasUnsavedChanges: false,
     isSaving: false,
     lastSavedAt: null,
+    autosaveError: null,
   };
 }
 

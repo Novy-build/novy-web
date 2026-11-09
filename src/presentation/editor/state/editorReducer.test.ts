@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBehaviorBundle } from '@domain/factories/logic';
 import { appendAction } from '@domain/logic/graph';
 import type { Behavior, LogicGraph } from '@domain/entities/logic';
-import { geometryAtBreakpoint } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import { editorReducer } from './editorReducer';
 import { createEditorState, findNodeInScreen, getActiveScreen, type EditorState } from './editorState';
@@ -74,7 +74,7 @@ describe('ListView item design scope', () => {
             scrollDirection: 'vertical',
             crossAxisAlignment: 'stretch',
             gap: 0,
-            padding: 12,
+            padding: createPadding(12),
             itemSpacing: 8,
             itemBorderRadius: 8,
             dataSource: {
@@ -281,6 +281,43 @@ describe('ListView item design scope', () => {
     state = editorReducer(state, { type: 'node/nudge', nodeId: 'item-text', dx: 100, dy: 100 });
     expect(geometryAtBreakpoint(findNodeInScreen(getActiveScreen(state), 'item-text')!, state.device))
       .toMatchObject({ x: 208, y: 748 });
+  });
+
+  it('uses asymmetric padding for item child bounds', () => {
+    const base = listState();
+    const screen = getActiveScreen(base);
+    const list = screen.nodes[0];
+    if (list?.type !== 'listview') throw new Error('Fixture ListView is missing');
+    const state = createEditorState({
+      screens: [{
+        ...screen,
+        nodes: [{
+          ...list,
+          props: {
+            ...list.props,
+            padding: createEdgePadding({ top: 4, right: 8, bottom: 12, left: 16 }),
+          },
+        }],
+      }],
+    });
+    let opened = editorReducer(state, { type: 'design/item-template-open', listViewId: 'list' });
+    opened = editorReducer(opened, {
+      type: 'node/layout-position',
+      nodeId: 'item-text',
+      x: -100,
+      y: -100,
+    });
+    expect(geometryAtBreakpoint(findNodeInScreen(getActiveScreen(opened), 'item-text')!, opened.device))
+      .toMatchObject({ x: 16, y: 4 });
+
+    opened = editorReducer(opened, {
+      type: 'node/layout-size',
+      nodeId: 'item-text',
+      w: 500,
+      h: 300,
+    });
+    expect(geometryAtBreakpoint(findNodeInScreen(getActiveScreen(opened), 'item-text')!, opened.device))
+      .toMatchObject({ x: 16, y: 4, w: 296 });
   });
 
   it('prevents screen layers from being reparented into a ListView template', () => {
@@ -870,11 +907,12 @@ describe('layer metadata and hierarchy', () => {
 describe('autosave + chrome', () => {
   it('tracks saving lifecycle and clears the unsaved flag', () => {
     let state = editorReducer(stateAt(), { type: 'node/add', nodeType: 'text', x: 120, y: 200 });
+    const savedDocument = state.document;
     expect(state.hasUnsavedChanges).toBe(true);
     state = editorReducer(state, { type: 'autosave/begin' });
     expect(state.isSaving).toBe(true);
 
-    state = editorReducer(state, { type: 'autosave/end', savedAt: new Date('2026-01-01T10:00:00Z') });
+    state = editorReducer(state, { type: 'autosave/end', savedAt: new Date('2026-01-01T10:00:00Z'), savedDocument });
     expect(state.isSaving).toBe(false);
     expect(state.hasUnsavedChanges).toBe(false);
     expect(state.lastSavedAt?.getTime()).toBe(new Date('2026-01-01T10:00:00Z').getTime());
@@ -904,6 +942,23 @@ describe('autosave + chrome', () => {
 
     const cleared = editorReducer(positioned, { type: 'canvas/dropIndicator', position: null });
     expect(cleared.dropIndicator).toBeNull();
+  });
+
+  it('keeps newer edits dirty when an older document finishes saving', () => {
+    let state = editorReducer(stateAt(), { type: 'node/add', nodeType: 'text', x: 120, y: 200 });
+    const savedDocument = state.document;
+    state = editorReducer(state, { type: 'autosave/begin' });
+    state = editorReducer(state, { type: 'screen/add' });
+    state = editorReducer(state, { type: 'autosave/end', savedAt: new Date('2026-01-01T10:00:00Z'), savedDocument });
+    expect(state.isSaving).toBe(false);
+    expect(state.hasUnsavedChanges).toBe(true);
+  });
+
+  it('leaves failed saves dirty and exits the saving state', () => {
+    let state = editorReducer(stateAt(), { type: 'node/add', nodeType: 'text', x: 120, y: 200 });
+    state = editorReducer(state, { type: 'autosave/begin' });
+    state = editorReducer(state, { type: 'autosave/fail', message: 'offline' });
+    expect(state).toMatchObject({ isSaving: false, hasUnsavedChanges: true, autosaveError: 'offline' });
   });
 
   it('stores desktop geometry as an override without changing the mobile base', () => {

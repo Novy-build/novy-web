@@ -1,4 +1,5 @@
 import type { ButtonNode, ColumnNode, ComponentNode, ContainerNode, ImageNode, ListViewNode, TextNode } from '@domain/entities/componentNode';
+import { createPadding } from '@domain/entities/componentNode';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 
 /**
@@ -73,7 +74,7 @@ export function makeListView(id: string, overrides: Partial<ListViewNode> = {}):
       scrollDirection: 'vertical',
       crossAxisAlignment: 'stretch',
       gap: 0,
-      padding: 0,
+      padding: createPadding(0),
       itemSpacing: 8,
       itemBorderRadius: 8,
       dataSource: {
@@ -107,7 +108,7 @@ export function makeColumn(id: string, children: ComponentNode[] = [], overrides
     y: 180,
     w: 320,
     h: 260,
-    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: 16 },
+    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: createPadding(16) },
     children,
     ...overrides,
   };

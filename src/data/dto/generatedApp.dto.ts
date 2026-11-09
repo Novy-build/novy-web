@@ -1,5 +1,5 @@
 import type { ProjectDatabaseDTO, DataCollectionDTO } from './appData.dto';
-import type { ProjectDTO } from './project.dto';
+import type { PaddingDTO, ProjectDTO } from './project.dto';
 
 export type RuntimeCapabilityId =
   | 'authentication'
@@ -52,7 +52,7 @@ export interface GeneratedItemFrameDTO {
     crossAxis: 'fill-listview';
     mainAxis: 'hug-content';
   };
-  padding: number;
+  padding: PaddingDTO;
   itemSpacing: number;
   itemBorderRadius: number;
   showDividers: boolean;

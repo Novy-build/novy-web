@@ -1,7 +1,12 @@
 import {
+  createPadding,
   geometryAtBreakpoint,
+  isButtonIconName,
   isChildBearingNode,
   isHiddenAtBreakpoint,
+  isTextFontWeight,
+  normalizePadding,
+  resolveEdgeInsets,
   type ColumnNode,
   type ComponentNode,
   type ListViewDataSource,
@@ -33,7 +38,7 @@ import { normalizeLogicGraph } from '@domain/logic/graph';
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
-    schemaVersion: 10,
+    schemaVersion: 11,
     id: project.id,
     name: project.name,
     createdAt: project.createdAt.toISOString(),
@@ -128,10 +133,13 @@ function legacyListViewChildGeometries(
 ): ReadonlyMap<string, NodeGeometry> {
   const parentGeometry = geometryAtBreakpoint(parent, breakpoint);
   const direction = parent.props.scrollDirection === 'horizontal' ? 'horizontal' : 'vertical';
-  const padding = Math.max(0, parent.props.padding);
+  const padding = resolveEdgeInsets(parent.props.padding);
+  const mainStart = direction === 'vertical' ? padding.top : padding.left;
+  const crossStart = direction === 'vertical' ? padding.left : padding.top;
+  const crossEnd = direction === 'vertical' ? padding.right : padding.bottom;
   const gap = Math.max(0, parent.props.gap);
   const resolved = new Map<string, NodeGeometry>();
-  let cursor = padding;
+  let cursor = mainStart;
 
   for (const child of parent.children) {
     const geometry = geometryAtBreakpoint(child, breakpoint);
@@ -141,8 +149,8 @@ function legacyListViewChildGeometries(
     }
     const crossSize = direction === 'vertical' ? parentGeometry.w : parentGeometry.h;
     const childCross = direction === 'vertical' ? geometry.w : geometry.h;
-    const availableCross = Math.max(0, crossSize - padding * 2);
-    let crossOffset = padding;
+    const availableCross = Math.max(0, crossSize - crossStart - crossEnd);
+    let crossOffset = crossStart;
     if (parent.props.crossAxisAlignment === 'center') {
       crossOffset += Math.max(0, availableCross - childCross) / 2;
     }
@@ -230,7 +238,12 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, variant: node.props.variant },
+        props: {
+          label: node.props.label,
+          variant: node.props.variant,
+          ...(node.props.icon ? { icon: node.props.icon } : {}),
+          ...(node.props.iconPosition ? { iconPosition: node.props.iconPosition } : {}),
+        },
       };
     case 'text':
       return {
@@ -244,6 +257,10 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         props: {
           text: node.props.text,
           level: node.props.level,
+          ...(typeof node.props.fontSize === 'number' && Number.isFinite(node.props.fontSize) && node.props.fontSize > 0
+            ? { fontSize: node.props.fontSize }
+            : {}),
+          ...(isTextFontWeight(node.props.fontWeight) ? { fontWeight: node.props.fontWeight } : {}),
         },
       };
     case 'input':
@@ -365,7 +382,12 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { ...node.props },
+        props: {
+          mainAxisAlignment: node.props.mainAxisAlignment,
+          crossAxisAlignment: node.props.crossAxisAlignment,
+          gap: node.props.gap,
+          padding: node.props.padding,
+        },
         children: node.children.map(mapNodeToDto),
       };
     case 'row':
@@ -377,7 +399,12 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { ...node.props },
+        props: {
+          mainAxisAlignment: node.props.mainAxisAlignment,
+          crossAxisAlignment: node.props.crossAxisAlignment,
+          gap: node.props.gap,
+          padding: node.props.padding,
+        },
         children: node.children.map(mapNodeToDto),
       };
     case 'listview':
@@ -429,7 +456,14 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { label: dto.props.label, variant: dto.props.variant },
+        props: {
+          label: dto.props.label,
+          variant: dto.props.variant,
+          ...(isButtonIconName(dto.props.icon) ? { icon: dto.props.icon } : {}),
+          ...(dto.props.iconPosition === 'left' || dto.props.iconPosition === 'right'
+            ? { iconPosition: dto.props.iconPosition }
+            : {}),
+        },
       };
     case 'text':
       return {
@@ -451,6 +485,10 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         props: {
           text: dto.props.text,
           level: dto.props.level,
+          ...(typeof dto.props.fontSize === 'number' && Number.isFinite(dto.props.fontSize) && dto.props.fontSize > 0
+            ? { fontSize: dto.props.fontSize }
+            : {}),
+          ...(isTextFontWeight(dto.props.fontWeight) ? { fontWeight: dto.props.fontWeight } : {}),
         },
       };
     case 'input':
@@ -581,7 +619,12 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { ...dto.props },
+        props: {
+          mainAxisAlignment: dto.props.mainAxisAlignment,
+          crossAxisAlignment: dto.props.crossAxisAlignment,
+          gap: dto.props.gap,
+          padding: normalizePadding(dto.props.padding),
+        },
         children: dto.children.map(mapNodeFromDto),
       };
     case 'row':
@@ -593,7 +636,12 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { ...dto.props },
+        props: {
+          mainAxisAlignment: dto.props.mainAxisAlignment,
+          crossAxisAlignment: dto.props.crossAxisAlignment,
+          gap: dto.props.gap,
+          padding: normalizePadding(dto.props.padding),
+        },
         children: dto.children.map(mapNodeFromDto),
       };
     case 'listview':
@@ -611,7 +659,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
           scrollDirection: dto.props.scrollDirection,
           crossAxisAlignment: dto.props.crossAxisAlignment,
           gap: dto.props.gap,
-          padding: dto.props.padding,
+          padding: normalizePadding(dto.props.padding),
           itemSpacing: dto.props.itemSpacing ?? 0,
           itemBorderRadius: dto.props.itemBorderRadius ?? 0,
           dataSource: mapListViewDataSourceFromDto(dto.props.dataSource, dto.id),
@@ -683,7 +731,7 @@ function migrateLegacyListNode(
       scrollDirection: 'vertical',
       crossAxisAlignment: 'stretch',
       gap: 0,
-      padding: 0,
+      padding: createPadding(0),
       itemSpacing: 0,
       itemBorderRadius: 0,
       dataSource: source,
@@ -716,7 +764,7 @@ function migrateLegacyRepeaterNode(
       scrollDirection: 'vertical',
       crossAxisAlignment: 'stretch',
       gap: 0,
-      padding: 0,
+      padding: createPadding(0),
       itemSpacing: 0,
       itemBorderRadius: 0,
       dataSource: source,
@@ -788,7 +836,7 @@ function migrateLegacyFormNode(dto: LegacyFormNodeDTO, editor: NodeEditorMetadat
       mainAxisAlignment: 'start',
       crossAxisAlignment: 'stretch',
       gap: 12,
-      padding: 16,
+      padding: createPadding(16),
     },
     children: [title, ...fields, submit],
   };

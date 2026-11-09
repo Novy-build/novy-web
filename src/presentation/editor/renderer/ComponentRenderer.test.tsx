@@ -1,11 +1,12 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ButtonNode, CameraNode, ColumnNode, ComponentNode, ContainerNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
+import { createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
 import { ComponentRenderer } from './ComponentRenderer';
 import { CANVAS_PRESETS, ScreenFrame } from './ScreenFrame';
-import { makeListView } from '@test/editorFixtures';
+import { makeColumn, makeContainer, makeListView, makeText } from '@test/editorFixtures';
 
 const BUTTON: ButtonNode = {
   id: 'node_save',
@@ -22,6 +23,56 @@ describe('ComponentRenderer', () => {
     render(<ComponentRenderer mode="canvas" node={BUTTON} selected={false} />);
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+  });
+
+  it('renders a decorative icon on the configured side of the button label', () => {
+    const node: ButtonNode = {
+      ...BUTTON,
+      props: { ...BUTTON.props, icon: 'check' },
+    };
+    const { rerender } = render(<ComponentRenderer mode="canvas" node={node} selected={false} />);
+
+    const button = screen.getByRole('button', { name: 'Save' });
+    const icon = button.querySelector('[data-button-icon="check"]');
+    expect(button).toHaveAccessibleName('Save');
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute('aria-hidden', 'true');
+    expect(button.firstElementChild?.firstElementChild).toBe(icon);
+
+    rerender(<ComponentRenderer mode="canvas" node={{ ...node, props: { ...node.props, iconPosition: 'right' } }} selected={false} />);
+    const rightButton = screen.getByRole('button', { name: 'Save' });
+    const rightIcon = rightButton.querySelector('[data-button-icon="check"]');
+    expect(rightIcon).not.toBeNull();
+    expect(rightButton.firstElementChild?.lastElementChild).toBe(rightIcon);
+  });
+
+  it('keeps button icons in static thumbnail rendering', () => {
+    const node: ButtonNode = {
+      ...BUTTON,
+      props: { ...BUTTON.props, icon: 'mail', iconPosition: 'right' },
+    };
+    const { container } = render(<ComponentRenderer mode="thumbnail" node={node} selected={false} />);
+
+    expect(container.querySelector('button')).toBeNull();
+    expect(container.querySelector('[data-button-icon="mail"]')).not.toBeNull();
+  });
+
+  it('applies text font size and weight overrides with a proportional line height', () => {
+    const node = makeText('text_override', {
+      props: { text: 'Custom type', level: 'title', fontSize: 32, fontWeight: 'bold' },
+    });
+    const { rerender } = render(<ComponentRenderer mode="canvas" node={node} selected={false} />);
+
+    const paragraph = screen.getByText('Custom type');
+    expect(paragraph).toHaveStyle({ fontSize: '32px', fontWeight: '700', lineHeight: '1.25' });
+
+    rerender(<ComponentRenderer mode="canvas" node={makeText('text_override', {
+      props: { text: 'Custom type', level: 'title' },
+    })} selected={false} />);
+    const preset = screen.getByText('Custom type');
+    expect(preset.style.fontSize).toBe('');
+    expect(preset.style.fontWeight).toBe('');
+    expect(preset.className).toContain('text-lg');
   });
 
   it('positions nodes absolutely by geometry', () => {
@@ -64,6 +115,50 @@ describe('ComponentRenderer', () => {
 
     const frame = screen.getByRole('button', { name: 'Save' }).closest('[data-node-id]');
     expect(frame).toHaveAttribute('data-selected', 'true');
+  });
+
+  it('keeps solid borders for appearance values saved before border styles', () => {
+    const node: ButtonNode = {
+      ...BUTTON,
+      appearance: { borderColor: '#112233' },
+    };
+    const { container } = render(<ComponentRenderer mode="canvas" node={node} selected={false} />);
+
+    expect(container.querySelector('[data-node-id="node_save"]')).toHaveStyle({
+      borderColor: '#112233',
+      borderStyle: 'solid',
+      borderWidth: '1px',
+    });
+  });
+
+  it('applies dashed, solid, and none border styles to layout frames and shells', () => {
+    const column = makeColumn('border_column', [], { appearance: { borderStyle: 'dashed' } });
+    const { container, rerender } = render(<ComponentRenderer mode="canvas" node={column} selected={false} />);
+
+    const frame = (): HTMLElement => container.querySelector('[data-node-id="border_column"]') as HTMLElement;
+    const shell = (): HTMLElement => frame().querySelector('[data-layout-direction="column"]') as HTMLElement;
+
+    expect(frame()).toHaveStyle({ borderStyle: 'dashed', borderWidth: '1px' });
+    expect(shell()).toHaveStyle({ borderStyle: 'dashed' });
+
+    rerender(<ComponentRenderer mode="canvas" node={{ ...column, appearance: { borderStyle: 'solid' } }} selected={false} />);
+    expect(frame()).toHaveStyle({ borderStyle: 'solid' });
+    expect(shell()).toHaveStyle({ borderStyle: 'solid' });
+
+    rerender(<ComponentRenderer mode="canvas" node={{ ...column, appearance: { borderStyle: 'none' } }} selected={false} />);
+    expect(frame()).toHaveStyle({ borderStyle: 'none', borderWidth: '0px' });
+    expect(shell()).toHaveStyle({ borderStyle: 'none' });
+  });
+
+  it('applies border styles to Container shells', () => {
+    const node = makeContainer('border_container', [], {
+      appearance: { borderColor: '#112233', borderStyle: 'dashed' },
+    });
+    const { container } = render(<ComponentRenderer mode="canvas" node={node} selected={false} />);
+    const frame = container.querySelector('[data-node-id="border_container"]') as HTMLElement;
+
+    expect(frame).toHaveStyle({ borderColor: '#112233', borderStyle: 'dashed', borderWidth: '1px' });
+    expect(frame.firstElementChild).toHaveStyle({ borderStyle: 'dashed' });
   });
 
   it('reports clicks on the node in canvas mode', () => {
@@ -275,7 +370,7 @@ describe('ComponentRenderer', () => {
       h: 120,
       props: {
         emptyText: 'No students', showDividers: true, scrollDirection: 'vertical',
-        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 6, itemBorderRadius: 10,
+        crossAxisAlignment: 'stretch', gap: 0, padding: createPadding(0), itemSpacing: 6, itemBorderRadius: 10,
         dataSource: {
           kind: 'static',
           fields: [{ id: 'value', label: 'Value', type: 'text' }],
@@ -332,7 +427,7 @@ describe('ComponentRenderer', () => {
       y: 0,
       props: {
         ...defaults.props,
-        padding: 12,
+        padding: createPadding(12),
         itemSpacing: 10,
         itemBorderRadius: 14,
         dataSource: {
@@ -351,8 +446,11 @@ describe('ComponentRenderer', () => {
     expect(items.length).toBeGreaterThan(1);
     expect(items[0]).toHaveStyle({ borderRadius: '14px', height: '56px' });
     expect(items[0]).toHaveAttribute('data-item-padding-gutter', '12');
-    expect(items[0]?.firstElementChild).toBeNull();
-    expect((items[0] as HTMLElement).style.boxShadow).toContain('inset 0 0 0 12px');
+    expect(items[0]).toHaveAttribute('data-item-padding-top', '12');
+    expect(items[0]).toHaveAttribute('data-item-padding-right', '12');
+    expect(items[0]).toHaveAttribute('data-item-padding-bottom', '12');
+    expect(items[0]).toHaveAttribute('data-item-padding-left', '12');
+    expect(items[0]?.querySelectorAll('span')).toHaveLength(4);
     expect(screen.queryByText('No items yet')).not.toBeInTheDocument();
 
     rerender(<ComponentRenderer mode="preview" node={list} selected={false} />);
@@ -368,6 +466,7 @@ describe('ComponentRenderer', () => {
       props: {
         ...defaults.props,
         scrollDirection: 'horizontal',
+        padding: createEdgePadding({ top: 2, right: 4, bottom: 6, left: 8 }),
         dataSource: {
           kind: 'static',
           fields: [{ id: 'value', label: 'Value', type: 'text' }],
@@ -378,7 +477,12 @@ describe('ComponentRenderer', () => {
     render(<ComponentRenderer mode="canvas" node={list} selected={false} />);
 
     expect(screen.getByTestId('listview-item-outlines')).toHaveClass('flex-row');
-    expect(screen.getByTestId('listview-item-outline')).toHaveStyle({ height: '100%' });
+    const outline = screen.getByTestId('listview-item-outline');
+    expect(outline).toHaveStyle({ height: '100%' });
+    expect(outline).toHaveAttribute('data-item-padding-top', '2');
+    expect(outline).toHaveAttribute('data-item-padding-right', '4');
+    expect(outline).toHaveAttribute('data-item-padding-bottom', '6');
+    expect(outline).toHaveAttribute('data-item-padding-left', '8');
   });
 
   it('resolves collection-bound ListView items from renderer data context', () => {
@@ -396,7 +500,7 @@ describe('ComponentRenderer', () => {
       id: 'list', type: 'listview', x: 0, y: 0, w: 240, h: 160,
       props: {
         emptyText: 'No students', showDividers: true, scrollDirection: 'vertical',
-        crossAxisAlignment: 'stretch', gap: 0, padding: 0, itemSpacing: 0, itemBorderRadius: 0,
+        crossAxisAlignment: 'stretch', gap: 0, padding: createPadding(0), itemSpacing: 0, itemBorderRadius: 0,
         dataSource: { kind: 'collection', collectionId: 'students', displayFieldIds: ['name'] },
       },
       children: [{
@@ -467,7 +571,7 @@ describe('ComponentRenderer', () => {
       y: 0,
       w: 200,
       h: 60,
-      props: { mainAxisAlignment: 'end', crossAxisAlignment: 'center', gap: 8, padding: 0 },
+      props: { mainAxisAlignment: 'end', crossAxisAlignment: 'center', gap: 8, padding: createPadding(0) },
       children: [
         { ...BUTTON, id: 'row_first', x: 0, y: 0, w: 100, h: 44, props: { label: 'First', variant: 'solid' } },
         { ...BUTTON, id: 'row_second', x: 0, y: 0, w: 100, h: 44, props: { label: 'Second', variant: 'outline' } },
@@ -475,7 +579,7 @@ describe('ComponentRenderer', () => {
     };
     const column: ColumnNode = {
       id: 'node_column', type: 'column', x: 0, y: 0, w: 320, h: 180,
-      props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: 16 },
+      props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: createPadding(16) },
       children: [
         { id: 'column_title', type: 'text', x: 0, y: 0, w: 120, h: 28, props: { text: 'Contact us', level: 'title' } },
         row,

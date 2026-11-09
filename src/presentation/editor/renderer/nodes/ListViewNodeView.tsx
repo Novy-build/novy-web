@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { DataRecord, DataValue, ListItemContext } from '@domain/entities/appData';
-import type { ListViewProps } from '@domain/entities/componentNode';
+import { resolveEdgeInsets, type ListViewProps } from '@domain/entities/componentNode';
 import type { RendererDataContext, RendererMode } from '../renderer';
 
 interface ListViewNodeViewProps {
@@ -136,9 +136,24 @@ function ListViewItemOutlines({
   const isVertical = props.scrollDirection === 'vertical';
   const spacing = Math.max(0, props.itemSpacing);
   const radius = Math.max(0, props.itemBorderRadius);
-  const padding = Math.max(0, props.padding);
+  const padding = resolveEdgeInsets(props.padding);
   const safeItemExtent = Math.max(1, itemExtent);
-  const innerInset = Math.min(padding, safeItemExtent / 2, Math.max(1, crossExtent) / 2);
+  const maxMainInset = safeItemExtent / 2;
+  const maxCrossInset = Math.max(1, crossExtent) / 2;
+  const insets = isVertical
+    ? {
+        top: Math.min(padding.top, maxMainInset),
+        right: Math.min(padding.right, maxCrossInset),
+        bottom: Math.min(padding.bottom, maxMainInset),
+        left: Math.min(padding.left, maxCrossInset),
+      }
+    : {
+        top: Math.min(padding.top, maxCrossInset),
+        right: Math.min(padding.right, maxMainInset),
+        bottom: Math.min(padding.bottom, maxCrossInset),
+        left: Math.min(padding.left, maxMainInset),
+      };
+  const largestInset = Math.max(insets.top, insets.right, insets.bottom, insets.left);
   const count = Math.min(
     6,
     Math.max(1, Math.ceil((Math.max(1, viewportExtent) + spacing) / (safeItemExtent + spacing))),
@@ -156,7 +171,11 @@ function ListViewItemOutlines({
       {Array.from({ length: count }, (_, index) => (
         <div
           className="relative shrink-0 border border-dashed border-brand-500/60 bg-brand-500/[0.03]"
-          data-item-padding-gutter={innerInset}
+          data-item-padding-bottom={insets.bottom}
+          data-item-padding-gutter={largestInset}
+          data-item-padding-left={insets.left}
+          data-item-padding-right={insets.right}
+          data-item-padding-top={insets.top}
           data-testid="listview-item-outline"
           key={index}
           style={isVertical
@@ -164,19 +183,18 @@ function ListViewItemOutlines({
                 width: '100%',
                 height: safeItemExtent,
                 borderRadius: radius,
-                boxShadow: innerInset > 0
-                  ? `inset 0 0 0 ${innerInset}px rgba(111, 111, 251, 0.08)`
-                  : undefined,
               }
             : {
                 width: safeItemExtent,
                 height: '100%',
                 borderRadius: radius,
-                boxShadow: innerInset > 0
-                  ? `inset 0 0 0 ${innerInset}px rgba(111, 111, 251, 0.08)`
-                  : undefined,
               }}
-        />
+        >
+          {insets.top > 0 ? <span className="pointer-events-none absolute left-0 right-0 top-0 bg-brand-500/[0.08]" style={{ height: insets.top }} /> : null}
+          {insets.bottom > 0 ? <span className="pointer-events-none absolute bottom-0 left-0 right-0 bg-brand-500/[0.08]" style={{ height: insets.bottom }} /> : null}
+          {insets.left > 0 ? <span className="pointer-events-none absolute bottom-0 left-0 top-0 bg-brand-500/[0.08]" style={{ width: insets.left }} /> : null}
+          {insets.right > 0 ? <span className="pointer-events-none absolute bottom-0 right-0 top-0 bg-brand-500/[0.08]" style={{ width: insets.right }} /> : null}
+        </div>
       ))}
     </div>
   );

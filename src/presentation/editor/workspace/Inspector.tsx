@@ -12,7 +12,7 @@ import type {
   ResponsiveBreakpoint,
   StaticListViewItem,
 } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isButtonIconName, isTextFontWeight } from '@domain/entities/componentNode';
 import type { DataCollection, DataFieldType, DataValue } from '@domain/entities/appData';
 import { bindingTargetsForComponent, isFieldTypeCompatible } from '@domain/bindings/componentBindings';
 import type { Behavior } from '@domain/entities/logic';
@@ -21,6 +21,10 @@ import { Modal } from '@presentation/components/system/Modal';
 import { generateId } from '@domain/ids';
 import type { EditorAction } from '../state/editorState';
 import { NODE_TYPE_LABELS } from './nodeLabels';
+import { PaddingField } from './PaddingField';
+import { ColorField } from './ColorField';
+import { BUTTON_ICON_OPTIONS } from '../renderer/nodes/buttonIcons';
+import { TEXT_FONT_WEIGHT_OPTIONS } from '../renderer/nodes/textTypography';
 import { TRIGGER_EVENT_LABELS } from '../logic/behaviorLabels';
 
 interface InspectorProps {
@@ -164,6 +168,8 @@ export function Inspector({
 
   const node: ComponentNode = candidate;
   const effectiveGeometry = geometryAtBreakpoint(node, device);
+  const isLayoutNode = node.type === 'container' || node.type === 'column' || node.type === 'row';
+  const layoutBorderStyle = node.appearance?.borderStyle ?? (node.type === 'container' ? 'solid' : 'dashed');
   const listViewCollectionSource = node.type === 'listview' && node.props.dataSource.kind === 'collection'
     ? node.props.dataSource
     : null;
@@ -205,7 +211,7 @@ export function Inspector({
       <h2 className="text-sm font-semibold text-ink">{NODE_TYPE_LABELS[node.type]}</h2>
 
       {node.type === 'button' ? (
-        <div className="mt-4">
+        <div className="mt-4 grid gap-3">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
           <TextInput
             label="Button label"
@@ -213,6 +219,45 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-button', nodeId: node.id, props: { label: event.target.value } })}
             value={node.props.label}
           />
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-button-icon">Button icon</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-button-icon"
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!value) {
+                onAction({ type: 'node/props-button', nodeId: node.id, props: { icon: undefined, iconPosition: undefined } });
+                return;
+              }
+              if (isButtonIconName(value)) {
+                onAction({ type: 'node/props-button', nodeId: node.id, props: { icon: value } });
+              }
+            }}
+            value={node.props.icon ?? ''}
+          >
+            <option value="">No icon</option>
+            {BUTTON_ICON_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          {node.props.icon ? (
+            <>
+              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-button-icon-position">Icon position</label>
+              <select
+                className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+                id="inspector-button-icon-position"
+                onChange={(event) => onAction({
+                  type: 'node/props-button',
+                  nodeId: node.id,
+                  props: { iconPosition: event.target.value === 'right' ? 'right' : 'left' },
+                })}
+                value={node.props.iconPosition ?? 'left'}
+              >
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -225,6 +270,52 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-text', nodeId: node.id, props: { text: event.target.value } })}
             value={node.props.text}
           />
+          <div className="grid grid-cols-2 gap-2">
+            <TextInput
+              label="Font size (px)"
+              max={200}
+              min={8}
+              name="inspector-text-font-size"
+              onChange={(event) => {
+                const raw = event.target.value;
+                if (raw.trim().length === 0) {
+                  onAction({ type: 'node/props-text', nodeId: node.id, props: { fontSize: undefined } });
+                  return;
+                }
+                const parsed = Number(raw);
+                if (Number.isFinite(parsed) && parsed > 0) {
+                  onAction({ type: 'node/props-text', nodeId: node.id, props: { fontSize: parsed } });
+                }
+              }}
+              placeholder="Level preset"
+              step={1}
+              type="number"
+              value={node.props.fontSize ?? ''}
+            />
+            <label className="grid gap-1 text-xs font-medium text-ink-muted">
+              Font weight
+              <select
+                className="h-10 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!value) {
+                    onAction({ type: 'node/props-text', nodeId: node.id, props: { fontWeight: undefined } });
+                    return;
+                  }
+                  if (isTextFontWeight(value)) {
+                    onAction({ type: 'node/props-text', nodeId: node.id, props: { fontWeight: value } });
+                  }
+                }}
+                value={node.props.fontWeight ?? ''}
+              >
+                <option value="">Level preset</option>
+                {TEXT_FONT_WEIGHT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="text-xs text-ink-muted">Blank values use the selected text level preset.</p>
         </div>
       ) : null}
 
@@ -368,18 +459,14 @@ export function Inspector({
             type="number"
             value={node.props.gap}
           />
-          <TextInput
+          <PaddingField
             label="Padding"
-            name="inspector-layout-padding"
-            onChange={(event) => {
-              const parsed = Number(event.target.value);
-              if (Number.isFinite(parsed)) onAction({
-                type: node.type === 'column' ? 'node/props-column' : 'node/props-row',
-                nodeId: node.id,
-                props: { padding: Math.max(0, parsed) },
-              });
-            }}
-            type="number"
+            namePrefix="inspector-layout-padding"
+            onChange={(padding) => onAction({
+              type: node.type === 'column' ? 'node/props-column' : 'node/props-row',
+              nodeId: node.id,
+              props: { padding },
+            })}
             value={node.props.padding}
           />
           <p className="text-xs text-ink-muted">
@@ -830,24 +917,24 @@ export function Inspector({
       <div className="mt-6">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Appearance</p>
         <div className="mb-3 grid grid-cols-2 gap-2">
-          <TextInput
+          <ColorField
             label="Background"
             name="inspector-appearance-background"
-            onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, backgroundColor: event.target.value || undefined } })}
+            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, backgroundColor: value || undefined } })}
             placeholder="#ffffff"
             value={node.appearance?.backgroundColor ?? ''}
           />
-          <TextInput
+          <ColorField
             label="Text color"
             name="inspector-appearance-text"
-            onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, textColor: event.target.value || undefined } })}
+            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, textColor: value || undefined } })}
             placeholder="#111827"
             value={node.appearance?.textColor ?? ''}
           />
-          <TextInput
+          <ColorField
             label="Border color"
             name="inspector-appearance-border"
-            onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, borderColor: event.target.value || undefined } })}
+            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, borderColor: value || undefined } })}
             placeholder="#d1d5db"
             value={node.appearance?.borderColor ?? ''}
           />
@@ -862,6 +949,25 @@ export function Inspector({
             value={node.appearance?.borderRadius ?? 0}
           />
         </div>
+        {isLayoutNode ? (
+          <div className="mb-3">
+            <p className="mb-2 text-xs font-medium text-ink-muted">Border style</p>
+            <SegmentedControl
+              ariaLabel="Border style"
+              onChange={(borderStyle) => onAction({
+                type: 'node/appearance',
+                nodeId: node.id,
+                appearance: { ...node.appearance, borderStyle },
+              })}
+              options={[
+                { value: 'solid', label: 'Solid' },
+                { value: 'dashed', label: 'Dashed' },
+                { value: 'none', label: 'None' },
+              ]}
+              value={layoutBorderStyle}
+            />
+          </div>
+        ) : null}
         <details className="mb-3 rounded-tile border border-hairline p-2">
           <summary className="cursor-pointer text-xs font-medium text-ink">Dark theme colors</summary>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -870,13 +976,13 @@ export function Inspector({
               ['textColor', 'Dark text color'],
               ['borderColor', 'Dark border color'],
             ] as const).map(([key, label]) => (
-              <TextInput
+              <ColorField
                 key={key}
                 label={label}
                 name={`inspector-dark-${key}`}
-                onChange={(event) => {
+                onChange={(value) => {
                   const dark = { ...node.appearance?.dark };
-                  if (event.target.value) dark[key] = event.target.value;
+                  if (value) dark[key] = value;
                   else delete dark[key];
                   const hasColors = Object.keys(dark).length > 0;
                   onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, dark: hasColors ? dark : undefined } });
@@ -1099,14 +1205,10 @@ function ItemFrameSection({
     <div className="mb-4 rounded-tile border border-hairline p-3">
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Item frame</p>
       <p className="mb-2 text-xs text-ink-muted">Applies to every repeated item.</p>
-      <TextInput
+      <PaddingField
         label="Item padding"
-        name="inspector-item-frame-padding"
-        onChange={(event) => {
-          const parsed = Number(event.target.value);
-          if (Number.isFinite(parsed)) onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { padding: Math.max(0, parsed) } });
-        }}
-        type="number"
+        namePrefix="inspector-item-frame-padding"
+        onChange={(padding) => onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { padding } })}
         value={itemFrame.props.padding}
       />
       <TextInput

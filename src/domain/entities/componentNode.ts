@@ -26,14 +26,64 @@ export type ComponentType =
   | 'divider'
   | 'camera';
 
+/**
+ * Curated Lucide icon names available to Button widgets. Keeping the set
+ * explicit preserves a stable persisted vocabulary and bounds the renderer
+ * bundle to icons the editor actually offers.
+ */
+export const BUTTON_ICON_NAMES = [
+  'arrow-left',
+  'arrow-right',
+  'calendar',
+  'check',
+  'download',
+  'external-link',
+  'heart',
+  'mail',
+  'pencil',
+  'play',
+  'plus',
+  'save',
+  'search',
+  'share',
+  'shopping-cart',
+  'trash',
+  'upload',
+  'user',
+] as const;
+
+export type ButtonIconName = (typeof BUTTON_ICON_NAMES)[number];
+
+export type ButtonIconPosition = 'left' | 'right';
+
+export function isButtonIconName(value: unknown): value is ButtonIconName {
+  return typeof value === 'string' && (BUTTON_ICON_NAMES as readonly string[]).includes(value);
+}
+
 export interface ButtonProps {
   label: string;
   variant: 'solid' | 'outline' | 'text';
+  /** Optional decorative icon rendered beside the label. */
+  icon?: ButtonIconName;
+  /** Omitted defaults to left, matching the icon picker's initial state. */
+  iconPosition?: ButtonIconPosition;
 }
 
 export interface TextProps {
   text: string;
   level: 'display' | 'title' | 'body';
+  /** Optional pixel size override; omitted uses the level preset. */
+  fontSize?: number;
+  /** Optional weight override; omitted uses the level preset. */
+  fontWeight?: TextFontWeight;
+}
+
+export const TEXT_FONT_WEIGHTS = ['normal', 'medium', 'semibold', 'bold'] as const;
+
+export type TextFontWeight = (typeof TEXT_FONT_WEIGHTS)[number];
+
+export function isTextFontWeight(value: unknown): value is TextFontWeight {
+  return typeof value === 'string' && (TEXT_FONT_WEIGHTS as readonly string[]).includes(value);
 }
 
 export interface InputProps {
@@ -63,11 +113,107 @@ export type MainAxisAlignment =
 
 export type CrossAxisAlignment = 'start' | 'center' | 'end' | 'stretch';
 
+export type PaddingMode = 'all' | 'symmetric' | 'only';
+
+/** Per-side resolved padding in canvas pixels. */
+export interface EdgeInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/**
+ * Flutter-style padding configuration. All four sides stay stored so
+ * switching between All, Symmetric, and Only never discards values.
+ */
+export interface PaddingValue extends EdgeInsets {
+  mode: PaddingMode;
+}
+
+function normalizePaddingSide(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function inferPaddingMode(edges: EdgeInsets): PaddingMode {
+  if (edges.top === edges.right && edges.right === edges.bottom && edges.bottom === edges.left) {
+    return 'all';
+  }
+  if (edges.top === edges.bottom && edges.left === edges.right) {
+    return 'symmetric';
+  }
+  return 'only';
+}
+
+export function createPadding(all: number): PaddingValue {
+  const value = normalizePaddingSide(all);
+  return { mode: 'all', top: value, right: value, bottom: value, left: value };
+}
+
+export function createSymmetricPadding(vertical: number, horizontal: number): PaddingValue {
+  const verticalValue = normalizePaddingSide(vertical);
+  const horizontalValue = normalizePaddingSide(horizontal);
+  return {
+    mode: 'symmetric',
+    top: verticalValue,
+    right: horizontalValue,
+    bottom: verticalValue,
+    left: horizontalValue,
+  };
+}
+
+export function createEdgePadding(edges: Partial<EdgeInsets> & { mode?: PaddingMode } = {}): PaddingValue {
+  const resolved: EdgeInsets = {
+    top: normalizePaddingSide(edges.top ?? 0),
+    right: normalizePaddingSide(edges.right ?? 0),
+    bottom: normalizePaddingSide(edges.bottom ?? 0),
+    left: normalizePaddingSide(edges.left ?? 0),
+  };
+  return { mode: edges.mode ?? inferPaddingMode(resolved), ...resolved };
+}
+
+/**
+ * Accepts legacy numeric padding (schema v10 and older) as well as partial
+ * desktop payloads. Returns a complete, non-negative padding value.
+ */
+export function normalizePadding(value: number | Partial<PaddingValue> | undefined): PaddingValue {
+  if (typeof value === 'number') return createPadding(value);
+  if (!value) return createPadding(0);
+  const resolved: EdgeInsets = {
+    top: normalizePaddingSide(value.top ?? 0),
+    right: normalizePaddingSide(value.right ?? 0),
+    bottom: normalizePaddingSide(value.bottom ?? 0),
+    left: normalizePaddingSide(value.left ?? 0),
+  };
+  const mode = value.mode === 'all' || value.mode === 'symmetric' || value.mode === 'only'
+    ? value.mode
+    : inferPaddingMode(resolved);
+  return { mode, ...resolved };
+}
+
+export function resolveEdgeInsets(value: number | Partial<PaddingValue> | undefined): EdgeInsets {
+  const normalized = normalizePadding(value);
+  return {
+    top: normalized.top,
+    right: normalized.right,
+    bottom: normalized.bottom,
+    left: normalized.left,
+  };
+}
+
+export function isValidPadding(value: number | Partial<PaddingValue> | undefined): boolean {
+  if (typeof value === 'number') return Number.isFinite(value) && value >= 0;
+  if (!value) return true;
+  return [value.top, value.right, value.bottom, value.left].every(
+    (side) => side === undefined || (Number.isFinite(side) && side >= 0),
+  );
+}
+
 export interface LinearLayoutProps {
   mainAxisAlignment: MainAxisAlignment;
   crossAxisAlignment: CrossAxisAlignment;
   gap: number;
-  padding: number;
+  padding: PaddingValue;
 }
 
 export interface ColumnProps extends LinearLayoutProps {}
@@ -105,7 +251,7 @@ export interface ListViewProps {
   /** Gap between root widgets inside one repeated item template. */
   gap: number;
   /** Inset between an item's outer bounds and its template widgets. */
-  padding: number;
+  padding: PaddingValue;
   /** Gap between repeated item containers. */
   itemSpacing: number;
   /** Corner radius applied to each repeated item container. */
@@ -174,11 +320,16 @@ export interface NodeGeometry {
 
 export type ResponsiveBreakpoint = 'mobile' | 'tablet' | 'desktop';
 
+/** Persisted outline style for layout frames. */
+export type ComponentBorderStyle = 'solid' | 'dashed' | 'none';
+
 /** Typed, provider-agnostic visual overrides persisted with a component. */
 export interface ComponentAppearance {
   backgroundColor?: string;
   textColor?: string;
   borderColor?: string;
+  /** Omitted keeps the existing solid-if-colored border behavior. */
+  borderStyle?: ComponentBorderStyle;
   borderRadius?: number;
   opacity?: number;
   /** Optional dark-theme color overrides; omitted colors inherit base appearance. */
@@ -417,7 +568,11 @@ export function childGeometriesAtBreakpoint(
 
   const parentGeometry = parentGeometryOverride ?? geometryAtBreakpoint(parent, breakpoint);
   const direction = parent.type === 'row' ? 'horizontal' : 'vertical';
-  const padding = Math.max(0, parent.props.padding);
+  const padding = resolveEdgeInsets(parent.props.padding);
+  const mainStart = direction === 'vertical' ? padding.top : padding.left;
+  const mainEnd = direction === 'vertical' ? padding.bottom : padding.right;
+  const crossStart = direction === 'vertical' ? padding.left : padding.top;
+  const crossEnd = direction === 'vertical' ? padding.right : padding.bottom;
   const baseGap = Math.max(0, parent.props.gap);
   const visibleChildren = parent.children.filter((child) => !isHiddenAtBreakpoint(child, breakpoint));
   const mainSize = direction === 'vertical' ? parentGeometry.h : parentGeometry.w;
@@ -428,7 +583,7 @@ export function childGeometriesAtBreakpoint(
   });
   const occupied = childMainSizes.reduce((total, size) => total + size, 0)
     + baseGap * Math.max(0, visibleChildren.length - 1);
-  const remaining = Math.max(0, mainSize - padding * 2 - occupied);
+  const remaining = Math.max(0, mainSize - mainStart - mainEnd - occupied);
   const mainAlignment = parent.props.mainAxisAlignment;
   let mainOffset = 0;
   let gap = baseGap;
@@ -447,7 +602,7 @@ export function childGeometriesAtBreakpoint(
   }
 
   const resolved = new Map<string, NodeGeometry>();
-  let cursor = padding + mainOffset;
+  let cursor = mainStart + mainOffset;
   for (const child of parent.children) {
     const geometry = geometryAtBreakpoint(child, breakpoint);
     if (isHiddenAtBreakpoint(child, breakpoint)) {
@@ -455,8 +610,8 @@ export function childGeometriesAtBreakpoint(
       continue;
     }
     const childCross = direction === 'vertical' ? geometry.w : geometry.h;
-    const availableCross = Math.max(0, crossSize - padding * 2);
-    let crossOffset = padding;
+    const availableCross = Math.max(0, crossSize - crossStart - crossEnd);
+    let crossOffset = crossStart;
     if (parent.props.crossAxisAlignment === 'center') crossOffset += Math.max(0, availableCross - childCross) / 2;
     if (parent.props.crossAxisAlignment === 'end') crossOffset += Math.max(0, availableCross - childCross);
     const stretchedCross = parent.props.crossAxisAlignment === 'stretch' ? availableCross : childCross;
@@ -480,11 +635,16 @@ export function listViewItemExtent(
 ): number {
   if (node.children.length === 0) return 44;
   const horizontal = node.props.scrollDirection === 'horizontal';
+  const padding = resolveEdgeInsets(node.props.padding);
+  const contentStart = horizontal ? padding.left : padding.top;
+  const contentEnd = horizontal ? padding.right : padding.bottom;
   return Math.max(
     1,
+    contentStart + contentEnd,
     ...node.children.map((child) => {
       const geometry = geometries.get(child.id) ?? geometryAtBreakpoint(child, breakpoint);
-      return horizontal ? geometry.x + geometry.w + node.props.padding : geometry.y + geometry.h + node.props.padding;
+      const childEnd = horizontal ? geometry.x + geometry.w : geometry.y + geometry.h;
+      return childEnd + contentEnd;
     }),
   );
 }

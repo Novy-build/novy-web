@@ -1,4 +1,5 @@
 import type { ComponentNode } from '@domain/entities/componentNode';
+import { createPadding } from '@domain/entities/componentNode';
 import type { Template } from '@domain/entities/template';
 import type { Behavior, LogicGraph } from '@domain/entities/logic';
 import type { Screen } from '@domain/entities/screen';
@@ -173,7 +174,7 @@ const STUDENT_LIST: Template = {
           scrollDirection: 'vertical',
           crossAxisAlignment: 'stretch',
           gap: 0,
-          padding: 0,
+          padding: createPadding(0),
           itemSpacing: 0,
           itemBorderRadius: 0,
           dataSource: {
@@ -255,7 +256,7 @@ const notesScreen = screen(NOTES_SCREEN_ID, 'Notes', [
       scrollDirection: 'vertical',
       crossAxisAlignment: 'stretch',
       gap: 0,
-      padding: 0,
+      padding: createPadding(0),
       itemSpacing: 0,
       itemBorderRadius: 0,
       dataSource: {
@@ -357,7 +358,7 @@ const askNotesScreen = screen(ASK_NOTES_SCREEN_ID, 'Ask Notes', [
       scrollDirection: 'vertical',
       crossAxisAlignment: 'stretch',
       gap: 0,
-      padding: 0,
+      padding: createPadding(0),
       itemSpacing: 0,
       itemBorderRadius: 0,
       dataSource: {

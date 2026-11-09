@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { Project } from '@domain/entities/project';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import type { ScreenDTO } from '../dto/project.dto';
@@ -51,7 +52,7 @@ const FIXTURE_SCREEN: Screen = {
         mainAxisAlignment: 'start',
         crossAxisAlignment: 'stretch',
         gap: 12,
-        padding: 16,
+        padding: createPadding(16),
       },
       children: [
         { id: 'node_form_title', type: 'text', x: 0, y: 0, w: 288, h: 28, props: { text: 'Contact us', level: 'title' } },
@@ -72,7 +73,7 @@ const FIXTURE_SCREEN: Screen = {
         scrollDirection: 'vertical',
         crossAxisAlignment: 'stretch',
         gap: 0,
-        padding: 0,
+        padding: createPadding(0),
         itemSpacing: 6,
         itemBorderRadius: 10,
         dataSource: { kind: 'collection', collectionId: 'contacts', displayFieldIds: ['email'] },
@@ -122,7 +123,7 @@ describe('project mapper', () => {
 
     expect(dto.createdAt).toBe('2026-01-01T10:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-02T12:30:00.000Z');
-    expect(dto.schemaVersion).toBe(10);
+    expect(dto.schemaVersion).toBe(11);
   });
 
   it('round-trips projects losslessly', () => {
@@ -151,6 +152,89 @@ describe('project mapper', () => {
     });
     const restored = mapProjectFromDto(roundTrip(mapProjectToDto(project)) as ReturnType<typeof mapProjectToDto>);
     expect(restored).toEqual(project);
+  });
+
+  it('round-trips asymmetric per-side padding without flattening it', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    const column = project.document.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (column?.type !== 'column') throw new Error('Fixture column is missing');
+    column.props.padding = createEdgePadding({ top: 4, right: 8, bottom: 12, left: 16 });
+
+    const dto = mapProjectToDto(project);
+    expect(dto.screens[0]!.nodes.find((node) => node.id === 'node_column')).toMatchObject({
+      props: { padding: { mode: 'only', top: 4, right: 8, bottom: 12, left: 16 } },
+    });
+    expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
+  });
+
+  it('round-trips layout border styles on appearance', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    const column = project.document.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (column?.type !== 'column') throw new Error('Fixture column is missing');
+    column.appearance = { borderColor: '#112233', borderStyle: 'dashed', borderRadius: 8 };
+
+    const dto = mapProjectToDto(project);
+    expect(dto.screens[0]!.nodes.find((node) => node.id === 'node_column')).toMatchObject({
+      appearance: { borderColor: '#112233', borderStyle: 'dashed', borderRadius: 8 },
+    });
+    expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
+  });
+
+  it('round-trips curated button icons and icon position', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    const button = project.document.screens[0]!.nodes.find((node) => node.id === 'node_button');
+    if (button?.type !== 'button') throw new Error('Fixture button is missing');
+    button.props = { ...button.props, icon: 'check', iconPosition: 'right' };
+
+    const dto = mapProjectToDto(project);
+    expect(dto.screens[0]!.nodes.find((node) => node.id === 'node_button')).toMatchObject({
+      props: { label: 'Save', variant: 'solid', icon: 'check', iconPosition: 'right' },
+    });
+    expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
+  });
+
+  it('ignores unknown persisted button icons at the data boundary', () => {
+    const dto = mapProjectToDto(FIXTURE_PROJECT);
+    const button = dto.screens[0]!.nodes.find((node) => node.id === 'node_button');
+    if (button?.type !== 'button') throw new Error('Fixture button is missing');
+    button.props.icon = 'rocket' as typeof button.props.icon;
+
+    const restored = mapProjectFromDto(dto);
+    const node = restored.document.screens[0]!.nodes.find((candidate) => candidate.id === 'node_button');
+    expect(node?.type === 'button' ? node.props : null).toEqual({ label: 'Save', variant: 'solid' });
+  });
+
+  it('round-trips text font size and weight overrides', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    const column = project.document.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (column?.type !== 'column') throw new Error('Fixture column is missing');
+    const text = column.children.find((node) => node.id === 'node_form_title');
+    if (text?.type !== 'text') throw new Error('Fixture text is missing');
+    text.props = { ...text.props, fontSize: 32, fontWeight: 'bold' };
+
+    const dto = mapProjectToDto(project);
+    const dtoColumn = dto.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (dtoColumn?.type !== 'column') throw new Error('DTO column is missing');
+    expect(dtoColumn.children.find((node) => node.id === 'node_form_title')).toMatchObject({
+      props: { text: 'Contact us', level: 'title', fontSize: 32, fontWeight: 'bold' },
+    });
+    expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
+  });
+
+  it('ignores invalid persisted text typography values', () => {
+    const dto = mapProjectToDto(FIXTURE_PROJECT);
+    const column = dto.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (column?.type !== 'column') throw new Error('DTO column is missing');
+    const text = column.children.find((node) => node.id === 'node_form_title');
+    if (text?.type !== 'text') throw new Error('DTO text is missing');
+    text.props.fontSize = -4;
+    text.props.fontWeight = 'ultra' as typeof text.props.fontWeight;
+
+    const restored = mapProjectFromDto(dto);
+    const restoredColumn = restored.document.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (restoredColumn?.type !== 'column') throw new Error('Restored column is missing');
+    const restoredText = restoredColumn.children.find((node) => node.id === 'node_form_title');
+    expect(restoredText?.type === 'text' ? restoredText.props : null).toEqual({ text: 'Contact us', level: 'title' });
   });
 
   it('preserves schema-v9 dropdown and switch behavior when new options are absent', () => {

@@ -248,8 +248,8 @@ export function ComponentRenderer({
       ));
       return frame(
         node.type === 'container'
-          ? <ContainerNodeView>{children}</ContainerNodeView>
-          : <LinearLayoutNodeView direction={node.type}>{children}</LinearLayoutNodeView>,
+          ? <ContainerNodeView borderStyle={node.appearance?.borderStyle}>{children}</ContainerNodeView>
+          : <LinearLayoutNodeView borderStyle={node.appearance?.borderStyle} direction={node.type}>{children}</LinearLayoutNodeView>,
       );
     }
     case 'listview': {
@@ -303,12 +303,16 @@ function resolveThemeAppearance(appearance: ComponentAppearance | undefined, dar
 
 function appearanceStyle(appearance: ComponentAppearance | undefined): CSSProperties {
   if (!appearance) return {};
+  const borderStyle = appearance.borderStyle === 'none'
+    ? 'none'
+    : appearance.borderStyle ?? (appearance.borderColor ? 'solid' : undefined);
+  const hasVisibleBorder = borderStyle === 'solid' || borderStyle === 'dashed';
   return {
     backgroundColor: appearance.backgroundColor || undefined,
     color: appearance.textColor || undefined,
-    borderColor: appearance.borderColor || undefined,
-    borderStyle: appearance.borderColor ? 'solid' : undefined,
-    borderWidth: appearance.borderColor ? 1 : undefined,
+    borderColor: hasVisibleBorder ? appearance.borderColor || 'var(--color-hairline)' : undefined,
+    borderStyle,
+    borderWidth: hasVisibleBorder ? 1 : appearance.borderStyle === 'none' ? 0 : undefined,
     borderRadius: appearance.borderRadius,
     opacity: appearance.opacity,
     overflow: appearance.borderRadius ? 'hidden' : undefined,

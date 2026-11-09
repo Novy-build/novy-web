@@ -9,7 +9,7 @@ describe('ItemFrameOverlay', () => {
         crossExtent={320}
         direction="vertical"
         itemExtent={120}
-        padding={12}
+        padding={{ top: 12, right: 12, bottom: 12, left: 12 }}
         radius={8}
         showDividers
         spacing={10}
@@ -33,7 +33,7 @@ describe('ItemFrameOverlay', () => {
         crossExtent={200}
         direction="horizontal"
         itemExtent={90}
-        padding={0}
+        padding={{ top: 0, right: 0, bottom: 0, left: 0 }}
         radius={0}
         showDividers={false}
         spacing={6}
@@ -47,5 +47,26 @@ describe('ItemFrameOverlay', () => {
     expect(frames[0].style.borderRadius).toBe('0px');
     expect(frames[1].style.left).toBe('192px');
     expect(screen.queryByTestId('item-frame-divider')).not.toBeInTheDocument();
+  });
+
+  it('positions the padding guide with asymmetric insets', () => {
+    render(
+      <ItemFrameOverlay
+        crossExtent={200}
+        direction="vertical"
+        itemExtent={100}
+        padding={{ top: 4, right: 8, bottom: 12, left: 16 }}
+        radius={0}
+        showDividers={false}
+        spacing={0}
+        zoom={1}
+      />,
+    );
+
+    const padding = screen.getByTestId('item-frame-padding');
+    expect(padding.style.left).toBe('16px');
+    expect(padding.style.top).toBe('4px');
+    expect(padding.style.width).toBe('176px');
+    expect(padding.style.height).toBe('84px');
   });
 });
