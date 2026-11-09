@@ -1,6 +1,8 @@
-import type { ActionPayload, TriggerEvent } from '@domain/entities/logic';
+import type { ActionInputMappings, ActionPayload, TriggerEvent } from '@domain/entities/logic';
 
 export type LogicNodeCategory =
+  | 'Components'
+  | 'Current item'
   | 'Triggers'
   | 'Flow'
   | 'UI'
@@ -10,9 +12,9 @@ export type LogicNodeCategory =
   | 'Computer Vision';
 
 export type LogicLibraryNode =
-  | { kind: 'trigger'; event: TriggerEvent }
+  | { kind: 'trigger'; event: TriggerEvent; targetNodeId?: string }
   | { kind: 'condition' }
-  | { kind: 'action'; payload: ActionPayload };
+  | { kind: 'action'; payload: ActionPayload; inputMappings?: ActionInputMappings };
 
 export interface LogicNodeDefinition {
   id: string;
@@ -269,4 +271,23 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
 
 export function logicNodeDefinition(id: string): LogicNodeDefinition | undefined {
   return LOGIC_NODE_DEFINITIONS.find((definition) => definition.id === id);
+}
+
+export function serializeLogicLibraryNode(node: LogicLibraryNode): string {
+  return `node:${JSON.stringify(node)}`;
+}
+
+export function parseLogicLibraryNode(value: string): LogicLibraryNode | null {
+  if (!value.startsWith('node:')) return null;
+  try {
+    const parsed: unknown = JSON.parse(value.slice(5));
+    if (!parsed || typeof parsed !== 'object' || !('kind' in parsed)) return null;
+    const kind = (parsed as { kind?: unknown }).kind;
+    if (kind === 'condition') return { kind: 'condition' };
+    if (kind === 'trigger' && 'event' in parsed) return parsed as LogicLibraryNode;
+    if (kind === 'action' && 'payload' in parsed) return parsed as LogicLibraryNode;
+    return null;
+  } catch {
+    return null;
+  }
 }

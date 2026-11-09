@@ -40,7 +40,7 @@ describe('LogicGraphCanvas', () => {
     const trigger = graph.nodes[0]!;
     const action = graph.nodes[1]!;
 
-    fireEvent.click(screen.getByRole('button', { name: 'next output of On click' }));
+    fireEvent.click(screen.getByRole('button', { name: 'next output of When “Input” is clicked' }));
     const input = screen.getByRole('button', { name: 'Input of Show message' });
     expect(input).toHaveAttribute('data-connection-valid', 'true');
     fireEvent.click(input);
@@ -53,7 +53,7 @@ describe('LogicGraphCanvas', () => {
     const graph = graphWithOrphan();
     const props = renderCanvas(graph);
     const action = graph.nodes[1]!;
-    const output = screen.getByRole('button', { name: 'next output of On click' });
+    const output = screen.getByRole('button', { name: 'next output of When “Input” is clicked' });
     const input = screen.getByRole('button', { name: 'Input of Show message' });
 
     fireEvent.pointerDown(output, { clientX: 270, clientY: 208 });
@@ -236,7 +236,7 @@ describe('LogicGraphCanvas', () => {
     const graph = connectLogicPorts(base, base.nodes[0]!.id, 'next', base.nodes[1]!.id)!;
     renderCanvas(graph);
 
-    fireEvent.click(screen.getByRole('button', { name: 'next output of On click' }));
+    fireEvent.click(screen.getByRole('button', { name: 'next output of When “Input” is clicked' }));
     fireEvent.click(screen.getByRole('button', { name: 'Input of Show message' }));
 
     expect(screen.getAllByText(/invalid or would create a cycle/)).toHaveLength(2);

@@ -5,6 +5,7 @@ import type {
   ComponentType,
   ComponentAppearance,
   ComponentPropertyBinding,
+  GestureDetectorProps,
   CameraProps,
   ColumnProps,
   DividerProps,
@@ -61,6 +62,7 @@ export type EditorNodeAction =
   | { type: 'node/props-text'; nodeId: string; props: Partial<TextProps> }
   | { type: 'node/props-input'; nodeId: string; props: Partial<InputProps> }
   | { type: 'node/props-image'; nodeId: string; props: Partial<ImageProps> }
+  | { type: 'node/props-gesture-detector'; nodeId: string; props: Partial<GestureDetectorProps> }
   | { type: 'node/props-column'; nodeId: string; props: Partial<ColumnProps> }
   | { type: 'node/props-row'; nodeId: string; props: Partial<RowProps> }
   | { type: 'node/props-listview'; nodeId: string; props: Partial<ListViewProps> }
@@ -73,6 +75,7 @@ export type EditorNodeAction =
   | { type: 'node/props-progress'; nodeId: string; props: Partial<ProgressProps> }
   | { type: 'node/props-divider'; nodeId: string; props: Partial<DividerProps> }
   | { type: 'node/duplicate'; nodeId: string }
+  | { type: 'node/wrap-gesture-detector'; nodeId: string }
   | { type: 'node/delete'; nodeId: string }
   | { type: 'node/order'; nodeId: string; direction: 'forward' | 'backward' | 'front' | 'back' }
   | { type: 'node/layer-rename'; nodeId: string; name: string }
@@ -126,8 +129,13 @@ export type EditorLogicAction =
       graphId: string;
       node:
         | { kind: 'condition' }
-        | { kind: 'action'; payload: ActionPayload };
+        | {
+            kind: 'action';
+            payload: ActionPayload;
+            inputMappings?: import('@domain/entities/logic').ActionInputMappings;
+          };
       position: LogicNodePosition;
+      connectToTail?: boolean;
     }
   | { type: 'graph/normalize'; graph: LogicGraph }
   | {

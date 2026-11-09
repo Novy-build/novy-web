@@ -5,6 +5,126 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-09 — Notes CRUD starter template
+
+#### Added
+- Added a focused mobile Notes CRUD starter with list cards, Add Note, Note Detail, and Edit Note
+  screens. Cards open their current record, detail provides Edit/Delete actions, and each card has
+  an accessible three-dot Delete menu without an app sidebar.
+- Added template data blueprints and transactional project instantiation. Selecting the Notes
+  template now creates a Notes Database, a typed Notes collection, three seed records, and remaps
+  collection aliases throughout components and node workflows.
+- Added complete insert, record-aware navigation, prefill, update, detail-delete, and per-card
+  delete workflows, including destructive-action confirmation and keyboard-operable card/menu
+  interactions.
+
+#### Fixed
+- Fixed local database deletion so records belonging to cascaded collections are removed before
+  collection metadata is discarded. Failed template provisioning now removes both partial app data
+  and the partial project.
+
+#### Tests
+- Added template-instantiation, rollback, data-cascade, creation-hook, catalog, and end-to-end
+  Preview CRUD coverage for the Notes starter.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 85 test files and 703 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-09 — Component-aware current-item Logic flows and Gesture Detector
+
+#### Added
+- Added a persisted, child-bearing **Gesture Detector** component with a semantic action label,
+  palette/Layers/Inspector support, one-click wrapping for existing components, schema-v12 DTO
+  round trips, validation, keyboard activation, and nested-control click isolation.
+- Added component-derived trigger entries to the Logic node library. Entries use current Design
+  labels and bind their click/change event directly to the chosen component.
+- Added context-derived **Update current item**, **Delete current item**, and **Open current item**
+  nodes for workflows inside collection-backed ListViews. These nodes automatically map the
+  enclosing row's stable ID and collection rather than exposing raw IDs.
+- Added current-record navigation context. Preview carries the resolved collection/record IDs into
+  `route.collectionId` and `route.recordId`, resolves destination-screen record bindings against
+  the selected record, supports paths such as `/notes/:noteId`, and generated-app manifests infer
+  the database runtime requirement for record-aware detail navigation.
+
+#### Changed
+- Clicking an action in the Logic library now connects it to the available workflow tail; dragging
+  a node still preserves explicit canvas placement.
+- Current-item configuration shows an automatic context badge, hides record/collection IDs for the
+  common path, offers Yes/No controls for boolean fields, and uses simpler advanced source labels.
+- Preview only wires click execution for components with explicit click behaviors. Nested actions
+  stop propagation so a check/delete button does not also activate its surrounding Gesture
+  Detector.
+- Project serialization now writes schema version 12 while continuing to load older documents.
+
+#### Tests
+- Added reducer, mapper, renderer, runtime, Logic workspace, validation, and generated-manifest
+  coverage for wrapping, round trips, keyboard/nested click behavior, dynamic nodes, current-row
+  updates, record-aware navigation, and runtime capability inference.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 82 test files and 698 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-09 — Layers panel ordering for Row and Column
+
+#### Fixed
+- The Layers panel now shows `Row` and `Column` children in their layout order
+  (left-to-right / top-to-bottom) instead of the reversed z-order used for
+  free-form stacks. The canvas and Layers panel now agree for auto-layout
+  widgets.
+- `moveLayerInTree` inserts a layer before its target under `Row`/`Column`
+  parents instead of after it, so drag-to-reorder and keyboard nesting land in
+  the expected position.
+- Layers ordering controls (arrows, `Alt+↑/↓`, layer-order menu, and shortcuts)
+  now move `Row`/`Column` children along the layout axis, with wording that
+  reflects start/end rather than z-order.
+
+#### Added
+- Palette drops into a `Row` or `Column` now insert at the pointer position
+  instead of always appending to the end.
+- Added `isMainAxisLayoutNode` and `findMainAxisInsertIndex` domain helpers
+  plus tests for layout-order insertion and pointer-based slot selection.
+
+#### Tests
+- Added domain, Layers panel, and reducer coverage for Row/Column layer order,
+  reorder actions, menu wording, and palette drop insertion.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 690 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-09 — Design Inspector collapse control
+
+#### Fixed
+- Moved the Design Inspector collapse control out of an absolute overlay and into a dedicated panel
+  header. Item-frame controls and other Inspector content now begin below the header, so the
+  chevron no longer overlaps the panel content in the ListView item-design editor.
+
+#### Tests
+- Extended the design Inspector integration test to assert the collapse control remains in the
+  header flow rather than absolutely covering content, while preserving its collapse/restore
+  behavior.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 82 test files and 682 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-09 — ListView item-design empty state simplified
+
+#### Changed
+- Removed the **Start with Row**, **Start with Column**, and **Start with Text** quick-start buttons
+  from the ListView item-design empty state. The "This item template is empty." status message
+  remains, and item widgets are added through the component palette as usual.
+
+#### Tests
+- Updated the ListView editor flow test to insert Text through the palette's **Add Text** action and
+  continue verifying item-content binding and static-item outlines.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 82 test files and 682 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
 ### 2026-11-09 — Inspector color pickers
 
 #### Added

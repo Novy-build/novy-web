@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ComponentNode } from '@domain/entities/componentNode';
 import { LayersPanel } from './LayersPanel';
-import { makeButton, makeContainer, makeImage, makeListView, makeText } from '@test/editorFixtures';
+import { makeButton, makeColumn, makeContainer, makeImage, makeListView, makeRow, makeText } from '@test/editorFixtures';
 
 function renderLayers(nodes: readonly ComponentNode[], selectedNodeId: string | null = null) {
   const props = {
@@ -38,6 +38,24 @@ describe('LayersPanel', () => {
       'layer-row-child_first',
       'layer-row-node_button',
       'layer-row-node_text',
+    ]);
+  });
+
+  it('lists Row and Column children in layout order while keeping stacks topmost-first', () => {
+    const tree = [
+      makeRow('node_row', [makeButton('row_first'), makeButton('row_second')]),
+      makeColumn('node_column', [makeText('column_first', { props: { text: 'A', level: 'body' } }), makeText('column_second', { props: { text: 'B', level: 'body' } })]),
+    ];
+    renderLayers(tree);
+
+    const rowIds = screen.getAllByTestId(/^layer-row-/).map((row) => row.dataset.testid);
+    expect(rowIds).toEqual([
+      'layer-row-node_column',
+      'layer-row-column_first',
+      'layer-row-column_second',
+      'layer-row-node_row',
+      'layer-row-row_first',
+      'layer-row-row_second',
     ]);
   });
 
@@ -199,6 +217,14 @@ describe('LayersPanel item frame root', () => {
     render(<LayersPanel frame={frame} nodes={[makeText('node_text')]} selectedNodeId={null} onSelect={vi.fn()} onOrder={vi.fn()} onRename={vi.fn()} onToggleVisibility={vi.fn()} onToggleLock={vi.fn()} onMove={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Collapse Item frame' }));
     expect(screen.queryByTestId('layer-row-node_text')).not.toBeInTheDocument();
+  });
+
+  it('uses layout-order wording for Row children', () => {
+    renderLayers([makeRow('node_row', [makeButton('row_child')])]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Layer order for Button — Click me' }));
+    expect(screen.getByRole('menuitem', { name: 'Move to end' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Move to start' })).toBeInTheDocument();
   });
 
   it('opens a layer order menu and sends a node to front or back', () => {

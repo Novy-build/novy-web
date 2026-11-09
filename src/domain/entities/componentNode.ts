@@ -14,6 +14,7 @@ export type ComponentType =
   | 'input'
   | 'image'
   | 'container'
+  | 'gesture-detector'
   | 'column'
   | 'row'
   | 'listview'
@@ -101,6 +102,12 @@ export interface ImageProps {
 
 export interface ContainerProps {
   /* Visual styling is fixed for the MVP; reserved for future fill/radius specs. */
+}
+
+/** Transparent interaction wrapper used to make a visual group tappable. */
+export interface GestureDetectorProps {
+  /** Accessible action name used by preview and generated applications. */
+  semanticLabel: string;
 }
 
 export type MainAxisAlignment =
@@ -466,6 +473,12 @@ export interface ContainerNode extends NodeBase {
   children: ComponentNode[];
 }
 
+export interface GestureDetectorNode extends NodeBase {
+  type: 'gesture-detector';
+  props: GestureDetectorProps;
+  children: ComponentNode[];
+}
+
 export interface ColumnNode extends NodeBase {
   type: 'column';
   props: ColumnProps;
@@ -531,6 +544,7 @@ export type ComponentNode =
   | InputNode
   | ImageNode
   | ContainerNode
+  | GestureDetectorNode
   | ColumnNode
   | RowNode
   | ListViewNode
@@ -543,14 +557,21 @@ export type ComponentNode =
   | DividerNode
   | CameraNode;
 
-export type ChildBearingNode = ContainerNode | ColumnNode | RowNode | ListViewNode;
+export type ChildBearingNode = ContainerNode | GestureDetectorNode | ColumnNode | RowNode | ListViewNode;
 
 export function isChildBearingNode(node: ComponentNode): node is ChildBearingNode {
-  return node.type === 'container' || node.type === 'column' || node.type === 'row' || node.type === 'listview';
+  return node.type === 'container' || node.type === 'gesture-detector' || node.type === 'column' || node.type === 'row' || node.type === 'listview';
 }
 
 export function isLinearLayoutNode(node: ComponentNode): node is ColumnNode | RowNode | ListViewNode {
   return node.type === 'column' || node.type === 'row' || node.type === 'listview';
+}
+
+/** Row and Column lay their children out along a main axis; ListView and Container
+ *  keep free-form child coordinates. Use this to decide whether sibling arrays
+ *  should be shown/inserted in layout order rather than z order. */
+export function isMainAxisLayoutNode(node: ComponentNode): node is ColumnNode | RowNode {
+  return node.type === 'column' || node.type === 'row';
 }
 
 /** Resolves the visual geometry of nested widgets inside a free-form or linear parent. */
@@ -562,7 +583,7 @@ export function childGeometriesAtBreakpoint(
   // A ListView repeats one free-form item frame. Its direct children retain
   // persisted coordinates just like Container children; Row/Column widgets
   // nested inside that frame still resolve their own linear auto-layout.
-  if (parent.type === 'container' || parent.type === 'listview') {
+  if (parent.type === 'container' || parent.type === 'gesture-detector' || parent.type === 'listview') {
     return new Map(parent.children.map((child) => [child.id, geometryAtBreakpoint(child, breakpoint)]));
   }
 
@@ -660,6 +681,7 @@ export const CHILD_WIDGET_TYPES: readonly ComponentType[] = [
   'input',
   'image',
   'container',
+  'gesture-detector',
   'column',
   'row',
   'listview',

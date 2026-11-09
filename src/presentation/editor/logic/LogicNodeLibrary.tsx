@@ -3,12 +3,17 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
   LOGIC_NODE_DEFINITIONS,
   LOGIC_NODE_MIME,
+  logicNodeDefinition,
+  serializeLogicLibraryNode,
+  type LogicNodeDefinition,
   type LogicLibraryNode,
   type LogicNodeCategory,
 } from './logicNodeRegistry';
 import { PanelCollapseButton } from '../PanelCollapseControl';
 
 const CATEGORY_ORDER: readonly LogicNodeCategory[] = [
+  'Components',
+  'Current item',
   'Triggers',
   'Flow',
   'UI',
@@ -21,9 +26,11 @@ const CATEGORY_ORDER: readonly LogicNodeCategory[] = [
 export function LogicNodeLibrary({
   onAdd,
   onCollapse,
+  contextualDefinitions = [],
 }: {
   onAdd: (node: LogicLibraryNode) => void;
   onCollapse?: () => void;
+  contextualDefinitions?: readonly LogicNodeDefinition[];
 }) {
   const [search, setSearch] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<ReadonlySet<LogicNodeCategory>>(
@@ -31,18 +38,21 @@ export function LogicNodeLibrary({
   );
   const query = search.trim().toLowerCase();
   const visible = useMemo(
-    () => LOGIC_NODE_DEFINITIONS.filter((definition) => {
+    () => [...contextualDefinitions, ...LOGIC_NODE_DEFINITIONS].filter((definition) => {
       const haystack = [definition.label, definition.description, ...definition.keywords]
         .join(' ')
         .toLowerCase();
       return query.length === 0 || haystack.includes(query);
     }),
-    [query],
+    [contextualDefinitions, query],
   );
 
-  function beginDrag(event: DragEvent<HTMLButtonElement>, definitionId: string): void {
+  function beginDrag(event: DragEvent<HTMLButtonElement>, definition: LogicNodeDefinition): void {
     event.dataTransfer.effectAllowed = 'copy';
-    event.dataTransfer.setData(LOGIC_NODE_MIME, definitionId);
+    event.dataTransfer.setData(
+      LOGIC_NODE_MIME,
+      logicNodeDefinition(definition.id) ? definition.id : serializeLogicLibraryNode(definition.create()),
+    );
   }
 
   function toggleCategory(category: LogicNodeCategory): void {
@@ -115,7 +125,7 @@ export function LogicNodeLibrary({
                       className="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-canvas"
                       draggable
                       onClick={() => onAdd(definition.create())}
-                      onDragStart={(event) => beginDrag(event, definition.id)}
+                       onDragStart={(event) => beginDrag(event, definition)}
                       type="button"
                     >
                       <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-50 text-xs font-semibold text-brand-700">{definition.icon}</span>

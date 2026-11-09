@@ -90,6 +90,12 @@ export interface ColumnNodeDTO extends ComponentNodeDTOBase {
   children: ComponentNodeDTO[];
 }
 
+export interface GestureDetectorNodeDTO extends ComponentNodeDTOBase {
+  type: 'gesture-detector';
+  props: { semanticLabel: string };
+  children: ComponentNodeDTO[];
+}
+
 export interface RowNodeDTO extends ComponentNodeDTOBase {
   type: 'row';
   props: ColumnNodeDTO['props'];
@@ -209,6 +215,7 @@ export type ComponentNodeDTO =
   | InputNodeDTO
   | ImageNodeDTO
   | ContainerNodeDTO
+  | GestureDetectorNodeDTO
   | ColumnNodeDTO
   | RowNodeDTO
   | ListViewNodeDTO
@@ -253,6 +260,7 @@ export interface ShowMessagePayloadDTO {
 export interface NavigatePayloadDTO {
   type: 'navigate';
   targetScreenId: string;
+  recordContext?: { collectionId: string; recordId: string };
 }
 
 export interface GetRecordsPayloadDTO {

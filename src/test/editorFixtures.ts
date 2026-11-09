@@ -1,4 +1,4 @@
-import type { ButtonNode, ColumnNode, ComponentNode, ContainerNode, ImageNode, ListViewNode, TextNode } from '@domain/entities/componentNode';
+import type { ButtonNode, ColumnNode, ComponentNode, ContainerNode, ImageNode, ListViewNode, RowNode, TextNode } from '@domain/entities/componentNode';
 import { createPadding } from '@domain/entities/componentNode';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 
@@ -108,6 +108,20 @@ export function makeColumn(id: string, children: ComponentNode[] = [], overrides
     y: 180,
     w: 320,
     h: 260,
+    props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: createPadding(16) },
+    children,
+    ...overrides,
+  };
+}
+
+export function makeRow(id: string, children: ComponentNode[] = [], overrides: Partial<RowNode> = {}): RowNode {
+  return {
+    id,
+    type: 'row',
+    x: 24,
+    y: 180,
+    w: 320,
+    h: 96,
     props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: createPadding(16) },
     children,
     ...overrides,

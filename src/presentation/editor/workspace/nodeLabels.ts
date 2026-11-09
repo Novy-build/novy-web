@@ -7,6 +7,7 @@ export const NODE_TYPE_LABELS: Record<ComponentNode['type'], string> = {
   input: 'Text field',
   image: 'Image',
   container: 'Container',
+  'gesture-detector': 'Gesture Detector',
   column: 'Column',
   row: 'Row',
   listview: 'ListView',
@@ -55,6 +56,8 @@ export function nodeDisplayLabel(node: ComponentNode): string {
       return node.props.dataSource.kind === 'collection' ? 'Collection ListView' : 'ListView';
     case 'container':
       return 'Frame';
+    case 'gesture-detector':
+      return node.props.semanticLabel || 'Tap area';
     case 'column':
       return 'Column';
     case 'row':

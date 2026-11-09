@@ -6,7 +6,13 @@ export function logicNodeTitle(node: LogicNode): string {
   if (node.kind === 'trigger') {
     return TRIGGER_EVENT_LABELS[node.event];
   }
-  return node.kind === 'condition' ? 'If / Else' : ACTION_TYPE_LABELS[node.payload.type];
+  if (node.kind === 'condition') return 'If / Else';
+  const currentItem = node.inputMappings?.['$recordId'];
+  const isCurrentItem = currentItem?.source === 'list-item' && currentItem.fieldId === '$id';
+  if (isCurrentItem && node.payload.type === 'update-record') return 'Update current item';
+  if (isCurrentItem && node.payload.type === 'delete-record') return 'Delete current item';
+  if (isCurrentItem && node.payload.type === 'navigate') return 'Open current item';
+  return ACTION_TYPE_LABELS[node.payload.type];
 }
 
 /** Persisted tab name of a behavior, e.g. "On click — Click me". */

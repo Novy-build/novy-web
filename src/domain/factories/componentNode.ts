@@ -4,6 +4,7 @@ import type {
   ComponentNode,
   ComponentType,
   ContainerNode,
+  GestureDetectorNode,
   ColumnNode,
   CameraNode,
   DividerNode,
@@ -96,6 +97,19 @@ function createColumnNode(): ColumnNode {
     w: 320,
     h: 240,
     props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: createPadding(16) },
+    children: [],
+  };
+}
+
+function createGestureDetectorNode(): GestureDetectorNode {
+  return {
+    id: generateId('node'),
+    type: 'gesture-detector',
+    x: 24,
+    y: 24,
+    w: 320,
+    h: 120,
+    props: { semanticLabel: 'Open item' },
     children: [],
   };
 }
@@ -246,6 +260,7 @@ const factories: Record<ComponentType, NodeFactory> = {
   input: createInputNode,
   image: createImageNode,
   container: createContainerNode,
+  'gesture-detector': createGestureDetectorNode,
   column: createColumnNode,
   row: createRowNode,
   listview: createListViewNode,

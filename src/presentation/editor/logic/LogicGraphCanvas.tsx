@@ -23,6 +23,7 @@ import { logicNodeTitle } from './logicLabels';
 import {
   LOGIC_NODE_MIME,
   logicNodeDefinition,
+  parseLogicLibraryNode,
   type LogicLibraryNode,
 } from './logicNodeRegistry';
 
@@ -44,6 +45,7 @@ interface LogicGraphCanvasProps {
   onDeleteEdge: (edgeId: string) => void;
   targetLabelFor: (nodeId: string) => string | null;
   screenNameFor: (screenId: string) => string | null;
+  fieldLabelFor?: (collectionId: string, fieldId: string) => string | null;
 }
 
 interface Viewport {
@@ -69,6 +71,7 @@ export function LogicGraphCanvas({
   onDeleteEdge,
   targetLabelFor,
   screenNameFor,
+  fieldLabelFor = () => null,
 }: LogicGraphCanvasProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const spacePressed = useRef(false);
@@ -188,10 +191,9 @@ export function LogicGraphCanvas({
   function handleLibraryDrop(event: React.DragEvent<HTMLDivElement>): void {
     if (!event.dataTransfer.types.includes(LOGIC_NODE_MIME)) return;
     event.preventDefault();
-    const definition = logicNodeDefinition(event.dataTransfer.getData(LOGIC_NODE_MIME));
-    if (definition) {
-      onDropLibraryNode(definition.create(), worldPoint(event.clientX, event.clientY));
-    }
+    const serialized = event.dataTransfer.getData(LOGIC_NODE_MIME);
+    const node = parseLogicLibraryNode(serialized) ?? logicNodeDefinition(serialized)?.create();
+    if (node) onDropLibraryNode(node, worldPoint(event.clientX, event.clientY));
   }
 
   function beginNodeDrag(event: ReactPointerEvent<HTMLDivElement>, node: LogicNode): void {
@@ -349,7 +351,7 @@ export function LogicGraphCanvas({
           >
             {node.kind !== 'trigger' && !isResourceOnlyNode(node) ? (
               <button
-                aria-label={`Input of ${logicNodeTitle(node)}`}
+                aria-label={`Input of ${canvasNodeTitle(node, graph.sourceNodeId, targetLabelFor)}`}
                 className={`absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 bg-surface ${
                   connectionSource
                     ? canConnectLogicPorts(
@@ -381,7 +383,7 @@ export function LogicGraphCanvas({
             ) : null}
 
             <button
-              aria-label={logicNodeTitle(node)}
+              aria-label={canvasNodeTitle(node, graph.sourceNodeId, targetLabelFor)}
               className="h-full w-full rounded-panel p-3 text-left"
               data-testid={`logic-node-${node.id}`}
               onClick={() => {
@@ -390,15 +392,15 @@ export function LogicGraphCanvas({
               }}
               type="button"
             >
-              <span className="block text-sm font-semibold text-ink">{logicNodeTitle(node)}</span>
+              <span className="block text-sm font-semibold text-ink">{canvasNodeTitle(node, graph.sourceNodeId, targetLabelFor)}</span>
               <span className="mt-1 block truncate text-xs text-ink-muted">
-                {detailFor(node, targetLabelFor, screenNameFor)}
+                {detailFor(node, targetLabelFor, screenNameFor, fieldLabelFor)}
               </span>
             </button>
 
             {canvasControlOutputPorts(node).map((port) => (
               <button
-                aria-label={`${port} output of ${logicNodeTitle(node)}`}
+                aria-label={`${port} output of ${canvasNodeTitle(node, graph.sourceNodeId, targetLabelFor)}`}
                 className={`absolute -right-2 h-4 w-4 rounded-full border-2 bg-surface ${
                   connectionSource?.nodeId === node.id && connectionSource.port === port
                     ? 'border-brand-600 bg-brand-100'
@@ -435,7 +437,7 @@ export function LogicGraphCanvas({
                 style={{ left: resourcePortLeft(index, ports.length, nodeWidth(node)) }}
               >
                 <button
-                  aria-label={`${port} resource input of ${logicNodeTitle(node)}`}
+                  aria-label={`${port} resource input of ${canvasNodeTitle(node, graph.sourceNodeId, targetLabelFor)}`}
                   className={`absolute -bottom-2 h-4 w-4 -translate-x-1/2 rounded-full border-2 bg-surface ${
                     connectionSource
                       ? canConnectLogicPorts(graph, connectionSource.nodeId, connectionSource.port, node.id, port)
@@ -467,7 +469,7 @@ export function LogicGraphCanvas({
                 style={{ left: resourcePortLeft(index, ports.length, nodeWidth(node)) }}
               >
                 <button
-                  aria-label={`${port} resource output of ${logicNodeTitle(node)}`}
+                  aria-label={`${port} resource output of ${canvasNodeTitle(node, graph.sourceNodeId, targetLabelFor)}`}
                   className={`absolute -top-2 h-4 w-4 -translate-x-1/2 rounded-full border-2 bg-surface ${
                     connectionSource?.nodeId === node.id && connectionSource.port === port
                       ? 'border-cyan-600 bg-cyan-100'
@@ -537,7 +539,12 @@ function LogicEdgePath({ edge, graph, isSelected, onSelect }: { edge: LogicEdge;
   );
 }
 
-function detailFor(node: LogicNode, targetLabelFor: (nodeId: string) => string | null, screenNameFor: (screenId: string) => string | null): string {
+function detailFor(
+  node: LogicNode,
+  targetLabelFor: (nodeId: string) => string | null,
+  screenNameFor: (screenId: string) => string | null,
+  fieldLabelFor: (collectionId: string, fieldId: string) => string | null,
+): string {
   if (node.kind === 'trigger') return 'Starts the workflow';
   if (node.kind === 'condition') {
     const leftNodeId = node.left.source === 'component' || node.left.source === 'node-output'
@@ -549,11 +556,13 @@ function detailFor(node: LogicNode, targetLabelFor: (nodeId: string) => string |
   switch (node.payload.type) {
     case 'change-text': return `${targetLabelFor(node.payload.targetNodeId) ?? 'Target not set'} → “${truncate(node.payload.text)}”`;
     case 'show-message': return node.payload.message ? `“${truncate(node.payload.message)}”` : 'Message not set';
-    case 'navigate': return `Go to ${screenNameFor(node.payload.targetScreenId) ?? 'screen not set'}`;
+    case 'navigate': return node.payload.recordContext
+      ? `Open ${screenNameFor(node.payload.targetScreenId) ?? 'choose a detail screen'} with current item`
+      : `Go to ${screenNameFor(node.payload.targetScreenId) ?? 'screen not set'}`;
     case 'get-records': return node.payload.collectionId ? `Read ${node.payload.collectionId}` : 'Collection not set';
     case 'insert-record': return node.payload.collectionId ? `Insert into ${node.payload.collectionId}` : 'Collection not set';
-    case 'update-record': return node.payload.collectionId ? `Update ${node.payload.collectionId}` : 'Collection not set';
-    case 'delete-record': return node.payload.collectionId ? `Delete from ${node.payload.collectionId}` : 'Collection not set';
+    case 'update-record': return isCurrentItemAction(node) ? summarizeCurrentItemUpdate(node, fieldLabelFor) : node.payload.collectionId ? `Update ${node.payload.collectionId}` : 'Collection not set';
+    case 'delete-record': return isCurrentItemAction(node) ? 'Delete the item that was clicked' : node.payload.collectionId ? `Delete from ${node.payload.collectionId}` : 'Collection not set';
     case 'send-email': return node.payload.to ? `Email ${node.payload.to}` : 'Recipient not set';
     case 'refresh-collection': return node.payload.collectionId ? `Refresh ${node.payload.collectionId}` : 'Collection not set';
     case 'set-variable': return node.payload.name ? `Set ${node.payload.name}` : 'Variable not set';
@@ -582,6 +591,34 @@ function detailFor(node: LogicNode, targetLabelFor: (nodeId: string) => string |
     case 'cv-verify': return 'Verify biometric';
     default: return '';
   }
+}
+
+function canvasNodeTitle(
+  node: LogicNode,
+  sourceNodeId: string,
+  targetLabelFor: (nodeId: string) => string | null,
+): string {
+  if (node.kind !== 'trigger') return logicNodeTitle(node);
+  const target = targetLabelFor(sourceNodeId);
+  if (!target) return logicNodeTitle(node);
+  if (node.event === 'load') return `When “${target}” loads`;
+  return `When “${target}” is ${node.event === 'click' ? 'clicked' : 'changed'}`;
+}
+
+function isCurrentItemAction(node: Extract<LogicNode, { kind: 'action' }>): boolean {
+  const mapping = node.inputMappings?.['$recordId'];
+  return mapping?.source === 'list-item' && mapping.fieldId === '$id';
+}
+
+function summarizeCurrentItemUpdate(
+  node: Extract<LogicNode, { kind: 'action' }>,
+  fieldLabelFor: (collectionId: string, fieldId: string) => string | null,
+): string {
+  if (node.payload.type !== 'update-record') return 'Update the item that was clicked';
+  const payload = node.payload;
+  const entries = Object.entries(payload.values);
+  if (entries.length === 0) return 'Choose fields to change';
+  return entries.map(([field, value]) => `${fieldLabelFor(payload.collectionId, field) ?? 'Field'} = ${value === 'true' ? 'Yes' : value === 'false' ? 'No' : value}`).join(', ');
 }
 
 function outputPoint(node: LogicNode | undefined, port: LogicOutputPort): { x: number; y: number } | null {

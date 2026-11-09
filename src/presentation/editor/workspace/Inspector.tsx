@@ -103,7 +103,7 @@ function PropertyBindingControls({
 }) {
   return (
     <div className="mt-4 grid gap-3 border-t border-hairline pt-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Item data bindings</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Record data bindings</p>
       {bindingTargetsForComponent(node.type).map((definition) => {
         const compatibleFields = fields.filter((field) => isFieldTypeCompatible(definition.target, field.type));
         const selectedFieldId = node.bindings?.find((binding) => binding.target === definition.target)?.value.fieldId ?? '';
@@ -372,6 +372,23 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-image', nodeId: node.id, props: { alt: event.target.value } })}
             value={node.props.alt}
           />
+        </div>
+      ) : null}
+
+      {node.type === 'gesture-detector' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Interaction</p>
+          <TextInput
+            label="Accessible action label"
+            name="inspector-gesture-label"
+            onChange={(event) => onAction({
+              type: 'node/props-gesture-detector',
+              nodeId: node.id,
+              props: { semanticLabel: event.target.value },
+            })}
+            value={node.props.semanticLabel}
+          />
+          <p className="text-xs text-ink-muted">Wrap visual content, then connect its tap in Logic mode.</p>
         </div>
       ) : null}
 
@@ -1036,7 +1053,16 @@ export function Inspector({
 
       <div className="mt-6">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Behavior</p>
-        {node.type === 'button' && behaviors.length > 0 ? (
+        {node.type !== 'gesture-detector' && node.type !== 'listview' ? (
+          <button
+            className="mb-3 w-full rounded-tile border border-hairline px-3 py-2 text-xs font-medium text-ink transition-colors hover:bg-canvas"
+            onClick={() => onAction({ type: 'node/wrap-gesture-detector', nodeId: node.id })}
+            type="button"
+          >
+            Wrap with Gesture Detector
+          </button>
+        ) : null}
+        {behaviors.some((behavior) => behavior.targetNodeId === node.id) ? (
           <ul className="mb-2 grid gap-1" data-testid="bound-behaviors">
             {behaviors
               .filter((behavior) => behavior.targetNodeId === node.id)

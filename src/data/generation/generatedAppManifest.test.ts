@@ -70,7 +70,7 @@ describe('generated app manifest', () => {
     expect(manifest).toMatchObject({
       manifestVersion: 1,
       generatedAt: '2026-11-07T12:00:00.000Z',
-      project: { schemaVersion: 11, id: 'project_notes' },
+      project: { schemaVersion: 12, id: 'project_notes' },
       appData: {
         database: { id: 'database_notes' },
         recordsIncluded: false,
@@ -134,5 +134,28 @@ describe('generated app manifest', () => {
 
     const manifest = buildGeneratedAppManifest(localProject, null, []);
     expect(manifest.runtime.requirements.map((requirement) => requirement.capability)).toEqual(['deployment']);
+  });
+
+  it('declares database runtime support for current-record detail navigation', () => {
+    const navigationProject = structuredClone(project);
+    navigationProject.document.screens[0]!.nodes = [];
+    navigationProject.document.screens[0]!.logicGraphs = [{
+      id: 'open_note', name: 'Open note', sourceNodeId: 'note_card',
+      nodes: [
+        { kind: 'trigger', id: 'trigger', event: 'click', position: { x: 0, y: 0 } },
+        {
+          kind: 'action', id: 'navigate', position: { x: 200, y: 0 },
+          payload: { type: 'navigate', targetScreenId: 'details', recordContext: { collectionId: 'notes', recordId: '' } },
+          inputMappings: { '$recordId': { source: 'list-item', fieldId: '$id' } },
+        },
+      ],
+      edges: [{ id: 'edge', fromNodeId: 'trigger', fromPort: 'next', toNodeId: 'navigate', toPort: 'in' }],
+    }];
+
+    const manifest = buildGeneratedAppManifest(navigationProject, null, []);
+    expect(manifest.runtime.requirements.map((requirement) => requirement.capability)).toEqual([
+      'database',
+      'deployment',
+    ]);
   });
 });

@@ -39,6 +39,7 @@ const COMPONENT_TYPES: readonly ComponentType[] = [
   'input',
   'image',
   'container',
+  'gesture-detector',
   'column',
   'row',
   'listview',

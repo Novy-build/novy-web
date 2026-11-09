@@ -123,7 +123,7 @@ describe('project mapper', () => {
 
     expect(dto.createdAt).toBe('2026-01-01T10:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-02T12:30:00.000Z');
-    expect(dto.schemaVersion).toBe(11);
+    expect(dto.schemaVersion).toBe(12);
   });
 
   it('round-trips projects losslessly', () => {
@@ -150,6 +150,34 @@ describe('project mapper', () => {
       payload: { type: 'delete-record', collectionId: 'contacts', recordId: '', confirm: true },
       inputMappings: { '$recordId': { source: 'list-item', fieldId: '$id' } },
     });
+    const restored = mapProjectFromDto(roundTrip(mapProjectToDto(project)) as ReturnType<typeof mapProjectToDto>);
+    expect(restored).toEqual(project);
+  });
+
+  it('round-trips Gesture Detector children and current-record navigation', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.screens[0]!.nodes.push({
+      id: 'note_gesture',
+      type: 'gesture-detector',
+      x: 8,
+      y: 8,
+      w: 240,
+      h: 80,
+      props: { semanticLabel: 'Open note details' },
+      children: [{ id: 'note_card', type: 'container', x: 0, y: 0, w: 240, h: 80, props: {}, children: [] }],
+    });
+    project.document.screens[0]!.logicGraphs[0]!.nodes.push({
+      kind: 'action',
+      id: 'open_note',
+      position: { x: 544, y: 160 },
+      payload: {
+        type: 'navigate',
+        targetScreenId: 'screen_detail',
+        recordContext: { collectionId: 'contacts', recordId: '' },
+      },
+      inputMappings: { '$recordId': { source: 'list-item', fieldId: '$id' } },
+    });
+
     const restored = mapProjectFromDto(roundTrip(mapProjectToDto(project)) as ReturnType<typeof mapProjectToDto>);
     expect(restored).toEqual(project);
   });

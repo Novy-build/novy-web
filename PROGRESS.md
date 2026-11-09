@@ -70,6 +70,8 @@ tokens, password recovery, and remote sessions are not connected.
 - [x] Landing page.
 - [x] Login form.
 - [x] Student list.
+- [x] Notes CRUD app with list cards, add/detail/edit screens, detail and overflow-menu deletion,
+  seeded example records, and fully wired current-record workflows.
 - [x] Template gallery with previews.
 - [x] Viewport-safe, internally scrollable template modal with a responsive one/two/three-column
   gallery.
@@ -111,7 +113,7 @@ event binding, and its referenced logic graph:
 
 ```json
 {
-  "schemaVersion": 11,
+  "schemaVersion": 12,
   "id": "project_notes",
   "name": "Notes App",
   "createdAt": "2026-11-07T08:00:00.000Z",
@@ -205,24 +207,36 @@ event binding, and its referenced logic graph:
               },
               "children": [
                 {
-                  "id": "text_note_title",
-                  "type": "text",
+                  "id": "gesture_note_card",
+                  "name": "Open note",
+                  "type": "gesture-detector",
                   "x": 0,
                   "y": 0,
                   "w": 240,
                   "h": 44,
-                  "bindings": [
+                  "props": { "semanticLabel": "Open note details" },
+                  "children": [
                     {
-                      "target": "text.content",
-                      "value": { "source": "list-item", "fieldId": "field_title" }
+                      "id": "text_note_title",
+                      "type": "text",
+                      "x": 0,
+                      "y": 0,
+                      "w": 240,
+                      "h": 44,
+                      "bindings": [
+                        {
+                          "target": "text.content",
+                          "value": { "source": "list-item", "fieldId": "field_title" }
+                        }
+                      ],
+                      "props": {
+                        "text": "Note title",
+                        "level": "body",
+                        "fontSize": 18,
+                        "fontWeight": "semibold"
+                      }
                     }
-                  ],
-                  "props": {
-                    "text": "Note title",
-                    "level": "body",
-                    "fontSize": 18,
-                    "fontWeight": "semibold"
-                  }
+                  ]
                 },
                 {
                   "id": "text_note_description",
@@ -295,10 +309,10 @@ event binding, and its referenced logic graph:
       "behaviors": [
         {
           "id": "behavior_open_details",
-          "name": "On click — Open details",
+          "name": "On click — Open note",
           "event": "click",
           "graphId": "graph_open_details",
-          "targetNodeId": "button_details"
+          "targetNodeId": "gesture_note_card"
         },
         {
           "id": "behavior_note_actions",
@@ -311,8 +325,8 @@ event binding, and its referenced logic graph:
       "logicGraphs": [
         {
           "id": "graph_open_details",
-          "name": "On click — Open details",
-          "sourceNodeId": "button_details",
+          "name": "On click — Open note",
+          "sourceNodeId": "gesture_note_card",
           "nodes": [
             {
               "kind": "trigger",
@@ -351,7 +365,11 @@ event binding, and its referenced logic graph:
               "position": { "x": 800, "y": 160 },
               "payload": {
                 "type": "navigate",
-                "targetScreenId": "screen_details"
+                "targetScreenId": "screen_details",
+                "recordContext": { "collectionId": "collection_notes", "recordId": "" }
+              },
+              "inputMappings": {
+                "$recordId": { "source": "list-item", "fieldId": "$id" }
               }
             }
           ],
@@ -450,7 +468,11 @@ event binding, and its referenced logic graph:
 - Camera components serialize only labels and `facingMode`; captured media is transient runtime
   state and is never embedded in the project document.
 - Optional `name`, `isHidden`, and `isLocked` fields preserve editor-facing layer metadata.
-- Container, Column, Row, and ListView widgets store nested components in `children`.
+- Container, Gesture Detector, Column, Row, and ListView widgets store nested components in
+  `children`.
+- Schema v12 adds the transparent, child-bearing Gesture Detector with a persisted semantic action
+  label. It can be added from the palette or wrapped around an existing component without changing
+  the wrapped component's outer position; Enter and Space activate it in Preview.
 - Container keeps free-form child coordinates. Column and Row resolve child placement from their
   main-axis alignment, cross-axis alignment, gap, padding, and child order.
 - Column, Row, and the ListView repeated-item frame persist padding as a schema-v11 `PaddingValue`
@@ -516,6 +538,15 @@ event binding, and its referenced logic graph:
 - For a workflow triggered inside an item template, `{ "source": "list-item", "fieldId": "$id" }`
   resolves the current item's stable ID. For Get Record, `record.values.<field-id>` references a
   returned collection field; the Logic inspector offers field labels for these paths.
+- Component-aware Logic entries bind directly to actual screen widgets. A collection-backed
+  ListView context adds **Update current item**, **Delete current item**, and **Open current item**
+  actions whose collection and record ID mapping are inferred rather than entered manually.
+- Current-item navigation persists `recordContext` with collection and record IDs. Preview exposes
+  these as `route.collectionId` and `route.recordId`; generated apps can use a destination path such
+  as `/notes/:noteId` for refreshable detail URLs.
+- A screen targeted by record-aware navigation automatically offers that collection's fields in
+  **Record data bindings**. Preview resolves those bindings from the selected record, so detail
+  content follows the exact ListView row that opened it.
 - Delete Record may set `confirm: true` to request confirmation before deleting in Preview.
 - RAG and Computer Vision actions use provider-agnostic payloads. Their generated runtime inputs may
   reference temporary camera media, while outputs expose document IDs, answers/citations,
@@ -564,12 +595,16 @@ Implemented component types:
 - [x] Text input, including text, email, password, number, and multiline options.
 - [x] Image.
 - [x] Container/frame.
+- [x] Gesture Detector transparent interaction wrapper with a semantic label, keyboard activation,
+  nested-control click isolation, and a one-click **Wrap with Gesture Detector** action.
 - [x] Column with vertical child composition and main/cross-axis controls.
 - [x] Row with horizontal child composition and main/cross-axis controls.
 - [x] ListView with vertical/horizontal scrolling, static or collection data, and composed item
   templates.
 - [x] Dedicated ListView item-design scope with scoped canvas/Layers, sample selection, typed
-  property binding controls, palette insertion, undo/redo, and autosave reuse.
+  property binding controls, palette insertion, undo/redo, and autosave reuse. Empty item templates
+  show a status message and rely on the component palette for the first widget; no quick-start
+  Row/Column/Text actions are presented.
 - [x] Designed-empty ListView outlines with persisted item padding, spacing, border radius, and
   vertical/horizontal geometry that real repeated items also consume.
 - [x] First-session ListView item geometry normalization for Row/Column drops and all direct
@@ -627,7 +662,9 @@ Implemented component types:
   pointer is over a canvas.
 - [x] Space-drag and middle-button canvas panning.
 - [x] Responsive web viewport presets for mobile, tablet, and desktop widths.
-- [x] Independently minimizable Design, Logic, and Data side panels with narrow restore rails.
+- [x] Independently minimizable Design, Logic, and Data side panels with narrow restore rails,
+  including a dedicated Design Inspector header that keeps its collapse control clear of panel
+  content such as the ListView item-frame controls.
 - [x] Horizontally resizable Design, Logic, and Data side panels with persisted, clamped widths and keyboard-accessible separators.
 - [x] Vertically resizable Validation pane in the Design inspector with a persisted height.
 - [x] Backspace/Delete removes the selected Design widget or non-trigger Logic node from the keyboard.
@@ -663,7 +700,11 @@ The viewport presets represent responsive web layouts; they do not generate nati
 - [x] Drag-to-reorder and drag-to-reparent.
 - [x] Visual insertion and nesting feedback.
 - [x] Keyboard reorder and nesting alternatives using `Alt` plus arrow keys.
-
+- [x] `Row` and `Column` layer children display in layout order (left-to-right /
+  top-to-bottom), while free-form stacks remain topmost-first, so the Layers
+  panel matches the canvas for auto-layout widgets.
+- [x] `Row`/`Column` layer reorder, drag insertion, and palette drops respect
+  main-axis order, including pointer-based insertion slots.
 ### Editing history and shortcuts
 
 - [x] Document-level undo and redo history.
@@ -688,6 +729,8 @@ entire logic graph rather than directly to one action.
 - [x] Bind a component to a logic graph with `targetNodeId`, `event`, and `graphId`.
 - [x] Create a behavior from the selected component in Design mode.
 - [x] Create a workflow from a trigger in Logic mode.
+- [x] Component-derived trigger entries whose labels follow Design component names and bind to the
+  selected component automatically.
 - [x] Change the bound component and event from the logic inspector.
 - [x] Display multiple behaviors as workflow tabs.
 - [x] Delete behaviors and their associated graphs.
@@ -715,6 +758,8 @@ Production execution remains a generated-app/backend responsibility.
 - [x] Pannable and zoomable dotted graph canvas.
 - [x] Fit-view and zoom controls.
 - [x] Add nodes by clicking or dragging from the node library.
+- [x] Clicking an action in the library automatically connects it to the available flow tail;
+  drag-to-place remains available for deliberate graph placement.
 - [x] Drag graph nodes and persist their positions.
 - [x] Typed input and output ports.
 - [x] Solid execution edges plus dashed, typed AI resource edges for documents, splitters,
@@ -730,6 +775,9 @@ Production execution remains a generated-app/backend responsibility.
   variables, session user values, and previous-node output paths.
 - [x] Get Record, variable names, component-prefill targets, variable/previous-output conditions,
   labeled returned record fields, and current ListView item IDs configurable in the Logic workspace.
+- [x] Collection-aware current-item actions infer the enclosing ListView collection and stable row
+  ID, hide raw IDs in the common path, offer Yes/No controls for boolean fields, and retain generic
+  mappings as advanced value sources.
 - [x] Optional confirmation for Delete Record, with cancellation following the error branch.
 - [x] Success/error output ports for async database, email, RAG, and Computer Vision actions, including legacy-port
   migration.
@@ -747,6 +795,8 @@ Production execution remains a generated-app/backend responsibility.
 - [x] Change Text.
 - [x] Show Message.
 - [x] Navigate to Screen.
+- [x] Navigate to a detail screen with current-record collection/ID context and preview route
+  variables.
 - [x] Add Local List Item for typed static ListViews, with append/prepend placement, dynamic input
   mappings, created-item node output, and isolated session-only state.
 
@@ -764,6 +814,9 @@ Production execution remains a generated-app/backend responsibility.
   state only. It does not mutate Project JSON, replace static seed items, or write to a database.
 - [ ] Add complementary local runtime operations only when required, such as Update List Item,
   Remove List Item, and Clear List Items.
+- [x] Preview and browser-local persistence generate record IDs and reconcile successful
+  Insert/Update/Delete operations into the collection record map, so all collection-backed
+  ListViews rerender without a separate refresh node.
 - [ ] When the production backend is connected, successful Insert/Update/Delete Record actions must
   return canonical record data and update or invalidate the frontend collection cache so every
   collection-bound ListView rerenders automatically without a page refresh or a separate Add List
@@ -791,16 +844,12 @@ the ListView. The local-only flow is `On Click -> Add Local List Item`.
 - [x] Structured document/chunk/embedding/match/answer/citation outputs with preview-only
   simulation and dynamic node-output mappings.
 - [x] Schema-v3 RAG Index/Query/Remove migration into deterministic schema-v4 granular chains.
-- [x] Note-taking Ask Notes screen with separate Index Notes and Ask Indexed Notes workflows.
 - [x] Vector Store main node with upsert, delete, and retrieval-tool modes.
 - [x] AI Agent main node with attached generic Chat Model, Memory, Vector Store Tool, Prompt,
   Embeddings, and optional Reranker resources.
-- [x] Note create/update write-through indexing from database action output, plus vector cleanup on
-  note deletion with non-blocking failure feedback.
 - [x] CV Liveness, CV Enroll, and CV Verify provider-agnostic payloads.
 - [x] Camera media input mapping, consent validation, liveness/verification output mapping, and
   preview-only biometric simulation.
-- [x] Note-taking template Unlock screen with explicit consent and standard sign-in fallback.
 
 Production execution of logic graphs is not implemented in the frontend. The preview simulates safe
 effects against isolated state.
@@ -829,6 +878,9 @@ effects against isolated state.
 - [x] Schema-v5 List/Repeater/Form migration to ListView or composed Column widgets, including
   deterministic Insert Record workflows for legacy bound Forms.
 - [x] Logic data nodes can target project collections.
+- [x] Templates can declare project-data blueprints. Project creation provisions databases,
+  collections, fields, and seed records, remaps collection aliases across component and workflow
+  references, and rolls back partial projects when provisioning fails.
 
 Collections and records currently use a local-storage repository. They are not connected to a
 production database.
@@ -955,7 +1007,7 @@ The repository includes automated coverage for:
 Verification completed on 2026-11-09:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 82 test files and 682 tests passed.
+- `npm test -- --run` — 85 test files and 703 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.

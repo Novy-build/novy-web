@@ -28,7 +28,7 @@ import { CURRENT_ITEM_ID_FIELD } from '../entities/logic';
 export type PreviewEffect =
   | { kind: 'change-text'; nodeId: string; text: string }
   | { kind: 'show-message'; message: string }
-  | { kind: 'navigate'; screenId: string }
+  | { kind: 'navigate'; screenId: string; recordContext?: { collectionId: string; recordId: string } }
   | {
       kind: 'data-operation';
       payload: Extract<ActionPayload, { type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record' }>;
@@ -429,6 +429,17 @@ function applyActionInputMappings(
       return { ...payload, recordId };
     }
     case 'navigate':
+      return {
+        ...payload,
+        ...(payload.recordContext
+          ? {
+              recordContext: {
+                ...payload.recordContext,
+                recordId: resolve('$recordId', payload.recordContext.recordId),
+              },
+            }
+          : {}),
+      };
     case 'get-records':
     case 'refresh-collection':
     case 'text-split':
@@ -913,7 +924,13 @@ function effectFor(
     }
     case 'navigate': {
       const exists = document.screens.some((screen) => screen.id === payload.targetScreenId);
-      return exists ? { kind: 'navigate', screenId: payload.targetScreenId } : null;
+      return exists
+        ? {
+            kind: 'navigate',
+            screenId: payload.targetScreenId,
+            ...(payload.recordContext?.recordId ? { recordContext: payload.recordContext } : {}),
+          }
+        : null;
     }
     case 'get-records':
     case 'get-record':

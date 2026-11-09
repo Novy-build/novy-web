@@ -103,16 +103,16 @@ export class LocalStorageAppDataRepository implements AppDataRepository {
       (database) => database.id === databaseId && database.projectId === projectId,
     );
     if (!exists) throw new Error('Database not found.');
+    const collectionIds = new Set(
+      store.collections
+        .filter((collection) => collection.projectId === projectId && collection.databaseId === databaseId)
+        .map((collection) => collection.id),
+    );
     store.databases = store.databases.filter(
       (database) => !(database.id === databaseId && database.projectId === projectId),
     );
     store.collections = store.collections.filter(
       (collection) => !(collection.databaseId === databaseId && collection.projectId === projectId),
-    );
-    const collectionIds = new Set(
-      store.collections
-        .filter((collection) => collection.projectId === projectId && collection.databaseId === databaseId)
-        .map((collection) => collection.id),
     );
     store.records = store.records.filter(
       (record) => !(record.projectId === projectId && collectionIds.has(record.collectionId)),

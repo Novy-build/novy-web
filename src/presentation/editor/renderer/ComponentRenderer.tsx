@@ -19,6 +19,7 @@ import { RadioNodeView } from './nodes/RadioNodeView';
 import { SliderNodeView } from './nodes/SliderNodeView';
 import { SwitchNodeView } from './nodes/SwitchNodeView';
 import { TextNodeView } from './nodes/TextNodeView';
+import { GestureDetectorNodeView } from './nodes/GestureDetectorNodeView';
 
 interface NodeFrameProps {
   geometry: Pick<ComponentNode, 'id' | 'x' | 'y' | 'w' | 'h'>;
@@ -30,6 +31,8 @@ interface NodeFrameProps {
   onNodeEvent?: (nodeId: string, event: 'click' | 'change', value?: string, context?: RendererEventContext) => void;
   eventContext?: RendererEventContext;
   appearance?: ComponentAppearance;
+  semanticLabel?: string;
+  stopClickPropagation?: boolean;
 }
 
 /**
@@ -37,10 +40,16 @@ interface NodeFrameProps {
  * it also owns hit-testing: the selection click reaches the deepest node
  * first (inner frames stop propagation).
  */
-function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, onNodeEvent, eventContext, appearance, children }: PropsWithChildren<NodeFrameProps>) {
+function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, onNodeEvent, eventContext, appearance, semanticLabel, stopClickPropagation = false, children }: PropsWithChildren<NodeFrameProps>) {
   const selectionClass = interactive && selected ? ' ring-2 ring-brand-600' : '';
+  const runClick = (): void => {
+    if (onNodeEvent && eventContext) onNodeEvent(geometry.id, 'click', undefined, eventContext);
+    else if (onNodeEvent) onNodeEvent(geometry.id, 'click');
+    else onNodeAction?.(geometry.id);
+  };
   return (
     <div
+      aria-label={semanticLabel}
       className={`absolute${appearance ? ' novy-node-appearance' : ''}${selectionClass}`}
       data-node-id={geometry.id}
       data-selected={selected ? 'true' : 'false'}
@@ -51,13 +60,19 @@ function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, on
               onSelect?.(geometry.id);
             }
           : onNodeEvent || onNodeAction
-            ? () => {
-                 if (onNodeEvent && eventContext) onNodeEvent(geometry.id, 'click', undefined, eventContext);
-                 else if (onNodeEvent) onNodeEvent(geometry.id, 'click');
-                else onNodeAction?.(geometry.id);
+            ? (event) => {
+                if (stopClickPropagation) event.stopPropagation();
+                runClick();
               }
             : undefined
       }
+      onKeyDown={semanticLabel && (onNodeEvent || onNodeAction) ? (event) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        if (stopClickPropagation) event.stopPropagation();
+        runClick();
+      } : undefined}
+      role={semanticLabel && (onNodeEvent || onNodeAction) ? 'button' : undefined}
       style={{
         left: geometry.x,
         top: geometry.y,
@@ -65,6 +80,7 @@ function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, on
         height: geometry.h,
         ...appearanceStyle(appearance),
       }}
+      tabIndex={semanticLabel && (onNodeEvent || onNodeAction) ? 0 : undefined}
     >
       {children}
     </div>
@@ -90,6 +106,7 @@ export function ComponentRenderer({
   dataContext,
   geometryOverride,
   itemContext,
+  interactiveNodeIds,
 }: ComponentRendererProps) {
   const appTheme = useAppTheme();
   if (isHiddenAtBreakpoint(node, breakpoint) || !resolveBoundBoolean(node, 'component.visible', itemContext, true)) {
@@ -103,6 +120,8 @@ export function ComponentRenderer({
   // selection and thumbnails stay inert dashboard tiles.
   const runtimeClick = mode === 'preview' && onNodeAction ? onNodeAction : undefined;
   const runtimeEvent = mode === 'preview' ? onNodeEvent : undefined;
+  const handlesRuntimeClick = mode === 'preview' &&
+    (interactiveNodeIds === undefined || interactiveNodeIds.has(node.id));
   const emitRuntimeEvent = (event: 'click' | 'change', value?: string): void => {
     if (!runtimeEvent) return;
     if (itemContext) runtimeEvent(node.id, event, value, { listItem: itemContext });
@@ -116,9 +135,11 @@ export function ComponentRenderer({
       interactive={interactive}
       selected={isSelected}
       onSelect={onSelect}
-      onNodeAction={runtimeClick}
-      onNodeEvent={runtimeEvent}
+      onNodeAction={handlesRuntimeClick ? runtimeClick : undefined}
+      onNodeEvent={handlesRuntimeClick ? runtimeEvent : undefined}
       eventContext={itemContext ? { listItem: itemContext } : undefined}
+      semanticLabel={node.type === 'gesture-detector' ? node.props.semanticLabel : undefined}
+      stopClickPropagation={interactiveNodeIds !== undefined}
     >
       {children}
     </NodeFrame>
@@ -225,6 +246,7 @@ export function ComponentRenderer({
         />,
       );
     case 'container':
+    case 'gesture-detector':
     case 'column':
     case 'row': {
       const childGeometries = childGeometriesAtBreakpoint(node, breakpoint, geometry);
@@ -236,6 +258,7 @@ export function ComponentRenderer({
           dataContext={dataContext}
           geometryOverride={childGeometries.get(child.id)}
           itemContext={itemContext}
+          interactiveNodeIds={interactiveNodeIds}
           mode={mode}
           node={child}
           onSelect={onSelect}
@@ -249,7 +272,9 @@ export function ComponentRenderer({
       return frame(
         node.type === 'container'
           ? <ContainerNodeView borderStyle={node.appearance?.borderStyle}>{children}</ContainerNodeView>
-          : <LinearLayoutNodeView borderStyle={node.appearance?.borderStyle} direction={node.type}>{children}</LinearLayoutNodeView>,
+          : node.type === 'gesture-detector'
+            ? <GestureDetectorNodeView isCanvas={mode === 'canvas'}>{children}</GestureDetectorNodeView>
+            : <LinearLayoutNodeView borderStyle={node.appearance?.borderStyle} direction={node.type}>{children}</LinearLayoutNodeView>,
       );
     }
     case 'listview': {
@@ -264,7 +289,7 @@ export function ComponentRenderer({
           viewportExtent={node.props.scrollDirection === 'vertical' ? geometry.h : geometry.w}
           mode={mode}
           nodeId={node.id}
-          onItemSelect={(record) => runtimeEvent?.(node.id, 'click', record.itemId, { listItem: record })}
+          onItemSelect={handlesRuntimeClick ? (record) => runtimeEvent?.(node.id, 'click', record.itemId, { listItem: record }) : undefined}
           props={node.props}
           renderItem={(record) => node.children.map((child) => (
             <ComponentRenderer
@@ -274,6 +299,7 @@ export function ComponentRenderer({
               dataContext={dataContext}
               geometryOverride={childGeometries.get(child.id)}
               itemContext={record}
+              interactiveNodeIds={interactiveNodeIds}
               mode={mode}
               node={child}
               onNodeAction={runtimeClick}

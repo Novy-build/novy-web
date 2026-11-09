@@ -3,6 +3,8 @@ import {
   geometryAtBreakpoint,
   isChildBearingNode,
   isHiddenAtBreakpoint,
+  isMainAxisLayoutNode,
+  type ChildBearingNode,
   type ComponentNode,
   type NodeGeometry,
   type ResponsiveBreakpoint,
@@ -181,12 +183,20 @@ export function moveLayerInTree(
     source.absoluteX - targetAfterDetach.parentAbsoluteX,
     source.absoluteY - targetAfterDetach.parentAbsoluteY,
   );
-  // Layer rows are painted topmost-first, while document arrays store
-  // back-to-front. "Before" in Layers therefore inserts after the target.
+  // Free-form stacks are painted topmost-first, so document arrays store
+  // back-to-front and "before" in Layers inserts after the target. Row and
+  // Column children use array order as layout order, so "before" inserts
+  // directly before the target instead.
+  const targetParent = targetAfterDetach.parentId
+    ? locateNode(detached.nodes, targetAfterDetach.parentId)?.node ?? null
+    : null;
+  const insertIndex = targetParent && isMainAxisLayoutNode(targetParent)
+    ? targetAfterDetach.index
+    : targetAfterDetach.index + 1;
   return insertAtParent(
     detached.nodes,
     targetAfterDetach.parentId,
-    targetAfterDetach.index + 1,
+    insertIndex,
     moved,
   );
 }
@@ -321,4 +331,40 @@ function insertAtParent(
 
 function withRelativePosition(node: ComponentNode, x: number, y: number): ComponentNode {
   return { ...node, x: Math.round(x), y: Math.round(y) };
+}
+
+/**
+ * For a Row or Column parent, returns the child index at which a point should
+ * be inserted so the new child lands next to the pointer. Free-form parents
+ * always append. Hidden children are skipped so they do not create phantom
+ * insertion slots.
+ */
+export function findMainAxisInsertIndex(
+  parent: ChildBearingNode,
+  localX: number,
+  localY: number,
+  breakpoint: ResponsiveBreakpoint = 'mobile',
+): number {
+  if (!isMainAxisLayoutNode(parent)) {
+    return parent.children.length;
+  }
+  const geometries = childGeometriesAtBreakpoint(parent, breakpoint);
+  const horizontal = parent.type === 'row';
+  let insertAt = parent.children.length;
+  for (let index = 0; index < parent.children.length; index += 1) {
+    const child = parent.children[index]!;
+    if (isHiddenAtBreakpoint(child, breakpoint)) {
+      continue;
+    }
+    const geometry = geometries.get(child.id);
+    const midpoint = horizontal
+      ? (geometry?.x ?? 0) + (geometry?.w ?? 0) / 2
+      : (geometry?.y ?? 0) + (geometry?.h ?? 0) / 2;
+    const coordinate = horizontal ? localX : localY;
+    if (coordinate < midpoint) {
+      insertAt = index;
+      break;
+    }
+  }
+  return Math.max(0, Math.min(insertAt, parent.children.length));
 }

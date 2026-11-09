@@ -396,6 +396,12 @@ describe('screens', () => {
     });
 
     expect(routed.document.screens.find((screen) => screen.id === secondId)?.path).toBe('/account-settings');
+    const dynamic = editorReducer(routed, {
+      type: 'screen/path',
+      screenId: secondId,
+      path: '/notes/:noteId',
+    });
+    expect(dynamic.document.screens.find((screen) => screen.id === secondId)?.path).toBe('/notes/:noteid');
     expect(editorReducer(routed, {
       type: 'screen/path',
       screenId: secondId,
@@ -514,6 +520,30 @@ describe('node resize / props', () => {
 });
 
 describe('duplicate & delete', () => {
+  it('wraps a component with a Gesture Detector while preserving outer geometry', () => {
+    const initial = stateAt();
+    const original = findNodeInScreen(getActiveScreen(initial), 'node_text')!;
+    const next = editorReducer(initial, { type: 'node/wrap-gesture-detector', nodeId: 'node_text' });
+    const wrapper = findNodeInScreen(getActiveScreen(next), next.selectedNodeId ?? '');
+
+    expect(wrapper).toMatchObject({
+      type: 'gesture-detector',
+      x: original.x,
+      y: original.y,
+      w: original.w,
+      h: original.h,
+      props: { semanticLabel: 'Open item' },
+    });
+    expect(wrapper?.type === 'gesture-detector' ? wrapper.children[0] : null).toMatchObject({
+      id: 'node_text',
+      x: 0,
+      y: 0,
+    });
+
+    const undone = editorReducer(next, { type: 'history/undo' });
+    expect(findNodeInScreen(getActiveScreen(undone), 'node_text')).toMatchObject({ x: original.x, y: original.y });
+  });
+
   it('duplicates with fresh ids, offset by 16px, selecting the copy', () => {
     const next = editorReducer(stateAt(), { type: 'node/duplicate', nodeId: 'node_text' });
 
@@ -792,6 +822,70 @@ describe('layer metadata and hierarchy', () => {
     const undone = editorReducer(moved, { type: 'history/undo' });
     expect(getActiveScreen(undone).nodes.some((node) => node.id === 'node_text')).toBe(true);
   });
+
+describe('Row and Column layer ordering', () => {
+  it('inserts a palette drop into a Row at the pointer slot', () => {
+    const row = {
+      id: 'node_row',
+      type: 'row' as const,
+      x: 40,
+      y: 50,
+      w: 300,
+      h: 96,
+      props: { mainAxisAlignment: 'start' as const, crossAxisAlignment: 'stretch' as const, gap: 12, padding: createPadding(16) },
+      children: [
+        { id: 'node_first', type: 'button' as const, x: 16, y: 16, w: 40, h: 24, props: { label: 'First', variant: 'solid' as const } },
+        { id: 'node_second', type: 'button' as const, x: 72, y: 16, w: 40, h: 24, props: { label: 'Second', variant: 'solid' as const } },
+      ],
+    };
+    const state = createEditorState({ screens: [{ ...SCREEN, nodes: [row] }] });
+
+    const dropped = editorReducer(state, {
+      type: 'canvas/dropAt',
+      nodeType: 'button',
+      x: 40 + 16 + 40 + 6 + 20, // between first and second
+      y: 50 + 28,
+      parentId: 'node_row',
+    });
+
+    const nextRow = getActiveScreen(dropped).nodes.find((node) => node.id === 'node_row');
+    expect(nextRow?.type === 'row' ? nextRow.children.map((child) => child.id) : []).toEqual([
+      'node_first',
+      dropped.selectedNodeId,
+      'node_second',
+    ]);
+  });
+
+  it('moves a layer before a sibling under a Row in array order', () => {
+    const row = {
+      id: 'node_row',
+      type: 'row' as const,
+      x: 40,
+      y: 50,
+      w: 300,
+      h: 96,
+      props: { mainAxisAlignment: 'start' as const, crossAxisAlignment: 'stretch' as const, gap: 12, padding: createPadding(16) },
+      children: [
+        { id: 'node_first', type: 'button' as const, x: 16, y: 16, w: 40, h: 24, props: { label: 'First', variant: 'solid' as const } },
+        { id: 'node_second', type: 'button' as const, x: 72, y: 16, w: 40, h: 24, props: { label: 'Second', variant: 'solid' as const } },
+      ],
+    };
+    const state = createEditorState({ screens: [{ ...SCREEN, nodes: [row] }] });
+
+    const moved = editorReducer(state, {
+      type: 'node/layer-move',
+      nodeId: 'node_second',
+      targetId: 'node_first',
+      position: 'before',
+    });
+
+    const nextRow = getActiveScreen(moved).nodes.find((node) => node.id === 'node_row');
+    expect(nextRow?.type === 'row' ? nextRow.children.map((child) => child.id) : []).toEqual([
+      'node_second',
+      'node_first',
+    ]);
+  });
+});
 
   it('drops a palette component into a frame using frame-relative coordinates', () => {
     const frame = {

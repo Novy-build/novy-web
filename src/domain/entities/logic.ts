@@ -33,6 +33,8 @@ export interface ShowMessagePayload {
 export interface NavigatePayload {
   type: 'navigate';
   targetScreenId: string;
+  /** Optional repeated-record context carried to the destination screen. */
+  recordContext?: { collectionId: string; recordId: string };
 }
 
 export interface GetRecordsPayload {

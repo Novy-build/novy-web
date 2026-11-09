@@ -120,6 +120,9 @@ function detectActionCapabilities(
   requireCapability: (capability: RuntimeCapabilityId, source: string) => void,
 ): void {
   switch (payload.type) {
+    case 'navigate':
+      if (payload.recordContext) requireCapability('database', source);
+      return;
     case 'get-record':
     case 'get-records':
     case 'insert-record':

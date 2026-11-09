@@ -101,4 +101,21 @@ describe('LocalStorageAppDataRepository', () => {
       ],
     })).rejects.toThrow('duplicated');
   });
+
+  it('cascades records when deleting a database', async () => {
+    const repo = repository();
+    const database = await repo.createDatabase('project_1', { name: 'Notes database' });
+    const collection = await repo.createCollection('project_1', {
+      databaseId: database.id,
+      name: 'Notes',
+      fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
+    });
+    await repo.createRecord('project_1', collection.id, { title: 'Temporary' });
+
+    await repo.deleteDatabase('project_1', database.id);
+
+    expect(await repo.listDatabases('project_1')).toEqual([]);
+    expect(await repo.listCollections('project_1')).toEqual([]);
+    await expect(repo.listRecords('project_1', collection.id)).rejects.toThrow('Collection not found');
+  });
 });

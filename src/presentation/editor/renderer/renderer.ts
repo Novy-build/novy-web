@@ -36,4 +36,6 @@ export interface ComponentRendererProps {
   geometryOverride?: NodeGeometry;
   /** Current repeated ListView record for item-field bindings. */
   itemContext?: ListItemContext;
+  /** Component IDs with an explicit click behavior on the active screen. */
+  interactiveNodeIds?: ReadonlySet<string>;
 }

@@ -10,6 +10,48 @@ function documentWith(...screens: ReturnType<typeof makeScreen>[]): ProjectDocum
 }
 
 describe('validateProject', () => {
+  it('warns when a Gesture Detector has no accessible action label', () => {
+    const screen = makeScreen('screen_home', [{
+      id: 'gesture', type: 'gesture-detector', x: 0, y: 0, w: 200, h: 80,
+      props: { semanticLabel: '   ' }, children: [],
+    }]);
+    const report = validateProject(documentWith(screen));
+
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'component-label', componentId: 'gesture' }),
+    ]));
+  });
+
+  it('accepts dynamic detail routes and record bindings supplied by navigation context', () => {
+    const source = makeScreen('screen_home', [makeButton('open_note')]);
+    source.behaviors = [{ id: 'open_behavior', name: 'Open note', event: 'click', graphId: 'open_graph', targetNodeId: 'open_note' }];
+    source.logicGraphs = [{
+      id: 'open_graph', name: 'Open note', sourceNodeId: 'open_note',
+      nodes: [
+        { kind: 'trigger', id: 'trigger', event: 'click', position: { x: 0, y: 0 } },
+        {
+          kind: 'action', id: 'navigate', position: { x: 240, y: 0 },
+          payload: { type: 'navigate', targetScreenId: 'screen_detail', recordContext: { collectionId: 'notes', recordId: 'note_1' } },
+        },
+      ],
+      edges: [{ id: 'edge', fromNodeId: 'trigger', fromPort: 'next', toNodeId: 'navigate', toPort: 'in' }],
+    }];
+    const detail = makeScreen('screen_detail', [makeText('detail_title', {
+      bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'title' } }],
+    })]);
+    detail.path = '/notes/:noteId';
+    const notes: DataCollection = {
+      id: 'notes', projectId: 'project', databaseId: 'database', name: 'Notes',
+      fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+
+    const report = validateProject(documentWith(source, detail), [notes]);
+    expect(report.issues.map((issue) => issue.code)).not.toContain('screen-path-invalid');
+    expect(report.issues.map((issue) => issue.code)).not.toContain('component-binding-context');
+    expect(report.issues.map((issue) => issue.code)).not.toContain('component-binding-field');
+  });
+
   it('returns valid for a complete project', () => {
     const screen = makeScreen('screen_home', [makeText('node_text'), makeButton('node_button')]);
     const report = validateProject(documentWith(screen));

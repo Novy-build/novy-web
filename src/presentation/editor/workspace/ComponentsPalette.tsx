@@ -2,7 +2,7 @@ import { useState, type DragEvent } from 'react';
 import type { ComponentType } from '@domain/entities/componentNode';
 import { TextInput } from '@presentation/components/ui/TextInput';
 
-type PaletteCategory = 'Layout' | 'Basic' | 'Form controls' | 'Data';
+type PaletteCategory = 'Layout' | 'Interaction' | 'Basic' | 'Form controls' | 'Data';
 
 interface PaletteItemConfig {
   type: ComponentType;
@@ -15,6 +15,7 @@ export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
   { type: 'column', label: 'Column', description: 'Arrange children vertically', category: 'Layout' },
   { type: 'row', label: 'Row', description: 'Arrange children horizontally', category: 'Layout' },
   { type: 'container', label: 'Container', description: 'Free-form frame for children', category: 'Layout' },
+  { type: 'gesture-detector', label: 'Gesture Detector', description: 'Make a visual group tappable', category: 'Interaction' },
   { type: 'text', label: 'Text', description: 'Heading or body copy', category: 'Basic' },
   { type: 'button', label: 'Button', description: 'Tap target with a label', category: 'Basic' },
   { type: 'image', label: 'Image', description: 'Picture with alt text', category: 'Basic' },
@@ -30,7 +31,7 @@ export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
   { type: 'listview', label: 'ListView', description: 'Scrollable repeated item template', category: 'Data' },
 ];
 
-const CATEGORY_ORDER: readonly PaletteCategory[] = ['Layout', 'Basic', 'Form controls', 'Data'];
+const CATEGORY_ORDER: readonly PaletteCategory[] = ['Layout', 'Interaction', 'Basic', 'Form controls', 'Data'];
 
 export const COMPONENT_MIME = 'application/x-novy-component';
 

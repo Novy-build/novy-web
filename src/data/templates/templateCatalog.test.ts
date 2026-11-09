@@ -30,29 +30,33 @@ describe('templateCatalog', () => {
     expect(listNode?.type === 'listview' ? listNode.children : []).toHaveLength(1);
   });
 
-  it('provides a wired note app with biometric consent and fallback', () => {
+  it('provides a focused notes CRUD app with data and current-record workflows', () => {
     const notes = TEMPLATE_CATALOG.find((template) => template.id === 'template_notes');
-    const unlock = notes?.screens.find((candidate) => candidate.name === 'Unlock');
 
     expect(notes?.screens.map((candidate) => candidate.name)).toEqual([
-      'Unlock',
       'Notes',
-      'Note Editor',
-      'Ask Notes',
+      'Add Note',
+      'Note Detail',
+      'Edit Note',
     ]);
-    expect(unlock?.path).toBe('/');
-    expect(unlock?.nodes.some((node) => node.type === 'camera')).toBe(true);
-    expect(unlock?.nodes.some((node) => node.type === 'checkbox')).toBe(true);
-    expect(unlock?.logicGraphs.flatMap((graph) => graph.nodes).some(
-      (node) => node.kind === 'action' && node.payload.type === 'cv-verify',
-    )).toBe(true);
-    expect(unlock?.logicGraphs.some((graph) => graph.name === 'Standard sign-in fallback')).toBe(true);
-    const ask = notes?.screens.find((candidate) => candidate.name === 'Ask Notes');
-    expect(ask?.logicGraphs.find((graph) => graph.purpose === 'ingestion')?.nodes.some(
-      (node) => node.kind === 'action' && node.payload.type === 'vector-store' && node.payload.operation === 'upsert',
-    )).toBe(true);
-    expect(ask?.logicGraphs.find((graph) => graph.purpose === 'chat')?.nodes.some(
-      (node) => node.kind === 'action' && node.payload.type === 'ai-agent',
-    )).toBe(true);
+    expect(notes?.screens[0]?.path).toBe('/');
+    expect(notes?.data?.databaseName).toBe('Notes Database');
+    expect(notes?.data?.collections[0]).toMatchObject({ name: 'Notes' });
+    expect(notes?.data?.collections[0]?.records).toHaveLength(3);
+
+    const actions = notes?.screens.flatMap((screen) => screen.logicGraphs)
+      .flatMap((graph) => graph.nodes)
+      .filter((node) => node.kind === 'action') ?? [];
+    expect(actions.some((node) => node.payload.type === 'insert-record')).toBe(true);
+    expect(actions.some((node) => node.payload.type === 'get-record')).toBe(true);
+    expect(actions.some((node) => node.payload.type === 'update-record')).toBe(true);
+    expect(actions.filter((node) => node.payload.type === 'delete-record')).toHaveLength(2);
+    expect(actions.some((node) => node.payload.type === 'navigate' && node.payload.recordContext)).toBe(true);
+
+    const notesScreen = notes?.screens.find((candidate) => candidate.name === 'Notes');
+    const list = notesScreen?.nodes.find((node) => node.type === 'listview');
+    expect(list?.type === 'listview' ? list.children.some(
+      (node) => node.type === 'dropdown' && node.props.presentation === 'menu',
+    ) : false).toBe(true);
   });
 });

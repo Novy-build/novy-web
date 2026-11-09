@@ -65,21 +65,22 @@ export function InputMappingEditor({
     <fieldset className="rounded-tile border border-hairline p-2" data-input-key={inputKey}>
       <legend className="px-1 text-xs font-medium text-ink-muted">{label}</legend>
       <label className="text-[11px] font-medium text-ink-muted" htmlFor={`mapping-source-${currentNodeId}-${inputKey}`}>
-        Value source
+        Use value from
       </label>
       <select
+        aria-label="Value source"
         className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-xs text-ink"
         id={`mapping-source-${currentNodeId}-${inputKey}`}
         onChange={(event) => changeSource(event.target.value as MappingSource)}
         value={source}
       >
-        <option value="static">Static action value</option>
-        <option value="literal">Mapped literal</option>
+        <option value="static">Field value above</option>
+        <option value="literal">Fixed value</option>
         <option value="component">Component value</option>
         {itemFields.length > 0 ? <option value="list-item">Current list item</option> : null}
         <option value="session">Session value</option>
         <option value="variable">Application variable</option>
-        <option value="node-output">Previous node output</option>
+        <option value="node-output">Earlier step result</option>
       </select>
 
       {mapping?.source === 'literal' ? (
@@ -114,7 +115,7 @@ export function InputMappingEditor({
           value={mapping.fieldId}
         >
           <option value="">Choose item field…</option>
-          <option value={CURRENT_ITEM_ID_FIELD}>Current item ID</option>
+          <option value={CURRENT_ITEM_ID_FIELD}>Current item (automatic)</option>
           {itemFields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
         </select>
       ) : null}

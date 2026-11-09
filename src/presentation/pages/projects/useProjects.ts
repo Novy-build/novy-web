@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Project, ProjectSummary } from '@domain/entities/project';
 import type { Template } from '@domain/entities/template';
 import { useRepositories } from '@main/providers/RepositoriesProvider';
+import { useCreateProject } from '@presentation/hooks/useCreateProject';
 
 export interface ProjectsState {
   projects: ProjectSummary[];
@@ -21,6 +22,7 @@ export interface ProjectsState {
  */
 export function useProjects(): ProjectsState {
   const { projects: projectRepository } = useRepositories();
+  const instantiateProject = useCreateProject();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasFailed, setHasFailed] = useState(false);
@@ -60,11 +62,11 @@ export function useProjects(): ProjectsState {
 
   const createProject = useCallback(
     async (name: string, template: Template): Promise<Project> => {
-      const created = await projectRepository.createProject(name, template);
+      const created = await instantiateProject(name, template);
       reload();
       return created;
     },
-    [projectRepository, reload],
+    [instantiateProject, reload],
   );
 
   const renameProject = useCallback(

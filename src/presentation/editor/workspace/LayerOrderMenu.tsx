@@ -6,6 +6,7 @@ export interface LayerOrderMenuProps {
   nodeName: string;
   isFront: boolean;
   isBack: boolean;
+  isMainAxisParent?: boolean;
   onFront: () => void;
   onBack: () => void;
   onClose: () => void;
@@ -24,10 +25,13 @@ export function LayerOrderMenu({
   nodeName,
   isFront,
   isBack,
+  isMainAxisParent = false,
   onFront,
   onBack,
   onClose,
 }: LayerOrderMenuProps): React.ReactPortal {
+  const frontLabel = isMainAxisParent ? 'Move to end' : 'Bring to front';
+  const backLabel = isMainAxisParent ? 'Move to start' : 'Send to back';
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<Position>({ top: 0, left: 0 });
 
@@ -81,10 +85,10 @@ export function LayerOrderMenu({
           onClose();
         }}
         role="menuitem"
-        title={isFront ? 'Already at front' : 'Bring to front'}
+        title={isFront ? `Already at ${isMainAxisParent ? 'end' : 'front'}` : frontLabel}
         type="button"
       >
-        Bring to front
+        {frontLabel}
       </button>
       <button
         className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40"
@@ -94,10 +98,10 @@ export function LayerOrderMenu({
           onClose();
         }}
         role="menuitem"
-        title={isBack ? 'Already at back' : 'Send to back'}
+        title={isBack ? `Already at ${isMainAxisParent ? 'start' : 'back'}` : backLabel}
         type="button"
       >
-        Send to back
+        {backLabel}
       </button>
     </div>,
     document.body,

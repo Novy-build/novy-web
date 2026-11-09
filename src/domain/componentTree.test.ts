@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { makeButton, makeColumn, makeContainer, makeListView, makeText } from '@test/editorFixtures';
-import { findFrameAtPoint, getComponentTreeLocation, moveLayerInTree, reparentLayerInTree } from './componentTree';
+import { createPadding } from '@domain/entities/componentNode';
+import { makeButton, makeColumn, makeContainer, makeListView, makeRow, makeText } from '@test/editorFixtures';
+import { findFrameAtPoint, findMainAxisInsertIndex, getComponentTreeLocation, moveLayerInTree, reparentLayerInTree } from './componentTree';
 
 describe('moveLayerInTree', () => {
   it('reparents a root layer into a frame without changing its absolute position', () => {
@@ -36,6 +37,48 @@ describe('moveLayerInTree', () => {
 
     expect(moveLayerInTree(tree, 'frame', 'nested', 'inside')).toBe(tree);
     expect(moveLayerInTree(tree, 'frame', 'locked', 'inside')).toBe(tree);
+  });
+});
+
+describe('main-axis layer ordering', () => {
+  it('inserts before a sibling under a Row in array order', () => {
+    const first = makeButton('first', { x: 20, y: 30 });
+    const second = makeText('second', { x: 20, y: 20 });
+    const row = makeRow('row', [first, second], { x: 100, y: 120 });
+
+    const moved = moveLayerInTree([row], 'second', 'first', 'before');
+    const nextRow = moved[0] as { children: { id: string }[] };
+    expect(nextRow.children.map((node) => node.id)).toEqual(['second', 'first']);
+  });
+
+  it('keeps free-form before semantics unchanged', () => {
+    const child = makeButton('child', { x: 20, y: 30 });
+    const frame = makeContainer('frame', [child], { x: 100, y: 120 });
+    const sibling = makeText('sibling', { x: 20, y: 20 });
+
+    const moved = moveLayerInTree([sibling, frame], 'child', 'frame', 'before');
+    expect(moved.map((node) => node.id)).toEqual(['sibling', 'frame', 'child']);
+  });
+
+  it('computes a pointer-based insertion index for Rows', () => {
+    const first = makeButton('first', { x: 16, y: 16, w: 40, h: 24 });
+    const second = makeButton('second', { x: 72, y: 16, w: 40, h: 24 });
+    const row = makeRow('row', [first, second], {
+      x: 0,
+      y: 0,
+      w: 160,
+      h: 64,
+      props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: createPadding(16) },
+    });
+
+    expect(findMainAxisInsertIndex(row, 10, 20)).toBe(0);
+    expect(findMainAxisInsertIndex(row, 40, 20)).toBe(1);
+    expect(findMainAxisInsertIndex(row, 140, 20)).toBe(2);
+  });
+
+  it('returns the child count for free-form parents', () => {
+    const frame = makeContainer('frame', [makeButton('child')]);
+    expect(findMainAxisInsertIndex(frame, 10, 20)).toBe(1);
   });
 });
 

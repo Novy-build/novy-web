@@ -38,7 +38,7 @@ import { normalizeLogicGraph } from '@domain/logic/graph';
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
-    schemaVersion: 11,
+    schemaVersion: 12,
     id: project.id,
     name: project.name,
     createdAt: project.createdAt.toISOString(),
@@ -441,6 +441,18 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         props: {},
         children: node.children.map(mapNodeToDto),
       };
+    case 'gesture-detector':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'gesture-detector',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { semanticLabel: node.props.semanticLabel },
+        children: node.children.map(mapNodeToDto),
+      };
   }
 }
 
@@ -676,6 +688,18 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         w: dto.w,
         h: dto.h,
         props: {},
+        children: dto.children.map(mapNodeFromDto),
+      };
+    case 'gesture-detector':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'gesture-detector',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { semanticLabel: dto.props.semanticLabel || 'Open item' },
         children: dto.children.map(mapNodeFromDto),
       };
     case 'form':

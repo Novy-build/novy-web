@@ -68,6 +68,11 @@ export function ScreenFrame({
     : size.width >= CANVAS_PRESETS.tablet.width
       ? 'tablet'
       : 'mobile');
+  const interactiveNodeIds = new Set(
+    screen?.behaviors
+      .filter((behavior) => behavior.event === 'click')
+      .map((behavior) => behavior.targetNodeId) ?? [],
+  );
 
   return (
     <div
@@ -97,6 +102,7 @@ export function ScreenFrame({
             onNodeValueChange={onNodeValueChange}
             dataContext={dataContext}
             itemContext={itemContext}
+            interactiveNodeIds={interactiveNodeIds}
             onSelect={onSelectNode}
             selected={selectedNodeId === node.id}
             selectedNodeId={selectedNodeId}

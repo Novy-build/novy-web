@@ -18,7 +18,10 @@ const COLLECTION: DataCollection = {
   projectId: 'project',
   databaseId: 'database',
   name: 'Students',
-  fields: [{ id: 'student_name', key: 'name', label: 'Student name', type: 'text', required: true }],
+  fields: [
+    { id: 'student_name', key: 'name', label: 'Student name', type: 'text', required: true },
+    { id: 'completed', key: 'completed', label: 'Completed', type: 'boolean', required: false },
+  ],
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
 };
@@ -51,6 +54,44 @@ beforeEach(() => {
 });
 
 describe('LogicWorkspace without a workflow', () => {
+  it('derives component triggers and current-record actions from a collection ListView', () => {
+    const list = makeListView('student_list');
+    list.props.dataSource = { kind: 'collection', collectionId: 'students', displayFieldIds: ['student_name'] };
+    list.children = [makeButton('check_student', {
+      name: 'Complete student',
+      x: 0,
+      y: 0,
+      props: { label: 'Check', variant: 'solid' },
+    })];
+    const document: ProjectDocument = { screens: [makeScreen('screen_students', [list])] };
+    renderWorkspace(document);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete student · Button' }));
+    expect(getActiveScreen(latest.current!).behaviors[0]).toMatchObject({
+      targetNodeId: 'check_student',
+      event: 'click',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update current Student' }));
+    const graph = getActiveScreen(latest.current!).logicGraphs[0]!;
+    const update = graph.nodes.find((node) => node.kind === 'action' && node.payload.type === 'update-record');
+    expect(update).toMatchObject({
+      inputMappings: { '$recordId': { source: 'list-item', fieldId: '$id' } },
+      payload: { collectionId: 'students', recordId: '' },
+    });
+    expect(graph.edges).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update current item' }));
+    expect(screen.getByText('Current Student selected automatically')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Record ID')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Completed'), { target: { value: 'true' } });
+    const configured = getActiveScreen(latest.current!).logicGraphs[0]!.nodes
+      .find((node) => node.kind === 'action' && node.payload.type === 'update-record');
+    expect(configured?.kind === 'action' && configured.payload.type === 'update-record'
+      ? configured.payload.values.completed
+      : null).toBe('true');
+  });
+
   it('independently minimizes and restores the Nodes and Details panels', () => {
     renderWorkspace();
 
@@ -135,7 +176,7 @@ describe('LogicWorkspace with a workflow', () => {
     renderWorkspace(seededWorkflow());
 
     expect(screen.getByRole('tab', { name: 'On click — Click me', selected: true })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'On click' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'When “Click me” is clicked' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add action' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add condition' })).not.toBeInTheDocument();
   });
@@ -146,7 +187,7 @@ describe('LogicWorkspace with a workflow', () => {
 
     const graph = getActiveScreen(latest.current!).logicGraphs[0]!;
     const action = graph.nodes.find((node) => node.kind === 'action')!;
-    expect(graph.edges).toHaveLength(0); // explicit n8n-style wiring, no arbitrary auto-connect
+    expect(graph.edges).toHaveLength(1); // clicking a library action extends the readable flow automatically
     fireEvent.click(screen.getByTestId(`logic-node-${action.id}`));
     fireEvent.change(screen.getByLabelText('Target component'), { target: { value: 'node_text' } });
     fireEvent.change(screen.getByLabelText('New text'), { target: { value: 'Updated' } });
@@ -302,7 +343,7 @@ describe('LogicWorkspace with a workflow', () => {
 
   it('configures the trigger and deletes the workflow from Details', () => {
     renderWorkspace(seededWorkflow());
-    fireEvent.click(screen.getByRole('button', { name: 'On click' }));
+    fireEvent.click(screen.getByRole('button', { name: 'When “Click me” is clicked' }));
     expect(screen.getByText('Runs when Click me is clicked.')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Event'), { target: { value: 'change' } });
@@ -320,7 +361,7 @@ describe('LogicWorkspace with a workflow', () => {
     renderWorkspace(legacy);
 
     expect(getActiveScreen(latest.current!).logicGraphs[0]!.nodes[0]!.position).toEqual({ x: 80, y: 160 });
-    expect(screen.getByRole('button', { name: 'On click' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'When “Click me” is clicked' })).toBeInTheDocument();
   });
 
   it('reconstructs a missing graph referenced by a saved workflow', () => {
@@ -331,6 +372,6 @@ describe('LogicWorkspace with a workflow', () => {
     const repaired = getActiveScreen(latest.current!).logicGraphs[0]!;
     expect(repaired.id).toBe(getActiveScreen(latest.current!).behaviors[0]!.graphId);
     expect(repaired.nodes[0]).toMatchObject({ kind: 'trigger', event: 'click' });
-    expect(screen.getByRole('button', { name: 'On click' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'When “Click me” is clicked' })).toBeInTheDocument();
   });
 });

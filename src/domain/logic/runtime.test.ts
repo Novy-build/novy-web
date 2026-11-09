@@ -468,6 +468,34 @@ describe('runClickBehavior', () => {
       { kind: 'vector-indexed', insertedCount: 2 },
     ]);
   });
+
+  it('carries the current repeated record into detail-screen navigation', () => {
+    const { screen, graphId } = buildScreen();
+    const navigate = {
+      ...createActionNode({
+        type: 'navigate',
+        targetScreenId: 'screen_detail',
+        recordContext: { collectionId: 'notes', recordId: '' },
+      }),
+      inputMappings: { '$recordId': { source: 'list-item' as const, fieldId: '$id' } },
+    };
+    const trigger = screen.logicGraphs[0]!.nodes[0]!;
+    let graph: LogicGraph = { ...screen.logicGraphs[0]!, nodes: [trigger, navigate], edges: [] };
+    graph = connectLogicPorts(graph, trigger.id, 'next', navigate.id)!;
+    const withGraph = { ...screen, logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item) };
+    const detail: Screen = { id: 'screen_detail', name: 'Note details', path: '/notes/:noteId', nodes: [], behaviors: [], logicGraphs: [] };
+
+    expect(runClickBehavior(
+      { screens: [withGraph, detail] },
+      withGraph,
+      'node_button',
+      { componentValues: new Map(), listItem: { listViewId: 'notes_list', itemId: 'note_42', values: {} } },
+    )).toEqual([{
+      kind: 'navigate',
+      screenId: 'screen_detail',
+      recordContext: { collectionId: 'notes', recordId: 'note_42' },
+    }]);
+  });
 });
 
 describe('resolveValueExpression', () => {

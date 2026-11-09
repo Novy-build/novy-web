@@ -1,6 +1,6 @@
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
 import type { ChildBearingNode, ComponentNode, ListViewNode, ResponsiveBreakpoint } from '@domain/entities/componentNode';
-import { isChildBearingNode, isHiddenAtBreakpoint } from '@domain/entities/componentNode';
+import { isChildBearingNode, isHiddenAtBreakpoint, isMainAxisLayoutNode } from '@domain/entities/componentNode';
 import type { LayerDropPosition } from '@domain/componentTree';
 import { nodeDisplayLabel, nodeLayerName } from './nodeLabels';
 import { LayerOrderMenu } from './LayerOrderMenu';
@@ -24,6 +24,7 @@ interface LayerRow {
   node: ComponentNode;
   depth: number;
   parentId: string | null;
+  isMainAxisParent: boolean;
   isFront: boolean;
   isBack: boolean;
 }
@@ -38,6 +39,7 @@ const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
   input: '⌨',
   image: '◇',
   container: '#',
+  'gesture-detector': '◎',
   column: '↕',
   row: '↔',
   listview: '☷',
@@ -76,11 +78,12 @@ export function LayersPanel({
   const [openMenu, setOpenMenu] = useState<{
     id: string;
     name: string;
+    isMainAxisParent: boolean;
     isFront: boolean;
     isBack: boolean;
     trigger: HTMLElement;
   } | null>(null);
-  const rows = buildRows(nodes, collapsedIds, frame ? 1 : 0);
+  const rows = buildRows(nodes, collapsedIds, frame ? 1 : 0, null, false);
   const frameCollapsed = frame ? collapsedIds.has(frame.id) : false;
 
   function toggleExpanded(nodeId: string): void {
@@ -120,22 +123,22 @@ export function LayersPanel({
     if (event.shiftKey) {
       if (event.key === 'ArrowUp') {
         event.preventDefault();
-        onOrder(row.node.id, 'front');
+        onOrder(row.node.id, row.isMainAxisParent ? 'back' : 'front');
         return;
       }
       if (event.key === 'ArrowDown') {
         event.preventDefault();
-        onOrder(row.node.id, 'back');
+        onOrder(row.node.id, row.isMainAxisParent ? 'front' : 'back');
         return;
       }
       return;
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      onOrder(row.node.id, 'forward');
+      onOrder(row.node.id, row.isMainAxisParent ? 'backward' : 'forward');
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      onOrder(row.node.id, 'backward');
+      onOrder(row.node.id, row.isMainAxisParent ? 'forward' : 'backward');
     } else if (event.key === 'ArrowRight') {
       const rowAbove = rows[index - 1];
       if (rowAbove && acceptsDirectChildren(rowAbove.node) && !rowAbove.node.isLocked) {
@@ -331,16 +334,16 @@ export function LayersPanel({
                     {node.isLocked ? '◆' : '◇'}
                   </LayerControl>
                   <LayerControl
-                    label={`Bring ${nodeLayerName(node)} forward`}
-                    onClick={() => onOrder(node.id, 'forward')}
-                    tooltip="Bring forward"
+                    label={row.isMainAxisParent ? `Move ${nodeLayerName(node)} earlier` : `Bring ${nodeLayerName(node)} forward`}
+                    onClick={() => onOrder(node.id, row.isMainAxisParent ? 'backward' : 'forward')}
+                    tooltip={row.isMainAxisParent ? 'Move earlier' : 'Bring forward'}
                   >
                     ↑
                   </LayerControl>
                   <LayerControl
-                    label={`Send ${nodeLayerName(node)} backward`}
-                    onClick={() => onOrder(node.id, 'backward')}
-                    tooltip="Send backward"
+                    label={row.isMainAxisParent ? `Move ${nodeLayerName(node)} later` : `Send ${nodeLayerName(node)} backward`}
+                    onClick={() => onOrder(node.id, row.isMainAxisParent ? 'forward' : 'backward')}
+                    tooltip={row.isMainAxisParent ? 'Move later' : 'Send backward'}
                   >
                     ↓
                   </LayerControl>
@@ -357,6 +360,7 @@ export function LayersPanel({
                       setOpenMenu({
                         id: node.id,
                         name: nodeLayerName(node),
+                        isMainAxisParent: row.isMainAxisParent,
                         isFront: row.isFront,
                         isBack: row.isBack,
                         trigger: event.currentTarget,
@@ -382,6 +386,7 @@ export function LayersPanel({
         <LayerOrderMenu
           isBack={openMenu.isBack}
           isFront={openMenu.isFront}
+          isMainAxisParent={openMenu.isMainAxisParent}
           nodeName={openMenu.name}
           onBack={() => onOrder(openMenu.id, 'back')}
           onClose={() => setOpenMenu(null)}
@@ -435,13 +440,27 @@ function buildRows(
   collapsedIds: ReadonlySet<string>,
   depth = 0,
   parentId: string | null = null,
+  isMainAxisParent = false,
 ): LayerRow[] {
   const rows: LayerRow[] = [];
-  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+  // Free-form stacks are painted topmost-first (array is back-to-front), so
+  // walk them backward. Row/Column children are laid out in array order, so
+  // walk them forward to match the canvas.
+  const start = isMainAxisParent ? 0 : nodes.length - 1;
+  const end = isMainAxisParent ? nodes.length : -1;
+  const step = isMainAxisParent ? 1 : -1;
+  for (let index = start; index !== end; index += step) {
     const node = nodes[index]!;
-    rows.push({ node, depth, parentId, isFront: index === nodes.length - 1, isBack: index === 0 });
+    rows.push({
+      node,
+      depth,
+      parentId,
+      isMainAxisParent,
+      isFront: index === nodes.length - 1,
+      isBack: index === 0,
+    });
     if (acceptsDirectChildren(node) && !collapsedIds.has(node.id)) {
-      rows.push(...buildRows(node.children, collapsedIds, depth + 1, node.id));
+      rows.push(...buildRows(node.children, collapsedIds, depth + 1, node.id, isMainAxisLayoutNode(node)));
     }
   }
   return rows;

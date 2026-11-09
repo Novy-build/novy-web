@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ButtonNode, CameraNode, ColumnNode, ComponentNode, ContainerNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
+import type { ButtonNode, CameraNode, ColumnNode, ComponentNode, ContainerNode, GestureDetectorNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
 import { createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
@@ -395,6 +395,37 @@ describe('ComponentRenderer', () => {
     expect(screen.getAllByRole('listitem')[0]).toHaveStyle({ borderRadius: '10px', overflow: 'hidden' });
     expect(screen.getAllByRole('listitem')[0]).toHaveStyle({ height: '60px' });
     expect(document.querySelector('[data-node-id="node_list_item"]')).toHaveStyle({ left: '24px', top: '16px', width: '160px' });
+  });
+
+  it('activates Gesture Detector with Enter and isolates nested button clicks', () => {
+    const gesture: GestureDetectorNode = {
+      id: 'note_gesture',
+      type: 'gesture-detector',
+      x: 0,
+      y: 0,
+      w: 240,
+      h: 100,
+      props: { semanticLabel: 'Open note details' },
+      children: [{ ...BUTTON, id: 'complete_note', x: 180, y: 24, props: { ...BUTTON.props, label: 'Complete note' } }],
+    };
+    const onNodeEvent = vi.fn();
+    render(
+      <ComponentRenderer
+        interactiveNodeIds={new Set(['note_gesture', 'complete_note'])}
+        mode="preview"
+        node={gesture}
+        onNodeEvent={onNodeEvent}
+        selected={false}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Open note details' }), { key: 'Enter' });
+    expect(onNodeEvent).toHaveBeenCalledWith('note_gesture', 'click');
+
+    onNodeEvent.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Complete note' }));
+    expect(onNodeEvent).toHaveBeenCalledTimes(1);
+    expect(onNodeEvent).toHaveBeenCalledWith('complete_note', 'click');
   });
 
   it('reserves an undesigned ListView for canvas chrome while preview keeps its runtime empty state', () => {

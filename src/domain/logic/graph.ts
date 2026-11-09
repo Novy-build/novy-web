@@ -1,5 +1,6 @@
 import type {
   ActionNode,
+  ActionInputMappings,
   ActionPayload,
   ConditionNode,
   LogicEdge,
@@ -167,8 +168,24 @@ export function addActionNode(
   graph: LogicGraph,
   payload: ActionPayload,
   position: LogicNodePosition,
+  inputMappings?: ActionInputMappings,
+  connectToTail = false,
 ): LogicGraph {
-  return { ...graph, nodes: [...graph.nodes, createActionNode(payload, position)] };
+  const node = createActionNode(payload, position);
+  const withNode: LogicGraph = {
+    ...graph,
+    nodes: [
+      ...graph.nodes,
+      inputMappings && Object.keys(inputMappings).length > 0
+        ? { ...node, inputMappings: structuredClone(inputMappings) }
+        : node,
+    ],
+  };
+  if (!connectToTail) return withNode;
+  const tail = orderChain(graph).at(-1);
+  if (!tail) return withNode;
+  const port = firstFreeOutput(graph, tail);
+  return port ? connectLogicPorts(withNode, tail.id, port, node.id) ?? withNode : withNode;
 }
 
 export function addConditionNode(

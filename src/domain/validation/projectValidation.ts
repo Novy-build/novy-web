@@ -39,6 +39,16 @@ export function validateProject(
   const screenIds = new Set(screens.map((screen) => screen.id));
   const screenPaths = new Set<string>();
   const collectionById = new Map(collections.map((collection) => [collection.id, collection]));
+  const screenRecordCollectionById = new Map<string, string>();
+  for (const sourceScreen of screens) {
+    for (const graph of sourceScreen.logicGraphs) {
+      for (const node of graph.nodes) {
+        if (node.kind === 'action' && node.payload.type === 'navigate' && node.payload.recordContext) {
+          screenRecordCollectionById.set(node.payload.targetScreenId, node.payload.recordContext.collectionId);
+        }
+      }
+    }
+  }
 
   if (screens.length === 0) {
     issues.push(issue('project-no-screens', 'error', 'screen', 'Project needs at least one screen.'));
@@ -48,13 +58,13 @@ export function validateProject(
     if (screens.filter((candidate) => candidate.id === screen.id).length > 1) {
       issues.push(issue('screen-duplicate-id', 'error', 'screen', `Screen id “${screen.id}” is duplicated.`, { screenId: screen.id }));
     }
-    if (!/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(screen.path)) {
+    if (!/^\/(?:(?:[a-z0-9-]+|:[A-Za-z][A-Za-z0-9]*)(?:\/(?:[a-z0-9-]+|:[A-Za-z][A-Za-z0-9]*))*)?$/.test(screen.path)) {
       issues.push(issue('screen-path-invalid', 'error', 'screen', `Screen path “${screen.path}” is invalid.`, { screenId: screen.id }));
     } else if (screenPaths.has(screen.path)) {
       issues.push(issue('screen-path-duplicate', 'error', 'screen', `Screen path “${screen.path}” is duplicated.`, { screenId: screen.id }));
     }
     screenPaths.add(screen.path);
-    validateScreenTree(screen, componentIds, issues, screen.id, collectionById);
+    validateScreenTree(screen, componentIds, issues, screen.id, collectionById, screenRecordCollectionById.get(screen.id));
     validateLogic(screen, issues, collectionById, screenIds);
   }
 
@@ -86,6 +96,7 @@ function validateScreenTree(
   issues: ValidationIssue[],
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
+  screenRecordCollectionId?: string,
 ): void {
   function visit(nodes: readonly ComponentNode[], parent?: ComponentNode, itemSource?: ListViewNode): void {
     for (const node of nodes) {
@@ -114,10 +125,10 @@ function validateScreenTree(
           }
         }
       }
-      if (parent?.type === 'container' && (node.x < 0 || node.y < 0 || node.x + node.w > parent.w || node.y + node.h > parent.h)) {
+      if ((parent?.type === 'container' || parent?.type === 'gesture-detector') && (node.x < 0 || node.y < 0 || node.x + node.w > parent.w || node.y + node.h > parent.h)) {
         issues.push(issue('component-outside-frame', 'warning', 'component', 'Component extends outside its parent frame.', { screenId, componentId: node.id }));
       }
-      validateComponentProps(node, screenId, collections, issues, itemSource);
+      validateComponentProps(node, screenId, collections, issues, itemSource, screenRecordCollectionId);
       if (isChildBearingNode(node)) {
         visit(node.children, node, node.type === 'listview' ? node : itemSource);
       }
@@ -132,9 +143,10 @@ function validateComponentProps(
   collections: ReadonlyMap<string, DataCollection>,
   issues: ValidationIssue[],
   itemSource?: ListViewNode,
+  screenRecordCollectionId?: string,
 ): void {
   const base = { screenId, componentId: node.id };
-  validateComponentBindings(node, itemSource, screenId, collections, issues);
+  validateComponentBindings(node, itemSource, screenRecordCollectionId, screenId, collections, issues);
   switch (node.type) {
     case 'button':
       if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Button label is empty.', base));
@@ -147,6 +159,9 @@ function validateComponentProps(
       break;
     case 'image':
       if (node.props.src && !node.props.alt.trim()) issues.push(issue('component-alt', 'warning', 'component', 'Image should have alt text.', base));
+      break;
+    case 'gesture-detector':
+      if (!node.props.semanticLabel.trim()) issues.push(issue('component-label', 'warning', 'component', 'Gesture Detector needs an accessible action label.', base));
       break;
     case 'column':
     case 'row':
@@ -209,6 +224,7 @@ function validateComponentProps(
 function validateComponentBindings(
   node: ComponentNode,
   itemSource: ListViewNode | undefined,
+  screenRecordCollectionId: string | undefined,
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
   issues: ValidationIssue[],
@@ -228,13 +244,15 @@ function validateComponentBindings(
     if (!isBindingTargetAllowed(node.type, binding.target)) {
       issues.push(issue('component-binding-target', 'error', 'component', 'Binding target is not supported by this component.', base));
     }
-    if (!itemSource) {
-      issues.push(issue('component-binding-context', 'error', 'component', 'Item binding must be inside a ListView item template.', base));
+    if (!itemSource && !screenRecordCollectionId) {
+      issues.push(issue('component-binding-context', 'error', 'component', 'Record binding must be inside a ListView item template or a record-aware detail screen.', base));
       continue;
     }
-    const field = itemSource.props.dataSource.kind === 'static'
-      ? itemSource.props.dataSource.fields.find((candidate) => candidate.id === binding.value.fieldId)
-      : collections.get(itemSource.props.dataSource.collectionId)?.fields.find((candidate) => candidate.id === binding.value.fieldId);
+    const field = itemSource
+      ? itemSource.props.dataSource.kind === 'static'
+        ? itemSource.props.dataSource.fields.find((candidate) => candidate.id === binding.value.fieldId)
+        : collections.get(itemSource.props.dataSource.collectionId)?.fields.find((candidate) => candidate.id === binding.value.fieldId)
+      : collections.get(screenRecordCollectionId!)?.fields.find((candidate) => candidate.id === binding.value.fieldId);
     if (!field) {
       issues.push(issue('component-binding-field', 'error', 'data', 'Item binding references a missing field.', base));
     } else if (!isFieldTypeCompatible(binding.target, field.type)) {
@@ -358,6 +376,19 @@ function validateLogic(
             logicNodeId: node.id,
           });
         }
+        const currentRecordMapping = node.inputMappings?.['$recordId'];
+        if (currentRecordMapping?.source === 'list-item' && currentRecordMapping.fieldId === CURRENT_ITEM_ID_FIELD) {
+          const actionCollectionId = node.payload.type === 'navigate'
+            ? node.payload.recordContext?.collectionId
+            : 'collectionId' in node.payload
+              ? node.payload.collectionId
+              : undefined;
+          if (!graphItemSource || graphItemSource.props.dataSource.kind !== 'collection') {
+            issues.push(issue('logic-current-record-context', 'error', 'logic', 'Current-record action requires a collection-backed ListView.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
+          } else if (actionCollectionId && actionCollectionId !== graphItemSource.props.dataSource.collectionId) {
+            issues.push(issue('logic-current-record-collection', 'error', 'logic', 'Current-record action must use the enclosing ListView collection.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
+          }
+        }
         if (node.payload.type === 'add-local-list-item' && localListTarget?.type === 'listview' && localListTarget.props.dataSource.kind === 'static') {
           const fieldIds = new Set(localListTarget.props.dataSource.fields.map((field) => field.id));
           for (const key of Object.keys(node.inputMappings ?? {})) {
@@ -476,6 +507,10 @@ function validateActionPayload(
     case 'navigate':
       if (!payload.targetScreenId) issues.push(issue('logic-empty-screen', 'warning', 'logic', 'Navigate target screen is not set.', base));
       else if (!screenIds.has(payload.targetScreenId)) issues.push(issue('logic-missing-screen', 'error', 'logic', 'Navigate target screen is missing.', base));
+      if (payload.recordContext) {
+        if (!collections.has(payload.recordContext.collectionId)) issues.push(issue('data-missing-collection', 'error', 'logic', 'Navigation record context references a missing collection.', base));
+        if (!payload.recordContext.recordId && !inputMappings?.['$recordId']) issues.push(issue('logic-empty-record', 'warning', 'logic', 'Navigation record context is not set.', base));
+      }
       break;
     case 'get-records':
       break;

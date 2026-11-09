@@ -75,13 +75,24 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     ? findNearestListView(activeScreen.nodes, state.selectedNodeId)
     : null;
   const itemDataSource = itemSource?.props.dataSource;
+  const screenRecordCollectionId = state.document.screens
+    .flatMap((candidate) => candidate.logicGraphs)
+    .flatMap((graph) => graph.nodes)
+    .flatMap((node) => node.kind === 'action' && node.payload.type === 'navigate' &&
+      node.payload.targetScreenId === activeScreen.id && node.payload.recordContext
+      ? [node.payload.recordContext.collectionId]
+      : [])[0];
   const listItemFields: readonly ListItemBindingField[] = itemDataSource?.kind === 'static'
     ? itemDataSource.fields
     : itemDataSource?.kind === 'collection'
       ? projectData.collections
           .find((collection) => collection.id === itemDataSource.collectionId)
           ?.fields.map(({ id, label, type }) => ({ id, label, type })) ?? []
-      : [];
+      : screenRecordCollectionId
+        ? projectData.collections
+            .find((collection) => collection.id === screenRecordCollectionId)
+            ?.fields.map(({ id, label, type }) => ({ id, label, type })) ?? []
+        : [];
   const scopedListView = state.designScope.kind === 'list-item-template'
     ? findNodeInScreen(activeScreen, state.designScope.listViewId)
     : null;
@@ -273,11 +284,8 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
               path={activeScreen.path}
             /></>}
             {activeTemplate && activeTemplate.children.length === 0 ? (
-              <div className="flex flex-wrap items-center justify-center gap-2 border-b border-dashed border-hairline bg-surface px-4 py-3" role="status">
+              <div className="border-b border-dashed border-hairline bg-surface px-4 py-3 text-center" role="status">
                 <span className="text-sm text-ink-muted">This item template is empty.</span>
-                <button className="min-h-11 rounded-tile border border-hairline px-3 text-sm font-medium text-ink" onClick={() => addFromPalette('row')} type="button">Start with Row</button>
-                <button className="min-h-11 rounded-tile border border-hairline px-3 text-sm font-medium text-ink" onClick={() => addFromPalette('column')} type="button">Start with Column</button>
-                <button className="min-h-11 rounded-tile border border-hairline px-3 text-sm font-medium text-ink" onClick={() => addFromPalette('text')} type="button">Start with Text</button>
               </div>
             ) : null}
             <EditorCanvas
@@ -369,15 +377,17 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                 orientation="horizontal"
                 value={inspectorWidth}
               />
-              <aside className="relative flex shrink-0 flex-col overflow-hidden border-l border-hairline bg-surface" id="design-inspector-panel" style={{ width: inspectorWidth }}>
-                <PanelCollapseButton
-                  className="absolute right-0 top-0 z-30 bg-surface"
-                  controls="design-inspector-panel"
-                  isCollapsed={false}
-                  label="inspector panel"
-                  onToggle={() => setIsInspectorCollapsed(true)}
-                  side="right"
-                />
+              <aside className="flex shrink-0 flex-col overflow-hidden border-l border-hairline bg-surface" id="design-inspector-panel" style={{ width: inspectorWidth }}>
+                <div className="flex h-11 shrink-0 items-center justify-between border-b border-hairline pl-4">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Inspector</span>
+                  <PanelCollapseButton
+                    controls="design-inspector-panel"
+                    isCollapsed={false}
+                    label="inspector panel"
+                    onToggle={() => setIsInspectorCollapsed(true)}
+                    side="right"
+                  />
+                </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                   <Inspector
                     behaviors={activeScreen.behaviors}

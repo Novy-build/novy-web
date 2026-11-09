@@ -79,6 +79,7 @@ export function PreviewOverlay({
   const [textOverrides, setTextOverrides] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [componentValues, setComponentValues] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [variables, setVariables] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const [routeRecordContext, setRouteRecordContext] = useState<{ collectionId: string; recordId: string } | null>(null);
   const [previewRecords, setPreviewRecords] = useState<ReadonlyMap<string, readonly DataRecord[]>>(
     () => new Map(recordsByCollection),
   );
@@ -104,6 +105,13 @@ export function PreviewOverlay({
   zoomRef.current = zoom;
 
   const screen: Screen | null = screens.find((candidate) => candidate.id === screenId) ?? screens[0] ?? null;
+  const routeRecord = routeRecordContext
+    ? (previewRecords.get(routeRecordContext.collectionId) ?? [])
+        .find((record) => record.id === routeRecordContext.recordId) ?? null
+    : null;
+  const routeItemContext = routeRecord
+    ? { listViewId: 'route-record', itemId: routeRecord.id, values: routeRecord.values }
+    : undefined;
 
   function previewRuntimeData() {
     return {
@@ -225,6 +233,14 @@ export function PreviewOverlay({
             setTextOverrides(new Map()); // entering a screen resets its runtime state
             setComponentValues(new Map());
             setLocalItemsByListView(new Map());
+            if (effect.recordContext) {
+              setRouteRecordContext(effect.recordContext);
+              setVariables((previous) => new Map([
+                ...previous,
+                ['route.recordId', effect.recordContext!.recordId],
+                ['route.collectionId', effect.recordContext!.collectionId],
+              ]));
+            } else setRouteRecordContext(null);
             setScreenId(effect.screenId);
             break;
           case 'data-operation':
@@ -552,6 +568,7 @@ export function PreviewOverlay({
             breakpoint={previewDevice}
             componentValues={componentValues}
             dataContext={{ collections, localItemsByListView, recordsByCollection: previewRecords }}
+            itemContext={routeItemContext}
             mode="preview"
             onNodeEvent={handleNodeEvent}
             onAppThemeChange={setAppTheme}

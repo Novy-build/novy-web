@@ -1,5 +1,5 @@
 import type { ComponentNode, ComponentType } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isChildBearingNode, isHiddenAtBreakpoint, resolveEdgeInsets, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isChildBearingNode, isHiddenAtBreakpoint, isMainAxisLayoutNode, resolveEdgeInsets, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import { createComponentNode, getDefaultNodeSize } from '@domain/factories/componentNode';
 import { generateId } from '@domain/ids';
 import { screenPathFromName } from '@domain/factories/screen';
@@ -28,6 +28,7 @@ import {
 } from '@domain/factories/logic';
 import { applyAssistantProposal } from '@domain/ai/proposal';
 import {
+  findMainAxisInsertIndex,
   getComponentTreeLocation,
   moveLayerInTree,
   reparentLayerInTree,
@@ -283,6 +284,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         node.type === 'column' ? { ...node, props: { ...node.props, ...action.props } } : node,
       );
 
+    case 'node/props-gesture-detector':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'gesture-detector' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
     case 'node/props-row':
       return updateNodeWithHistory(state, action.nodeId, (node) =>
         node.type === 'row' ? { ...node, props: { ...node.props, ...action.props } } : node,
@@ -344,6 +350,22 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'node/duplicate':
       if (isItemFrame(state, action.nodeId)) return state;
       return duplicateNode(state, action.nodeId);
+
+    case 'node/wrap-gesture-detector': {
+      if (isItemFrame(state, action.nodeId)) return state;
+      const screen = getActiveScreen(state);
+      const target = findNodeInScreen(screen, action.nodeId);
+      if (!target || target.type === 'gesture-detector') return state;
+      const wrapperId = generateId('node');
+      return pushHistory(state, (document) => ({
+        ...state,
+        document: replaceScreen(document, state.activeScreenId, (candidate) => ({
+          ...candidate,
+          nodes: wrapNodeInGestureDetector(candidate.nodes, action.nodeId, wrapperId),
+        })),
+        selectedNodeId: wrapperId,
+      }) as EditorState);
+    }
 
     case 'node/delete':
       if (isItemFrame(state, action.nodeId)) return state;
@@ -649,7 +671,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!graph) return state;
       const nextGraph = action.node.kind === 'condition'
         ? addConditionNode(graph, action.position)
-        : addActionNode(graph, action.node.payload, action.position);
+        : addActionNode(graph, action.node.payload, action.position, action.node.inputMappings, action.connectToTail);
       return pushHistory(state, (document) => ({
         ...state,
         document: replaceGraph(document, state.activeScreenId, graph.id, nextGraph),
@@ -1164,6 +1186,14 @@ function addNode(
     bounds,
   );
 
+  const insertIndex = validParent && isMainAxisLayoutNode(validParent.node)
+    ? findMainAxisInsertIndex(
+        validParent.node,
+        rawX - validParent.absoluteX,
+        rawY - validParent.absoluteY,
+        state.device,
+      )
+    : undefined;
   return pushHistory(state, (document) => {
     const created = createComponentNode(nodeType);
     const mobileBounds = childGeometryBounds(
@@ -1182,7 +1212,7 @@ function addNode(
       ...state,
       document: replaceScreen(document, state.activeScreenId, (screen) => ({
         ...screen,
-        nodes: insertNodeAtParent(screen.nodes, validParent?.node.id ?? null, node),
+        nodes: insertNodeAtParent(screen.nodes, validParent?.node.id ?? null, node, insertIndex),
       })),
       selectedNodeId: node.id,
       dropIndicator: null,
@@ -1194,13 +1224,18 @@ function insertNodeAtParent(
   nodes: readonly ComponentNode[],
   parentId: string | null,
   node: ComponentNode,
+  insertIndex?: number,
 ): ComponentNode[] {
   if (parentId === null) {
-    return [...nodes, node];
+    const index = Math.max(0, Math.min(insertIndex ?? nodes.length, nodes.length));
+    return [...nodes.slice(0, index), node, ...nodes.slice(index)];
   }
   return nodes.map((candidate) => {
     if (candidate.id === parentId && isChildBearingNode(candidate)) {
-      return { ...candidate, children: [...candidate.children, node] };
+      const index = Math.max(0, Math.min(insertIndex ?? candidate.children.length, candidate.children.length));
+      const children = [...candidate.children];
+      children.splice(index, 0, node);
+      return { ...candidate, children };
     }
     if (isChildBearingNode(candidate)) {
       return {
@@ -1445,6 +1480,44 @@ function applyNudge(
   return applyBreakpointGeometry(node, next, breakpoint);
 }
 
+function wrapNodeInGestureDetector(
+  nodes: readonly ComponentNode[],
+  nodeId: string,
+  wrapperId: string,
+): ComponentNode[] {
+  return nodes.map((node) => {
+    if (node.id === nodeId) {
+      const child: ComponentNode = {
+        ...node,
+        x: 0,
+        y: 0,
+        responsive: node.responsive
+          ? Object.fromEntries(Object.entries(node.responsive).map(([breakpoint, override]) => [
+              breakpoint,
+              { ...override, x: 0, y: 0 },
+            ]))
+          : undefined,
+      } as ComponentNode;
+      return {
+        id: wrapperId,
+        type: 'gesture-detector',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        responsive: node.responsive ? structuredClone(node.responsive) : undefined,
+        props: { semanticLabel: `Open ${node.name?.trim() || 'item'}` },
+        children: [child],
+      };
+    }
+    if (!isChildBearingNode(node)) return node;
+    const children = wrapNodeInGestureDetector(node.children, nodeId, wrapperId);
+    return children.some((child, index) => child !== node.children[index])
+      ? { ...node, children }
+      : node;
+  });
+}
+
 function normalizeDesignScope(state: EditorState): EditorState {
   if (state.designScope.kind === 'screen') return state;
   const screen = state.document.screens.find((candidate) => candidate.id === state.activeScreenId);
@@ -1590,7 +1663,7 @@ function normalizeScreenPath(value: string): string {
   const trimmed = value.trim().toLowerCase();
   if (!trimmed) return '';
   const withSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return withSlash === '/' ? '/' : withSlash.replace(/[^/a-z0-9-]+/g, '-').replace(/\/{2,}/g, '/').replace(/\/$/, '');
+  return withSlash === '/' ? '/' : withSlash.replace(/[^/a-z0-9:-]+/g, '-').replace(/\/{2,}/g, '/').replace(/\/$/, '');
 }
 
 function uniqueScreenPath(document: ProjectDocument, candidate: string): string {

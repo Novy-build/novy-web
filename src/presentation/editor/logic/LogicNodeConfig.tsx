@@ -31,6 +31,7 @@ interface LogicNodeConfigProps {
   onRemoveSelected: () => void;
   onDeleteBehavior: () => void;
   collections?: readonly DataCollection[];
+  currentItemCollection?: DataCollection | null;
   logicNodes: readonly LogicNode[];
   listItemFields?: readonly { id: string; label: string }[];
 }
@@ -52,6 +53,7 @@ export function LogicNodeConfig({
   onRemoveSelected,
   onDeleteBehavior,
   collections = [],
+  currentItemCollection = null,
   logicNodes,
   listItemFields = [],
 }: LogicNodeConfigProps) {
@@ -253,10 +255,22 @@ export function LogicNodeConfig({
   const selectedLocalListView = actionPayload.type === 'add-local-list-item'
     ? staticListViews.find((candidate) => candidate.id === actionPayload.targetNodeId) ?? null
     : null;
+  const currentRecordMapping = node.inputMappings?.['$recordId'];
+  const isAutomaticCurrentItem = currentRecordMapping?.source === 'list-item' &&
+    currentRecordMapping.fieldId === CURRENT_ITEM_ID_FIELD &&
+    currentItemCollection !== null && (
+      (isDataPayload(actionPayload) && 'recordId' in actionPayload && actionPayload.collectionId === currentItemCollection.id) ||
+      (actionPayload.type === 'navigate' && actionPayload.recordContext?.collectionId === currentItemCollection.id)
+    );
 
   return (
     <div>
       <h3 className="text-sm font-semibold text-ink">{logicNodeTitle(node)}</h3>
+      {isAutomaticCurrentItem ? (
+        <p className="mt-3 rounded-md bg-brand-50 p-2 text-xs font-medium text-brand-700">
+          Current {singularize(currentItemCollection.name)} selected automatically
+        </p>
+      ) : null}
       {node.payload.type === 'change-text' ? (
         <>
           <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-target">
@@ -325,7 +339,13 @@ export function LogicNodeConfig({
             className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
             id="logic-screen"
             onChange={(event) =>
-              configure({ type: 'navigate', targetScreenId: event.target.value })
+              configure({
+                type: 'navigate',
+                targetScreenId: event.target.value,
+                ...(actionPayload.type === 'navigate' && actionPayload.recordContext
+                  ? { recordContext: actionPayload.recordContext }
+                  : {}),
+              })
             }
             value={node.payload.targetScreenId}
           >
@@ -346,10 +366,10 @@ export function LogicNodeConfig({
           <p className="mt-3 rounded-md bg-brand-50 p-2 text-xs text-brand-700">
             Collections are configured in the Data workspace.
           </p>
-          <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-collection">
-            Collection
-          </label>
-          <select
+           {!isAutomaticCurrentItem ? <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-collection">
+             Collection
+           </label> : null}
+           {!isAutomaticCurrentItem ? <select
             className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
             id="logic-collection"
             onChange={(event) => configure({ ...actionPayload, collectionId: event.target.value })}
@@ -357,8 +377,8 @@ export function LogicNodeConfig({
           >
             <option value="">Choose a collection…</option>
             {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
-          </select>
-          {'recordId' in actionPayload ? (
+           </select> : null}
+           {'recordId' in actionPayload && !isAutomaticCurrentItem ? (
             <>
               <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-record-id">
                 Record ID
@@ -381,17 +401,15 @@ export function LogicNodeConfig({
             <div className="mt-4 grid gap-3">
               <p className="text-xs font-medium text-ink-muted">Field values</p>
               {selectedDataCollection.fields.map((field) => (
-                <label className="text-xs font-medium text-ink-muted" key={field.id}>
-                  {field.label}
-                  <input
-                    className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-                    onChange={(event) => configure({
-                      ...actionPayload,
-                      values: { ...actionPayload.values, [field.id]: event.target.value },
-                    })}
-                    value={actionPayload.values[field.id] ?? ''}
-                  />
-                </label>
+                <RecordFieldInput
+                  field={field}
+                  key={field.id}
+                  onChange={(value) => configure({
+                    ...actionPayload,
+                    values: { ...actionPayload.values, [field.id]: value },
+                  })}
+                  value={actionPayload.values[field.id] ?? ''}
+                />
               ))}
             </div>
           ) : null}
@@ -550,7 +568,9 @@ export function LogicNodeConfig({
       {actionInputDefinitions(actionPayload, selectedDataCollection, selectedLocalListView).length > 0 ? (
         <div className="mt-5 grid gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Input mapping</p>
-          {actionInputDefinitions(actionPayload, selectedDataCollection, selectedLocalListView).map((input) => (
+          {actionInputDefinitions(actionPayload, selectedDataCollection, selectedLocalListView)
+            .filter((input) => !(isAutomaticCurrentItem && input.key === '$recordId'))
+            .map((input) => (
             <InputMappingEditor
               collections={collections}
               currentNodeId={node.id}
@@ -689,6 +709,50 @@ function actionInputDefinitions(
     default:
       return [];
   }
+}
+
+function RecordFieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: DataCollection['fields'][number];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  if (field.type === 'boolean') {
+    return (
+      <label className="text-xs font-medium text-ink-muted">
+        {field.label}
+        <select
+          className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+          onChange={(event) => onChange(event.target.value)}
+          value={value}
+        >
+          <option value="">Choose…</option>
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      </label>
+    );
+  }
+  return (
+    <label className="text-xs font-medium text-ink-muted">
+      {field.label}
+      <input
+        className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+        onChange={(event) => onChange(event.target.value)}
+        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+        value={value}
+      />
+    </label>
+  );
+}
+
+function singularize(value: string): string {
+  if (/ies$/i.test(value)) return `${value.slice(0, -3)}y`;
+  if (/s$/i.test(value) && !/ss$/i.test(value)) return value.slice(0, -1);
+  return value || 'item';
 }
 
 function LocalListFieldInput({

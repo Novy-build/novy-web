@@ -42,14 +42,17 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(screen.getByRole('main', { name: 'Editor' })).toBeInTheDocument();
   });
 
-  it('minimizes and restores the design Inspector panel', async () => {
+  it('minimizes and restores the design Inspector panel without overlaying its content', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);
     const projects = await repositories.projects.listProjects();
     renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
     await screen.findByTestId('canvas-frame');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse inspector panel' }));
+    const collapse = screen.getByRole('button', { name: 'Collapse inspector panel' });
+    expect(collapse).not.toHaveClass('absolute');
+    expect(collapse.parentElement).toHaveTextContent('Inspector');
+    fireEvent.click(collapse);
     expect(screen.queryByRole('region', { name: 'Inspector' })).not.toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'inspector panel minimized' })).toBeInTheDocument();
 
@@ -109,7 +112,7 @@ describe('EditorPage (integration over the real route tree)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
     expect(screen.getByText(/Item design/)).toBeInTheDocument();
     expect(screen.getByTestId('canvas-frame')).toHaveStyle({ width: '320px', height: '800px' });
-    fireEvent.click(screen.getByRole('button', { name: 'Start with Text' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Text' }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Text content' }), { target: { value: 'value' } });
     fireEvent.click(screen.getByRole('button', { name: 'Exit item design' }));
     expect(screen.getByTestId('listview-item-outlines')).toBeInTheDocument();

@@ -24,6 +24,8 @@ import { LogicGraphCanvas } from './LogicGraphCanvas';
 import { LogicNodeConfig } from './LogicNodeConfig';
 import { LogicNodeLibrary } from './LogicNodeLibrary';
 import type { LogicLibraryNode } from './logicNodeRegistry';
+import type { LogicNodeDefinition } from './logicNodeRegistry';
+import { CURRENT_ITEM_ID_FIELD } from '@domain/entities/logic';
 import { nodeDisplayLabel } from '../workspace/nodeLabels';
 import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
 import { ResizeHandle } from '../layout/ResizeHandle';
@@ -88,6 +90,28 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
     : itemDataSource?.kind === 'collection'
       ? collections.find((collection) => collection.id === itemDataSource.collectionId)?.fields ?? []
       : [];
+  const itemCollection = itemDataSource?.kind === 'collection'
+    ? collections.find((collection) => collection.id === itemDataSource.collectionId) ?? null
+    : null;
+  const contextualDefinitions: LogicNodeDefinition[] = [
+    ...flatNodes
+      .map((component): LogicNodeDefinition | null => {
+        const event = defaultEventForComponent(component);
+        if (!event) return null;
+        const label = nodeDisplayLabel(component);
+        return {
+          id: `component-${component.id}-${event}`,
+          category: 'Components',
+          label: `${label} · ${componentTypeLabel(component)}`,
+          description: `When ${label} is ${event === 'click' ? 'clicked' : 'changed'}`,
+          icon: event === 'click' ? '↗' : '↻',
+          keywords: [label, component.type, event],
+          create: () => ({ kind: 'trigger', event, targetNodeId: component.id }),
+        };
+      })
+      .filter((definition): definition is LogicNodeDefinition => definition !== null),
+    ...(itemCollection ? currentItemDefinitions(itemCollection.id, itemCollection.name) : []),
+  ];
   const tabs = screen.behaviors.map((candidate) => ({ id: candidate.id, label: candidate.name }));
 
   useEffect(() => {
@@ -108,10 +132,19 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
     };
   }
 
-  function addLibraryNode(node: LogicLibraryNode, position = nextPosition()): void {
+  function addLibraryNode(node: LogicLibraryNode, requestedPosition?: { x: number; y: number }): void {
+    const position = requestedPosition ?? nextPosition();
     setLibraryMessage('');
     if (node.kind === 'trigger') {
-      dispatch({ type: 'workflow/create', event: node.event, position });
+      if (node.targetNodeId) {
+        const existing = screen.behaviors.find((candidate) =>
+          candidate.targetNodeId === node.targetNodeId && candidate.event === node.event);
+        dispatch(existing
+          ? { type: 'behavior/select', behaviorId: existing.id }
+          : { type: 'behavior/create', targetNodeId: node.targetNodeId, event: node.event });
+      } else {
+        dispatch({ type: 'workflow/create', event: node.event, position });
+      }
       return;
     }
     if (!graph) {
@@ -123,8 +156,9 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
       graphId: graph.id,
       node: node.kind === 'condition'
         ? { kind: 'condition' }
-        : { kind: 'action', payload: node.payload },
+        : { kind: 'action', payload: node.payload, inputMappings: node.inputMappings },
       position,
+      connectToTail: requestedPosition === undefined,
     });
   }
 
@@ -199,6 +233,7 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
           <>
             <div className="min-h-0 shrink-0 self-stretch" id="logic-nodes-panel" style={{ width: nodesWidth }}>
               <LogicNodeLibrary
+                contextualDefinitions={contextualDefinitions}
                 onAdd={addLibraryNode}
                 onCollapse={() => setIsNodesCollapsed(true)}
               />
@@ -219,6 +254,10 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
         )}
         <div className="relative flex min-w-0 flex-1">
           <LogicGraphCanvas
+            fieldLabelFor={(collectionId, fieldId) =>
+              collections.find((collection) => collection.id === collectionId)
+                ?.fields.find((field) => field.id === fieldId)?.label ?? null
+            }
             graph={renderedGraph}
             onConnect={connectNodes}
             onDeleteEdge={(edgeId) => graph && dispatch({ type: 'graph/edge-delete', graphId: graph.id, edgeId })}
@@ -287,6 +326,7 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
                 node={selectedNode}
                 logicNodes={graph?.nodes ?? []}
                 listItemFields={listItemFields}
+                currentItemCollection={itemCollection}
                 onConfigure={configureSelected}
                 onConfigureInputMappings={configureInputMappings}
                 onConfigureCondition={configureCondition}
@@ -302,6 +342,89 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
       </div>
     </section>
   );
+}
+
+function defaultEventForComponent(node: ComponentNode): TriggerEvent | null {
+  switch (node.type) {
+    case 'button':
+    case 'gesture-detector':
+    case 'container':
+    case 'image':
+    case 'text':
+    case 'listview':
+      return 'click';
+    case 'input':
+    case 'checkbox':
+    case 'radio':
+    case 'switch':
+    case 'dropdown':
+    case 'slider':
+    case 'camera':
+      return 'change';
+    default:
+      return null;
+  }
+}
+
+function componentTypeLabel(node: ComponentNode): string {
+  return node.type === 'gesture-detector'
+    ? 'Gesture Detector'
+    : node.type === 'input'
+      ? 'Text field'
+      : node.type.charAt(0).toUpperCase() + node.type.slice(1);
+}
+
+function currentItemDefinitions(collectionId: string, collectionName: string): LogicNodeDefinition[] {
+  const itemName = singularize(collectionName);
+  const currentId = { source: 'list-item' as const, fieldId: CURRENT_ITEM_ID_FIELD };
+  return [
+    {
+      id: `current-update-${collectionId}`,
+      category: 'Current item',
+      label: `Update current ${itemName}`,
+      description: `Change fields on the ${itemName} that was clicked`,
+      icon: '✓',
+      keywords: ['current', itemName, 'update', 'edit'],
+      create: () => ({
+        kind: 'action',
+        payload: { type: 'update-record', collectionId, recordId: '', values: {} },
+        inputMappings: { $recordId: currentId },
+      }),
+    },
+    {
+      id: `current-delete-${collectionId}`,
+      category: 'Current item',
+      label: `Delete current ${itemName}`,
+      description: `Delete the ${itemName} that was clicked`,
+      icon: '×',
+      keywords: ['current', itemName, 'delete', 'remove'],
+      create: () => ({
+        kind: 'action',
+        payload: { type: 'delete-record', collectionId, recordId: '', confirm: true },
+        inputMappings: { $recordId: currentId },
+      }),
+    },
+    {
+      id: `current-open-${collectionId}`,
+      category: 'Current item',
+      label: `Open current ${itemName}`,
+      description: `Open a detail screen with this ${itemName}`,
+      icon: '→',
+      keywords: ['current', itemName, 'open', 'navigate', 'detail'],
+      create: () => ({
+        kind: 'action',
+        payload: { type: 'navigate', targetScreenId: '', recordContext: { collectionId, recordId: '' } },
+        inputMappings: { $recordId: currentId },
+      }),
+    },
+  ];
+}
+
+function singularize(value: string): string {
+  const trimmed = value.trim();
+  if (/ies$/i.test(trimmed)) return `${trimmed.slice(0, -3)}y`;
+  if (/s$/i.test(trimmed) && !/ss$/i.test(trimmed)) return trimmed.slice(0, -1);
+  return trimmed || 'item';
 }
 
 function findNearestListView(

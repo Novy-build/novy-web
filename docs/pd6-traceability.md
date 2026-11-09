@@ -26,8 +26,11 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/presentation/pages/projects/ProjectsPage.test.tsx`
   - `src/presentation/pages/projects/TemplateGalleryModal.test.tsx`
   - `src/data/repositories/local/LocalStorageProjectRepository.test.ts`
+  - `src/domain/templates/instantiateTemplate.test.ts`
+  - `src/presentation/hooks/useCreateProject.test.tsx`
 - Evidence: CRUD operations, search, duplicate, rename, delete confirmation, empty states,
-  and template-based creation.
+  template-based creation, and transactional provisioning of template databases, collections,
+  schemas, and seed records with collection-reference remapping.
 
 ## UC-03 Design UI with Components and Templates
 
@@ -44,12 +47,15 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/presentation/editor/workspace/ComponentsPalette.test.tsx`
   - `src/presentation/editor/renderer/ComponentRenderer.test.tsx`
   - `src/data/mappers/project.mapper.test.ts`
+  - `src/data/templates/templateCatalog.test.ts`
 - Evidence: drag/drop, free-form and linear nested composition, reparenting, resize, visibility,
   locking, inline rename, ordering, snap, pan, zoom, palette search, templates, Column/Row/ListView
   widgets, focused free-form ListView item-template editing with representative data and explicit
   responsive child geometry, designed-empty item outlines that reflect persisted
   padding/spacing/radius, typed property bindings, autosave, undo/redo, and Mobile/Tablet/Desktop
-  canvas and preview device switching.
+  canvas and preview device switching. The Notes CRUD starter demonstrates a mobile card list,
+  accessible per-card overflow actions, and dedicated add/detail/edit screens without an app
+  sidebar.
 
 ## UC-04 Configure Logic and App Data
 
@@ -72,14 +78,17 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/data/repositories/local/LocalStorageAppDataRepository.test.ts`
   - `src/domain/logic/graph.test.ts`
   - `src/domain/logic/runtime.test.ts`
+  - `src/presentation/editor/workspace/NotesTemplateFlow.test.tsx`
 - Evidence: typed workflow ports, node positioning, If/Else branches, node dragging, connection
   validation, cycle prevention, searchable node library, component/data node configuration,
   project-scoped collection CRUD, records, schema editing, structured static ListView records,
-  typed ListView property bindings, current-row logic mappings, session-only Add Local List Item
-  actions, composed Input/Button record workflows, granular RAG
+  typed ListView property bindings, component-derived triggers, automatic current-row update/delete
+  actions, Gesture Detector wrappers, current-record detail navigation, session-only Add Local List
+  Item actions, composed Input/Button record workflows, granular RAG
   ingestion/chat nodes, solid control and dashed typed resource edges, AI Agent/Vector Store
   composition, write-through indexing, structured output mappings, schema migration, and preview
-  data effects.
+  data effects. The Notes starter provides complete insert, record-aware open, prefill, update,
+  detail delete, and current-card menu delete workflows against its provisioned Notes collection.
 
 ## UC-05 Generate UI Component with AI
 
@@ -103,8 +112,9 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/presentation/editor/workspace/PreviewOverlay.test.tsx`
   - `src/presentation/pages/editor/EditorPage.test.tsx`
 - Evidence: shared renderer, reactive click chains, text overrides, toast behavior, screen
-  navigation, condition branch execution, isolated preview data, validation blocking, and close
-  controls.
+  navigation with current-record route context and detail-screen record bindings, dynamic detail
+  paths, keyboard-operable Gesture Detectors, nested action isolation, condition branch execution,
+  isolated preview data, validation blocking, and close controls.
 
 ## UC-07 Deploy Application
 
