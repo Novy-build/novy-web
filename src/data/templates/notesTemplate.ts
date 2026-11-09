@@ -15,6 +15,7 @@ const NOTE_DETAIL_SCREEN_ID = 'screen_notes_detail';
 const EDIT_NOTE_SCREEN_ID = 'screen_notes_edit';
 
 const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
+  appBackground('notes_background'),
   {
     id: 'notes_heading',
     type: 'text',
@@ -55,7 +56,7 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
         w: 342,
         h: 72,
         appearance: {
-          backgroundColor: '#ffffff',
+          backgroundColor: '#f8f9fc',
           borderColor: '#e5e7eb',
           borderStyle: 'solid',
           borderRadius: 12,
@@ -116,6 +117,7 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
 ]);
 
 const addNoteScreen = makeScreen(ADD_NOTE_SCREEN_ID, 'Add Note', '/notes/new', [
+  appBackground('add_background'),
   heading('add_heading', 'Add note'),
   input('add_title', 'Title', 'Enter a note title', 112, false),
   input('add_content', 'Content', 'Write your note', 184, true),
@@ -124,6 +126,7 @@ const addNoteScreen = makeScreen(ADD_NOTE_SCREEN_ID, 'Add Note', '/notes/new', [
 ]);
 
 const noteDetailScreen = makeScreen(NOTE_DETAIL_SCREEN_ID, 'Note Detail', '/notes/:noteId', [
+  appBackground('detail_background'),
   {
     id: 'detail_back',
     type: 'button',
@@ -159,6 +162,7 @@ const noteDetailScreen = makeScreen(NOTE_DETAIL_SCREEN_ID, 'Note Detail', '/note
 ]);
 
 const editNoteScreen = makeScreen(EDIT_NOTE_SCREEN_ID, 'Edit Note', '/notes/:noteId/edit', [
+  appBackground('edit_background'),
   heading('edit_heading', 'Edit note'),
   input('edit_title', 'Title', 'Enter a note title', 112, false),
   input('edit_content', 'Content', 'Write your note', 184, true),
@@ -323,6 +327,24 @@ function heading(id: string, text: string): ComponentNode {
     w: 342,
     h: 48,
     props: { text, level: 'display', fontSize: 36, fontWeight: 'bold' },
+  };
+}
+
+function appBackground(id: string): ComponentNode {
+  return {
+    id,
+    type: 'container',
+    x: 0,
+    y: 0,
+    w: 390,
+    h: 780,
+    isLocked: true,
+    appearance: {
+      backgroundColor: '#eef0f7',
+      dark: { backgroundColor: '#111827' },
+    },
+    props: {},
+    children: [],
   };
 }
 

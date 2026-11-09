@@ -941,6 +941,8 @@ No external AI model or AI SDK is connected.
   navigation and current-record context for edit/delete workflows.
 - [x] App-scoped light/dark theme switching from an opted-in Switch and optional per-widget dark
   colors. The preview theme initially matches the editor and is independent for that session.
+- [x] Canvas and template thumbnails default to an isolated light built-app theme, preventing the
+  Novy shell's dark-mode text tokens from leaking into light component backgrounds.
 - [x] Isolated preview copies of collection records.
 - [x] Simulated get, insert, update, and delete data effects.
 - [x] Database actions await validation/repository completion before following success or error
@@ -1007,7 +1009,7 @@ The repository includes automated coverage for:
 Verification completed on 2026-11-09:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 85 test files and 703 tests passed.
+- `npm test -- --run` — 85 test files and 704 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.

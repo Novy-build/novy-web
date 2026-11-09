@@ -22,12 +22,17 @@ first, and retain previous entries as project history.
 - Fixed local database deletion so records belonging to cascaded collections are removed before
   collection metadata is discarded. Failed template provisioning now removes both partial app data
   and the partial project.
+- Isolated editor canvases and template thumbnails from Novy's shell theme. Built-app frames now
+  default to their light theme, so dark-editor text tokens no longer render white text on the Notes
+  cards' light backgrounds.
+- Refined the Notes starter palette with a soft gray/lavender app background and lightly tinted
+  cards, matching the supplied mobile reference instead of presenting a pure-white surface.
 
 #### Tests
 - Added template-instantiation, rollback, data-cascade, creation-hook, catalog, and end-to-end
   Preview CRUD coverage for the Notes starter.
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 85 test files and 703 tests passed.
+- `npm test -- --run` — 85 test files and 704 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - `git diff --check` — passed.
 

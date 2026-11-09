@@ -63,6 +63,10 @@ export function ScreenFrame({
 }: ScreenFrameProps) {
   const outerWidth = Math.round(size.width * scale);
   const outerHeight = Math.round(size.height * scale);
+  // Canvas and thumbnail frames are built-app surfaces, not Novy shell UI.
+  // Default them to light so a dark editor cannot leak white text tokens into
+  // light component backgrounds. Preview may still provide an explicit theme.
+  const renderedTheme = appTheme ?? 'light';
   const resolvedBreakpoint = breakpoint ?? (size.width >= CANVAS_PRESETS.desktop.width
     ? 'desktop'
     : size.width >= CANVAS_PRESETS.tablet.width
@@ -82,7 +86,7 @@ export function ScreenFrame({
     >
       <AppThemeContext.Provider value={appTheme && onAppThemeChange ? { theme: appTheme, setTheme: onAppThemeChange } : null}>
       <div
-        className={`relative overflow-hidden bg-surface ${appTheme ? `novy-app-theme-${appTheme}` : ''}`}
+        className={`relative overflow-hidden bg-surface novy-app-theme-${renderedTheme}`}
         style={{
           height: size.height,
           width: size.width,

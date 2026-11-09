@@ -687,6 +687,17 @@ describe('ScreenFrame', () => {
     const outer = container.querySelector('[data-screen-id="screen_home"]');
     expect(outer).toHaveStyle({ width: '195px', height: '390px' });
   });
+
+  it('isolates the default app frame from the editor dark theme', () => {
+    document.documentElement.classList.add('dark');
+    const { container } = render(
+      <ScreenFrame mode="canvas" screen={homeScreen} size={CANVAS_PRESETS.mobile} />,
+    );
+
+    expect(container.querySelector('[data-screen-id="screen_home"] > div'))
+      .toHaveClass('novy-app-theme-light');
+    document.documentElement.classList.remove('dark');
+  });
 });
 
 describe('unknown components', () => {
