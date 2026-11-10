@@ -38,6 +38,7 @@ export async function instantiateTemplateProject(
         databaseId: database.id,
         name: blueprint.name,
         fields: structuredClone(blueprint.fields),
+        ...(blueprint.identifier ? { identifier: structuredClone(blueprint.identifier) } : {}),
       });
       collectionIds.set(blueprint.referenceId, collection.id);
       for (const values of blueprint.records ?? []) {
@@ -64,6 +65,18 @@ export function remapTemplateCollectionReferences(
   return {
     screens: document.screens.map((screen) => ({
       ...screen,
+      ...(screen.routeParameters
+        ? {
+            routeParameters: screen.routeParameters.map((parameter) => ({
+              ...parameter,
+              source: {
+                ...parameter.source,
+                collectionId: collectionIds.get(parameter.source.collectionId)
+                  ?? parameter.source.collectionId,
+              },
+            })),
+          }
+        : {}),
       nodes: screen.nodes.map((node) => remapComponentNode(node, collectionIds)),
       logicGraphs: screen.logicGraphs.map((graph) => ({
         ...graph,

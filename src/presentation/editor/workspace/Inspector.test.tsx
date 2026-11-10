@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { EditorAction } from '../state/editorState';
 import { Inspector } from './Inspector';
@@ -18,6 +18,16 @@ const COLLECTION: DataCollection = {
   ],
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
+};
+
+const PINNED_COLLECTION: DataCollection = {
+  ...COLLECTION,
+  id: 'collection_tasks',
+  name: 'Tasks',
+  fields: [
+    ...COLLECTION.fields,
+    { id: 'field_pinned', key: 'pinned', label: 'Pinned', type: 'boolean', required: false },
+  ],
 };
 
 function renderInspector(
@@ -69,6 +79,32 @@ describe('Inspector', () => {
       bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'field_name' } }],
     });
   });
+
+  it('labels item bindings by property and field type instead of using one static option', () => {
+    const node = makeText('note_title');
+    render(<Inspector behaviors={[]} listItemFields={COLLECTION.fields} listItemSourceName="Students" node={node} onAction={vi.fn()} onOpenLogic={vi.fn()} />);
+
+    const textContent = screen.getByRole('combobox', { name: 'Text content' });
+    expect(textContent).toHaveDisplayValue('Fixed text');
+    expect(within(textContent).getByRole('option', { name: 'Name (Text)' })).toBeInTheDocument();
+    expect(screen.getByText('Item data · Students')).toBeInTheDocument();
+    expect(screen.getByText('Always visible')).toBeInTheDocument();
+    expect(screen.getByText('Add a Yes/No field to show or hide this per item.')).toBeInTheDocument();
+  });
+
+  it('offers a boolean field for Visibility when the item source has one', () => {
+    const node = makeContainer('card');
+    const onAction = vi.fn<(action: EditorAction) => void>();
+    render(<Inspector behaviors={[]} listItemFields={PINNED_COLLECTION.fields} listItemSourceName="Tasks" node={node} onAction={onAction} onOpenLogic={vi.fn()} />);
+
+    const visibility = screen.getByRole('combobox', { name: 'Visibility' });
+    expect(visibility).toHaveDisplayValue('Always visible');
+    fireEvent.change(visibility, { target: { value: 'field_pinned' } });
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'node/bindings', nodeId: node.id,
+      bindings: [{ target: 'component.visible', value: { source: 'list-item', fieldId: 'field_pinned' } }],
+    });
+  });
   it('hints to select a component when nothing is selected', () => {
     renderInspector(null);
 
@@ -103,18 +139,19 @@ describe('Inspector', () => {
     });
   });
 
-  it('changes the icon side and removes icon data without discarding content', () => {
+  it('changes the icon position, including center, and removes icon data without discarding content', () => {
     const { onAction } = renderInspector(makeButton('node_1', {
       props: { label: 'Save', variant: 'solid', icon: 'check', iconPosition: 'right' },
     }));
 
     const position = screen.getByLabelText('Icon position');
     expect(position).toHaveValue('right');
-    fireEvent.change(position, { target: { value: 'left' } });
+    expect(within(position).getByRole('option', { name: 'Center' })).toBeInTheDocument();
+    fireEvent.change(position, { target: { value: 'center' } });
     expect(onAction).toHaveBeenLastCalledWith({
       type: 'node/props-button',
       nodeId: 'node_1',
-      props: { iconPosition: 'left' },
+      props: { iconPosition: 'center' },
     });
 
     fireEvent.change(screen.getByLabelText('Button icon'), { target: { value: '' } });
@@ -455,7 +492,7 @@ describe('Inspector', () => {
     });
   });
 
-  it('binds a ListView to a collection display field', () => {
+  it('binds a ListView to a collection with a sensible default record label', () => {
     const { onAction } = renderInspector(makeListView('node_list'), vi.fn(), [], [COLLECTION]);
     fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'collection' } });
 
@@ -470,6 +507,94 @@ describe('Inspector', () => {
         },
       },
     });
+  });
+
+  it('keeps the ListView record label optional and independent from the item design', () => {
+    const list = makeListView('node_list', {
+      props: {
+        ...makeListView('node_list').props,
+        dataSource: { kind: 'collection', collectionId: COLLECTION.id, displayFieldIds: ['field_name'] },
+      },
+    });
+    const { onAction } = renderInspector(list, vi.fn(), [], [COLLECTION]);
+
+    expect(screen.queryByLabelText('Primary display field')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Record label')).toHaveDisplayValue('Name (Text)');
+    expect(screen.getByText('Optional. Used for menus and screen readers; your item design stays unchanged.')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Record label'), { target: { value: '' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-listview',
+      nodeId: 'node_list',
+      props: {
+        dataSource: {
+          kind: 'collection',
+          collectionId: COLLECTION.id,
+          displayFieldIds: [],
+        },
+      },
+    });
+  });
+
+  it('edits the backend-generated item ID name from a collection ListView', async () => {
+    const list = makeListView('node_list', {
+      props: {
+        ...makeListView('node_list').props,
+        dataSource: { kind: 'collection', collectionId: COLLECTION.id, displayFieldIds: ['field_name'] },
+      },
+    });
+    const onRecordIdentifierChange = vi.fn(async () => undefined);
+    render(
+      <Inspector
+        behaviors={[]}
+        collections={[COLLECTION]}
+        node={list}
+        onAction={vi.fn()}
+        onOpenLogic={vi.fn()}
+        onRecordIdentifierChange={onRecordIdentifierChange}
+        recordRoutePaths={['/students/:studentId']}
+      />,
+    );
+
+    const input = screen.getByLabelText('Item ID name');
+    expect(input).toHaveValue('studentId');
+    expect(screen.getByText('Linked route: /students/:studentId')).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'learnerId' } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(onRecordIdentifierChange).toHaveBeenCalledWith(COLLECTION.id, 'learnerId'));
+  });
+
+  it('shows the item ID name on the focused ListView item frame', () => {
+    const list = makeListView('node_list', {
+      props: {
+        ...makeListView('node_list').props,
+        dataSource: { kind: 'collection', collectionId: COLLECTION.id, displayFieldIds: ['field_name'] },
+      },
+    });
+    render(
+      <Inspector
+        behaviors={[]}
+        itemCollection={COLLECTION}
+        itemFrame={list}
+        node={list}
+        onAction={vi.fn()}
+        onOpenLogic={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText('Item ID name')).toHaveValue('studentId');
+    expect(screen.getByText(/backend generates a unique value/i)).toBeInTheDocument();
+  });
+
+  it('explains how to connect records when no collections exist', () => {
+    const list = makeListView('node_list', {
+      props: {
+        ...makeListView('node_list').props,
+        dataSource: { kind: 'collection', collectionId: '', displayFieldIds: [] },
+      },
+    });
+    renderInspector(list);
+
+    expect(screen.getByText('No collections yet. Create one in the Data workspace.')).toBeInTheDocument();
   });
 
   it('edits Column axis alignment and spacing', () => {

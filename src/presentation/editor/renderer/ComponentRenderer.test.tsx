@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ButtonNode, CameraNode, ColumnNode, ComponentNode, ContainerNode, GestureDetectorNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
 import { createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
@@ -44,6 +44,21 @@ describe('ComponentRenderer', () => {
     const rightIcon = rightButton.querySelector('[data-button-icon="check"]');
     expect(rightIcon).not.toBeNull();
     expect(rightButton.firstElementChild?.lastElementChild).toBe(rightIcon);
+  });
+
+  it('centers an icon while keeping the button label accessible', () => {
+    const node: ButtonNode = {
+      ...BUTTON,
+      props: { ...BUTTON.props, icon: 'check', iconPosition: 'center' },
+    };
+    render(<ComponentRenderer mode="canvas" node={node} selected={false} />);
+
+    const button = screen.getByRole('button', { name: 'Save' });
+    const icon = button.querySelector('[data-button-icon="check"]');
+    const label = screen.getByText('Save');
+    expect(icon).not.toBeNull();
+    expect(label).toHaveClass('sr-only');
+    expect(button).toHaveAccessibleName('Save');
   });
 
   it('keeps button icons in static thumbnail rendering', () => {
@@ -560,6 +575,46 @@ describe('ComponentRenderer', () => {
     expect(onNodeEvent.mock.calls.filter(([nodeId]) => nodeId === 'list')).toHaveLength(2);
   });
 
+  it('renders an image-only item template without requiring a record label', () => {
+    const collection: DataCollection = {
+      id: 'gallery', projectId: 'project', databaseId: 'database', name: 'Gallery',
+      fields: [{ id: 'photo', key: 'photo', label: 'Photo URL', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const record: DataRecord = {
+      id: 'photo_record', projectId: 'project', collectionId: 'gallery',
+      values: { photo: 'https://example.com/photo.png' },
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const image: ImageNode = {
+      id: 'gallery_image', type: 'image', x: 0, y: 0, w: 240, h: 160,
+      props: { src: '', alt: 'Gallery photo', fit: 'cover' },
+      bindings: [{ target: 'image.source', value: { source: 'list-item', fieldId: 'photo' } }],
+    };
+    const list: ListViewNode = {
+      id: 'gallery_list', type: 'listview', x: 0, y: 0, w: 240, h: 160,
+      props: {
+        emptyText: 'No photos', showDividers: false, scrollDirection: 'vertical',
+        crossAxisAlignment: 'stretch', gap: 0, padding: createPadding(0), itemSpacing: 0, itemBorderRadius: 0,
+        dataSource: { kind: 'collection', collectionId: 'gallery', displayFieldIds: [] },
+      },
+      children: [image],
+    };
+
+    render(
+      <ComponentRenderer
+        dataContext={{ collections: [collection], recordsByCollection: new Map([['gallery', [record]]]) }}
+        mode="preview"
+        node={list}
+        selected={false}
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: 'Gallery photo' })).toHaveAttribute('src', 'https://example.com/photo.png');
+    expect(screen.getByRole('listitem', { name: /Item 1/ })).toBeInTheDocument();
+    expect(screen.queryByText('photo_record')).not.toBeInTheDocument();
+  });
+
   it('keeps an actions menu selectable on the design canvas', () => {
     const onSelect = vi.fn();
     render(<ComponentRenderer mode="canvas" node={{
@@ -661,6 +716,8 @@ describe('ComponentRenderer', () => {
 });
 
 describe('ScreenFrame', () => {
+  afterEach(() => document.documentElement.classList.remove('dark'));
+
   const homeScreen: Screen = {
     id: 'screen_home',
     name: 'Home',
@@ -688,15 +745,57 @@ describe('ScreenFrame', () => {
     expect(outer).toHaveStyle({ width: '195px', height: '390px' });
   });
 
-  it('isolates the default app frame from the editor dark theme', () => {
+  it('follows the editor dark theme by default', () => {
     document.documentElement.classList.add('dark');
     const { container } = render(
       <ScreenFrame mode="canvas" screen={homeScreen} size={CANVAS_PRESETS.mobile} />,
     );
 
     expect(container.querySelector('[data-screen-id="screen_home"] > div'))
+      .toHaveClass('novy-app-theme-dark');
+  });
+
+  it('uses dark appearance variants on a dark canvas so light cards cannot hide their text', () => {
+    document.documentElement.classList.add('dark');
+    const card: ContainerNode = {
+      id: 'node_card',
+      type: 'container',
+      x: 0,
+      y: 0,
+      w: 320,
+      h: 80,
+      appearance: {
+        backgroundColor: '#f8f9fc',
+        dark: { backgroundColor: '#1f2937' },
+      },
+      props: {},
+      children: [makeText('node_title', {
+        x: 12,
+        y: 12,
+        w: 280,
+        h: 24,
+        props: { text: 'Readable title', level: 'title' },
+      })],
+    };
+    const cardScreen: Screen = { ...homeScreen, nodes: [card] };
+
+    const { container } = render(
+      <ScreenFrame mode="canvas" screen={cardScreen} size={CANVAS_PRESETS.mobile} />,
+    );
+
+    expect(container.querySelector('[data-node-id="node_card"]'))
+      .toHaveStyle({ backgroundColor: '#1f2937' });
+    expect(screen.getByText('Readable title')).toBeInTheDocument();
+  });
+
+  it('keeps an explicit preview app theme independent from the dark editor', () => {
+    document.documentElement.classList.add('dark');
+    const { container } = render(
+      <ScreenFrame appTheme="light" mode="preview" screen={homeScreen} size={CANVAS_PRESETS.mobile} />,
+    );
+
+    expect(container.querySelector('[data-screen-id="screen_home"] > div'))
       .toHaveClass('novy-app-theme-light');
-    document.documentElement.classList.remove('dark');
   });
 });
 

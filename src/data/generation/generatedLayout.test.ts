@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Project } from '@domain/entities/project';
 import { createPadding } from '@domain/entities/componentNode';
 import { mapProjectToGeneratedLayout } from './generatedLayout';
+import type { DataCollection } from '@domain/entities/appData';
 
 const project: Project = {
   id: 'project_notes',
@@ -73,5 +74,35 @@ describe('generated layout', () => {
     const before = structuredClone(project);
     mapProjectToGeneratedLayout(project);
     expect(project).toEqual(before);
+  });
+
+  it('exports collection record identity and explicit route parameter mappings', () => {
+    const collection: DataCollection = {
+      id: 'notes', projectId: project.id, databaseId: 'database', name: 'Notes',
+      identifier: { key: 'noteId', type: 'string', generation: 'backend' },
+      fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const collectionProject = structuredClone(project);
+    const screen = collectionProject.document.screens[0]!;
+    screen.path = '/notes/:noteId';
+    screen.routeParameters = [{
+      name: 'noteId',
+      source: { kind: 'record-id', collectionId: 'notes', identifierKey: 'noteId' },
+    }];
+    const list = screen.nodes[0];
+    if (list?.type !== 'listview') throw new Error('Expected ListView fixture');
+    list.props.dataSource = { kind: 'collection', collectionId: 'notes', displayFieldIds: ['title'] };
+
+    const layout = mapProjectToGeneratedLayout(collectionProject, [collection]);
+    expect(layout.screens[0]).toMatchObject({
+      path: '/notes/:noteId',
+      routeParameters: [{
+        name: 'noteId', source: 'record-id', collectionId: 'notes', identifierKey: 'noteId',
+      }],
+    });
+    expect(layout.screens[0]?.nodes[0]?.itemFrame?.recordIdentity).toEqual({
+      collectionId: 'notes', key: 'noteId', source: 'record-id', generation: 'backend',
+    });
   });
 });

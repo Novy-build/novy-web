@@ -12,7 +12,7 @@ interface FieldErrors {
 }
 
 /**
- * Email + password sign-in form backed by the (mock) session provider.
+ * Email + password sign-in form backed by the session provider.
  * Validation errors display inline; auth failures display in a banner.
  * Successful sign-ins flip the session status, and AuthPage reacts by
  * navigating — so this form stays fully self-contained.

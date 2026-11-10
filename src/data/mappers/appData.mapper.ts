@@ -1,4 +1,4 @@
-import type { DataCollection, DataRecord, ProjectDatabase } from '@domain/entities/appData';
+import { recordIdentifierForCollection, type DataCollection, type DataRecord, type ProjectDatabase } from '@domain/entities/appData';
 import type { DataCollectionDTO, DataRecordDTO, ProjectDatabaseDTO } from '../dto/appData.dto';
 
 export function mapDatabaseToDto(database: ProjectDatabase): ProjectDatabaseDTO {
@@ -20,6 +20,7 @@ export function mapDatabaseFromDto(dto: ProjectDatabaseDTO): ProjectDatabase {
 export function mapCollectionToDto(collection: DataCollection): DataCollectionDTO {
   return {
     ...collection,
+    identifier: { ...recordIdentifierForCollection(collection) },
     fields: collection.fields.map((field) => ({ ...field })),
     createdAt: collection.createdAt.toISOString(),
     updatedAt: collection.updatedAt.toISOString(),
@@ -27,13 +28,14 @@ export function mapCollectionToDto(collection: DataCollection): DataCollectionDT
 }
 
 export function mapCollectionFromDto(dto: DataCollectionDTO): DataCollection {
-  return {
+  const collection: DataCollection = {
     ...dto,
     databaseId: dto.databaseId,
     fields: dto.fields.map((field) => ({ ...field })),
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),
   };
+  return { ...collection, identifier: { ...recordIdentifierForCollection(collection) } };
 }
 
 export function mapRecordToDto(record: DataRecord): DataRecordDTO {

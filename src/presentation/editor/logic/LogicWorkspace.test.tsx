@@ -92,6 +92,57 @@ describe('LogicWorkspace without a workflow', () => {
       : null).toBe('true');
   });
 
+  it('maps Open current item into an explicit generated detail route', () => {
+    const list = makeListView('student_list');
+    list.props.dataSource = { kind: 'collection', collectionId: 'students', displayFieldIds: ['student_name'] };
+    list.children = [makeButton('student_card', { name: 'Student card' })];
+    const source = makeScreen('screen_students', [list], 'Students');
+    const detail = makeScreen('screen_student_detail', [makeText('student_name')], 'Student detail');
+    detail.path = '/students/detail';
+    renderWorkspace({ screens: [source, detail] });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Student card · Button' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open current Student' }));
+    const action = getActiveScreen(latest.current!).logicGraphs[0]!.nodes.find((node) =>
+      node.kind === 'action' && node.payload.type === 'navigate');
+    if (!action) throw new Error('Open current item action was not created');
+    fireEvent.click(screen.getByTestId(`logic-node-${action.id}`));
+    const historyBeforeTarget = latest.current!.past.length;
+    fireEvent.change(screen.getByLabelText('Target screen'), { target: { value: detail.id } });
+
+    expect(latest.current!.past).toHaveLength(historyBeforeTarget + 1);
+    const routed = latest.current!.document.screens.find((candidate) => candidate.id === detail.id)!;
+    expect(routed).toMatchObject({
+      path: '/students/detail/:studentId',
+      routeParameters: [{
+        name: 'studentId',
+        source: { kind: 'record-id', collectionId: 'students', identifierKey: 'studentId' },
+      }],
+    });
+    expect(screen.getByText('Route:')).toHaveTextContent('/students/detail/:studentId');
+    expect(screen.getByText(/studentId: Current item ID/)).toBeInTheDocument();
+  });
+
+  it('explains when a record-aware target has no record route', () => {
+    const list = makeListView('student_list');
+    list.props.dataSource = { kind: 'collection', collectionId: 'students', displayFieldIds: ['student_name'] };
+    list.children = [makeButton('student_card', { name: 'Student card' })];
+    const source = makeScreen('screen_students', [list], 'Students');
+    const home = makeScreen('screen_home', [makeText('home_text')], 'Home');
+    renderWorkspace({ screens: [source, home] });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Student card · Button' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open current Student' }));
+    const action = getActiveScreen(latest.current!).logicGraphs[0]!.nodes.find((node) =>
+      node.kind === 'action' && node.payload.type === 'navigate');
+    if (!action) throw new Error('Open current item action was not created');
+    fireEvent.click(screen.getByTestId(`logic-node-${action.id}`));
+    fireEvent.change(screen.getByLabelText('Target screen'), { target: { value: home.id } });
+
+    expect(screen.getByText(/no record ID route yet/i)).toBeInTheDocument();
+    expect(latest.current!.document.screens.find((candidate) => candidate.id === home.id)?.path).toBe('/');
+  });
+
   it('independently minimizes and restores the Nodes and Details panels', () => {
     renderWorkspace();
 

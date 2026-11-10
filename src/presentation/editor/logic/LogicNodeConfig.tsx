@@ -9,6 +9,7 @@ import type {
   TriggerEvent,
 } from '@domain/entities/logic';
 import { CURRENT_ITEM_ID_FIELD } from '@domain/entities/logic';
+import type { RecordRouteParameter } from '@domain/entities/screen';
 import { logicNodeTitle } from './logicLabels';
 import { nodeDisplayLabel, nodeLayerName } from '../workspace/nodeLabels';
 import { InputMappingEditor } from './InputMappingEditor';
@@ -19,7 +20,12 @@ interface LogicNodeConfigProps {
   behavior: Behavior | null;
   /** Component id the behavior event is bound to (for the trigger caption). */
   screenNodes: readonly ComponentNode[];
-  screens: { id: string; name: string }[];
+  screens: Array<{
+    id: string;
+    name: string;
+    path: string;
+    routeParameters?: RecordRouteParameter[];
+  }>;
   currentScreenId: string;
   onConfigure: (nodeId: string, payload: ActionPayload) => void;
   onConfigureInputMappings: (nodeId: string, inputMappings: ActionInputMappings) => void;
@@ -246,6 +252,13 @@ export function LogicNodeConfig({
 
   const configure = (payload: ActionPayload): void => onConfigure(node.id, payload);
   const actionPayload = node.payload;
+  const navigationScreen = actionPayload.type === 'navigate'
+    ? screens.find((screen) => screen.id === actionPayload.targetScreenId) ?? null
+    : null;
+  const navigationRecordParameter = actionPayload.type === 'navigate' && actionPayload.recordContext
+    ? navigationScreen?.routeParameters?.find((parameter) =>
+        parameter.source.collectionId === actionPayload.recordContext?.collectionId) ?? null
+    : null;
   const emailPayload = actionPayload.type === 'send-email' ? actionPayload : null;
   const selectedDataCollection = isDataPayload(actionPayload)
     ? collections.find((collection) => collection.id === actionPayload.collectionId) ?? null
@@ -358,6 +371,19 @@ export function LogicNodeConfig({
                 </option>
               ))}
           </select>
+          {node.payload.recordContext && navigationScreen && navigationRecordParameter ? (
+            <div className="mt-3 rounded-md bg-brand-50 p-2 text-xs text-brand-700">
+              <p>Route: <span className="font-mono">{navigationScreen.path}</span></p>
+              <p className="mt-1">
+                {navigationRecordParameter.name}: Current item ID
+                <span className="ml-1 rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold">Automatic</span>
+              </p>
+            </div>
+          ) : node.payload.recordContext && navigationScreen ? (
+            <p className="mt-3 rounded-md bg-amber-50 p-2 text-xs text-amber-800">
+              This screen has no record ID route yet. Choose a dedicated detail screen so the backend can build a record URL.
+            </p>
+          ) : null}
         </>
       ) : null}
 

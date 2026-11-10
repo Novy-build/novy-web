@@ -8,6 +8,10 @@ export interface StubAuthOptions {
   knownEmail?: string;
   knownPassword?: string;
   knownDisplayName?: string;
+  /** Set false to model an API-backed repository without demo access. */
+  supportsDemo?: boolean;
+  /** Model Supabase email confirmation: registration creates no session. */
+  registrationRequiresConfirmation?: boolean;
 }
 
 /**
@@ -23,16 +27,18 @@ export function createStubAuthRepository(options: StubAuthOptions = {}): AuthRep
   let session: User | null = options.sessionUser ?? null;
 
   return {
+    supportsDemo: options.supportsDemo ?? true,
+
     async getSession(): Promise<User | null> {
       return session;
     },
 
     async signIn(input: SignInInput): Promise<User> {
-      if (input.email.trim().toLowerCase() !== knownEmail.toLowerCase()) {
-        throw new AuthError('unknown-email');
-      }
-      if (input.password !== knownPassword) {
-        throw new AuthError('wrong-password');
+      if (
+        input.email.trim().toLowerCase() !== knownEmail.toLowerCase() ||
+        input.password !== knownPassword
+      ) {
+        throw new AuthError('invalid-credentials');
       }
       session = { id: 'user_stub', displayName: knownDisplayName, email: knownEmail };
       return session;
@@ -41,6 +47,9 @@ export function createStubAuthRepository(options: StubAuthOptions = {}): AuthRep
     async signUp(input: SignUpInput): Promise<User> {
       if (input.email.trim().toLowerCase() === knownEmail.toLowerCase()) {
         throw new AuthError('email-taken');
+      }
+      if (options.registrationRequiresConfirmation) {
+        throw new AuthError('email-confirmation-required');
       }
       session = { id: 'user_stub_new', displayName: input.displayName, email: input.email.trim().toLowerCase() };
       return session;

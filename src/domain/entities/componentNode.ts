@@ -55,7 +55,7 @@ export const BUTTON_ICON_NAMES = [
 
 export type ButtonIconName = (typeof BUTTON_ICON_NAMES)[number];
 
-export type ButtonIconPosition = 'left' | 'right';
+export type ButtonIconPosition = 'left' | 'center' | 'right';
 
 export function isButtonIconName(value: unknown): value is ButtonIconName {
   return typeof value === 'string' && (BUTTON_ICON_NAMES as readonly string[]).includes(value);
@@ -66,7 +66,7 @@ export interface ButtonProps {
   variant: 'solid' | 'outline' | 'text';
   /** Optional decorative icon rendered beside the label. */
   icon?: ButtonIconName;
-  /** Omitted defaults to left, matching the icon picker's initial state. */
+  /** Omitted defaults to left; center renders an accessible icon-only button. */
   iconPosition?: ButtonIconPosition;
 }
 

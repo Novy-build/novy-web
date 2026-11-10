@@ -7,7 +7,7 @@ import type {
   LogicOutputPort,
   TriggerEvent,
 } from '@domain/entities/logic';
-import type { DataCollection } from '@domain/entities/appData';
+import { recordIdentifierForCollection, type DataCollection } from '@domain/entities/appData';
 import type { ComponentNode, ListViewNode } from '@domain/entities/componentNode';
 import { isChildBearingNode } from '@domain/entities/componentNode';
 import { normalizeLogicGraph } from '@domain/logic/graph';
@@ -182,7 +182,30 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
   }
 
   function configureSelected(nodeId: string, payload: ActionPayload): void {
-    if (graph) dispatch({ type: 'graph/action-update', graphId: graph.id, nodeId, payload });
+    if (!graph) return;
+    const recordCollection = payload.type === 'navigate' && payload.recordContext
+      ? collections.find((collection) => collection.id === payload.recordContext!.collectionId)
+        ?? itemCollection
+      : null;
+    const recordRouteLink = payload.type === 'navigate'
+      && payload.recordContext
+      && payload.targetScreenId
+      // A list screen cannot also be its own record detail route.
+      && payload.targetScreenId !== screen.id
+      && recordCollection
+      ? {
+          screenId: payload.targetScreenId,
+          collectionId: payload.recordContext.collectionId,
+          identifierKey: recordIdentifierForCollection(recordCollection).key,
+        }
+      : undefined;
+    dispatch({
+      type: 'graph/action-update',
+      graphId: graph.id,
+      nodeId,
+      payload,
+      ...(recordRouteLink ? { recordRouteLink } : {}),
+    });
   }
 
   function configureInputMappings(nodeId: string, inputMappings: import('@domain/entities/logic').ActionInputMappings): void {
@@ -334,7 +357,12 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
                 onDeleteBehavior={removeWorkflow}
                 onRemoveSelected={removeSelectedStep}
                 screenNodes={flatNodes}
-                screens={state.document.screens.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
+                screens={state.document.screens.map((candidate) => ({
+                  id: candidate.id,
+                  name: candidate.name,
+                  path: candidate.path,
+                  routeParameters: candidate.routeParameters,
+                }))}
               />
             </aside>
           </>

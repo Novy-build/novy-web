@@ -12,12 +12,14 @@ export interface SignUpInput {
 }
 
 /**
- * Authentication contract. The mock implementation (data layer) simulates
- * accounts and a session for the frontend-only phase; the API-backed
- * implementation arrives with the backend phase. No tokens are ever stored
- * client-side.
+ * Authentication contract. The local implementation simulates accounts for
+ * frontend-only development; the API-backed implementation talks to the Novy
+ * backend, which owns the Supabase session in HttpOnly cookies. No tokens are
+ * ever stored client-side.
  */
 export interface AuthRepository {
+  /** Whether this implementation can create the local one-click demo session. */
+  readonly supportsDemo: boolean;
   getSession(): Promise<User | null>;
   signIn(input: SignInInput): Promise<User>;
   signUp(input: SignUpInput): Promise<User>;

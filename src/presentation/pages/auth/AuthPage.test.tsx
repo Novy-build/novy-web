@@ -14,9 +14,14 @@ beforeEach(() => {
  * Renders the real route tree at /login inside a MemoryRouter. Auth flows all
  * start from an anonymous session, so the AuthPage login card is visible.
  */
-function renderRoutesAt(initialEntry: string | { pathname: string; state: Record<string, unknown> }) {
+function renderRoutesAt(
+  initialEntry: string | { pathname: string; state: Record<string, unknown> },
+  authOptions: Parameters<typeof createStubRepositories>[0] = {},
+) {
   return render(
-    <RepositoriesProvider repositories={createStubRepositories({ sessionUser: null })}>
+    <RepositoriesProvider
+      repositories={createStubRepositories({ sessionUser: null, ...authOptions })}
+    >
       <MemoryRouter initialEntries={[initialEntry]}>
         <SessionProvider>
           <AppRoutes />
@@ -81,8 +86,16 @@ describe('auth flows', () => {
 
     fillLoginForm('student@novy.app', 'wrong-pass');
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('That password is incorrect.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Incorrect email or password. Please try again.',
+    );
     expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+  });
+
+  it('hides the demo shortcut when the auth backend does not support it', () => {
+    renderRoutesAt('/login', { supportsDemo: false });
+
+    expect(screen.queryByRole('button', { name: 'Continue as demo user' })).not.toBeInTheDocument();
   });
 
   it('logs in and lands on the requested deep link after sign-in', async () => {
@@ -133,6 +146,17 @@ describe('auth flows', () => {
     expect(
       await screen.findByText('An account with this email already exists. Try logging in instead.'),
     ).toBeInTheDocument();
+  });
+
+  it('explains that registration is pending email confirmation', async () => {
+    renderRoutesAt('/login', { registrationRequiresConfirmation: true });
+
+    openRegisterForm();
+    fillRegisterForm('Peter Bañares', 'peter@novy.app', 'secret123', 'secret123');
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Check your inbox');
+    expect(screen.getByRole('heading', { name: 'Create your account' })).toBeInTheDocument();
   });
 
   it('demo users land on the projects screen without credentials', async () => {

@@ -78,6 +78,7 @@
   --color-hairline: #e5e6ea;
   --color-ink: #0e1013;
   --color-ink-muted: #565b66;
+  color: var(--color-ink);
 }
 
 .novy-app-theme-dark {
@@ -88,6 +89,7 @@
   --color-hairline: #262a33;
   --color-ink: #eef0f4;
   --color-ink-muted: #aeb4c0;
+  color: var(--color-ink);
 }
 
 @layer base {

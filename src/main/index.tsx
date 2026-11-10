@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
-import { createLocalRepositories } from '@data/repositories/local';
+import { createRepositories } from '@data/repositories';
 import { ensureDemoProject } from '@data/seeding/demoSeed';
 import { RepositoriesProvider } from '@main/providers/RepositoriesProvider';
 import { SessionProvider } from '@main/providers/SessionProvider';
@@ -24,7 +24,7 @@ if (!rootElement) {
  * and only then does the routed app mount (so data hooks never race seeding).
  */
 const root = createRoot(rootElement);
-const repositories = createLocalRepositories();
+const repositories = createRepositories();
 root.render(<StrictMode><LoadingScreen label="Preparing Novy…" /></StrictMode>);
 
 async function bootstrap(): Promise<void> {

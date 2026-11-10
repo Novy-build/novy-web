@@ -6,7 +6,11 @@ This document outlines the architecture, coding standards, design patterns, test
 
 * **Domain:** Frontend Web Application (React + TypeScript).
 
-* **Backend:** Decoupled external API (handled in a separate repository). **Do not** write or assume backend business logic within this repository.
+* **Frontend repository (this project):** `C:\Users\Calexx\Desktop\novy-web`.
+
+* **Backend repository:** `C:\Users\Calexx\Desktop\novy-backend`.
+
+* **Backend:** Decoupled external API handled in the backend repository above. **Do not** write or assume backend business logic within this repository. Coordinate shared DTO and API contract changes across both repositories.
 
 * **Core Tech Stack:**
 

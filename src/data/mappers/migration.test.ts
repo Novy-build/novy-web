@@ -97,7 +97,7 @@ describe('project migration', () => {
     }]);
     expect(list?.type === 'listview' ? list.props.itemSpacing : null).toBe(0);
     expect(list?.type === 'listview' ? list.props.itemBorderRadius : null).toBe(0);
-    expect(mapProjectToDto(restored).schemaVersion).toBe(12);
+    expect(mapProjectToDto(restored).schemaVersion).toBe(13);
   });
 
   it('materializes schema-v8 ListView flow layouts as free-form item geometry', () => {
@@ -202,7 +202,7 @@ describe('project migration', () => {
     expect(list?.type === 'listview' ? list.props.padding : null).toEqual(createPadding(12));
 
     const repersisted = mapProjectToDto(restored);
-    expect(repersisted.schemaVersion).toBe(12);
+    expect(repersisted.schemaVersion).toBe(13);
     expect(repersisted.screens[0]!.nodes[0]).toMatchObject({
       props: { padding: createPadding(16) },
     });
@@ -279,7 +279,7 @@ describe('project migration', () => {
     });
 
     const repersisted = mapProjectToDto(restored);
-    expect(repersisted.schemaVersion).toBe(12);
+    expect(repersisted.schemaVersion).toBe(13);
     expect(repersisted.screens[0]!.nodes.map((node) => node.type)).toEqual(['listview', 'listview', 'column']);
   });
 });

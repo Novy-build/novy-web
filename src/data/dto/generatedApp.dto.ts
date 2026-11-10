@@ -23,7 +23,7 @@ export interface RuntimeRequirementDTO {
  * provider credentials, raw camera captures, or biometric templates.
  */
 export interface GeneratedAppManifestDTO {
-  manifestVersion: 1;
+  manifestVersion: 2;
   generatedAt: string;
   project: ProjectDTO;
   layout: GeneratedLayoutDTO;
@@ -34,7 +34,11 @@ export interface GeneratedAppManifestDTO {
   };
   runtime: {
     requirements: RuntimeRequirementDTO[];
-    routes: Array<{ screenId: string; path: string }>;
+    routes: Array<{
+      screenId: string;
+      path: string;
+      parameters?: GeneratedRouteParameterDTO[];
+    }>;
     responsiveBreakpoints: { tabletMinWidth: 768; desktopMinWidth: 1024 };
   };
   security: {
@@ -42,6 +46,20 @@ export interface GeneratedAppManifestDTO {
     rawMediaIncluded: false;
     biometricTemplatesIncluded: false;
   };
+}
+
+export interface GeneratedRouteParameterDTO {
+  name: string;
+  source: 'record-id';
+  collectionId: string;
+  identifierKey: string;
+}
+
+export interface GeneratedRecordIdentityDTO {
+  collectionId: string;
+  key: string;
+  source: 'record-id';
+  generation: 'backend';
 }
 
 export interface GeneratedItemFrameDTO {
@@ -56,6 +74,7 @@ export interface GeneratedItemFrameDTO {
   itemSpacing: number;
   itemBorderRadius: number;
   showDividers: boolean;
+  recordIdentity?: GeneratedRecordIdentityDTO;
   children: readonly GeneratedLayoutNodeDTO[];
 }
 
@@ -78,10 +97,11 @@ export interface GeneratedLayoutNodeDTO {
 }
 
 export interface GeneratedLayoutDTO {
-  layoutVersion: 1;
+  layoutVersion: 2;
   screens: readonly {
     screenId: string;
     path: string;
+    routeParameters?: readonly GeneratedRouteParameterDTO[];
     nodes: readonly GeneratedLayoutNodeDTO[];
   }[];
 }

@@ -65,8 +65,13 @@ export function AppSidebar({ collapsed, onToggleCollapsed, onOpenGallery }: AppS
 
   async function handleSignOut() {
     setMenuOpen(false);
-    await signOut();
-    navigate('/login', { replace: true });
+    try {
+      await signOut();
+      navigate('/login', { replace: true });
+    } catch {
+      // Keep the current screen when the server session could not be cleared.
+      console.warn('[novy] sign-out failed; the session is still active.');
+    }
   }
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>

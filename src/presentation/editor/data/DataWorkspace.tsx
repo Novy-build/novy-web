@@ -13,7 +13,13 @@ import { useResizablePane } from '../layout/useResizablePane';
 
 type DataTab = 'schema' | 'records';
 
-export function DataWorkspace({ data }: { data: ProjectDataController }) {
+export function DataWorkspace({
+  data,
+  onRecordIdentifierChange,
+}: {
+  data: ProjectDataController;
+  onRecordIdentifierChange?: (collectionId: string, identifierKey: string) => void;
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<DataTab>('schema');
   const [newDatabaseName, setNewDatabaseName] = useState('');
@@ -177,7 +183,14 @@ export function DataWorkspace({ data }: { data: ProjectDataController }) {
             <CollectionSchemaEditor
               collection={collection}
               key={`${collection.id}-${collection.updatedAt.getTime()}`}
-              onSave={async (name, fields) => { await data.updateCollection(collection.id, { name, fields }); }}
+               onSave={async (name, fields, identifierKey) => {
+                 await data.updateCollection(collection.id, {
+                   name,
+                   fields,
+                   identifier: { key: identifierKey, type: 'string', generation: 'backend' },
+                 });
+                 onRecordIdentifierChange?.(collection.id, identifierKey);
+               }}
             />
           ) : (
             <RecordsTable collection={collection} onAdd={() => setRecordTarget('new')} onDelete={setDeleteRecordTarget} onEdit={setRecordTarget} records={records} />

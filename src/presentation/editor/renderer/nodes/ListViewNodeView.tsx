@@ -77,9 +77,11 @@ export function ListViewNodeView({
       role="list"
       style={{ gap: Math.max(0, props.itemSpacing) }}
     >
-      {visibleRecords.map((record, index) => (
+      {visibleRecords.map((record, index) => {
+        const itemLabel = String(record.values.value ?? '').trim() || `Item ${index + 1}`;
+        return (
         <div
-          aria-label={mode === 'preview' ? `${String(record.values.value ?? 'Item')}. Press Enter or Space to open.` : undefined}
+          aria-label={mode === 'preview' ? `${itemLabel}. Press Enter or Space to open.` : undefined}
           className={`relative shrink-0 ${mode === 'preview' ? 'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600' : ''} ${
             props.showDividers && index > 0
               ? isVertical ? 'border-t border-hairline' : 'border-l border-hairline'
@@ -114,10 +116,11 @@ export function ListViewNodeView({
               }}
         >
           {templateHasChildren ? renderItem(record) : (
-            <FallbackListItem props={props} record={record} />
+            <FallbackListItem index={index} props={props} record={record} />
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -200,17 +203,19 @@ function ListViewItemOutlines({
   );
 }
 
-function FallbackListItem({ props, record }: { props: ListViewProps; record: ListItemContext }) {
+function FallbackListItem({ index, props, record }: { index: number; props: ListViewProps; record: ListItemContext }) {
   const fieldIds = props.dataSource.kind === 'collection'
     ? props.dataSource.displayFieldIds
     : props.dataSource.fields.map((field) => field.id);
   return (
     <div className="flex h-full min-h-11 flex-col justify-center gap-1 px-3 py-2 text-left">
-      {(fieldIds.length > 0 ? fieldIds : ['value']).map((fieldId) => (
+      {fieldIds.length > 0 ? fieldIds.map((fieldId) => (
         <span className="block text-sm text-ink" key={fieldId}>
           {String(record.values[fieldId] ?? '')}
         </span>
-      ))}
+      )) : (
+        <span className="block text-sm text-ink">Item {index + 1}</span>
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { Screen } from '@domain/entities/screen';
 import type { ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import type { RendererDataContext, RendererEventContext, RendererMode } from './renderer';
@@ -5,6 +6,7 @@ import type { TriggerEvent } from '@domain/entities/logic';
 import type { ListItemContext } from '@domain/entities/appData';
 import { ComponentRenderer } from './ComponentRenderer';
 import { AppThemeContext, type AppTheme } from './AppThemeContext';
+import { useDocumentAppTheme } from './useDocumentAppTheme';
 
 /** Design-space dimensions rendered by ScreenFrame (MVP presets). */
 export interface ScreenFrameSize {
@@ -63,10 +65,14 @@ export function ScreenFrame({
 }: ScreenFrameProps) {
   const outerWidth = Math.round(size.width * scale);
   const outerHeight = Math.round(size.height * scale);
-  // Canvas and thumbnail frames are built-app surfaces, not Novy shell UI.
-  // Default them to light so a dark editor cannot leak white text tokens into
-  // light component backgrounds. Preview may still provide an explicit theme.
-  const renderedTheme = appTheme ?? 'light';
+  // Canvas and thumbnail frames follow the shell theme by default; Preview
+  // provides an explicit app theme so it can be switched independently.
+  const shellTheme = useDocumentAppTheme();
+  const renderedTheme = appTheme ?? shellTheme;
+  const themeController = useMemo(
+    () => ({ theme: renderedTheme, setTheme: onAppThemeChange ?? (() => undefined) }),
+    [onAppThemeChange, renderedTheme],
+  );
   const resolvedBreakpoint = breakpoint ?? (size.width >= CANVAS_PRESETS.desktop.width
     ? 'desktop'
     : size.width >= CANVAS_PRESETS.tablet.width
@@ -84,7 +90,7 @@ export function ScreenFrame({
       data-screen-id={screen?.id ?? ''}
       style={{ height: outerHeight, width: outerWidth }}
     >
-      <AppThemeContext.Provider value={appTheme && onAppThemeChange ? { theme: appTheme, setTheme: onAppThemeChange } : null}>
+      <AppThemeContext.Provider value={themeController}>
       <div
         className={`relative overflow-hidden bg-surface novy-app-theme-${renderedTheme}`}
         style={{

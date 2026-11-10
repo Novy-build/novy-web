@@ -47,7 +47,7 @@ export interface ButtonNodeDTO extends ComponentNodeDTOBase {
     variant: 'solid' | 'outline' | 'text';
     /** Optional for backward compatibility with buttons saved before icons. */
     icon?: ButtonIconName;
-    iconPosition?: 'left' | 'right';
+    iconPosition?: 'left' | 'center' | 'right';
   };
 }
 
@@ -586,6 +586,10 @@ export interface ScreenDTO {
   id: string;
   name: string;
   path?: string;
+  routeParameters?: Array<{
+    name: string;
+    source: { kind: 'record-id'; collectionId: string; identifierKey: string };
+  }>;
   nodes: ComponentNodeDTO[];
   behaviors: BehaviorDTO[];
   logicGraphs: LogicGraphDTO[];

@@ -55,21 +55,21 @@ describe('sign in', () => {
     expect(signedIn.email).toBe('andrei@novy.app');
   });
 
-  it('rejects unknown emails with a typed error', async () => {
+  it('rejects unknown emails with a generic typed error', async () => {
     const repository = createRepository();
 
     await expect(repository.signIn({ email: 'nobody@novy.app', password: 'pass1234' })).rejects.toThrow(
-      new AuthError('unknown-email'),
+      new AuthError('invalid-credentials'),
     );
   });
 
-  it('rejects wrong passwords with a typed error', async () => {
+  it('rejects wrong passwords with the same generic typed error', async () => {
     const repository = createRepository();
     await repository.signUp({ displayName: 'Andrei', email: 'andrei@novy.app', password: 'pass1234' });
     await repository.signOut();
 
     await expect(repository.signIn({ email: 'andrei@novy.app', password: 'nope-nope' })).rejects.toThrow(
-      new AuthError('wrong-password'),
+      new AuthError('invalid-credentials'),
     );
   });
 });

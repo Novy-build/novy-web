@@ -46,6 +46,7 @@ export type EditorScreenAction =
   | { type: 'screen/add' }
   | { type: 'screen/rename'; screenId: string; name: string }
   | { type: 'screen/path'; screenId: string; path: string }
+  | { type: 'routes/record-identifier-sync'; collectionId: string; identifierKey: string }
   | { type: 'screen/delete'; screenId: string };
 
 export type EditorNodeAction =
@@ -120,7 +121,14 @@ export type EditorLogicAction =
   | { type: 'behavior/delete'; behaviorId: string }
   | { type: 'behavior/select'; behaviorId: string }
   | { type: 'graph/action-add'; graphId: string; payload?: ActionPayload }
-  | { type: 'graph/action-update'; graphId: string; nodeId: string; payload: ActionPayload }
+  | {
+      type: 'graph/action-update';
+      graphId: string;
+      nodeId: string;
+      payload: ActionPayload;
+      /** Applied in the same history entry so target selection stays one undo step. */
+      recordRouteLink?: { screenId: string; collectionId: string; identifierKey: string };
+    }
   | { type: 'graph/action-inputs-update'; graphId: string; nodeId: string; inputMappings: import('@domain/entities/logic').ActionInputMappings }
   | { type: 'graph/action-delete'; graphId: string; nodeId: string }
   | { type: 'graph/condition-add'; graphId: string }

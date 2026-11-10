@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { AuthError } from '@domain/errors/AuthError';
 import { Button } from '@presentation/components/ui/Button';
 import { PasswordInput } from '@presentation/components/ui/PasswordInput';
 import { TextInput } from '@presentation/components/ui/TextInput';
@@ -14,8 +15,9 @@ interface FieldErrors {
 }
 
 /**
- * Registration form backed by the (mock) session provider. Creates the mock
- * account and signs in immediately; AuthPage reacts to the session status.
+ * Registration form backed by the session provider. Depending on the backend
+ * configuration it either signs in immediately or reports pending email
+ * confirmation; AuthPage reacts to the session status.
  */
 export function RegisterForm() {
   const { signUp } = useSession();
@@ -25,6 +27,7 @@ export function RegisterForm() {
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formNotice, setFormNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -42,11 +45,18 @@ export function RegisterForm() {
 
     setFieldErrors(null);
     setFormError(null);
+    setFormNotice(null);
     setIsSubmitting(true);
     try {
       await signUp({ displayName, email: email.trim(), password });
     } catch (error) {
-      setFormError(formatAuthError(error));
+      // A pending email confirmation is not a failure: the account exists and
+      // the user simply needs to follow the Supabase confirmation link.
+      if (error instanceof AuthError && error.code === 'email-confirmation-required') {
+        setFormNotice(formatAuthError(error));
+      } else {
+        setFormError(formatAuthError(error));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -54,6 +64,11 @@ export function RegisterForm() {
 
   return (
     <form className="flex flex-col gap-4" noValidate onSubmit={handleSubmit}>
+      {formNotice ? (
+        <p className="rounded-tile border border-hairline bg-canvas px-3 py-2 text-sm text-ink" role="status">
+          {formNotice}
+        </p>
+      ) : null}
       {formError ? (
         <p className="rounded-tile border border-signal-invalid/30 bg-signal-invalid/5 px-3 py-2 text-sm text-signal-invalid" role="alert">
           {formError}

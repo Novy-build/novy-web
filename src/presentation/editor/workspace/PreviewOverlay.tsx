@@ -20,6 +20,7 @@ import { computeFitZoom } from '../state/geometry';
 import { CANVAS_PRESETS } from '../renderer/ScreenFrame';
 import type { RendererEventContext } from '../renderer/renderer';
 import type { AppTheme } from '../renderer/AppThemeContext';
+import { readDocumentAppTheme } from '../renderer/useDocumentAppTheme';
 import { findNodeInScreen } from '../state/editorState';
 
 const TOAST_VISIBLE_MS = 2400;
@@ -91,8 +92,7 @@ export function PreviewOverlay({
   const [pendingClicks, setPendingClicks] = useState(0);
   const activeOperationsRef = useRef(0);
   const [pendingOperations, setPendingOperations] = useState(0);
-  const [appTheme, setAppTheme] = useState<AppTheme>(() =>
-    document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  const [appTheme, setAppTheme] = useState<AppTheme>(readDocumentAppTheme);
   const [localItemsByListView, setLocalItemsByListView] = useState<
     ReadonlyMap<string, readonly LocalListItemAddition[]>
   >(() => new Map());

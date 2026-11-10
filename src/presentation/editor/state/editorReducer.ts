@@ -4,7 +4,7 @@ import { createComponentNode, getDefaultNodeSize } from '@domain/factories/compo
 import { generateId } from '@domain/ids';
 import { screenPathFromName } from '@domain/factories/screen';
 import type { LogicGraph } from '@domain/entities/logic';
-import type { ProjectDocument, Screen } from '@domain/entities/screen';
+import type { ProjectDocument, RecordRouteParameter, Screen } from '@domain/entities/screen';
 import {
   addConnection,
   addActionNode,
@@ -27,6 +27,7 @@ import {
   createTriggerNode,
 } from '@domain/factories/logic';
 import { applyAssistantProposal } from '@domain/ai/proposal';
+import { fitMainAxisSizes } from '@domain/layout/autoFit';
 import {
   findMainAxisInsertIndex,
   getComponentTreeLocation,
@@ -106,6 +107,36 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return pushHistory(state, (document) => ({
         ...state,
         document: replaceScreen(document, action.screenId, (screen) => ({ ...screen, path })),
+      }) as EditorState);
+    }
+
+    case 'routes/record-identifier-sync': {
+      const targetScreenIds = new Set(
+        [
+          ...state.document.screens.flatMap((screen) =>
+            screen.routeParameters?.some((parameter) => parameter.source.collectionId === action.collectionId)
+              ? [screen.id]
+              : []),
+          ...state.document.screens.flatMap((sourceScreen) =>
+            sourceScreen.logicGraphs.flatMap((graph) =>
+              graph.nodes.flatMap((node) => node.kind === 'action'
+                && node.payload.type === 'navigate'
+                && node.payload.recordContext?.collectionId === action.collectionId
+                && node.payload.targetScreenId !== sourceScreen.id
+                ? [node.payload.targetScreenId]
+                : []))),
+        ],
+      );
+      if (targetScreenIds.size === 0) return state;
+      const nextScreens = state.document.screens.map((screen) => targetScreenIds.has(screen.id)
+        ? linkScreenRecordRoute(screen, action.collectionId, action.identifierKey)
+        : screen);
+      if (nextScreens.every((screen, index) => screen === state.document.screens[index])) {
+        return state;
+      }
+      return pushHistory(state, () => ({
+        ...state,
+        document: { screens: nextScreens },
       }) as EditorState);
     }
 
@@ -200,7 +231,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'node/layout-size': {
       if (isItemFrame(state, action.nodeId)) return state;
-      const layoutBounds = resolveNodeGeometryBounds(
+      const resizeConstraint = resolveNodeResizeConstraint(
         getActiveScreen(state).nodes,
         action.nodeId,
         state.device,
@@ -208,30 +239,30 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       );
       return updateNodeWithHistory(state, action.nodeId, (node) => {
         const current = geometryAtBreakpoint(node, state.device);
-        return applyBreakpointGeometry(node, clampNodeToGeometryBounds(
+        return applyBreakpointGeometry(node, clampNodeToResizeConstraint(
           { x: current.x, y: current.y, w: action.w, h: action.h },
-          layoutBounds,
+          resizeConstraint,
         ), state.device);
       });
     }
 
     case 'node/resize': {
       if (isItemFrame(state, action.nodeId)) return state;
-      const resizeBounds = resolveNodeGeometryBounds(
+      const resizeConstraint = resolveNodeResizeConstraint(
         getActiveScreen(state).nodes,
         action.nodeId,
         state.device,
         deviceViewport(state.device),
       );
       return updateNode(state, action.nodeId, (node) => applyBreakpointGeometry(node,
-        clampNodeToGeometryBounds(
+        clampNodeToResizeConstraint(
           {
             x: Math.round(action.geometry.x),
             y: Math.round(action.geometry.y),
             w: Math.round(action.geometry.w),
             h: Math.round(action.geometry.h),
           },
-          resizeBounds,
+          resizeConstraint,
         ), state.device));
     }
 
@@ -499,10 +530,23 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       return pushHistory(state, (document) => ({
         ...state,
-        document: replaceScreen(document, state.activeScreenId, (screen) => ({
-          ...screen,
-          nodes: [...moveLayerInTree(screen.nodes, action.nodeId, action.targetId, action.position)],
-        })),
+        document: replaceScreen(document, state.activeScreenId, (screen) => {
+          let nodes = [...moveLayerInTree(screen.nodes, action.nodeId, action.targetId, action.position)];
+          if (action.position === 'inside') {
+            const desiredNodes = nodes;
+            for (const breakpoint of ['mobile', 'tablet', 'desktop'] as const) {
+              nodes = fitPlacedNodeInTree(
+                nodes,
+                action.nodeId,
+                destinationParentId,
+                breakpoint,
+                deviceViewport(breakpoint),
+                desiredNodes,
+              );
+            }
+          }
+          return { ...screen, nodes };
+        }),
         selectedNodeId: action.nodeId,
       }) as EditorState);
     }
@@ -757,13 +801,25 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
       const nextGraph = updateAction(graph, action.nodeId, action.payload);
-      if (nextGraph === graph) {
+      const link = action.recordRouteLink;
+      const linkTarget = link
+        ? state.document.screens.find((screen) => screen.id === link.screenId) ?? null
+        : null;
+      const linkedTarget = link && linkTarget
+        ? linkScreenRecordRoute(linkTarget, link.collectionId, link.identifierKey)
+        : linkTarget;
+      const routeChanged = Boolean(linkTarget && linkedTarget && linkedTarget !== linkTarget);
+      if (nextGraph === graph && !routeChanged) {
         return state;
       }
-      return pushHistory(state, (document) => ({
-        ...state,
-        document: replaceGraph(document, state.activeScreenId, graph.id, nextGraph),
-      }) as EditorState);
+      return pushHistory(state, (document) => {
+        const withGraph = replaceGraph(document, state.activeScreenId, graph.id, nextGraph);
+        const nextDocument = link && routeChanged
+          ? replaceScreen(withGraph, link.screenId, (screen) =>
+              linkScreenRecordRoute(screen, link.collectionId, link.identifierKey))
+          : withGraph;
+        return { ...state, document: nextDocument } as EditorState;
+      });
     }
 
     case 'graph/action-inputs-update': {
@@ -1063,6 +1119,12 @@ interface NodeGeometryBounds extends ScreenFrameSize {
   y: number;
 }
 
+interface NodeResizeConstraint {
+  bounds: NodeGeometryBounds;
+  maxWidth: number;
+  maxHeight: number;
+}
+
 /**
  * Direct ListView children live inside the repeated item's padded content box.
  * Every geometry mutation uses this resolver so the isolated item editor and
@@ -1105,6 +1167,61 @@ function resolveNodeGeometryBounds(
   return childGeometryBounds(parent, breakpoint, rootBounds);
 }
 
+/**
+ * Resolves the actual space a child may occupy while being resized. Free-form
+ * parents expose their complete content box. Row and Column reserve their
+ * padding, gaps, and the main-axis sizes of visible siblings so the resized
+ * child cannot push the linear layout beyond the parent's trailing edge.
+ */
+function resolveNodeResizeConstraint(
+  nodes: readonly ComponentNode[],
+  nodeId: string,
+  breakpoint: ResponsiveBreakpoint,
+  rootBounds: ScreenFrameSize,
+): NodeResizeConstraint {
+  const location = getComponentTreeLocation(nodes, nodeId, breakpoint);
+  const parent = location?.parentId
+    ? getComponentTreeLocation(nodes, location.parentId, breakpoint)?.node ?? null
+    : null;
+  const bounds = childGeometryBounds(parent, breakpoint, rootBounds);
+
+  if (!parent || !isMainAxisLayoutNode(parent)) {
+    return { bounds, maxWidth: bounds.width, maxHeight: bounds.height };
+  }
+
+  const parentGeometry = geometryAtBreakpoint(parent, breakpoint);
+  const padding = resolveEdgeInsets(parent.props.padding);
+  const contentWidth = Math.max(1, parentGeometry.w - padding.left - padding.right);
+  const contentHeight = Math.max(1, parentGeometry.h - padding.top - padding.bottom);
+  const visibleChildren = parent.children.filter(
+    (child) => !isHiddenAtBreakpoint(child, breakpoint),
+  );
+  const siblingGeometries = visibleChildren
+    .filter((child) => child.id !== nodeId)
+    .map((child) => geometryAtBreakpoint(child, breakpoint));
+  const gaps = Math.max(0, visibleChildren.length - 1) * Math.max(0, parent.props.gap);
+  const isRow = parent.type === 'row';
+  const occupiedMain = siblingGeometries.reduce(
+    (total, geometry) => total + (isRow ? geometry.w : geometry.h),
+    0,
+  );
+  const remainingMain = Math.max(
+    isRow ? MIN_NODE_SIZE.w : MIN_NODE_SIZE.h,
+    (isRow ? contentWidth : contentHeight) - gaps - occupiedMain,
+  );
+
+  return {
+    bounds: {
+      x: padding.left,
+      y: padding.top,
+      width: contentWidth,
+      height: contentHeight,
+    },
+    maxWidth: isRow ? Math.min(contentWidth, remainingMain) : contentWidth,
+    maxHeight: isRow ? contentHeight : Math.min(contentHeight, remainingMain),
+  };
+}
+
 function clampNodeToGeometryBounds(
   geometry: NodeGeometry,
   bounds: NodeGeometryBounds,
@@ -1122,6 +1239,111 @@ function clampNodeToGeometryBounds(
     x: clamped.x + bounds.x,
     y: clamped.y + bounds.y,
   };
+}
+
+function clampNodeToResizeConstraint(
+  geometry: NodeGeometry,
+  constraint: NodeResizeConstraint,
+): NodeGeometry {
+  return clampNodeToGeometryBounds(
+    {
+      ...geometry,
+      w: Math.min(geometry.w, constraint.maxWidth),
+      h: Math.min(geometry.h, constraint.maxHeight),
+    },
+    constraint.bounds,
+  );
+}
+
+/**
+ * Applies fit-once sizing after a node enters a parent. Free-form parents only
+ * constrain the placed node. Row and Column also rebalance all visible
+ * siblings along their main axis so their stored dimensions plus gaps fit the
+ * parent's padded content box. Hidden siblings keep their persisted geometry.
+ */
+function fitPlacedNodeInTree(
+  nodes: readonly ComponentNode[],
+  nodeId: string,
+  parentId: string | null,
+  breakpoint: ResponsiveBreakpoint,
+  rootBounds: ScreenFrameSize,
+  desiredNodes: readonly ComponentNode[] = nodes,
+): ComponentNode[] {
+  const parent = parentId
+    ? getComponentTreeLocation(nodes, parentId, breakpoint)?.node ?? null
+    : null;
+  const desiredParent = parentId
+    ? getComponentTreeLocation(desiredNodes, parentId, breakpoint)?.node ?? null
+    : null;
+
+  if (
+    parent
+    && desiredParent
+    && isMainAxisLayoutNode(parent)
+    && isMainAxisLayoutNode(desiredParent)
+  ) {
+    const parentGeometry = geometryAtBreakpoint(desiredParent, breakpoint);
+    const padding = resolveEdgeInsets(desiredParent.props.padding);
+    const isRow = desiredParent.type === 'row';
+    const mainAvailable = Math.max(
+      1,
+      isRow
+        ? parentGeometry.w - padding.left - padding.right
+        : parentGeometry.h - padding.top - padding.bottom,
+    );
+    const crossAvailable = Math.max(
+      1,
+      isRow
+        ? parentGeometry.h - padding.top - padding.bottom
+        : parentGeometry.w - padding.left - padding.right,
+    );
+    const visibleChildren = desiredParent.children.filter(
+      (child) => !isHiddenAtBreakpoint(child, breakpoint),
+    );
+    const mainSizes = fitMainAxisSizes(
+      visibleChildren.map((child) => {
+        const geometry = geometryAtBreakpoint(child, breakpoint);
+        return { id: child.id, size: isRow ? geometry.w : geometry.h };
+      }),
+      mainAvailable,
+      desiredParent.props.gap,
+      isRow ? MIN_NODE_SIZE.w : MIN_NODE_SIZE.h,
+    );
+    const children = parent.children.map((child) => {
+      if (isHiddenAtBreakpoint(child, breakpoint)) {
+        return child;
+      }
+      const desiredChild = desiredParent.children.find((candidate) => candidate.id === child.id) ?? child;
+      const current = geometryAtBreakpoint(desiredChild, breakpoint);
+      const next: NodeGeometry = isRow
+        ? {
+            ...current,
+            w: mainSizes.get(child.id) ?? current.w,
+            h: Math.max(MIN_NODE_SIZE.h, Math.min(current.h, crossAvailable)),
+          }
+        : {
+            ...current,
+            w: Math.max(MIN_NODE_SIZE.w, Math.min(current.w, crossAvailable)),
+            h: mainSizes.get(child.id) ?? current.h,
+          };
+      return applyBreakpointGeometry(child, next, breakpoint);
+    });
+    return remapTree(nodes, parent.id, { ...parent, children });
+  }
+
+  const location = getComponentTreeLocation(nodes, nodeId, breakpoint);
+  const desiredLocation = getComponentTreeLocation(desiredNodes, nodeId, breakpoint);
+  if (!location || !desiredLocation) {
+    return [...nodes];
+  }
+  const bounds = childGeometryBounds(desiredParent, breakpoint, rootBounds);
+  const current = geometryAtBreakpoint(desiredLocation.node, breakpoint);
+  const fitted = clampNodeToGeometryBounds(current, bounds);
+  return remapTree(
+    nodes,
+    nodeId,
+    applyBreakpointGeometry(location.node, fitted, breakpoint),
+  );
 }
 
 function addNode(
@@ -1208,11 +1430,23 @@ function addNode(
     if (state.device !== 'mobile') {
       node = applyBreakpointGeometry(node, geometry, state.device);
     }
+    let nodes = insertNodeAtParent(activeScreen.nodes, validParent?.node.id ?? null, node, insertIndex);
+    const desiredNodes = nodes;
+    for (const breakpoint of ['mobile', 'tablet', 'desktop'] as const) {
+      nodes = fitPlacedNodeInTree(
+        nodes,
+        node.id,
+        validParent?.node.id ?? null,
+        breakpoint,
+        deviceViewport(breakpoint),
+        desiredNodes,
+      );
+    }
     return {
       ...state,
       document: replaceScreen(document, state.activeScreenId, (screen) => ({
         ...screen,
-        nodes: insertNodeAtParent(screen.nodes, validParent?.node.id ?? null, node, insertIndex),
+        nodes,
       })),
       selectedNodeId: node.id,
       dropIndicator: null,
@@ -1336,7 +1570,12 @@ function reparentNodeForCanvas(
   const clamped = clampNodeToGeometryBounds(current, bounds);
   newNode = applyBreakpointGeometry(newNode, clamped, breakpoint);
 
-  return remapTree(moved, nodeId, newNode);
+  let fitted = remapTree(moved, nodeId, newNode);
+  const desiredNodes = fitted;
+  for (const bp of breakpoints) {
+    fitted = fitPlacedNodeInTree(fitted, nodeId, parentId, bp, deviceViewport(bp), desiredNodes);
+  }
+  return fitted;
 }
 
 function updateNode(
@@ -1660,10 +1899,90 @@ function applyBreakpointGeometry(
 
 
 function normalizeScreenPath(value: string): string {
-  const trimmed = value.trim().toLowerCase();
+  const trimmed = value.trim();
   if (!trimmed) return '';
   const withSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return withSlash === '/' ? '/' : withSlash.replace(/[^/a-z0-9:-]+/g, '-').replace(/\/{2,}/g, '/').replace(/\/$/, '');
+  if (withSlash === '/') return '/';
+  const segments = withSlash.split('/').filter(Boolean).map((segment) => {
+    if (segment.startsWith(':')) {
+      const name = segment.slice(1).replace(/[^A-Za-z0-9]+/g, '');
+      return name ? `:${name}` : '';
+    }
+    return segment.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  }).filter(Boolean);
+  return `/${segments.join('/')}`;
+}
+
+/**
+ * Links one collection identity to a screen route without clobbering other
+ * collections or unrelated dynamic segments. Returns the same screen when the
+ * route is already correct so callers can keep history free of no-op entries.
+ */
+function linkScreenRecordRoute(screen: Screen, collectionId: string, identifierKey: string): Screen {
+  // The home route must stay static. Record-aware navigation to "/" is a
+  // configuration error that validation reports instead of rewriting the path.
+  if (screen.path === '/') return screen;
+
+  const routeParameters = screen.routeParameters ?? [];
+  const existing = routeParameters.find((parameter) =>
+    parameter.source.kind === 'record-id' && parameter.source.collectionId === collectionId);
+  const dynamicSegments = [...screen.path.matchAll(/:([A-Za-z][A-Za-z0-9]*)/g)]
+    .map((match) => match[1]!);
+  const claimedNames = new Set(routeParameters.map((parameter) => parameter.name));
+  let path = screen.path;
+
+  if (existing) {
+    if (dynamicSegments.includes(existing.name)) {
+      path = screen.path.replace(`:${existing.name}`, `:${identifierKey}`);
+    } else {
+      const adoptable = dynamicSegments.filter((name) => !claimedNames.has(name));
+      path = adoptable.length === 1
+        ? screen.path.replace(`:${adoptable[0]}`, `:${identifierKey}`)
+        : appendRouteSegment(screen.path, identifierKey);
+    }
+  } else {
+    const adoptable = dynamicSegments.filter((name) =>
+      !claimedNames.has(name) && isRecordIdentifierSegment(name));
+    if (adoptable.length === 1) {
+      path = screen.path.replace(`:${adoptable[0]}`, `:${identifierKey}`);
+    } else if (dynamicSegments.includes(identifierKey)) {
+      // Another collection already owns this parameter name. Leave the screen
+      // untouched so validation can report the missing mapping.
+      return screen;
+    } else {
+      path = appendRouteSegment(screen.path, identifierKey);
+    }
+  }
+
+  const nextParameters: RecordRouteParameter[] = [
+    ...routeParameters.filter((parameter) =>
+      !(parameter.source.kind === 'record-id' && parameter.source.collectionId === collectionId)),
+    {
+      name: identifierKey,
+      source: { kind: 'record-id', collectionId, identifierKey },
+    },
+  ];
+  if (path === screen.path && sameRouteParameters(routeParameters, nextParameters)) {
+    return screen;
+  }
+  return { ...screen, path, routeParameters: nextParameters };
+}
+
+function appendRouteSegment(path: string, name: string): string {
+  const base = path === '/' ? '' : path.replace(/\/$/, '');
+  return `${base}/:${name}`;
+}
+
+/** Placeholder names that can safely adopt a new record identifier. */
+function isRecordIdentifierSegment(name: string): boolean {
+  return name === 'id' || name === 'recordId' || /Id$/.test(name);
+}
+
+function sameRouteParameters(
+  left: readonly RecordRouteParameter[],
+  right: readonly RecordRouteParameter[],
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function uniqueScreenPath(document: ProjectDocument, candidate: string): string {

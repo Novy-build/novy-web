@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import type {
   CameraProps,
   ComponentNode,
@@ -13,7 +13,13 @@ import type {
   StaticListViewItem,
 } from '@domain/entities/componentNode';
 import { geometryAtBreakpoint, isButtonIconName, isTextFontWeight } from '@domain/entities/componentNode';
-import type { DataCollection, DataFieldType, DataValue } from '@domain/entities/appData';
+import {
+  RECORD_IDENTIFIER_KEY_PATTERN,
+  recordIdentifierForCollection,
+  type DataCollection,
+  type DataFieldType,
+  type DataValue,
+} from '@domain/entities/appData';
 import { bindingTargetsForComponent, isFieldTypeCompatible } from '@domain/bindings/componentBindings';
 import type { Behavior } from '@domain/entities/logic';
 import { TextInput } from '@presentation/components/ui/TextInput';
@@ -36,7 +42,12 @@ interface InspectorProps {
   collections?: readonly DataCollection[];
   device?: ResponsiveBreakpoint;
   listItemFields?: readonly ListItemBindingField[];
+  /** Human-readable name of the collection or manual item source being bound. */
+  listItemSourceName?: string;
   itemFrame?: ListViewNode | null;
+  itemCollection?: DataCollection | null;
+  recordRoutePaths?: readonly string[];
+  onRecordIdentifierChange?: (collectionId: string, key: string) => Promise<void>;
   onEditItemTemplate?: (listViewId: string) => void;
 }
 
@@ -44,6 +55,12 @@ export interface ListItemBindingField {
   id: string;
   label: string;
   type: DataFieldType;
+}
+
+const RECORD_LABEL_FIELD_TYPES: readonly DataFieldType[] = ['text', 'number', 'date'];
+
+function defaultRecordLabelFieldId(collection: DataCollection | undefined): string {
+  return collection?.fields.find((field) => RECORD_LABEL_FIELD_TYPES.includes(field.type))?.id ?? '';
 }
 
 interface SegmentOption<T extends string> {
@@ -81,49 +98,105 @@ function SegmentedControl<T extends string>({
   );
 }
 
-const BINDING_TARGET_LABELS: Readonly<Record<ComponentBindingTarget, string>> = {
-  'text.content': 'Text content',
-  'image.source': 'Image source',
-  'image.alt': 'Alternative text',
-  'button.label': 'Button label',
-  'checkbox.checked': 'Checked state',
-  'switch.checked': 'Checked state',
-  'progress.value': 'Progress value',
-  'component.visible': 'Visibility',
+const FIELD_TYPE_LABELS: Readonly<Record<DataFieldType, string>> = {
+  text: 'Text',
+  number: 'Number',
+  boolean: 'Yes/No',
+  date: 'Date',
+};
+
+interface BindingControlCopy {
+  label: string;
+  unboundLabel: string;
+  incompatibleHint: string;
+}
+
+const BINDING_CONTROL_COPY: Readonly<Record<ComponentBindingTarget, BindingControlCopy>> = {
+  'text.content': {
+    label: 'Text content',
+    unboundLabel: 'Fixed text',
+    incompatibleHint: 'Add a Text, Number, Yes/No, or Date field to bind text per item.',
+  },
+  'image.source': {
+    label: 'Image source',
+    unboundLabel: 'Fixed image',
+    incompatibleHint: 'Add a Text field containing image URLs to bind images per item.',
+  },
+  'image.alt': {
+    label: 'Alternative text',
+    unboundLabel: 'Fixed text',
+    incompatibleHint: 'Add a Text field to describe images per item.',
+  },
+  'button.label': {
+    label: 'Button label',
+    unboundLabel: 'Fixed label',
+    incompatibleHint: 'Add a Text or Number field to label buttons per item.',
+  },
+  'checkbox.checked': {
+    label: 'Checked state',
+    unboundLabel: 'Fixed state',
+    incompatibleHint: 'Add a Yes/No field to control this per item.',
+  },
+  'switch.checked': {
+    label: 'Checked state',
+    unboundLabel: 'Fixed state',
+    incompatibleHint: 'Add a Yes/No field to control this per item.',
+  },
+  'progress.value': {
+    label: 'Progress value',
+    unboundLabel: 'Fixed value',
+    incompatibleHint: 'Add a Number field to set progress per item.',
+  },
+  'component.visible': {
+    label: 'Visibility',
+    unboundLabel: 'Always visible',
+    incompatibleHint: 'Add a Yes/No field to show or hide this per item.',
+  },
 };
 
 function PropertyBindingControls({
   node,
   fields,
+  sourceName,
   onChange,
 }: {
   node: ComponentNode;
   fields: readonly ListItemBindingField[];
+  sourceName?: string;
   onChange: (target: ComponentBindingTarget, fieldId: string) => void;
 }) {
   return (
     <div className="mt-4 grid gap-3 border-t border-hairline pt-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Record data bindings</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+        Item data{sourceName ? ` · ${sourceName}` : ''}
+      </p>
+      <p className="text-xs text-ink-muted">Choose a field from each item, or keep a fixed value.</p>
       {bindingTargetsForComponent(node.type).map((definition) => {
+        const copy = BINDING_CONTROL_COPY[definition.target];
         const compatibleFields = fields.filter((field) => isFieldTypeCompatible(definition.target, field.type));
         const selectedFieldId = node.bindings?.find((binding) => binding.target === definition.target)?.value.fieldId ?? '';
-        return (
+        return compatibleFields.length > 0 ? (
           <label className="grid gap-1 text-xs font-medium text-ink-muted" key={definition.target}>
-            {BINDING_TARGET_LABELS[definition.target]}
+            {copy.label}
             <select
               className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
               onChange={(event) => onChange(definition.target, event.target.value)}
               value={selectedFieldId}
             >
-              <option value="">Static value</option>
+              <option value="">{copy.unboundLabel}</option>
               {compatibleFields.map((field) => (
-                <option key={field.id} value={field.id}>{field.label}</option>
+                <option key={field.id} value={field.id}>{field.label} ({FIELD_TYPE_LABELS[field.type]})</option>
               ))}
             </select>
           </label>
+        ) : (
+          <div className="grid gap-1 text-xs" key={definition.target}>
+            <p className="font-medium text-ink-muted">{copy.label}</p>
+            <p className="text-sm text-ink">{copy.unboundLabel}</p>
+            <p className="text-ink-muted">{copy.incompatibleHint}</p>
+          </div>
         );
       })}
-      <p className="text-xs text-ink-muted">Static values remain as fallbacks when item data is missing.</p>
     </div>
   );
 }
@@ -141,13 +214,23 @@ export function Inspector({
   collections = [],
   device = 'mobile',
   listItemFields = [],
+  listItemSourceName,
   itemFrame = null,
+  itemCollection = null,
+  recordRoutePaths = [],
+  onRecordIdentifierChange,
   onEditItemTemplate,
 }: InspectorProps) {
   if (itemFrame && candidate?.id === itemFrame.id) {
     return (
       <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
-        <ItemFrameSection itemFrame={itemFrame} onAction={onAction} />
+        <ItemFrameSection
+          collection={itemCollection}
+          itemFrame={itemFrame}
+          onAction={onAction}
+          onRecordIdentifierChange={onRecordIdentifierChange}
+          recordRoutePaths={recordRoutePaths}
+        />
         <p className="mt-2 text-xs text-ink-muted">
           The frame fills the ListView and hugs its content. Select a widget to edit its own properties.
         </p>
@@ -173,6 +256,12 @@ export function Inspector({
   const listViewCollectionSource = node.type === 'listview' && node.props.dataSource.kind === 'collection'
     ? node.props.dataSource
     : null;
+  const listViewCollection = listViewCollectionSource
+    ? collections.find((collection) => collection.id === listViewCollectionSource.collectionId) ?? null
+    : null;
+  const recordLabelFields = listViewCollection
+    ? listViewCollection.fields.filter((field) => RECORD_LABEL_FIELD_TYPES.includes(field.type))
+    : [];
   function numberFromEvent(event: ChangeEvent<HTMLInputElement>): number | null {
     const raw = event.target.value;
     if (raw.trim().length === 0) {
@@ -249,11 +338,18 @@ export function Inspector({
                 onChange={(event) => onAction({
                   type: 'node/props-button',
                   nodeId: node.id,
-                  props: { iconPosition: event.target.value === 'right' ? 'right' : 'left' },
+                  props: {
+                    iconPosition: event.target.value === 'center'
+                      ? 'center'
+                      : event.target.value === 'right'
+                        ? 'right'
+                        : 'left',
+                  },
                 })}
                 value={node.props.iconPosition ?? 'left'}
               >
                 <option value="left">Left</option>
+                <option value="center">Center</option>
                 <option value="right">Right</option>
               </select>
             </>
@@ -524,6 +620,7 @@ export function Inspector({
                 return;
               }
               const collection = collections[0];
+              const labelFieldId = defaultRecordLabelFieldId(collection);
               onAction({
                 type: 'node/props-listview',
                 nodeId: node.id,
@@ -531,7 +628,7 @@ export function Inspector({
                   dataSource: {
                     kind: 'collection',
                     collectionId: collection?.id ?? '',
-                    displayFieldIds: collection?.fields[0] ? [collection.fields[0].id] : [],
+                    displayFieldIds: labelFieldId ? [labelFieldId] : [],
                   },
                 },
               });
@@ -544,42 +641,67 @@ export function Inspector({
           {listViewCollectionSource ? (
             <>
               <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-collection">Collection</label>
-              <select
-                className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-                id="inspector-listview-collection"
-                onChange={(event) => {
-                  const collection = collections.find((item) => item.id === event.target.value);
-                  onAction({
-                    type: 'node/props-listview',
-                    nodeId: node.id,
-                    props: {
-                      dataSource: {
-                        kind: 'collection',
-                        collectionId: event.target.value,
-                        displayFieldIds: collection?.fields[0] ? [collection.fields[0].id] : [],
+              {collections.length > 0 ? (
+                <select
+                  className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+                  id="inspector-listview-collection"
+                  onChange={(event) => {
+                    const collection = collections.find((item) => item.id === event.target.value);
+                    const labelFieldId = defaultRecordLabelFieldId(collection);
+                    onAction({
+                      type: 'node/props-listview',
+                      nodeId: node.id,
+                      props: {
+                        dataSource: {
+                          kind: 'collection',
+                          collectionId: event.target.value,
+                          displayFieldIds: labelFieldId ? [labelFieldId] : [],
+                        },
                       },
-                    },
-                  });
-                }}
-                value={listViewCollectionSource.collectionId}
-              >
-                <option value="">Choose a collection…</option>
-                {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
-              </select>
-              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-field">Primary display field</label>
-              <select
-                className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-                id="inspector-listview-field"
-                onChange={(event) => onAction({
-                  type: 'node/props-listview',
-                  nodeId: node.id,
-                  props: { dataSource: { ...listViewCollectionSource, displayFieldIds: event.target.value ? [event.target.value] : [] } },
-                })}
-                value={listViewCollectionSource.displayFieldIds[0] ?? ''}
-              >
-                <option value="">Choose a field…</option>
-                {collections.find((collection) => collection.id === listViewCollectionSource.collectionId)?.fields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
-              </select>
+                    });
+                  }}
+                  value={listViewCollectionSource.collectionId}
+                >
+                  <option value="">Choose a collection…</option>
+                  {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
+                </select>
+              ) : (
+                <p className="text-xs text-ink-muted">No collections yet. Create one in the Data workspace.</p>
+              )}
+              {listViewCollection ? (
+                <>
+                  <RecordIdentifierField
+                    collection={listViewCollection}
+                    onChange={onRecordIdentifierChange}
+                    routePaths={recordRoutePaths}
+                  />
+                  <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-label">Record label</label>
+                  {recordLabelFields.length > 0 ? (
+                    <select
+                      className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+                      id="inspector-listview-label"
+                      onChange={(event) => onAction({
+                        type: 'node/props-listview',
+                        nodeId: node.id,
+                        props: { dataSource: { ...listViewCollectionSource, displayFieldIds: event.target.value ? [event.target.value] : [] } },
+                      })}
+                      value={listViewCollectionSource.displayFieldIds[0] ?? ''}
+                    >
+                      <option value="">None</option>
+                      {recordLabelFields.map((field) => (
+                        <option key={field.id} value={field.id}>{field.label} ({FIELD_TYPE_LABELS[field.type]})</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-sm text-ink">None</p>
+                  )}
+                  <p className="text-xs text-ink-muted">
+                    {recordLabelFields.length > 0
+                      ? 'Optional. Used for menus and screen readers; your item design stays unchanged.'
+                      : 'Add a Text, Number, or Date field to label records in menus.'}
+                  </p>
+                </>
+              ) : null}
             </>
           ) : null}
           {node.props.dataSource.kind === 'static' ? (
@@ -642,6 +764,7 @@ export function Inspector({
         <PropertyBindingControls
           fields={listItemFields}
           node={node}
+          sourceName={listItemSourceName}
           onChange={(target, fieldId) => {
             const bindings = (node.bindings ?? []).filter((binding) => binding.target !== target);
             if (fieldId) bindings.push({ target, value: { source: 'list-item', fieldId } });
@@ -1223,14 +1346,27 @@ function uniqueFieldId(fields: readonly ListViewItemField[]): string {
 function ItemFrameSection({
   itemFrame,
   onAction,
+  collection,
+  recordRoutePaths,
+  onRecordIdentifierChange,
 }: {
   itemFrame: ListViewNode;
   onAction: (action: EditorAction) => void;
+  collection: DataCollection | null;
+  recordRoutePaths: readonly string[];
+  onRecordIdentifierChange?: (collectionId: string, key: string) => Promise<void>;
 }) {
   return (
     <div className="mb-4 rounded-tile border border-hairline p-3">
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Item frame</p>
       <p className="mb-2 text-xs text-ink-muted">Applies to every repeated item.</p>
+      {collection ? (
+        <RecordIdentifierField
+          collection={collection}
+          onChange={onRecordIdentifierChange}
+          routePaths={recordRoutePaths}
+        />
+      ) : null}
       <PaddingField
         label="Item padding"
         namePrefix="inspector-item-frame-padding"
@@ -1265,6 +1401,81 @@ function ItemFrameSection({
         />
         Show dividers
       </label>
+    </div>
+  );
+}
+
+function RecordIdentifierField({
+  collection,
+  routePaths,
+  onChange,
+}: {
+  collection: DataCollection;
+  routePaths: readonly string[];
+  onChange?: (collectionId: string, key: string) => Promise<void>;
+}) {
+  const persistedKey = recordIdentifierForCollection(collection).key;
+  const [key, setKey] = useState(persistedKey);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => setKey(persistedKey), [persistedKey]);
+
+  async function commit(): Promise<void> {
+    const next = key.trim();
+    if (next === persistedKey) return;
+    if (!RECORD_IDENTIFIER_KEY_PATTERN.test(next)) {
+      setError('Start with a lowercase letter and use only letters and numbers.');
+      return;
+    }
+    if (collection.fields.some((field) => field.key === next)) {
+      setError('The record ID name must be different from collection field keys.');
+      return;
+    }
+    if (!onChange) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onChange(collection.id, next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Record ID name could not be saved.');
+      setKey(persistedKey);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    event.currentTarget.blur();
+  }
+
+  return (
+    <div className="mb-3 grid gap-1 rounded-tile border border-hairline bg-canvas p-3">
+      <label className="text-xs font-medium text-ink-muted" htmlFor={`record-identifier-${collection.id}`}>
+        Item ID name
+      </label>
+      <input
+        aria-describedby={`record-identifier-help-${collection.id}`}
+        className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+        disabled={saving}
+        id={`record-identifier-${collection.id}`}
+        onBlur={() => void commit()}
+        onChange={(event) => { setKey(event.target.value); setError(null); }}
+        onKeyDown={handleKeyDown}
+        placeholder="noteId"
+        value={key}
+      />
+      <p className="text-xs text-ink-muted" id={`record-identifier-help-${collection.id}`}>
+        Name only. The backend generates a unique value for every record.
+      </p>
+      {routePaths.length > 0 ? routePaths.map((path) => (
+        <p className="font-mono text-xs text-brand-700" key={path}>Linked route: {path}</p>
+      )) : (
+        <p className="text-xs text-ink-muted">Choose Open current item in Logic to link a detail route.</p>
+      )}
+      {error ? <p className="text-xs text-red-600" role="alert">{error}</p> : null}
     </div>
   );
 }

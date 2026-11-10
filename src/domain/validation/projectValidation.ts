@@ -1,4 +1,10 @@
-import type { DataCollection, DataFieldType, DataValue } from '../entities/appData';
+import {
+  RECORD_IDENTIFIER_KEY_PATTERN,
+  recordIdentifierForCollection,
+  type DataCollection,
+  type DataFieldType,
+  type DataValue,
+} from '../entities/appData';
 import { isChildBearingNode, isValidPadding, type ComponentBindingTarget, type ComponentNode, type ListViewNode } from '../entities/componentNode';
 import { isBindingTargetAllowed, isFieldTypeCompatible } from '../bindings/componentBindings';
 import { CURRENT_ITEM_ID_FIELD, type ActionInputMappings, type ActionPayload, type LogicGraph, type ValueExpression } from '../entities/logic';
@@ -39,12 +45,14 @@ export function validateProject(
   const screenIds = new Set(screens.map((screen) => screen.id));
   const screenPaths = new Set<string>();
   const collectionById = new Map(collections.map((collection) => [collection.id, collection]));
-  const screenRecordCollectionById = new Map<string, string>();
+  const screenRecordCollectionById = new Map<string, Set<string>>();
   for (const sourceScreen of screens) {
     for (const graph of sourceScreen.logicGraphs) {
       for (const node of graph.nodes) {
         if (node.kind === 'action' && node.payload.type === 'navigate' && node.payload.recordContext) {
-          screenRecordCollectionById.set(node.payload.targetScreenId, node.payload.recordContext.collectionId);
+          const collectionIds = screenRecordCollectionById.get(node.payload.targetScreenId) ?? new Set<string>();
+          collectionIds.add(node.payload.recordContext.collectionId);
+          screenRecordCollectionById.set(node.payload.targetScreenId, collectionIds);
         }
       }
     }
@@ -64,6 +72,42 @@ export function validateProject(
       issues.push(issue('screen-path-duplicate', 'error', 'screen', `Screen path “${screen.path}” is duplicated.`, { screenId: screen.id }));
     }
     screenPaths.add(screen.path);
+    const routeParameterNames = new Set<string>();
+    for (const parameter of screen.routeParameters ?? []) {
+      if (routeParameterNames.has(parameter.name)) {
+        issues.push(issue('screen-route-parameter-duplicate', 'error', 'screen', `Route parameter “${parameter.name}” is duplicated.`, { screenId: screen.id }));
+      }
+      routeParameterNames.add(parameter.name);
+      if (!screen.path.includes(`:${parameter.name}`)) {
+        issues.push(issue('screen-route-parameter-missing', 'error', 'screen', `Route path is missing :${parameter.name}.`, { screenId: screen.id }));
+      }
+      const collection = collectionById.get(parameter.source.collectionId);
+      if (!collection) {
+        issues.push(issue('data-missing-collection', 'error', 'data', 'Route parameter references a missing collection.', { screenId: screen.id, collectionId: parameter.source.collectionId }));
+      } else if (recordIdentifierForCollection(collection).key !== parameter.source.identifierKey) {
+        issues.push(issue('screen-route-identifier-stale', 'error', 'screen', 'Route parameter does not match the collection record ID name.', { screenId: screen.id, collectionId: collection.id }));
+      }
+    }
+    const incomingRecordCollectionIds = screenRecordCollectionById.get(screen.id) ?? new Set<string>();
+    for (const incomingRecordCollectionId of incomingRecordCollectionIds) {
+      if (!(screen.routeParameters ?? []).some((parameter) =>
+        parameter.source.collectionId === incomingRecordCollectionId)) {
+        issues.push(issue('screen-route-parameter-unmapped', 'warning', 'screen', 'Record-aware navigation should map the collection record ID into the detail route.', { screenId: screen.id, collectionId: incomingRecordCollectionId }));
+      }
+      if (screen.path === '/') {
+        issues.push(issue('screen-route-home-target', 'warning', 'screen', 'Record-aware navigation targets the home route; use a dedicated detail screen with a record ID segment.', { screenId: screen.id, collectionId: incomingRecordCollectionId }));
+      }
+    }
+    if (incomingRecordCollectionIds.size > 1) {
+      issues.push(issue('screen-route-multiple-collections', 'warning', 'screen', 'This screen is opened for multiple record collections; verify the route parameter order.', { screenId: screen.id }));
+    }
+    const dynamicSegmentNames = [...screen.path.matchAll(/:([A-Za-z][A-Za-z0-9]*)/g)]
+      .map((match) => match[1]!);
+    for (const segmentName of dynamicSegmentNames) {
+      if (!(screen.routeParameters ?? []).some((parameter) => parameter.name === segmentName)) {
+        issues.push(issue('screen-route-segment-unmapped', 'warning', 'screen', `Route segment :${segmentName} is not mapped to a record identifier.`, { screenId: screen.id }));
+      }
+    }
     validateScreenTree(screen, componentIds, issues, screen.id, collectionById, screenRecordCollectionById.get(screen.id));
     validateLogic(screen, issues, collectionById, screenIds);
   }
@@ -73,11 +117,18 @@ export function validateProject(
       issues.push(issue('data-collection-name', 'error', 'data', 'Collection name is required.', { collectionId: collection.id }));
     }
     const keys = new Set<string>();
+    const identifier = recordIdentifierForCollection(collection);
+    if (!RECORD_IDENTIFIER_KEY_PATTERN.test(identifier.key)) {
+      issues.push(issue('data-record-identifier-key', 'error', 'data', 'Record ID name must start with a lowercase letter and contain only letters and numbers.', { collectionId: collection.id }));
+    }
     for (const field of collection.fields) {
       if (keys.has(field.key)) {
         issues.push(issue('data-field-duplicate-key', 'error', 'data', `Field key “${field.key}” is duplicated.`, { collectionId: collection.id, fieldId: field.id }));
       }
       keys.add(field.key);
+      if (field.key === identifier.key) {
+        issues.push(issue('data-record-identifier-conflict', 'error', 'data', 'Record ID name conflicts with a collection field key.', { collectionId: collection.id, fieldId: field.id }));
+      }
       if (!field.key.trim()) {
         issues.push(issue('data-field-key', 'error', 'data', 'Field key is required.', { collectionId: collection.id, fieldId: field.id }));
       }
@@ -96,7 +147,7 @@ function validateScreenTree(
   issues: ValidationIssue[],
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
-  screenRecordCollectionId?: string,
+  screenRecordCollectionIds?: ReadonlySet<string>,
 ): void {
   function visit(nodes: readonly ComponentNode[], parent?: ComponentNode, itemSource?: ListViewNode): void {
     for (const node of nodes) {
@@ -128,7 +179,7 @@ function validateScreenTree(
       if ((parent?.type === 'container' || parent?.type === 'gesture-detector') && (node.x < 0 || node.y < 0 || node.x + node.w > parent.w || node.y + node.h > parent.h)) {
         issues.push(issue('component-outside-frame', 'warning', 'component', 'Component extends outside its parent frame.', { screenId, componentId: node.id }));
       }
-      validateComponentProps(node, screenId, collections, issues, itemSource, screenRecordCollectionId);
+      validateComponentProps(node, screenId, collections, issues, itemSource, screenRecordCollectionIds);
       if (isChildBearingNode(node)) {
         visit(node.children, node, node.type === 'listview' ? node : itemSource);
       }
@@ -143,10 +194,10 @@ function validateComponentProps(
   collections: ReadonlyMap<string, DataCollection>,
   issues: ValidationIssue[],
   itemSource?: ListViewNode,
-  screenRecordCollectionId?: string,
+  screenRecordCollectionIds?: ReadonlySet<string>,
 ): void {
   const base = { screenId, componentId: node.id };
-  validateComponentBindings(node, itemSource, screenRecordCollectionId, screenId, collections, issues);
+  validateComponentBindings(node, itemSource, screenRecordCollectionIds, screenId, collections, issues);
   switch (node.type) {
     case 'button':
       if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Button label is empty.', base));
@@ -224,7 +275,7 @@ function validateComponentProps(
 function validateComponentBindings(
   node: ComponentNode,
   itemSource: ListViewNode | undefined,
-  screenRecordCollectionId: string | undefined,
+  screenRecordCollectionIds: ReadonlySet<string> | undefined,
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
   issues: ValidationIssue[],
@@ -244,7 +295,10 @@ function validateComponentBindings(
     if (!isBindingTargetAllowed(node.type, binding.target)) {
       issues.push(issue('component-binding-target', 'error', 'component', 'Binding target is not supported by this component.', base));
     }
-    if (!itemSource && !screenRecordCollectionId) {
+    const incomingCollections = [...(screenRecordCollectionIds ?? [])]
+      .map((collectionId) => collections.get(collectionId))
+      .filter((collection): collection is DataCollection => Boolean(collection));
+    if (!itemSource && incomingCollections.length === 0) {
       issues.push(issue('component-binding-context', 'error', 'component', 'Record binding must be inside a ListView item template or a record-aware detail screen.', base));
       continue;
     }
@@ -252,7 +306,9 @@ function validateComponentBindings(
       ? itemSource.props.dataSource.kind === 'static'
         ? itemSource.props.dataSource.fields.find((candidate) => candidate.id === binding.value.fieldId)
         : collections.get(itemSource.props.dataSource.collectionId)?.fields.find((candidate) => candidate.id === binding.value.fieldId)
-      : collections.get(screenRecordCollectionId!)?.fields.find((candidate) => candidate.id === binding.value.fieldId);
+      : incomingCollections
+        .flatMap((collection) => collection.fields)
+        .find((candidate) => candidate.id === binding.value.fieldId);
     if (!field) {
       issues.push(issue('component-binding-field', 'error', 'data', 'Item binding references a missing field.', base));
     } else if (!isFieldTypeCompatible(binding.target, field.type)) {

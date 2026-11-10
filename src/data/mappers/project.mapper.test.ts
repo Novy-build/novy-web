@@ -123,7 +123,7 @@ describe('project mapper', () => {
 
     expect(dto.createdAt).toBe('2026-01-01T10:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-02T12:30:00.000Z');
-    expect(dto.schemaVersion).toBe(12);
+    expect(dto.schemaVersion).toBe(13);
   });
 
   it('round-trips projects losslessly', () => {
@@ -137,6 +137,51 @@ describe('project mapper', () => {
     const restored = mapProjectFromDto(dto as never);
 
     expect(restored).toEqual(FIXTURE_PROJECT);
+  });
+
+  it('round-trips explicit record route parameter mappings', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.screens[0]!.path = '/contacts/:contactId';
+    project.document.screens[0]!.routeParameters = [{
+      name: 'contactId',
+      source: { kind: 'record-id', collectionId: 'contacts', identifierKey: 'contactId' },
+    }];
+
+    const restored = mapProjectFromDto(mapProjectToDto(project));
+    expect(restored.document.screens[0]).toMatchObject({
+      path: '/contacts/:contactId',
+      routeParameters: [{
+        name: 'contactId',
+        source: { kind: 'record-id', collectionId: 'contacts', identifierKey: 'contactId' },
+      }],
+    });
+  });
+
+  it('migrates pre-v13 record navigation into an explicit route parameter mapping', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.screens[0]!.logicGraphs[0]!.nodes.push({
+      kind: 'action', id: 'open_contact', position: { x: 544, y: 160 },
+      payload: {
+        type: 'navigate', targetScreenId: 'screen_contact',
+        recordContext: { collectionId: 'contacts', recordId: '' },
+      },
+      inputMappings: { '$recordId': { source: 'list-item', fieldId: '$id' } },
+    });
+    project.document.screens.push({
+      id: 'screen_contact', name: 'Contact', path: '/contacts/:contactId',
+      nodes: [], behaviors: [], logicGraphs: [],
+    });
+    const dto = mapProjectToDto(project);
+    dto.schemaVersion = 12;
+
+    const restored = mapProjectFromDto(dto);
+    expect(restored.document.screens[1]).toMatchObject({
+      path: '/contacts/:contactId',
+      routeParameters: [{
+        name: 'contactId',
+        source: { kind: 'record-id', collectionId: 'contacts', identifierKey: 'contactId' },
+      }],
+    });
   });
 
   it('round-trips menu, app-theme, record-ID mapping and delete confirmation settings', () => {
@@ -208,15 +253,15 @@ describe('project mapper', () => {
     expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
   });
 
-  it('round-trips curated button icons and icon position', () => {
+  it('round-trips curated button icons and center icon position', () => {
     const project = structuredClone(FIXTURE_PROJECT);
     const button = project.document.screens[0]!.nodes.find((node) => node.id === 'node_button');
     if (button?.type !== 'button') throw new Error('Fixture button is missing');
-    button.props = { ...button.props, icon: 'check', iconPosition: 'right' };
+    button.props = { ...button.props, icon: 'check', iconPosition: 'center' };
 
     const dto = mapProjectToDto(project);
     expect(dto.screens[0]!.nodes.find((node) => node.id === 'node_button')).toMatchObject({
-      props: { label: 'Save', variant: 'solid', icon: 'check', iconPosition: 'right' },
+      props: { label: 'Save', variant: 'solid', icon: 'check', iconPosition: 'center' },
     });
     expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
   });

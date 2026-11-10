@@ -1,4 +1,12 @@
-export type AuthErrorCode = 'unknown-email' | 'wrong-password' | 'email-taken';
+export type AuthErrorCode =
+  | 'invalid-credentials'
+  | 'email-taken'
+  | 'email-confirmation-required'
+  | 'session-expired'
+  | 'rate-limited'
+  | 'unavailable'
+  | 'demo-unavailable'
+  | 'unexpected';
 
 /**
  * Typed auth failure thrown by AuthRepository implementations.

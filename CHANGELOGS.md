@@ -5,6 +5,286 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-10 — Local dummy-backend authentication setup
+
+#### Changed
+- Local `.env.local` now points this workspace at `http://localhost:8000/api/v1`, allowing the normal
+  Login and Register forms to use the backend's development-only dummy auth mode without Supabase.
+- Repository-composition tests now explicitly disable both API auth and API export when asserting
+  the frontend-only fallback, so developer environment files cannot change test intent.
+
+#### Verification
+- `npm run typecheck` and `npm run build` — passed.
+- `npm test -- --run` — 96 test files and 815 tests passed.
+
+### 2026-11-10 — Downloadable React/Vite source export
+
+#### Added
+- `ReactExportRepository` with unavailable-local and API-backed implementations. The API adapter
+  posts manifest v2 to `/exports/react`, downloads an array-buffer ZIP, validates its filename, and
+  maps the backend error envelope to typed export failures.
+- A deployment-screen **Download React app** action with generating state and actionable validation,
+  generation, timeout, rate-limit, expired-session, unavailable-backend, and network feedback.
+- Data and presentation tests for export repository composition, archive responses, backend error
+  mapping, progress/error rendering, and the frontend-only unavailable-backend fallback.
+
+#### Changed
+- The provider-agnostic JSON handoff remains available as a separate diagnostics action rather than
+  being replaced by source export.
+- Repository composition enables both API authentication and React export when
+  `VITE_API_BASE_URL` is configured; projects, app data, and deployment history remain local.
+
+#### Verification
+- `npm run typecheck` — passed.
+- Focused React-export repository, download hook, and deployment tests — 5 files and 15 tests passed.
+- `npm test -- --run` — 96 test files and 815 tests passed.
+- `npm run build` — passed (Vite reported only its existing non-blocking large-chunk advisory).
+
+### 2026-11-10 — Backend authentication integration
+
+#### Added
+- `ApiAuthRepository`, which connects registration, login, session restoration, and logout to the
+  Novy backend and maps the stable error envelope to typed `AuthError` codes.
+- Runtime validation for API user payloads so malformed responses cannot reach the domain layer.
+- CSRF helpers and a request interceptor that mirrors the readable `novy_csrf` cookie into
+  `X-CSRF-Token` for `POST`, `PUT`, `PATCH`, and `DELETE` requests.
+- Repository composition that swaps only authentication to the API when `VITE_API_BASE_URL` is set;
+  project, template, deployment, and app-data repositories remain local for now.
+- `.env.example` documenting the backend API base URL and the `localhost` cookie requirement.
+
+#### Changed
+- The Axios client now sends credentials with every request.
+- Auth failures use one generic `invalid-credentials` code instead of revealing whether an email
+  exists or a password was wrong, matching the backend response.
+- Registration handles pending Supabase email confirmation as an informational notice rather than a
+  failed sign-in.
+- The demo-user shortcut is shown only in development and only for repositories that support it.
+- Sign-out keeps the current screen when the server session cannot be cleared, instead of raising an
+  unhandled rejection.
+- `.gitignore` now excludes real `.env` files while keeping `.env.example`.
+
+#### Tests
+- Added coverage for CSRF cookie parsing/header attachment, Axios credential defaults, API auth
+  success and error mapping, pending email confirmation, malformed payload rejection, user-payload
+  parsing, demo visibility rules, and repository composition.
+- Updated local auth and route tests for the generic credentials error and demo visibility.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 94 test files and 807 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+
+### 2026-11-10 — Frontend/backend repository cross-reference
+
+#### Changed
+- `AGENTS.md` now records the absolute Novy frontend and backend repository locations so agents and
+  contributors can coordinate DTO, API, generation, and runtime contract work in the correct
+  project without mixing frontend and backend responsibilities.
+- `PROGRESS.md` now inventories the reciprocal repository documentation and the backend plan
+  location.
+
+#### Verification
+- Documentation paths were checked against the current workspace directories.
+- No application source changed, so frontend typecheck, tests, and build were not rerun.
+
+### 2026-11-10 — Safer automatic record-route linking
+
+#### Changed
+- Selecting a detail screen for a record-aware Navigate action now updates that screen's route and
+  route-parameter mapping in the same undo entry as the Logic edit, so target selection is one
+  reversible step instead of two.
+- Route linking is idempotent: re-selecting the same target, re-running an identifier sync, or
+  replaying a no-op update no longer creates empty history entries.
+- The home route stays static. Record-aware navigation to `/` is reported by validation instead of
+  silently rewriting the path to `/:recordId`.
+- Unrelated dynamic segments are preserved. A route such as `/blog/:slug` receives an appended
+  `/:noteId` rather than having `:slug` renamed.
+- A screen opened by multiple collections keeps both ordered parameters, for example
+  `/detail/:taskId/:noteId`, and validation warns that the order should be verified.
+- A record-aware Navigate action that targets its own list screen no longer converts that list route
+  into a record route.
+- The Inspector's linked-route hint now reads persisted `routeParameters`, so it survives action
+  deletion, undo, and redo.
+- The Logic inspector now explains when a record-aware Navigate action targets a screen without a
+  record ID route, instead of displaying a generic record-ID label.
+
+#### Tests
+- Added reducer coverage for atomic target linking, no-op history, home-route protection, unrelated
+  dynamic segments, and multi-collection parameters.
+- Added validation coverage for unmapped dynamic segments, home-route record navigation, and
+  multi-collection detail screens.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 88 test files and 757 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON — parsed successfully.
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-10 — Explicit record identifiers and route bindings
+
+#### Added
+- Collection schemas now carry a backend-generated, immutable record identifier contract such as
+  `noteId`. New and migrated local collections receive a derived default, while the Data schema,
+  collection-backed ListView Inspector, and focused Item Frame Inspector expose the name directly.
+- Record-aware detail screens now persist explicit route-parameter bindings connecting a dynamic
+  segment such as `:noteId` to the Notes collection record identity. Renaming the Item ID updates
+  every detail route targeted by **Open current item** workflows.
+- Logic configuration now shows the resolved detail route and an automatic `Current item ID`
+  parameter badge instead of leaving the route/record relationship implicit.
+- Generated-app manifest v2 and generated-layout v2 export collection identifier metadata,
+  repeated-item `recordIdentity`, and runtime route parameter mappings for backend routing and
+  schema generation.
+
+#### Changed
+- Project serialization now writes schema v13. Older record-aware navigation is migrated by
+  deriving route-parameter metadata from the existing dynamic path and navigation collection.
+- Dynamic route parameter casing is preserved when editing screen paths, while static path segments
+  continue to normalize to lowercase URL slugs.
+- The Notes CRUD template explicitly provisions `noteId`, maps `/notes/:noteId`, and remaps its
+  collection reference during template instantiation.
+
+#### Tests
+- Added repository validation, Inspector, Data workspace, route reducer, project migration/mapper,
+  generated layout/manifest, Logic workspace, template instantiation, and project validation
+  coverage for record identifier naming and explicit routing contracts.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 88 test files and 748 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Representative Project JSON — parsed successfully.
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-10 — Parent-safe nested resizing
+
+#### Fixed
+- Resizing a child inside a Row or Column now accounts for the parent's padding, configured gaps,
+  and the main-axis space occupied by visible siblings. Pointer resizing can no longer grow a child
+  beyond the parent's trailing content edge.
+- Inspector width/height edits use the same constraint, including cross-axis limits. Free-form
+  containers, ListView item frames, screen bounds, responsive overrides, and minimum widget sizes
+  retain their existing clamping behavior.
+
+#### Tests
+- Added Row pointer-resize and Column Inspector-resize regressions that verify rendered child edges
+  remain within padded parent bounds and Inspector edits keep one undo entry.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 88 test files and 739 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-10 — Centered button icons
+
+#### Added
+- Button icon placement now supports **Center** alongside **Left** and **Right** in the Inspector.
+- Center placement renders an icon-only visual in canvas, preview, thumbnails, and serialized
+  project output while retaining the button label as screen-reader-only text and the native
+  button's accessible name.
+- The domain and DTO contracts now persist `iconPosition: "center"`; older label-only and
+  left/right buttons remain unchanged.
+
+#### Tests
+- Added centered-icon renderer accessibility, Inspector dispatch, and mapper round-trip coverage.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 88 test files and 737 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-10 — Zero default layout padding
+
+#### Changed
+- Newly created Row, Column, and ListView widgets now start with `0` padding on every side.
+  Containers already use a zero-inset free-form content area. Existing saved widgets and templates
+  with explicit padding retain their configured values.
+
+#### Tests
+- Added component-factory coverage for zero-padding Row, Column, and ListView defaults.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 88 test files and 736 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-10 — Parent-relative widget drop fitting
+
+#### Fixed
+- Palette widgets now fit inside the screen, free-form frames, Gesture Detectors, and padded
+  ListView item frames when their default dimensions exceed the destination parent.
+- Dropping or reparenting a widget into a Row or Column now proportionally shrinks visible siblings
+  along the main axis, accounts for padding and gaps, and caps the cross axis so controls no longer
+  render beyond the parent boundary. Hidden siblings retain their saved geometry.
+- Fit-once geometry is calculated independently for mobile, tablet, and desktop. The resulting pixel
+  dimensions remain manually editable and do not introduce continuous flex or percentage sizing.
+- Canvas reparenting and Layers-panel **move inside** use the same fitting path while preserving the
+  existing single-history-entry behavior.
+
+#### Tests
+- Added pure auto-fit math coverage and reducer regressions for Row, Column, Container, Gesture
+  Detector, ListView item-frame, responsive, hidden-child, reparenting, layer-move, and undo cases.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 88 test files and 735 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed (line-ending conversion notices only).
+
+### 2026-11-10 — Collapsible Validation dock
+
+#### Changed
+- The Design inspector's Validation section now has a chevron disclosure indicator, and its header
+  toggles the issue panel while staying visible when collapsed.
+- Dragging the Validation splitter down past its minimum height now collapses the dock, so the
+  section can be minimized directly from the divider. Keyboard resizing, the persisted height, and
+  the clamped split-pane behavior are unchanged.
+
+#### Tests
+- Added Validation dock coverage for header toggling, issue selection, drag-to-minimize, and the
+  no-collapse threshold, plus resizable-pane coverage for requesting collapse past the minimum.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 87 test files and 718 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-10 — Schema-driven ListView inspector
+
+#### Changed
+- ListView item bindings are now described by the selected component property and data type.
+  Dropdowns use property-specific fallbacks (`Fixed text`, `Fixed image`, `Fixed label`,
+  `Fixed state`, `Fixed value`, `Always visible`) and show typed field options such as
+  `Name (Text)` and `Pinned (Yes/No)` instead of one generic static option.
+- Binding targets with no compatible field now render as read-only rows with a short explanation
+  of the field type to add, rather than an empty or unusable dropdown.
+- The binding section names the active source (`Item data · Students` or `Item data · Static
+  items`) so the inspector no longer assumes a Notes-style text record.
+- Replaced the mandatory-looking **Primary display field** with an optional **Record label**.
+  Choosing **None** persists `displayFieldIds: []`; new collection bindings still default to the
+  first text, number, or date field. The label is optional metadata for menus, sample selection,
+  fallback items, and screen-reader text, never a requirement for rendering item content.
+- ListView item templates can now be image-only or mixed media. Fallback items and preview
+  accessibility labels use `Item N` when no record label is configured.
+
+#### Tests
+- Added schema-driven binding coverage, boolean visibility binding coverage, optional record-label
+  coverage, no-collections guidance, and an image-only ListView item-template test.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 86 test files and 713 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
+### 2026-11-10 — Design canvas follows the editor theme
+
+#### Fixed
+- Design canvases and template thumbnails now follow Novy's light/dark shell theme instead of being
+  forced into a light app theme. Dark mode renders a dark canvas frame, dark screen backgrounds,
+  light text tokens, and each component's dark appearance variant.
+- The effective app theme now drives both the CSS token scope and per-component appearance
+  resolution, and each app-theme scope sets its inherited text color. Dark canvases and explicit
+  light previews can no longer combine shell-inherited text with mismatched hard-coded card fills.
+- Preview keeps its explicit light/dark app-theme selector and stays independent from the editor
+  shell.
+
+#### Tests
+- Added shell-theme observation coverage and ScreenFrame coverage for dark canvases, dark appearance
+  variants, and explicit preview theme isolation.
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 86 test files and 708 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
 ### 2026-11-09 — Notes CRUD starter template
 
 #### Added

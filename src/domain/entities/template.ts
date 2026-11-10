@@ -1,5 +1,5 @@
 import type { Screen } from './screen';
-import type { DataField, DataValue } from './appData';
+import type { DataField, DataValue, RecordIdentifier } from './appData';
 
 /** Collection definition bundled with a starter template before project IDs exist. */
 export interface TemplateCollectionBlueprint {
@@ -7,6 +7,7 @@ export interface TemplateCollectionBlueprint {
   referenceId: string;
   name: string;
   fields: DataField[];
+  identifier?: RecordIdentifier;
   records?: Array<Record<string, DataValue>>;
 }
 

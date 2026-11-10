@@ -18,13 +18,23 @@ describe('instantiateTemplateProject', () => {
 
     expect(databases.map((database) => database.name)).toEqual(['Notes Database']);
     expect(collections).toHaveLength(1);
-    expect(collections[0]).toMatchObject({ name: 'Notes' });
+    expect(collections[0]).toMatchObject({
+      name: 'Notes',
+      identifier: { key: 'noteId', type: 'string', generation: 'backend' },
+    });
     expect(records.map((record) => record.values.note_title)).toEqual([
       'Created with Novy',
       'Minimal notes',
       'Build with confidence',
     ]);
     expect(JSON.stringify(project.document)).not.toContain('template-notes-collection');
+    expect(project.document.screens.find((screen) => screen.name === 'Note Detail')).toMatchObject({
+      path: '/notes/:noteId',
+      routeParameters: [{
+        name: 'noteId',
+        source: { kind: 'record-id', collectionId: collections[0]!.id, identifierKey: 'noteId' },
+      }],
+    });
     expect(validateProject(project.document, collections).issues.filter(
       (issue) => issue.severity === 'error',
     )).toEqual([]);

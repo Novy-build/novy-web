@@ -30,6 +30,8 @@ function mapAccountToUser(account: UserAccountDTO): User {
  * real sessions move to the HTTP layer in the backend phase.
  */
 export class LocalAuthRepository implements AuthRepository {
+  readonly supportsDemo = true;
+
   private readonly storage: StorageLike;
   private readonly delayMs: number;
 
@@ -47,11 +49,10 @@ export class LocalAuthRepository implements AuthRepository {
   async signIn(input: SignInInput): Promise<User> {
     await sleep(this.delayMs);
     const account = this.readAccounts().find((entry) => accountEmailIsEqual(entry.email, input.email));
-    if (!account) {
-      throw new AuthError('unknown-email');
-    }
-    if (account.password !== input.password) {
-      throw new AuthError('wrong-password');
+    if (!account || account.password !== input.password) {
+      // The backend deliberately returns one generic failure for unknown
+      // emails and wrong passwords; mirror it so local development matches.
+      throw new AuthError('invalid-credentials');
     }
     const user = mapAccountToUser(account);
     this.writeSession(user);

@@ -67,10 +67,10 @@ export function buildGeneratedAppManifest(
     .sort((left, right) => left.capability.localeCompare(right.capability));
 
   return {
-    manifestVersion: 1,
+    manifestVersion: 2,
     generatedAt: generatedAt.toISOString(),
     project: mapProjectToDto(project),
-    layout: mapProjectToGeneratedLayout(project),
+    layout: mapProjectToGeneratedLayout(project, collections),
     appData: {
       database: database ? mapDatabaseToDto(database) : null,
       collections: collections.map(mapCollectionToDto),
@@ -78,7 +78,20 @@ export function buildGeneratedAppManifest(
     },
     runtime: {
       requirements,
-      routes: project.document.screens.map((screen) => ({ screenId: screen.id, path: screen.path })),
+      routes: project.document.screens.map((screen) => ({
+        screenId: screen.id,
+        path: screen.path,
+        ...(screen.routeParameters && screen.routeParameters.length > 0
+          ? {
+              parameters: screen.routeParameters.map((parameter) => ({
+                name: parameter.name,
+                source: 'record-id' as const,
+                collectionId: parameter.source.collectionId,
+                identifierKey: parameter.source.identifierKey,
+              })),
+            }
+          : {}),
+      })),
       responsiveBreakpoints: { tabletMinWidth: 768, desktopMinWidth: 1024 },
     },
     security: {

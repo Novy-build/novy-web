@@ -126,6 +126,18 @@ describe('DeploymentPage', () => {
     expect(screen.getByRole('button', { name: 'Redeploy' })).toBeDisabled();
   });
 
+  it('reports that React export needs a configured backend', async () => {
+    const { repositories, projectId } = await setupProject();
+    renderDeployment(projectId, repositories);
+    await screen.findByRole('heading', { name: 'Publish your app' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download React app' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Configure VITE_API_BASE_URL and sign in to download a React app.',
+    );
+  });
+
   it('reports a missing project rather than rendering publish controls', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     renderDeployment('missing-project', repositories);

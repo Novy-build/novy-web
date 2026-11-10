@@ -2,6 +2,7 @@ import type { AuthRepository } from '@domain/repositories/auth.repository';
 import type { AppDataRepository } from '@domain/repositories/appData.repository';
 import type { DeploymentRepository } from '@domain/repositories/deployment.repository';
 import type { ProjectRepository } from '@domain/repositories/project.repository';
+import type { ReactExportRepository } from '@domain/repositories/reactExport.repository';
 import type { TemplateRepository } from '@domain/repositories/template.repository';
 import { TEMPLATE_CATALOG } from '../../templates/templateCatalog';
 import { LocalAuthRepository } from './LocalAuthRepository';
@@ -9,6 +10,7 @@ import { LocalStorageAppDataRepository } from './LocalStorageAppDataRepository';
 import { LocalStorageDeploymentRepository } from './LocalStorageDeploymentRepository';
 import { LocalStorageProjectRepository } from './LocalStorageProjectRepository';
 import { StaticTemplateRepository } from './StaticTemplateRepository';
+import { UnavailableReactExportRepository } from './UnavailableReactExportRepository';
 
 /**
  * The set of repositories injected through the presentation layer.
@@ -21,6 +23,7 @@ export interface Repositories {
   templates: TemplateRepository;
   deployments: DeploymentRepository;
   appData: AppDataRepository;
+  reactExport: ReactExportRepository;
 }
 
 export interface LocalRepositoriesOptions {
@@ -37,5 +40,6 @@ export function createLocalRepositories(options?: LocalRepositoriesOptions): Rep
     templates: new StaticTemplateRepository([...TEMPLATE_CATALOG], latencyMs ?? 120),
     deployments: new LocalStorageDeploymentRepository(window.localStorage, { latencyMs }),
     appData: new LocalStorageAppDataRepository(window.localStorage, { latencyMs }),
+    reactExport: new UnavailableReactExportRepository(),
   };
 }

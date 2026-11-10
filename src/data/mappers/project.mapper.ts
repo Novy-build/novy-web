@@ -38,7 +38,7 @@ import { normalizeLogicGraph } from '@domain/logic/graph';
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
-    schemaVersion: 12,
+    schemaVersion: 13,
     id: project.id,
     name: project.name,
     createdAt: project.createdAt.toISOString(),
@@ -58,7 +58,7 @@ export function mapProjectFromDto(dto: ProjectDTO): Project {
       return path === mapped.path ? mapped : { ...mapped, path };
     }),
   };
-  const document = (dto.schemaVersion ?? 0) < 9
+  const layoutMigratedDocument = (dto.schemaVersion ?? 0) < 9
     ? {
         screens: mappedDocument.screens.map((screen) => ({
           ...screen,
@@ -66,12 +66,47 @@ export function mapProjectFromDto(dto: ProjectDTO): Project {
         })),
       }
     : mappedDocument;
+  const document = (dto.schemaVersion ?? 0) < 13
+    ? migrateRecordRouteParameters(layoutMigratedDocument)
+    : layoutMigratedDocument;
   return {
     id: dto.id,
     name: dto.name,
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),
     document,
+  };
+}
+
+function migrateRecordRouteParameters(document: ProjectDocument): ProjectDocument {
+  const collectionByTarget = new Map<string, string>();
+  for (const sourceScreen of document.screens) {
+    for (const graph of sourceScreen.logicGraphs) {
+      for (const node of graph.nodes) {
+        if (node.kind === 'action' && node.payload.type === 'navigate' && node.payload.recordContext) {
+          collectionByTarget.set(node.payload.targetScreenId, node.payload.recordContext.collectionId);
+        }
+      }
+    }
+  }
+  return {
+    screens: document.screens.map((screen) => {
+      if (screen.routeParameters?.length) return screen;
+      const collectionId = collectionByTarget.get(screen.id);
+      if (!collectionId) return screen;
+      const existingName = [...screen.path.matchAll(/:([A-Za-z][A-Za-z0-9]*)/g)][0]?.[1] ?? 'recordId';
+      const path = screen.path.includes(`:${existingName}`)
+        ? screen.path
+        : `${screen.path === '/' ? '' : screen.path.replace(/\/$/, '')}/:${existingName}`;
+      return {
+        ...screen,
+        path,
+        routeParameters: [{
+          name: existingName,
+          source: { kind: 'record-id', collectionId, identifierKey: existingName },
+        }],
+      };
+    }),
   };
 }
 
@@ -196,6 +231,9 @@ export function mapScreenToDto(screen: Screen): ScreenDTO {
     id: screen.id,
     name: screen.name,
     path: screen.path,
+    ...(screen.routeParameters && screen.routeParameters.length > 0
+      ? { routeParameters: structuredClone(screen.routeParameters) }
+      : {}),
     nodes: screen.nodes.map(mapNodeToDto),
     behaviors: screen.behaviors.map(mapBehaviorToDto),
     logicGraphs: screen.logicGraphs.map(mapLogicGraphToDto),
@@ -210,6 +248,9 @@ export function mapScreenFromDto(dto: ScreenDTO, index = 0): Screen {
     id: dto.id,
     name: dto.name,
     path: dto.path ?? (index === 0 ? '/' : `/${dto.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `screen-${index + 1}`}`),
+    ...(dto.routeParameters && dto.routeParameters.length > 0
+      ? { routeParameters: structuredClone(dto.routeParameters) }
+      : {}),
     nodes: dto.nodes.map(mapNodeFromDto),
     behaviors: [
       ...behaviors,
@@ -472,7 +513,9 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
           label: dto.props.label,
           variant: dto.props.variant,
           ...(isButtonIconName(dto.props.icon) ? { icon: dto.props.icon } : {}),
-          ...(dto.props.iconPosition === 'left' || dto.props.iconPosition === 'right'
+          ...(dto.props.iconPosition === 'left'
+            || dto.props.iconPosition === 'center'
+            || dto.props.iconPosition === 'right'
             ? { iconPosition: dto.props.iconPosition }
             : {}),
         },

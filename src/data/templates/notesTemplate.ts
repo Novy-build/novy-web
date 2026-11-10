@@ -8,6 +8,7 @@ import type { Template } from '@domain/entities/template';
 export const NOTES_COLLECTION_REFERENCE = 'template-notes-collection';
 export const NOTE_TITLE_FIELD = 'note_title';
 export const NOTE_CONTENT_FIELD = 'note_content';
+export const NOTE_IDENTIFIER_KEY = 'noteId';
 
 const NOTES_SCREEN_ID = 'screen_notes_home';
 const ADD_NOTE_SCREEN_ID = 'screen_notes_add';
@@ -160,6 +161,14 @@ const noteDetailScreen = makeScreen(NOTE_DETAIL_SCREEN_ID, 'Note Detail', '/note
   button('detail_edit', 'Edit note', 600, 'solid', 'pencil'),
   button('detail_delete', 'Delete note', 656, 'outline', 'trash'),
 ]);
+noteDetailScreen.routeParameters = [{
+  name: NOTE_IDENTIFIER_KEY,
+  source: {
+    kind: 'record-id',
+    collectionId: NOTES_COLLECTION_REFERENCE,
+    identifierKey: NOTE_IDENTIFIER_KEY,
+  },
+}];
 
 const editNoteScreen = makeScreen(EDIT_NOTE_SCREEN_ID, 'Edit Note', '/notes/:noteId/edit', [
   appBackground('edit_background'),
@@ -169,6 +178,14 @@ const editNoteScreen = makeScreen(EDIT_NOTE_SCREEN_ID, 'Edit Note', '/notes/:not
   button('edit_save', 'Save changes', 454, 'solid', 'save'),
   button('edit_cancel', 'Cancel', 510, 'text'),
 ]);
+editNoteScreen.routeParameters = [{
+  name: NOTE_IDENTIFIER_KEY,
+  source: {
+    kind: 'record-id',
+    collectionId: NOTES_COLLECTION_REFERENCE,
+    identifierKey: NOTE_IDENTIFIER_KEY,
+  },
+}];
 
 wireScreen(notesScreen, [
   behavior('behavior_notes_add', 'Add note', 'click', 'graph_notes_add', 'notes_add'),
@@ -296,6 +313,7 @@ export const NOTES_TEMPLATE: Template = {
     collections: [{
       referenceId: NOTES_COLLECTION_REFERENCE,
       name: 'Notes',
+      identifier: { key: NOTE_IDENTIFIER_KEY, type: 'string', generation: 'backend' },
       fields: [
         { id: NOTE_TITLE_FIELD, key: 'title', label: 'Title', type: 'text', required: true },
         { id: NOTE_CONTENT_FIELD, key: 'content', label: 'Content', type: 'text', required: false },

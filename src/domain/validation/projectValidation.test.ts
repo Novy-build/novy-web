@@ -40,8 +40,13 @@ describe('validateProject', () => {
       bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'title' } }],
     })]);
     detail.path = '/notes/:noteId';
+    detail.routeParameters = [{
+      name: 'noteId',
+      source: { kind: 'record-id', collectionId: 'notes', identifierKey: 'noteId' },
+    }];
     const notes: DataCollection = {
       id: 'notes', projectId: 'project', databaseId: 'database', name: 'Notes',
+      identifier: { key: 'noteId', type: 'string', generation: 'backend' },
       fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
       createdAt: new Date(), updatedAt: new Date(),
     };
@@ -50,6 +55,108 @@ describe('validateProject', () => {
     expect(report.issues.map((issue) => issue.code)).not.toContain('screen-path-invalid');
     expect(report.issues.map((issue) => issue.code)).not.toContain('component-binding-context');
     expect(report.issues.map((issue) => issue.code)).not.toContain('component-binding-field');
+    expect(report.issues.map((issue) => issue.code)).not.toContain('screen-route-parameter-unmapped');
+  });
+
+  it('reports stale route identifiers and collection-field conflicts', () => {
+    const screen = makeScreen('screen_notes', []);
+    screen.path = '/notes/:oldId';
+    screen.routeParameters = [{
+      name: 'oldId',
+      source: { kind: 'record-id', collectionId: 'notes', identifierKey: 'oldId' },
+    }];
+    const notes: DataCollection = {
+      id: 'notes', projectId: 'project', databaseId: 'database', name: 'Notes',
+      identifier: { key: 'noteId', type: 'string', generation: 'backend' },
+      fields: [{ id: 'identifier_field', key: 'noteId', label: 'Bad', type: 'text', required: false }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const report = validateProject(documentWith(screen), [notes]);
+    expect(report.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
+      'screen-route-identifier-stale',
+      'data-record-identifier-conflict',
+    ]));
+  });
+
+  it('warns when a dynamic route segment has no record mapping', () => {
+    const screen = makeScreen('screen_blog', []);
+    screen.path = '/blog/:slug';
+
+    const report = validateProject(documentWith(screen));
+
+    expect(report.issues.map((issue) => issue.code)).toContain('screen-route-segment-unmapped');
+  });
+
+  it('warns when record-aware navigation targets the home route', () => {
+    const source = makeScreen('screen_home', [makeButton('open_note')]);
+    source.behaviors = [{ id: 'open_behavior', name: 'Open note', event: 'click', graphId: 'open_graph', targetNodeId: 'open_note' }];
+    source.logicGraphs = [{
+      id: 'open_graph', name: 'Open note', sourceNodeId: 'open_note',
+      nodes: [
+        { kind: 'trigger', id: 'trigger', event: 'click', position: { x: 0, y: 0 } },
+        {
+          kind: 'action', id: 'navigate', position: { x: 240, y: 0 },
+          payload: { type: 'navigate', targetScreenId: 'screen_home', recordContext: { collectionId: 'notes', recordId: '' } },
+        },
+      ],
+      edges: [],
+    }];
+    const notes: DataCollection = {
+      id: 'notes', projectId: 'project', databaseId: 'database', name: 'Notes',
+      identifier: { key: 'noteId', type: 'string', generation: 'backend' },
+      fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+
+    const report = validateProject(documentWith(source), [notes]);
+
+    expect(report.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
+      'screen-route-home-target',
+      'screen-route-parameter-unmapped',
+    ]));
+  });
+
+  it('warns when one screen is opened for multiple record collections', () => {
+    const source = makeScreen('screen_home', [makeButton('open_record')]);
+    source.behaviors = [{ id: 'open_behavior', name: 'Open record', event: 'click', graphId: 'open_graph', targetNodeId: 'open_record' }];
+    source.logicGraphs = [{
+      id: 'open_graph', name: 'Open record', sourceNodeId: 'open_record',
+      nodes: [
+        { kind: 'trigger', id: 'trigger', event: 'click', position: { x: 0, y: 0 } },
+        {
+          kind: 'action', id: 'open_note', position: { x: 240, y: 0 },
+          payload: { type: 'navigate', targetScreenId: 'screen_detail', recordContext: { collectionId: 'notes', recordId: '' } },
+        },
+        {
+          kind: 'action', id: 'open_task', position: { x: 480, y: 0 },
+          payload: { type: 'navigate', targetScreenId: 'screen_detail', recordContext: { collectionId: 'tasks', recordId: '' } },
+        },
+      ],
+      edges: [],
+    }];
+    const detail = makeScreen('screen_detail', []);
+    detail.path = '/detail/:noteId/:taskId';
+    detail.routeParameters = [
+      { name: 'noteId', source: { kind: 'record-id', collectionId: 'notes', identifierKey: 'noteId' } },
+      { name: 'taskId', source: { kind: 'record-id', collectionId: 'tasks', identifierKey: 'taskId' } },
+    ];
+    const notes: DataCollection = {
+      id: 'notes', projectId: 'project', databaseId: 'database', name: 'Notes',
+      identifier: { key: 'noteId', type: 'string', generation: 'backend' },
+      fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    const tasks: DataCollection = {
+      ...notes,
+      id: 'tasks',
+      name: 'Tasks',
+      identifier: { key: 'taskId', type: 'string', generation: 'backend' },
+    };
+
+    const report = validateProject(documentWith(source, detail), [notes, tasks]);
+
+    expect(report.issues.map((issue) => issue.code)).toContain('screen-route-multiple-collections');
+    expect(report.issues.map((issue) => issue.code)).not.toContain('screen-route-parameter-unmapped');
   });
 
   it('returns valid for a complete project', () => {

@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import type { DataCollection, DataField, DataFieldType } from '@domain/entities/appData';
+import {
+  RECORD_IDENTIFIER_KEY_PATTERN,
+  recordIdentifierForCollection,
+  type DataCollection,
+  type DataField,
+  type DataFieldType,
+} from '@domain/entities/appData';
 import { generateId } from '@domain/ids';
 import { Button } from '@presentation/components/ui/Button';
 import { TextInput } from '@presentation/components/ui/TextInput';
@@ -9,9 +15,10 @@ export function CollectionSchemaEditor({
   onSave,
 }: {
   collection: DataCollection;
-  onSave: (name: string, fields: DataField[]) => Promise<void>;
+  onSave: (name: string, fields: DataField[], identifierKey: string) => Promise<void>;
 }) {
   const [name, setName] = useState(collection.name);
+  const [identifierKey, setIdentifierKey] = useState(() => recordIdentifierForCollection(collection).key);
   const [fields, setFields] = useState<DataField[]>(() => collection.fields.map((field) => ({ ...field })));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -34,7 +41,13 @@ export function CollectionSchemaEditor({
     setSaving(true);
     setError(null);
     try {
-      await onSave(name, fields);
+      if (!RECORD_IDENTIFIER_KEY_PATTERN.test(identifierKey)) {
+        throw new Error('Record ID name must start with a lowercase letter and contain only letters and numbers.');
+      }
+      if (fields.some((field) => field.key === identifierKey)) {
+        throw new Error('Record ID name must be different from collection field keys.');
+      }
+      await onSave(name, fields, identifierKey);
       setSaving(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Schema could not be saved.');
@@ -48,6 +61,10 @@ export function CollectionSchemaEditor({
         <h3 className="text-base font-semibold text-ink">Schema</h3>
         <div className="mt-4 max-w-sm">
           <TextInput label="Collection name" name="collection-name" onChange={(event) => setName(event.target.value)} value={name} />
+          <div className="mt-3">
+            <TextInput label="Record ID name" name="collection-record-id" onChange={(event) => setIdentifierKey(event.target.value)} value={identifierKey} />
+            <p className="mt-1 text-xs text-ink-muted">Backend-generated and immutable for every record.</p>
+          </div>
         </div>
         <div className="mt-5 grid gap-2">
           {fields.map((field, index) => (

@@ -24,7 +24,7 @@ async function renderEditor() {
   await screen.findByTestId('canvas-frame');
   fireEvent.click(screen.getByRole('button', { name: 'data' }));
   await screen.findByRole('heading', { name: 'Collections' });
-  return repositories;
+  return { repositories, project };
 }
 
 describe('DataWorkspace', () => {
@@ -40,7 +40,7 @@ describe('DataWorkspace', () => {
   });
 
   it('creates a collection, edits schema, and performs record CRUD', async () => {
-    await renderEditor();
+    const { repositories, project } = await renderEditor();
 
     fireEvent.change(screen.getByLabelText('Collection name'), { target: { value: 'Students' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create collection' }));
@@ -51,9 +51,12 @@ describe('DataWorkspace', () => {
     fireEvent.change(keyInputs[1]!, { target: { value: 'age' } });
     const labelInputs = screen.getAllByLabelText('Label');
     fireEvent.change(labelInputs[1]!, { target: { value: 'Age' } });
+    expect(screen.getByLabelText('Record ID name')).toHaveValue('studentId');
+    fireEvent.change(screen.getByLabelText('Record ID name'), { target: { value: 'studentKey' } });
     const saveSchema = screen.getByRole('button', { name: 'Save schema' });
     fireEvent.click(saveSchema);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save schema' })).not.toHaveAttribute('aria-busy', 'true'));
+    expect((await repositories.appData.listCollections(project.id))[0]?.identifier?.key).toBe('studentKey');
 
     fireEvent.click(screen.getByRole('tab', { name: 'records' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add record' }));

@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-09
+**Last reviewed:** 2026-11-10
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app builder**. Native mobile and desktop application generation are outside the
@@ -17,7 +17,12 @@ completed production backend integrations.
 - [x] Clean Architecture separation across `domain`, `data`, `presentation`, and `main` layers.
 - [x] Dependency injection for authentication, projects, templates, project data, and deployment
   repositories.
-- [x] Central Axios client scaffold for future API integration.
+- [x] Central Axios client configured with credentialed requests, a JSON content type, and
+  automatic `X-CSRF-Token` headers for state-changing requests.
+- [x] API-backed authentication repository for the Novy backend, selected when
+  `VITE_API_BASE_URL` is configured.
+- [x] API-backed React source-export repository, selected by the same backend base URL, with typed
+  archive and backend-error handling.
 - [x] Local-storage repository implementations with simulated request latency.
 - [x] DTO and mapper boundaries between persisted/API-shaped data and domain entities.
 - [x] Versioned project payloads with migration coverage for previously saved documents.
@@ -25,6 +30,8 @@ completed production backend integrations.
 - [x] Mandatory repository workflow for keeping `PROGRESS.md` and `CHANGELOGS.md` synchronized.
 - [x] Backend-handoff reading checklist covering product requirements, Project JSON contracts,
   mappers, repositories, validation, migrations, and tests.
+- [x] Reciprocal absolute frontend/backend repository locations documented in both projects'
+  `AGENTS.md` files, with the backend delivery sequence maintained in `novy-backend/BACKEND_PLAN.md`.
 
 ### Implemented routes
 
@@ -40,7 +47,11 @@ completed production backend integrations.
 - [x] Login and registration modes.
 - [x] Client-side email and password validation.
 - [x] Loading and error feedback during authentication.
-- [x] Demo-user sign-in shortcut.
+- [x] Backend-connected registration, login, session restoration, refresh-on-session-check, and
+  logout through HttpOnly cookies when `VITE_API_BASE_URL` is configured.
+- [x] Generic invalid-credentials feedback that does not reveal whether an email exists.
+- [x] Pending-email-confirmation guidance when Supabase requires confirmation before login.
+- [x] Development-only demo-user sign-in shortcut; API-backed auth never exposes it.
 - [x] Session provider and protected-route guard.
 - [x] Restoration of the originally requested route after authentication.
 - [x] Sign-out support.
@@ -49,8 +60,15 @@ completed production backend integrations.
 - [x] Project-aware links to the editor and deployment screen.
 - [x] Light and dark theme toggle with persisted preference and system-theme support.
 
-Authentication is currently implemented through a local mock repository. Production accounts,
-tokens, password recovery, and remote sessions are not connected.
+Authentication uses the Novy backend when `VITE_API_BASE_URL` is set; otherwise it falls back to
+the local mock repository so frontend-only development keeps working. The backend owns Supabase
+credentials and stores access/refresh tokens only in `HttpOnly` cookies; the browser sends the
+readable `novy_csrf` cookie as `X-CSRF-Token` on mutations. Password recovery and a live Supabase
+project configuration are not implemented or verified yet.
+
+For the current local workspace, ignored `.env.local` configuration points to the backend's
+development-only dummy auth mode. Dummy accounts and sessions are ephemeral, any valid login is
+accepted, and submitted passwords are ignored. Production still requires Supabase auth.
 
 ## 3. Project management
 
@@ -113,7 +131,7 @@ event binding, and its referenced logic graph:
 
 ```json
 {
-  "schemaVersion": 12,
+  "schemaVersion": 13,
   "id": "project_notes",
   "name": "Notes App",
   "createdAt": "2026-11-07T08:00:00.000Z",
@@ -424,7 +442,17 @@ event binding, and its referenced logic graph:
     {
       "id": "screen_details",
       "name": "Details",
-      "path": "/details",
+      "path": "/notes/:noteId",
+      "routeParameters": [
+        {
+          "name": "noteId",
+          "source": {
+            "kind": "record-id",
+            "collectionId": "collection_notes",
+            "identifierKey": "noteId"
+          }
+        }
+      ],
       "nodes": [
         {
           "id": "text_details_title",
@@ -473,6 +501,8 @@ event binding, and its referenced logic graph:
 - Schema v12 adds the transparent, child-bearing Gesture Detector with a persisted semantic action
   label. It can be added from the palette or wrapped around an existing component without changing
   the wrapped component's outer position; Enter and Space activate it in Preview.
+- Schema v13 adds explicit `routeParameters`. A record-aware detail route maps its named URL segment
+  to one collection's backend-generated record identity instead of relying on matching conventions.
 - Container keeps free-form child coordinates. Column and Row resolve child placement from their
   main-axis alignment, cross-axis alignment, gap, padding, and child order.
 - Column, Row, and the ListView repeated-item frame persist padding as a schema-v11 `PaddingValue`
@@ -483,9 +513,10 @@ event binding, and its referenced logic graph:
   in the Inspector. Omitted values preserve the existing shell defaults (Column/Row dashed,
   Container solid); **None** hides both the frame and shell border even if a border color is saved.
   Explicit styles without a saved border color use the theme hairline color.
-- Buttons expose an optional curated Lucide `props.icon` and `props.iconPosition` (`left` or
-  `right`). The icon is decorative (`aria-hidden`), inherits the button text color, and is omitted
-  from older saved buttons; unknown persisted icon names are ignored by the DTO mapper.
+- Buttons expose an optional curated Lucide `props.icon` and `props.iconPosition` (`left`, `center`,
+  or `right`). Center placement creates an icon-only visual while retaining the label as accessible
+  screen-reader text. The icon is decorative (`aria-hidden`), inherits the button text color, and
+  is omitted from older saved buttons; unknown persisted icon names are ignored by the DTO mapper.
 - Text nodes expose optional `props.fontSize` (positive pixels) and `props.fontWeight`
   (`normal`, `medium`, `semibold`, or `bold`) overrides. Omitted values fall back to the selected
   `level` preset; custom sizes render with a proportional line height. Invalid persisted values are
@@ -523,6 +554,15 @@ event binding, and its referenced logic graph:
 - Optional typed `bindings` resolve current-item fields into Text content, Image source/alt, Button
   labels, Checkbox/Switch state, Progress values, and component visibility while preserving static
   property fallbacks.
+- The Inspector derives binding controls from the selected component and current item schema.
+  Options show field labels with types, incompatible targets explain which field type to add, and
+  the section names the active collection or static source instead of assuming text records.
+- Collection-backed ListViews keep an optional **Record label** for menus, sample selection,
+  fallback items, and screen-reader text. **None** stores `displayFieldIds: []`; item templates
+  render their own content and may be image-only or mixed media.
+- Collection-backed ListViews and their focused Item Frame expose an **Item ID name** such as
+  `noteId`. This is immutable identifier metadata, not a user-entered field value: the backend
+  generates each record ID, and linked Open-current-item routes update when the name changes.
 - Component ordering in `nodes` and `children` represents layer/paint ordering.
 
 #### How event bindings are represented
@@ -544,9 +584,17 @@ event binding, and its referenced logic graph:
 - Current-item navigation persists `recordContext` with collection and record IDs. Preview exposes
   these as `route.collectionId` and `route.recordId`; generated apps can use a destination path such
   as `/notes/:noteId` for refreshable detail URLs.
+- `routeParameters` explicitly map `noteId` to the Notes collection's `record-id` source. The Logic
+  inspector displays `noteId: Current item ID — Automatic`, and validation rejects missing, stale,
+  duplicated, or collection-mismatched mappings.
+- Choosing a target screen for a record-aware Navigate action links that screen immediately in the
+  same undo entry as the Logic edit. Linking is idempotent, keeps `/` static, preserves unrelated
+  dynamic segments, and appends ordered parameters when multiple collections share a detail screen.
+  Validation warns about home-route targets, unmapped dynamic segments, and shared multi-collection
+  routes. The Inspector's linked-route hint reads persisted mappings rather than a live graph scan.
 - A screen targeted by record-aware navigation automatically offers that collection's fields in
-  **Record data bindings**. Preview resolves those bindings from the selected record, so detail
-  content follows the exact ListView row that opened it.
+  the Inspector's item-data bindings. Preview resolves those bindings from the selected record, so
+  detail content follows the exact ListView row that opened it.
 - Delete Record may set `confirm: true` to request confirmation before deleting in Preview.
 - RAG and Computer Vision actions use provider-agnostic payloads. Their generated runtime inputs may
   reference temporary camera media, while outputs expose document IDs, answers/citations,
@@ -560,13 +608,52 @@ the typed `payload`; optional `inputMappings` override named fields at runtime.
 
 ### Generated-app backend handoff manifest
 
-The Deployment page can export a versioned generated-app handoff manifest. It contains the complete
+The Deployment page can export generated-app manifest v2 and generated-layout v2. They contain the complete
 `ProjectDTO`, a normalized `GeneratedLayoutDTO` that projects ListView repeated-item frames as
 explicit containers, project database and collection schemas, routes, responsive media-query thresholds,
 and inferred runtime requirements for authentication, data, email, RAG, Computer Vision, camera
 permissions, and deployment. The manifest deliberately excludes app records, secrets, raw camera
-captures, and biometric templates. It is a frontend-to-backend contract, not generated React code
-or a deployable application bundle.
+captures, and biometric templates. The JSON remains a diagnostics contract. When the backend is
+configured, a separate action sends the same manifest to the authenticated static React generator
+and downloads the returned source ZIP.
+
+Record identity and routing are explicit in that handoff:
+
+```json
+{
+  "appData": {
+    "collections": [
+      {
+        "id": "collection_notes",
+        "identifier": { "key": "noteId", "type": "string", "generation": "backend" }
+      }
+    ]
+  },
+  "layout": {
+    "layoutVersion": 2,
+    "screens": [
+      {
+        "screenId": "screen_details",
+        "path": "/notes/:noteId",
+        "routeParameters": [
+          { "name": "noteId", "source": "record-id", "collectionId": "collection_notes", "identifierKey": "noteId" }
+        ]
+      }
+    ]
+  },
+  "runtime": {
+    "routes": [
+      {
+        "screenId": "screen_details",
+        "path": "/notes/:noteId",
+        "parameters": [
+          { "name": "noteId", "source": "record-id", "collectionId": "collection_notes", "identifierKey": "noteId" }
+        ]
+      }
+    ]
+  }
+}
+```
 
 ## 5. Design editor
 
@@ -590,7 +677,7 @@ or a deployable application bundle.
 
 Implemented component types:
 
-- [x] Button with an optional curated icon and left/right icon placement.
+- [x] Button with an optional curated icon and left/center/right icon placement.
 - [x] Text with display/title/body presets plus optional font-size and font-weight overrides.
 - [x] Text input, including text, email, password, number, and multiline options.
 - [x] Image.
@@ -601,10 +688,10 @@ Implemented component types:
 - [x] Row with horizontal child composition and main/cross-axis controls.
 - [x] ListView with vertical/horizontal scrolling, static or collection data, and composed item
   templates.
-- [x] Dedicated ListView item-design scope with scoped canvas/Layers, sample selection, typed
-  property binding controls, palette insertion, undo/redo, and autosave reuse. Empty item templates
-  show a status message and rely on the component palette for the first widget; no quick-start
-  Row/Column/Text actions are presented.
+- [x] Dedicated ListView item-design scope with scoped canvas/Layers, sample selection,
+  schema-driven property binding controls, an optional record label, palette insertion, undo/redo,
+  and autosave reuse. Empty item templates show a status message and rely on the component palette
+  for the first widget; no quick-start Row/Column/Text actions are presented.
 - [x] Designed-empty ListView outlines with persisted item padding, spacing, border radius, and
   vertical/horizontal geometry that real repeated items also consume.
 - [x] First-session ListView item geometry normalization for Row/Column drops and all direct
@@ -633,11 +720,13 @@ Implemented component types:
 - [x] Position and size editing through the Inspector.
 - [x] Flutter-style All, Symmetric, and Only padding modes for Column/Row layout and ListView item
   frames, with persisted per-side values, non-destructive mode switching, and asymmetric layout
-  math, canvas outlines, item-frame guides, and schema-v10 numeric-padding migration.
+  math, canvas outlines, item-frame guides, and schema-v10 numeric-padding migration. Newly created
+  Row, Column, and ListView widgets default to zero padding; existing explicit project and template
+  values remain unchanged.
 - [x] Solid, dashed, and none border styles for Container, Column, and Row layout nodes, persisted
   through optional `appearance.borderStyle` and rendered consistently in canvas, preview,
   thumbnails, and generated-layout appearance data.
-- [x] Optional curated Button icons with left/right placement, decorative accessibility behavior,
+- [x] Optional curated Button icons with left/center/right placement, decorative accessibility behavior,
   persisted `props.icon`/`props.iconPosition`, and backward-compatible label-only defaults.
 - [x] Optional Text font-size and font-weight overrides with level-preset fallbacks, proportional
   custom line height, persisted typography values, and invalid-value rejection at the DTO boundary.
@@ -651,7 +740,13 @@ Implemented component types:
   widgets.
 - [x] Locked components ignore direct canvas manipulation.
 - [x] Hidden components remain persisted but are excluded from rendering.
-- [x] Bounds clamping for movement and resizing.
+- [x] Bounds clamping for movement and resizing, including sibling-aware Row/Column resize limits
+  that reserve parent padding, gaps, and visible sibling space for both pointer and Inspector edits.
+- [x] Fit-once parent-relative sizing for palette drops, canvas reparenting, and Layers-panel
+  nesting. Screen and free-form children are capped to their destination bounds; Row and Column
+  children proportionally share the padded main axis after gaps, cap their cross axis, exclude
+  hidden siblings, and persist independent mobile/tablet/desktop geometry. Sizes remain concrete
+  and manually editable after placement rather than continuously tracking later parent resizes.
 
 ### Canvas controls and precision
 
@@ -666,7 +761,8 @@ Implemented component types:
   including a dedicated Design Inspector header that keeps its collapse control clear of panel
   content such as the ListView item-frame controls.
 - [x] Horizontally resizable Design, Logic, and Data side panels with persisted, clamped widths and keyboard-accessible separators.
-- [x] Vertically resizable Validation pane in the Design inspector with a persisted height.
+- [x] Vertically resizable Validation pane in the Design inspector with a persisted height, a
+  chevron header that collapses the issue panel, and drag-to-minimize past the minimum height.
 - [x] Backspace/Delete removes the selected Design widget or non-trigger Logic node from the keyboard.
 - [x] Clicking empty canvas or grid space clears the current selection.
 - [x] Mobile/base component geometry with optional tablet and desktop overrides.
@@ -865,13 +961,16 @@ effects against isolated state.
 - [x] Text, number, boolean, and date field types.
 - [x] Required-field metadata.
 - [x] Editable field labels and keys.
+- [x] A reserved backend-generated record identity per collection, with an editable public key such
+  as `noteId`, collision/format validation, local migration defaults, and manifest serialization.
 - [x] Add, remove, and reorder schema fields.
 - [x] Record table.
 - [x] Create, update, and delete records.
 - [x] Confirmation before destructive data operations.
 - [x] Loading, empty, and retryable error states.
-- [x] ListView-to-collection data binding with multiple display fields, search/sort metadata, and a
-  repeatable nested item template.
+- [x] ListView-to-collection data binding with an optional record label, multiple display fields
+  retained for saved-project compatibility, search/sort metadata, and a repeatable nested item
+  template that supports text, image-only, and mixed-media designs.
 - [x] Logic variables, component-value actions, typed node outputs, and generalized conditions.
 - [x] Composed Input + Button collection writes through Insert Record workflows and component-value
   input mappings.
@@ -920,7 +1019,8 @@ No external AI model or AI SDK is connected.
   validation.
 - [x] RAG document/query validation plus Computer Vision media, user, and biometric-consent
   validation.
-- [x] Validation badge and issue panel in the editor, with a vertically resizable split pane.
+- [x] Validation badge and issue panel in the editor, with a vertically resizable split pane that
+  collapses from its header or by dragging the splitter below the minimum height.
 - [x] Preview and deployment blocking when project validation contains errors.
 
 ## 11. Interactive preview
@@ -941,8 +1041,8 @@ No external AI model or AI SDK is connected.
   navigation and current-record context for edit/delete workflows.
 - [x] App-scoped light/dark theme switching from an opted-in Switch and optional per-widget dark
   colors. The preview theme initially matches the editor and is independent for that session.
-- [x] Canvas and template thumbnails default to an isolated light built-app theme, preventing the
-  Novy shell's dark-mode text tokens from leaking into light component backgrounds.
+- [x] Canvas and template thumbnails follow the editor's light/dark shell theme, including component
+  dark appearance variants, while Preview retains an independent explicit app-theme selector.
 - [x] Isolated preview copies of collection records.
 - [x] Simulated get, insert, update, and delete data effects.
 - [x] Database actions await validation/repository completion before following success or error
@@ -979,9 +1079,12 @@ No external AI model or AI SDK is connected.
 - [x] Disabled custom-domain control labeled as coming soon.
 - [x] Backend handoff readiness panel with inferred runtime capability requirements.
 - [x] Downloadable provider-agnostic handoff manifest containing Project JSON and app-data schemas.
+- [x] Backend-connected **Download React app** action with generating and typed failure states when
+  `VITE_API_BASE_URL` is configured; local-only mode explains that a backend is required.
 
-This is a frontend simulation. React project generation, build orchestration, Vercel API calls, and
-real live deployments are not implemented.
+Publishing remains a frontend simulation. Static React/Vite source generation is connected, but
+workflow execution, build/deployment orchestration, Vercel API calls, and real live deployments are
+not implemented.
 
 ## 13. Accessibility and resilience
 
@@ -1006,10 +1109,10 @@ The repository includes automated coverage for:
   canvas interactions, alignment, layers, inspector, logic, data, preview, deployment, and shared
   UI components.
 
-Verification completed on 2026-11-09:
+Verification completed on 2026-11-10:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 85 test files and 704 tests passed.
+- `npm test -- --run` — 96 test files and 815 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.
@@ -1019,10 +1122,12 @@ Verification completed on 2026-11-09:
 The following are **not yet implemented** and should not be reported as completed frontend
 features:
 
-- Real backend authentication and remote project persistence.
+- Live Supabase project verification (the backend adapter and frontend repository are implemented,
+  but no real Supabase credentials are configured in this workspace).
+- Remote project persistence and user-owned project authorization.
 - Uploading the Project JSON to the Novy backend.
-- Backend React project/code generation.
-- Backend consumption of the generated-app handoff manifest and production runtime implementation.
+- Generated-app workflow execution and production runtime API integration. The current backend
+  consumes manifest v2 for static source export only and preserves logic as metadata.
 - Generated-app runtime client and authenticated runtime API calls.
 - Production workflow execution and external side effects such as email delivery.
 - Real database persistence for generated applications.
@@ -1032,7 +1137,9 @@ features:
 - Real vector storage, RAG model execution, biometric template storage, and Computer Vision
   processing. Current RAG and biometric behavior is explicit frontend simulation only.
 - Live collaboration, multi-user project access, or platform-administration screens.
-- Auto-layout/flex-layout containers.
+- Continuous flex sizing modes such as Fill, Hug, or percentage dimensions that automatically
+  reflow after a later parent resize. Current Row/Column placement performs a one-time fit and then
+  stores concrete responsive pixel geometry.
 
 These integrations must remain behind domain repository and service contracts so the existing
 presentation layer does not become coupled to a specific database, deployment provider, or SDK.

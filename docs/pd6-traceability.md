@@ -45,17 +45,21 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/presentation/editor/workspace/EditorLeftPanel.test.tsx`
   - `src/presentation/editor/workspace/LayersPanel.test.tsx`
   - `src/presentation/editor/workspace/ComponentsPalette.test.tsx`
+  - `src/presentation/editor/workspace/Inspector.test.tsx`
   - `src/presentation/editor/renderer/ComponentRenderer.test.tsx`
+  - `src/presentation/editor/renderer/useDocumentAppTheme.test.ts`
   - `src/data/mappers/project.mapper.test.ts`
   - `src/data/templates/templateCatalog.test.ts`
 - Evidence: drag/drop, free-form and linear nested composition, reparenting, resize, visibility,
   locking, inline rename, ordering, snap, pan, zoom, palette search, templates, Column/Row/ListView
   widgets, focused free-form ListView item-template editing with representative data and explicit
   responsive child geometry, designed-empty item outlines that reflect persisted
-  padding/spacing/radius, typed property bindings, autosave, undo/redo, and Mobile/Tablet/Desktop
-  canvas and preview device switching. The Notes CRUD starter demonstrates a mobile card list,
-  accessible per-card overflow actions, and dedicated add/detail/edit screens without an app
-  sidebar.
+  padding/spacing/radius, schema-driven typed property bindings with optional record labels and
+  image-only item templates, autosave, undo/redo, and Mobile/Tablet/Desktop
+  canvas and preview device switching. The canvas follows the editor's light/dark shell theme,
+  including component dark appearance variants, while Preview keeps an independent app-theme
+  selector. The Notes CRUD starter demonstrates a mobile card list, accessible per-card overflow
+  actions, and dedicated add/detail/edit screens without an app sidebar.
 
 ## UC-04 Configure Logic and App Data
 
@@ -81,9 +85,12 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/presentation/editor/workspace/NotesTemplateFlow.test.tsx`
 - Evidence: typed workflow ports, node positioning, If/Else branches, node dragging, connection
   validation, cycle prevention, searchable node library, component/data node configuration,
-  project-scoped collection CRUD, records, schema editing, structured static ListView records,
+  project-scoped collection CRUD, backend-generated record identifier naming, records, schema
+  editing, structured static ListView records,
   typed ListView property bindings, component-derived triggers, automatic current-row update/delete
-  actions, Gesture Detector wrappers, current-record detail navigation, session-only Add Local List
+  actions, Gesture Detector wrappers, current-record detail navigation with explicit URL parameter
+  mappings, atomic and idempotent target-screen route linking with home/static-route and
+  multi-collection validation, session-only Add Local List
   Item actions, composed Input/Button record workflows, granular RAG
   ingestion/chat nodes, solid control and dashed typed resource edges, AI Agent/Vector Store
   composition, write-through indexing, structured output mappings, schema migration, and preview
@@ -132,7 +139,8 @@ Administration is intentionally excluded because Novy currently targets one appl
   - `src/presentation/pages/deployment/RuntimeReadinessPanel.test.tsx`
 - Evidence: environment selection, animated publish pipeline, fake live URLs, copy action,
   deployment history, View/Redeploy, custom-domain stub, validation blocking, failure preservation,
-  inferred runtime requirements, and exportable backend handoff without records or secrets.
+  inferred runtime requirements, and an exportable manifest-v2 backend handoff with collection
+  record identities and typed route parameters but without records or secrets.
 
 ## UC-08 Platform Administration
 

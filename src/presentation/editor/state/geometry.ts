@@ -1,10 +1,11 @@
+import { fitSizeToContent, MIN_NODE_SIZE } from '@domain/layout/autoFit';
 import { CANVAS_PRESETS, type ScreenFrameSize } from '@presentation/editor/renderer/ScreenFrame';
 
 export const ZOOM_LIMITS = { min: 0.5, max: 2, step: 0.25 } as const;
 export const SNAP_GRID = 8;
 
 /** Nothing throws geometry errors like a zero-pixel component. */
-export const MIN_NODE_SIZE = { w: 24, h: 16 } as const;
+export { MIN_NODE_SIZE };
 
 export type EditorDevice = keyof typeof CANVAS_PRESETS;
 
@@ -31,8 +32,7 @@ export function clampNodeToBounds(
   bounds: ScreenFrameSize,
   min: { w: number; h: number } = MIN_NODE_SIZE,
 ): { x: number; y: number; w: number; h: number } {
-  const w = clamp(Math.max(box.w, min.w), min.w, bounds.width);
-  const h = clamp(Math.max(box.h, min.h), min.h, bounds.height);
+  const { w, h } = fitSizeToContent(box, bounds, min);
   return {
     x: clamp(box.x, 0, bounds.width - w),
     y: clamp(box.y, 0, bounds.height - h),

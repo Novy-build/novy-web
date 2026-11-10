@@ -9,6 +9,7 @@ import type {
   UpdateCollectionInput,
   UpdateDatabaseInput,
 } from '@domain/entities/appData';
+import { defaultRecordIdentifierKey, RECORD_IDENTIFIER_KEY_PATTERN } from '@domain/entities/appData';
 import type { AppDataRepository } from '@domain/repositories/appData.repository';
 import { validateFields, validateRecordValues } from '@domain/appData/validation';
 import { generateId } from '@domain/ids';
@@ -143,6 +144,13 @@ export class LocalStorageAppDataRepository implements AppDataRepository {
     const fields = (input.fields ?? [defaultField()]).map((field) => ({ ...field }));
     const fieldError = validateFields(fields);
     if (fieldError) throw new Error(fieldError);
+    const identifier = input.identifier ?? {
+      key: defaultRecordIdentifierKey(name),
+      type: 'string' as const,
+      generation: 'backend' as const,
+    };
+    const identifierError = validateRecordIdentifier(identifier.key, fields);
+    if (identifierError) throw new Error(identifierError);
     const store = this.read();
     const database = input.databaseId
       ? store.databases.find((candidate) => candidate.id === input.databaseId && candidate.projectId === projectId)
@@ -155,6 +163,7 @@ export class LocalStorageAppDataRepository implements AppDataRepository {
       databaseId: database.id,
       name,
       fields,
+      identifier,
       createdAt: now,
       updatedAt: now,
     };
@@ -179,10 +188,18 @@ export class LocalStorageAppDataRepository implements AppDataRepository {
     const fieldError = validateFields(input.fields);
     if (fieldError) throw new Error(fieldError);
     const previous = mapCollectionFromDto(store.collections[index]!);
+    const identifier = input.identifier ?? previous.identifier ?? {
+      key: defaultRecordIdentifierKey(name),
+      type: 'string' as const,
+      generation: 'backend' as const,
+    };
+    const identifierError = validateRecordIdentifier(identifier.key, input.fields);
+    if (identifierError) throw new Error(identifierError);
     const updated: DataCollection = {
       ...previous,
       name,
       fields: input.fields.map((field) => ({ ...field })),
+      identifier: { ...identifier },
       updatedAt: this.now(),
     };
     const retained = new Set(updated.fields.map((field) => field.id));
@@ -340,4 +357,14 @@ function defaultField(): DataField {
     type: 'text',
     required: false,
   };
+}
+
+function validateRecordIdentifier(key: string, fields: readonly DataField[]): string | null {
+  if (!RECORD_IDENTIFIER_KEY_PATTERN.test(key)) {
+    return 'Record ID name must start with a lowercase letter and contain only letters and numbers.';
+  }
+  if (fields.some((field) => field.key === key)) {
+    return `Record ID name “${key}” conflicts with a collection field key.`;
+  }
+  return null;
 }

@@ -10,6 +10,12 @@ export interface UseResizablePaneOptions {
   storageKey: string;
   /** Positive means the dragged handle moves in the same direction as size growth. */
   grow?: 1 | -1;
+  /**
+   * Called when the user drags the handle below the minimum size. The pane is
+   * expected to hide itself; the drag gesture ends so the next expansion starts
+   * from the stored size.
+   */
+  onCollapse?: () => void;
 }
 
 export interface UseResizablePaneResult {
@@ -50,7 +56,7 @@ function readStoredSize(storageKey: string, fallback: number, min: number, max: 
 }
 
 export function useResizablePane(options: UseResizablePaneOptions): UseResizablePaneResult {
-  const { defaultSize, minSize, maxSize, orientation, storageKey, grow = 1 } = options;
+  const { defaultSize, minSize, maxSize, orientation, storageKey, grow = 1, onCollapse } = options;
   const [size, setSize] = useState<number>(() => readStoredSize(storageKey, defaultSize, minSize, maxSize, orientation));
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ pointer: number; size: number } | null>(null);
@@ -84,16 +90,6 @@ export function useResizablePane(options: UseResizablePaneOptions): UseResizable
       document.body.style.userSelect = 'none';
     }
 
-    function handleMove(moveEvent: PointerEvent): void {
-      const start = dragStartRef.current;
-      if (!start) {
-        return;
-      }
-      const current = orientation === 'horizontal' ? moveEvent.clientX : moveEvent.clientY;
-      const delta = (current - start.pointer) * grow;
-      setSize(clamp(start.size + delta, minSize, effectiveMax));
-    }
-
     function finish(): void {
       dragStartRef.current = null;
       setIsDragging(false);
@@ -107,11 +103,28 @@ export function useResizablePane(options: UseResizablePaneOptions): UseResizable
       window.removeEventListener('blur', finish);
     }
 
+    function handleMove(moveEvent: PointerEvent): void {
+      const start = dragStartRef.current;
+      if (!start) {
+        return;
+      }
+      const current = orientation === 'horizontal' ? moveEvent.clientX : moveEvent.clientY;
+      const delta = (current - start.pointer) * grow;
+      const desired = start.size + delta;
+      if (onCollapse && desired < minSize) {
+        finish();
+        setSize(start.size);
+        onCollapse();
+        return;
+      }
+      setSize(clamp(desired, minSize, effectiveMax));
+    }
+
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', finish);
     window.addEventListener('pointercancel', finish);
     window.addEventListener('blur', finish);
-  }, [effectiveMax, grow, minSize, orientation, size]);
+  }, [effectiveMax, grow, minSize, onCollapse, orientation, size]);
 
   const onKeyDown = useCallback((event: React.KeyboardEvent<HTMLElement>) => {
     const horizontal = orientation === 'horizontal';

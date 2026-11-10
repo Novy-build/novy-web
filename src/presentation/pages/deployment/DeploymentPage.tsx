@@ -14,6 +14,7 @@ import { PublishStepper } from './PublishStepper';
 import { PublishSuccessModal } from './PublishSuccessModal';
 import { RuntimeReadinessPanel } from './RuntimeReadinessPanel';
 import { useDeployment } from './useDeployment';
+import { useReactExport } from './useReactExport';
 
 /** Per-project publish screen with mock environments, pipeline, and history. */
 export function DeploymentPage() {
@@ -39,6 +40,10 @@ export function DeploymentPage() {
     return () => { active = false; };
   }, [appData, projectId]);
   const deployment = useDeployment(projectId, { collections });
+  const handoff = deployment.project
+    ? buildGeneratedAppManifest(deployment.project, database, collections)
+    : null;
+  const reactExport = useReactExport(handoff);
 
   if (deployment.status === 'loading') {
     return <LoadingScreen label="Loading deployment…" />;
@@ -51,7 +56,7 @@ export function DeploymentPage() {
       </RouteStatus>
     );
   }
-  if (!deployment.project) {
+  if (!deployment.project || !handoff) {
     return (
       <RouteStatus title="Project not found">
         <p>This project may have been deleted or the link is no longer valid.</p>
@@ -61,7 +66,6 @@ export function DeploymentPage() {
   }
 
   const project = deployment.project;
-  const handoff = buildGeneratedAppManifest(project, database, collections);
 
   function exportBackendHandoff(): void {
     const blob = new Blob([JSON.stringify(handoff, null, 2)], { type: 'application/json' });
@@ -145,6 +149,9 @@ export function DeploymentPage() {
           </div>
           <div className="space-y-6">
             <RuntimeReadinessPanel
+              downloadError={reactExport.error}
+              isDownloading={reactExport.isDownloading}
+              onDownloadReact={() => void reactExport.download()}
               onExport={exportBackendHandoff}
               requirements={handoff.runtime.requirements}
             />

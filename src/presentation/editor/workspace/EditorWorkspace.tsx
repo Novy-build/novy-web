@@ -4,6 +4,7 @@ import type { ComponentNode, ComponentType, ListViewNode } from '@domain/entitie
 import { geometryAtBreakpoint, isChildBearingNode, listViewItemExtentAtBreakpoint, resolveEdgeInsets } from '@domain/entities/componentNode';
 import type { DataRecord, DataValue, ListItemContext } from '@domain/entities/appData';
 import type { TriggerEvent } from '@domain/entities/logic';
+import type { Screen } from '@domain/entities/screen';
 import { deviceViewport } from '../state/geometry';
 import {
   type EditorMode,
@@ -29,7 +30,7 @@ import { LogicWorkspace } from '../logic/LogicWorkspace';
 import { DataWorkspace } from '../data/DataWorkspace';
 import { useProjectData } from '../data/useProjectData';
 import { useProjectValidation } from '../validation/useProjectValidation';
-import { ValidationPanel } from '../validation/ValidationPanel';
+import { ValidationDock } from '../validation/ValidationDock';
 import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
 import { ResizeHandle } from '../layout/ResizeHandle';
 import { useResizablePane } from '../layout/useResizablePane';
@@ -58,14 +59,6 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     storageKey: 'novy.editor.layout.v1.inspector',
     grow: -1,
   });
-  const { size: validationHeight, isDragging: isValidationDragging, startResize: startValidationResize, onKeyDown: validationKeyDown, reset: resetValidationHeight } = useResizablePane({
-    defaultSize: 200,
-    minSize: 120,
-    maxSize: 360,
-    orientation: 'vertical',
-    storageKey: 'novy.editor.layout.v1.inspector-validation',
-    grow: -1,
-  });
 
   const activeScreen = getActiveScreen(state);
   const selectedNode = state.selectedNodeId ? findNodeInScreen(activeScreen, state.selectedNodeId) : undefined;
@@ -82,21 +75,38 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       node.payload.targetScreenId === activeScreen.id && node.payload.recordContext
       ? [node.payload.recordContext.collectionId]
       : [])[0];
+  const itemCollectionId = itemDataSource?.kind === 'collection'
+    ? itemDataSource.collectionId
+    : screenRecordCollectionId;
+  const itemCollection = itemCollectionId
+    ? projectData.collections.find((collection) => collection.id === itemCollectionId)
+    : undefined;
   const listItemFields: readonly ListItemBindingField[] = itemDataSource?.kind === 'static'
     ? itemDataSource.fields
-    : itemDataSource?.kind === 'collection'
-      ? projectData.collections
-          .find((collection) => collection.id === itemDataSource.collectionId)
-          ?.fields.map(({ id, label, type }) => ({ id, label, type })) ?? []
-      : screenRecordCollectionId
-        ? projectData.collections
-            .find((collection) => collection.id === screenRecordCollectionId)
-            ?.fields.map(({ id, label, type }) => ({ id, label, type })) ?? []
-        : [];
+    : itemCollection?.fields.map(({ id, label, type }) => ({ id, label, type })) ?? [];
+  const listItemSourceName = itemDataSource?.kind === 'static'
+    ? 'Static items'
+    : itemCollection?.name;
   const scopedListView = state.designScope.kind === 'list-item-template'
     ? findNodeInScreen(activeScreen, state.designScope.listViewId)
     : null;
   const activeTemplate = scopedListView?.type === 'listview' ? scopedListView : null;
+  const activeTemplateCollectionId = activeTemplate?.props.dataSource.kind === 'collection'
+    ? activeTemplate.props.dataSource.collectionId
+    : null;
+  const activeTemplateCollection = activeTemplateCollectionId
+    ? projectData.collections.find((collection) => collection.id === activeTemplateCollectionId) ?? null
+    : null;
+  const selectedListCollectionId = selectedNode?.type === 'listview' && selectedNode.props.dataSource.kind === 'collection'
+    ? selectedNode.props.dataSource.collectionId
+    : null;
+  const selectedListCollection = selectedListCollectionId
+    ? projectData.collections.find((collection) => collection.id === selectedListCollectionId) ?? null
+    : null;
+  const inspectorRecordCollection = activeTemplateCollection ?? selectedListCollection ?? itemCollection ?? null;
+  const recordRoutePaths = inspectorRecordCollection
+    ? activeScreenRecordRoutePaths(state.document.screens, inspectorRecordCollection.id)
+    : [];
   const deviceBounds = deviceViewport(state.device);
   const templateCanvasBounds = activeTemplate
     ? (() => {
@@ -394,48 +404,36 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                     collections={projectData.collections}
                     device={state.device}
                     itemFrame={activeTemplate}
+                    itemCollection={activeTemplateCollection}
                     listItemFields={listItemFields}
+                    listItemSourceName={listItemSourceName}
                     node={selectedNode ?? null}
                     onAction={(action: EditorAction) => dispatch(action)}
                     onOpenLogic={() => setMode('logic')}
+                    onRecordIdentifierChange={async (collectionId, key) => {
+                      const collection = projectData.collections.find((candidate) => candidate.id === collectionId);
+                      if (!collection) throw new Error('Collection not found.');
+                      await projectData.updateCollection(collectionId, {
+                        name: collection.name,
+                        fields: collection.fields,
+                        identifier: { key, type: 'string', generation: 'backend' },
+                      });
+                      dispatch({ type: 'routes/record-identifier-sync', collectionId, identifierKey: key });
+                    }}
                     onEditItemTemplate={(listViewId) => dispatch({ type: 'design/item-template-open', listViewId })}
+                    recordRoutePaths={recordRoutePaths}
                   />
                 </div>
-                <div className="shrink-0 border-t border-hairline">
-                  <button
-                    aria-expanded={isValidationOpen}
-                    className="flex w-full items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-muted"
-                    onClick={() => setIsValidationOpen((current) => !current)}
-                    type="button"
-                  >
-                    Validation
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${validation.isValid ? 'bg-signal-valid/10 text-signal-valid' : 'bg-signal-invalid/10 text-signal-invalid'}`}>
-                      {validation.isValid ? 'Valid' : validation.issues.filter((issue) => issue.severity === 'error').length}
-                    </span>
-                  </button>
-                  {isValidationOpen ? (
-                    <div className="flex shrink-0 flex-col overflow-hidden border-t border-hairline" style={{ height: validationHeight }}>
-                      <ResizeHandle
-                        controls="design-validation-panel"
-                        isDragging={isValidationDragging}
-                        label="Resize validation panel"
-                        max={360}
-                        min={120}
-                        onDoubleClick={resetValidationHeight}
-                        onKeyDown={validationKeyDown}
-                        onPointerDown={startValidationResize}
-                        orientation="vertical"
-                        value={validationHeight}
-                      />
-                      <div className="min-h-0 flex-1 overflow-y-auto" id="design-validation-panel">
-                        <ValidationPanel onIssueSelect={(issue) => {
-                          if (issue.screenId) dispatch({ type: 'screen/select', screenId: issue.screenId });
-                          if (issue.componentId) dispatch({ type: 'node/select', nodeId: issue.componentId });
-                        }} report={validation} />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
+                <ValidationDock
+                  isOpen={isValidationOpen}
+                  onCollapse={() => setIsValidationOpen(false)}
+                  onIssueSelect={(issue) => {
+                    if (issue.screenId) dispatch({ type: 'screen/select', screenId: issue.screenId });
+                    if (issue.componentId) dispatch({ type: 'node/select', nodeId: issue.componentId });
+                  }}
+                  onToggle={() => setIsValidationOpen((current) => !current)}
+                  report={validation}
+                />
                 <div className="shrink-0 border-t border-hairline">
                   <LayersPanel
                     frame={activeTemplate}
@@ -461,7 +459,14 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <DataWorkspace data={projectData} />
+          <DataWorkspace
+            data={projectData}
+            onRecordIdentifierChange={(collectionId, identifierKey) => dispatch({
+              type: 'routes/record-identifier-sync',
+              collectionId,
+              identifierKey,
+            })}
+          />
         </div>
       )}
 
@@ -560,4 +565,14 @@ function sampleValue(type: 'text' | 'number' | 'boolean' | 'date', label: string
   if (type === 'boolean') return true;
   if (type === 'date') return '2026-11-07';
   return label || 'Sample value';
+}
+
+function activeScreenRecordRoutePaths(
+  screens: readonly Screen[],
+  collectionId: string,
+): string[] {
+  return screens
+    .filter((screen) => screen.routeParameters?.some((parameter) =>
+      parameter.source.kind === 'record-id' && parameter.source.collectionId === collectionId))
+    .map((screen) => screen.path);
 }

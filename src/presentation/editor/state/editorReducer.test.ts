@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBehaviorBundle } from '@domain/factories/logic';
 import { appendAction } from '@domain/logic/graph';
 import type { Behavior, LogicGraph } from '@domain/entities/logic';
-import { geometryAtBreakpoint, createEdgePadding, createPadding } from '@domain/entities/componentNode';
+import { childGeometriesAtBreakpoint, geometryAtBreakpoint, createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import { editorReducer } from './editorReducer';
 import { createEditorState, findNodeInScreen, getActiveScreen, type EditorState } from './editorState';
@@ -250,6 +250,29 @@ describe('ListView item design scope', () => {
     });
   });
 
+  it('fits an oversized widget to the ListView item cross axis', () => {
+    const base = listState();
+    const list = getActiveScreen(base).nodes[0];
+    if (list?.type !== 'listview') throw new Error('ListView fixture is missing');
+    const narrow = createEditorState({
+      screens: [{ ...getActiveScreen(base), nodes: [{ ...list, w: 80, children: [] }] }],
+    });
+    const opened = editorReducer(narrow, { type: 'design/item-template-open', listViewId: 'list' });
+    const dropped = editorReducer(opened, {
+      type: 'canvas/dropAt',
+      nodeType: 'image',
+      x: 40,
+      y: 120,
+      parentId: 'list',
+    });
+
+    expect(findNodeInScreen(getActiveScreen(dropped), dropped.selectedNodeId!)).toMatchObject({
+      type: 'image',
+      x: 12,
+      w: 56,
+    });
+  });
+
   it('keeps direct item-child resize, Inspector geometry, and nudge inside padding', () => {
     let state = editorReducer(listState(), { type: 'design/item-template-open', listViewId: 'list' });
     state = editorReducer(state, {
@@ -401,12 +424,242 @@ describe('screens', () => {
       screenId: secondId,
       path: '/notes/:noteId',
     });
-    expect(dynamic.document.screens.find((screen) => screen.id === secondId)?.path).toBe('/notes/:noteid');
+    expect(dynamic.document.screens.find((screen) => screen.id === secondId)?.path).toBe('/notes/:noteId');
     expect(editorReducer(routed, {
       type: 'screen/path',
       screenId: secondId,
       path: '/',
     })).toBe(routed);
+  });
+
+  it('links a collection record ID name to detail routes and keeps renames synchronized', () => {
+    const withSecond = editorReducer(stateAt(), { type: 'screen/add' });
+    const detailId = withSecond.activeScreenId;
+    const prepared: EditorState = {
+      ...withSecond,
+      document: {
+        screens: withSecond.document.screens.map((screen, index) => index === 0
+          ? {
+              ...screen,
+              logicGraphs: [{
+                id: 'open_graph', name: 'Open note', sourceNodeId: 'node_button',
+                nodes: [
+                  { kind: 'trigger' as const, id: 'trigger', event: 'click' as const, position: { x: 0, y: 0 } },
+                  {
+                    kind: 'action' as const, id: 'navigate', position: { x: 200, y: 0 },
+                    payload: { type: 'navigate' as const, targetScreenId: detailId, recordContext: { collectionId: 'notes', recordId: '' } },
+                  },
+                ],
+                edges: [],
+              }],
+            }
+          : { ...screen, path: '/notes/:noteId' }),
+      },
+    };
+
+    const renamed = editorReducer(prepared, {
+      type: 'routes/record-identifier-sync', collectionId: 'notes', identifierKey: 'entryId',
+    });
+    const detail = renamed.document.screens.find((screen) => screen.id === detailId)!;
+    expect(detail.path).toBe('/notes/:entryId');
+    expect(detail.routeParameters).toEqual([{
+      name: 'entryId',
+      source: { kind: 'record-id', collectionId: 'notes', identifierKey: 'entryId' },
+    }]);
+
+    const renamedAgain = editorReducer(renamed, {
+      type: 'routes/record-identifier-sync', collectionId: 'notes', identifierKey: 'noteKey',
+    });
+    expect(renamedAgain.document.screens.find((screen) => screen.id === detailId)).toMatchObject({
+      path: '/notes/:noteKey',
+      routeParameters: [{ name: 'noteKey' }],
+    });
+  });
+
+  it('links a navigate target in the same undo entry as the action update', () => {
+    const withSecond = editorReducer(stateAt(), { type: 'screen/add' });
+    const detailId = withSecond.activeScreenId;
+    const prepared: EditorState = {
+      ...withSecond,
+      activeScreenId: 'screen_1',
+      document: {
+        screens: withSecond.document.screens.map((screen) => screen.id === 'screen_1'
+          ? {
+              ...screen,
+              logicGraphs: [{
+                id: 'open_graph', name: 'Open note', sourceNodeId: 'node_button',
+                nodes: [
+                  { kind: 'trigger' as const, id: 'trigger', event: 'click' as const, position: { x: 0, y: 0 } },
+                  {
+                    kind: 'action' as const, id: 'navigate', position: { x: 200, y: 0 },
+                    payload: { type: 'navigate' as const, targetScreenId: '', recordContext: { collectionId: 'notes', recordId: '' } },
+                  },
+                ],
+                edges: [],
+              }],
+            }
+          : { ...screen, path: '/notes/detail' }),
+      },
+    };
+    const historyBefore = prepared.past.length;
+
+    const linked = editorReducer(prepared, {
+      type: 'graph/action-update',
+      graphId: 'open_graph',
+      nodeId: 'navigate',
+      payload: { type: 'navigate', targetScreenId: detailId, recordContext: { collectionId: 'notes', recordId: '' } },
+      recordRouteLink: { screenId: detailId, collectionId: 'notes', identifierKey: 'noteId' },
+    });
+
+    expect(linked.past).toHaveLength(historyBefore + 1);
+    expect(linked.document.screens.find((screen) => screen.id === detailId)).toMatchObject({
+      path: '/notes/detail/:noteId',
+      routeParameters: [{
+        name: 'noteId',
+        source: { kind: 'record-id', collectionId: 'notes', identifierKey: 'noteId' },
+      }],
+    });
+  });
+
+  it('does not add history when the record route is already linked', () => {
+    const withSecond = editorReducer(stateAt(), { type: 'screen/add' });
+    const detailId = withSecond.activeScreenId;
+    const linked: EditorState = {
+      ...withSecond,
+      document: {
+        screens: withSecond.document.screens.map((screen) => screen.id === detailId
+          ? {
+              ...screen,
+              path: '/notes/:noteId',
+              routeParameters: [{
+                name: 'noteId',
+                source: { kind: 'record-id' as const, collectionId: 'notes', identifierKey: 'noteId' },
+              }],
+            }
+          : screen),
+      },
+    };
+
+    expect(editorReducer(linked, {
+      type: 'routes/record-identifier-sync',
+      collectionId: 'notes',
+      identifierKey: 'noteId',
+    })).toBe(linked);
+  });
+
+  it('keeps the home route static instead of turning it into a record route', () => {
+    const withSecond = editorReducer(stateAt(), { type: 'screen/add' });
+    const detailId = withSecond.activeScreenId;
+    const prepared: EditorState = {
+      ...withSecond,
+      document: {
+        screens: withSecond.document.screens.map((screen) => screen.id === detailId
+          ? {
+              ...screen,
+              path: '/notes/detail',
+              logicGraphs: [{
+                id: 'open_graph', name: 'Open note', sourceNodeId: 'node_button',
+                nodes: [
+                  { kind: 'trigger' as const, id: 'trigger', event: 'click' as const, position: { x: 0, y: 0 } },
+                  {
+                    kind: 'action' as const, id: 'navigate', position: { x: 200, y: 0 },
+                    payload: { type: 'navigate' as const, targetScreenId: 'screen_1', recordContext: { collectionId: 'notes', recordId: '' } },
+                  },
+                ],
+                edges: [],
+              }],
+            }
+          : screen),
+      },
+    };
+
+    expect(editorReducer(prepared, {
+      type: 'routes/record-identifier-sync',
+      collectionId: 'notes',
+      identifierKey: 'noteId',
+    })).toBe(prepared);
+  });
+
+  it('appends the record segment without renaming an unrelated dynamic segment', () => {
+    const withSecond = editorReducer(stateAt(), { type: 'screen/add' });
+    const detailId = withSecond.activeScreenId;
+    const prepared: EditorState = {
+      ...withSecond,
+      document: {
+        screens: withSecond.document.screens.map((screen) => screen.id === 'screen_1'
+          ? {
+              ...screen,
+              logicGraphs: [{
+                id: 'open_graph', name: 'Open note', sourceNodeId: 'node_button',
+                nodes: [
+                  { kind: 'trigger' as const, id: 'trigger', event: 'click' as const, position: { x: 0, y: 0 } },
+                  {
+                    kind: 'action' as const, id: 'navigate', position: { x: 200, y: 0 },
+                    payload: { type: 'navigate' as const, targetScreenId: detailId, recordContext: { collectionId: 'notes', recordId: '' } },
+                  },
+                ],
+                edges: [],
+              }],
+            }
+          : { ...screen, path: '/blog/:slug' }),
+      },
+    };
+
+    const linked = editorReducer(prepared, {
+      type: 'routes/record-identifier-sync',
+      collectionId: 'notes',
+      identifierKey: 'noteId',
+    });
+
+    expect(linked.document.screens.find((screen) => screen.id === detailId)?.path)
+      .toBe('/blog/:slug/:noteId');
+  });
+
+  it('keeps the existing parameter when another collection links to the same screen', () => {
+    const withSecond = editorReducer(stateAt(), { type: 'screen/add' });
+    const detailId = withSecond.activeScreenId;
+    const prepared: EditorState = {
+      ...withSecond,
+      document: {
+        screens: withSecond.document.screens.map((screen) => screen.id === detailId
+          ? {
+              ...screen,
+              path: '/detail/:taskId',
+              routeParameters: [{
+                name: 'taskId',
+                source: { kind: 'record-id' as const, collectionId: 'tasks', identifierKey: 'taskId' },
+              }],
+            }
+          : {
+              ...screen,
+              logicGraphs: [{
+                id: 'open_graph', name: 'Open note', sourceNodeId: 'node_button',
+                nodes: [
+                  { kind: 'trigger' as const, id: 'trigger', event: 'click' as const, position: { x: 0, y: 0 } },
+                  {
+                    kind: 'action' as const, id: 'navigate', position: { x: 200, y: 0 },
+                    payload: { type: 'navigate' as const, targetScreenId: detailId, recordContext: { collectionId: 'notes', recordId: '' } },
+                  },
+                ],
+                edges: [],
+              }],
+            }),
+      },
+    };
+
+    const linked = editorReducer(prepared, {
+      type: 'routes/record-identifier-sync',
+      collectionId: 'notes',
+      identifierKey: 'noteId',
+    });
+
+    expect(linked.document.screens.find((screen) => screen.id === detailId)).toMatchObject({
+      path: '/detail/:taskId/:noteId',
+      routeParameters: [
+        { name: 'taskId', source: { kind: 'record-id', collectionId: 'tasks', identifierKey: 'taskId' } },
+        { name: 'noteId', source: { kind: 'record-id', collectionId: 'notes', identifierKey: 'noteId' } },
+      ],
+    });
   });
 
   it('deletes a non-first screen and keeps the active screen', () => {
@@ -856,6 +1109,157 @@ describe('Row and Column layer ordering', () => {
     ]);
   });
 
+  it('proportionally fits palette widgets inside a padded Row', () => {
+    const row = {
+      id: 'node_row',
+      type: 'row' as const,
+      x: 24,
+      y: 24,
+      w: 360,
+      h: 96,
+      props: { mainAxisAlignment: 'start' as const, crossAxisAlignment: 'center' as const, gap: 12, padding: createPadding(16) },
+      children: [],
+    };
+    let state = createEditorState({ screens: [{ ...SCREEN, nodes: [row] }] });
+
+    state = editorReducer(state, {
+      type: 'canvas/dropAt',
+      nodeType: 'input',
+      x: 100,
+      y: 72,
+      parentId: row.id,
+    });
+    state = editorReducer(state, {
+      type: 'canvas/dropAt',
+      nodeType: 'button',
+      x: 340,
+      y: 72,
+      parentId: row.id,
+    });
+
+    const nextRow = getActiveScreen(state).nodes[0];
+    if (nextRow?.type !== 'row') throw new Error('Row fixture is missing');
+    const [input, button] = nextRow.children;
+    expect(input).toMatchObject({ type: 'input', w: 195, h: 44 });
+    expect(button).toMatchObject({ type: 'button', w: 120, h: 44 });
+    expect(input!.w + button!.w + nextRow.props.gap).toBeLessThanOrEqual(328);
+    expect(state.past).toHaveLength(2);
+  });
+
+  it('fits Row children independently at mobile and desktop breakpoints', () => {
+    const row = {
+      id: 'node_row',
+      type: 'row' as const,
+      x: 16,
+      y: 16,
+      w: 180,
+      h: 96,
+      responsive: { desktop: { w: 600 } },
+      props: { mainAxisAlignment: 'start' as const, crossAxisAlignment: 'center' as const, gap: 12, padding: createPadding(16) },
+      children: [],
+    };
+    let state: EditorState = {
+      ...createEditorState({ screens: [{ ...SCREEN, nodes: [row] }] }),
+      device: 'desktop',
+    };
+
+    state = editorReducer(state, {
+      type: 'canvas/dropAt',
+      nodeType: 'input',
+      x: 120,
+      y: 64,
+      parentId: row.id,
+    });
+    state = editorReducer(state, {
+      type: 'canvas/dropAt',
+      nodeType: 'button',
+      x: 420,
+      y: 64,
+      parentId: row.id,
+    });
+
+    const nextRow = getActiveScreen(state).nodes[0];
+    if (nextRow?.type !== 'row') throw new Error('Row fixture is missing');
+    const [input, button] = nextRow.children;
+    const mobileInput = geometryAtBreakpoint(input!, 'mobile');
+    const mobileButton = geometryAtBreakpoint(button!, 'mobile');
+    expect(mobileInput.w + mobileButton.w + nextRow.props.gap).toBeLessThanOrEqual(148);
+    expect(geometryAtBreakpoint(input!, 'desktop').w).toBe(260);
+    expect(geometryAtBreakpoint(button!, 'desktop').w).toBe(160);
+  });
+
+  it('fits palette widgets along both axes of a padded Column', () => {
+    const column = {
+      id: 'node_column',
+      type: 'column' as const,
+      x: 24,
+      y: 24,
+      w: 200,
+      h: 140,
+      props: { mainAxisAlignment: 'start' as const, crossAxisAlignment: 'center' as const, gap: 12, padding: createPadding(16) },
+      children: [],
+    };
+    let state = createEditorState({ screens: [{ ...SCREEN, nodes: [column] }] });
+
+    state = editorReducer(state, {
+      type: 'canvas/dropAt',
+      nodeType: 'image',
+      x: 100,
+      y: 60,
+      parentId: column.id,
+    });
+    state = editorReducer(state, {
+      type: 'canvas/dropAt',
+      nodeType: 'camera',
+      x: 100,
+      y: 120,
+      parentId: column.id,
+    });
+
+    const nextColumn = getActiveScreen(state).nodes[0];
+    if (nextColumn?.type !== 'column') throw new Error('Column fixture is missing');
+    const [image, camera] = nextColumn.children;
+    expect(image!.h + camera!.h + nextColumn.props.gap).toBeLessThanOrEqual(108);
+    expect(image!.w).toBeLessThanOrEqual(168);
+    expect(camera!.w).toBeLessThanOrEqual(168);
+  });
+
+  it('excludes hidden Row children from fit calculations', () => {
+    const hidden = {
+      id: 'hidden',
+      type: 'image' as const,
+      x: 0,
+      y: 0,
+      w: 1000,
+      h: 160,
+      isHidden: true,
+      props: { src: '', alt: 'Hidden image', fit: 'cover' as const },
+    };
+    const row = {
+      id: 'node_row',
+      type: 'row' as const,
+      x: 24,
+      y: 24,
+      w: 300,
+      h: 96,
+      props: { mainAxisAlignment: 'start' as const, crossAxisAlignment: 'center' as const, gap: 12, padding: createPadding(16) },
+      children: [hidden],
+    };
+    const state = createEditorState({ screens: [{ ...SCREEN, nodes: [row] }] });
+    const dropped = editorReducer(state, {
+      type: 'canvas/dropAt',
+      nodeType: 'button',
+      x: 160,
+      y: 64,
+      parentId: row.id,
+    });
+    const nextRow = getActiveScreen(dropped).nodes[0];
+    if (nextRow?.type !== 'row') throw new Error('Row fixture is missing');
+
+    expect(nextRow.children[0]).toMatchObject({ id: hidden.id, w: 1000, isHidden: true });
+    expect(nextRow.children[1]).toMatchObject({ type: 'button', w: 160 });
+  });
+
   it('moves a layer before a sibling under a Row in array order', () => {
     const row = {
       id: 'node_row',
@@ -917,6 +1321,102 @@ describe('Row and Column layer ordering', () => {
     expect(dropped.past).toHaveLength(1);
   });
 
+  it('fits an oversized palette widget inside free-form parents', () => {
+    for (const parentType of ['container', 'gesture-detector'] as const) {
+      const parent = parentType === 'container'
+        ? {
+            id: `node_${parentType}`,
+            type: parentType,
+            x: 40,
+            y: 50,
+            w: 100,
+            h: 80,
+            props: {},
+            children: [],
+          }
+        : {
+            id: `node_${parentType}`,
+            type: parentType,
+            x: 40,
+            y: 50,
+            w: 100,
+            h: 80,
+            props: { semanticLabel: 'Open item' },
+            children: [],
+          };
+      const state = createEditorState({ screens: [{ ...SCREEN, nodes: [parent] }] });
+      const dropped = editorReducer(state, {
+        type: 'canvas/dropAt',
+        nodeType: 'image',
+        x: 90,
+        y: 90,
+        parentId: parent.id,
+      });
+      const nextParent = getActiveScreen(dropped).nodes[0];
+
+      expect(nextParent && 'children' in nextParent ? nextParent.children[0] : null).toMatchObject({
+        type: 'image',
+        x: 0,
+        y: 0,
+        w: 100,
+        h: 80,
+      });
+    }
+  });
+
+  it('fits a Layers-panel move inside its destination parent', () => {
+    const image = { id: 'node_image', type: 'image' as const, x: 200, y: 200, w: 280, h: 160, props: { src: '', alt: 'Image', fit: 'cover' as const } };
+    const frame = { id: 'node_frame', type: 'container' as const, x: 40, y: 50, w: 100, h: 80, props: {}, children: [] };
+    const state = createEditorState({ screens: [{ ...SCREEN, nodes: [image, frame] }] });
+    const moved = editorReducer(state, {
+      type: 'node/layer-move',
+      nodeId: image.id,
+      targetId: frame.id,
+      position: 'inside',
+    });
+    const nextFrame = getActiveScreen(moved).nodes.find((node) => node.id === frame.id);
+
+    expect(nextFrame?.type === 'container' ? nextFrame.children[0] : null).toMatchObject({
+      id: image.id,
+      x: 0,
+      y: 0,
+      w: 100,
+      h: 80,
+    });
+    expect(moved.past).toHaveLength(1);
+  });
+
+  it('fits canvas-reparented widgets with existing Row siblings in one undo step', () => {
+    const existing = { id: 'existing', type: 'button' as const, x: 0, y: 0, w: 160, h: 44, props: { label: 'Existing', variant: 'solid' as const } };
+    const row = {
+      id: 'node_row',
+      type: 'row' as const,
+      x: 24,
+      y: 24,
+      w: 300,
+      h: 96,
+      props: { mainAxisAlignment: 'start' as const, crossAxisAlignment: 'center' as const, gap: 12, padding: createPadding(16) },
+      children: [existing],
+    };
+    const input = { id: 'source', type: 'input' as const, x: 320, y: 160, w: 260, h: 44, props: { label: 'Label', placeholder: 'Enter value', inputType: 'text' as const, multiline: false } };
+    let state = createEditorState({ screens: [{ ...SCREEN, nodes: [row, input] }] });
+    state = editorReducer(state, { type: 'node/dragStart' });
+    state = editorReducer(state, {
+      type: 'node/reparent',
+      nodeId: input.id,
+      parentId: row.id,
+      absolutePosition: { x: 180, y: 50 },
+    });
+    const nextRow = getActiveScreen(state).nodes.find((node) => node.id === row.id);
+    if (nextRow?.type !== 'row') throw new Error('Row fixture is missing');
+    const visibleWidth = nextRow.children.reduce((total, child) => total + child.w, 0)
+      + nextRow.props.gap;
+
+    expect(visibleWidth).toBeLessThanOrEqual(268);
+    expect(nextRow.children.every((child) => child.w < (child.id === existing.id ? 160 : 260))).toBe(true);
+    expect(state.past).toHaveLength(1);
+  });
+
   it('keeps direct drag plus canvas reparenting as one undo step', () => {
     const frame = {
       id: 'node_frame',
@@ -969,6 +1469,70 @@ describe('Row and Column layer ordering', () => {
       w: 220,
       h: 160,
     });
+  });
+
+  it('prevents a Row child resize from exceeding the padded space left by siblings', () => {
+    const first = { id: 'first', type: 'button' as const, x: 0, y: 0, w: 100, h: 44, props: { label: 'First', variant: 'solid' as const } };
+    const target = { id: 'target', type: 'button' as const, x: 0, y: 0, w: 100, h: 44, props: { label: 'Target', variant: 'solid' as const } };
+    const row = {
+      id: 'row',
+      type: 'row' as const,
+      x: 24,
+      y: 24,
+      w: 300,
+      h: 96,
+      props: { mainAxisAlignment: 'start' as const, crossAxisAlignment: 'center' as const, gap: 12, padding: createPadding(16) },
+      children: [first, target],
+    };
+    const initial: EditorState = {
+      ...createEditorState({ screens: [{ ...SCREEN, nodes: [row] }] }),
+      device: 'mobile',
+    };
+    const resized = editorReducer(initial, {
+      type: 'node/resize',
+      nodeId: target.id,
+      geometry: { x: 128, y: 16, w: 999, h: 999 },
+    });
+    const nextRow = getActiveScreen(resized).nodes[0];
+    if (nextRow?.type !== 'row') throw new Error('Row fixture is missing');
+    const resizedTarget = nextRow.children.find((child) => child.id === target.id)!;
+    const rendered = childGeometriesAtBreakpoint(nextRow, 'mobile').get(target.id)!;
+
+    expect(resizedTarget).toMatchObject({ w: 156, h: 64 });
+    expect(rendered.x + rendered.w).toBeLessThanOrEqual(nextRow.w - 16);
+  });
+
+  it('prevents a Column child Inspector resize from exceeding remaining parent height', () => {
+    const first = { id: 'first', type: 'text' as const, x: 0, y: 0, w: 120, h: 80, props: { text: 'First', level: 'body' as const } };
+    const target = { id: 'target', type: 'image' as const, x: 0, y: 0, w: 120, h: 100, props: { src: '', alt: 'Target', fit: 'cover' as const } };
+    const column = {
+      id: 'column',
+      type: 'column' as const,
+      x: 24,
+      y: 24,
+      w: 200,
+      h: 300,
+      props: { mainAxisAlignment: 'start' as const, crossAxisAlignment: 'center' as const, gap: 12, padding: createPadding(16) },
+      children: [first, target],
+    };
+    const initial: EditorState = {
+      ...createEditorState({ screens: [{ ...SCREEN, nodes: [column] }] }),
+      device: 'mobile',
+    };
+    const resized = editorReducer(initial, {
+      type: 'node/layout-size',
+      nodeId: target.id,
+      w: 999,
+      h: 999,
+    });
+    const nextColumn = getActiveScreen(resized).nodes[0];
+    if (nextColumn?.type !== 'column') throw new Error('Column fixture is missing');
+    const resizedTarget = nextColumn.children.find((child) => child.id === target.id)!;
+    const rendered = childGeometriesAtBreakpoint(nextColumn, 'mobile').get(target.id)!;
+
+    expect(resizedTarget).toMatchObject({ w: 168, h: 176 });
+    expect(rendered.y + rendered.h).toBeLessThanOrEqual(nextColumn.h - 16);
+    expect(resized.past).toHaveLength(1);
   });
 
   it('records Inspector layout and property commits in undo history', () => {

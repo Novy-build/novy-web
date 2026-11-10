@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { Button } from '@presentation/components/ui/Button';
 import { ThemeToggle } from '@presentation/components/ui/ThemeToggle';
+import { useRepositories } from '@main/providers/RepositoriesProvider';
 import { useSession } from '@main/providers/SessionProvider';
+import { isDemoLoginVisible } from './demoAvailability';
 import { LoginForm } from './LoginForm';
 import { RegisterForm } from './RegisterForm';
 
@@ -37,7 +39,7 @@ function BrandPanel() {
           <li>Publish your app with one click.</li>
         </ul>
       </div>
-      <p className="text-xs text-brand-200">A course project, frontend-only build.</p>
+      <p className="text-xs text-brand-200">A course project build.</p>
     </aside>
   );
 }
@@ -45,9 +47,10 @@ function BrandPanel() {
 interface AuthCardProps {
   mode: AuthMode;
   onModeChange: (mode: AuthMode) => void;
+  showDemo: boolean;
 }
 
-function AuthCard({ mode, onModeChange }: AuthCardProps) {
+function AuthCard({ mode, onModeChange, showDemo }: AuthCardProps) {
   const copy = MODE_COPY[mode];
   const { continueAsDemo } = useSession();
   return (
@@ -88,15 +91,19 @@ function AuthCard({ mode, onModeChange }: AuthCardProps) {
         {mode === 'login' ? <LoginForm /> : <RegisterForm />}
       </div>
 
-      <div className="my-6 flex items-center gap-3" aria-hidden="true">
-        <span className="h-px flex-1 bg-hairline" />
-        <span className="text-xs uppercase tracking-wide text-ink-muted">or</span>
-        <span className="h-px flex-1 bg-hairline" />
-      </div>
+      {showDemo ? (
+        <>
+          <div className="my-6 flex items-center gap-3" aria-hidden="true">
+            <span className="h-px flex-1 bg-hairline" />
+            <span className="text-xs uppercase tracking-wide text-ink-muted">or</span>
+            <span className="h-px flex-1 bg-hairline" />
+          </div>
 
-      <Button isBlock onClick={() => void continueAsDemo()} variant="ghost">
-        Continue as demo user
-      </Button>
+          <Button isBlock onClick={() => void continueAsDemo()} variant="ghost">
+            Continue as demo user
+          </Button>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -109,8 +116,11 @@ function AuthCard({ mode, onModeChange }: AuthCardProps) {
  */
 export function AuthPage() {
   const { status } = useSession();
+  const { auth } = useRepositories();
   const location = useLocation();
   const [mode, setMode] = useState<AuthMode>('login');
+  // Demo sign-in is a development-only local shortcut; API sessions never use it.
+  const showDemo = isDemoLoginVisible(import.meta.env.DEV, auth.supportsDemo);
 
   const redirectTo = useMemo(() => {
     const state = location.state as { from?: string } | null;
@@ -128,7 +138,7 @@ export function AuthPage() {
         <div className="absolute right-4 top-4">
           <ThemeToggle />
         </div>
-        <AuthCard mode={mode} onModeChange={setMode} />
+        <AuthCard mode={mode} onModeChange={setMode} showDemo={showDemo} />
       </section>
     </main>
   );

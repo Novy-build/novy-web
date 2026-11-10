@@ -1,4 +1,4 @@
-import type { DataFieldType, DataValue } from '@domain/entities/appData';
+import type { DataFieldType, DataValue, RecordIdentifier } from '@domain/entities/appData';
 
 export interface DataFieldDTO {
   id: string;
@@ -22,6 +22,7 @@ export interface DataCollectionDTO {
   databaseId: string;
   name: string;
   fields: DataFieldDTO[];
+  identifier?: RecordIdentifier;
   createdAt: string;
   updatedAt: string;
 }

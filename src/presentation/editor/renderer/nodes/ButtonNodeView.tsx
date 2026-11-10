@@ -15,10 +15,12 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
         : 'bg-brand-600 text-white';
   const widgetClass = `flex h-full w-full items-center justify-center rounded-tile text-sm font-medium transition-colors ${variantClass}`;
   const iconPosition = props.iconPosition ?? 'left';
+  const isIconOnly = Boolean(props.icon && iconPosition === 'center');
   const content = (
     <span className="inline-flex min-w-0 items-center justify-center gap-2">
       {props.icon && iconPosition === 'left' ? <ButtonIcon name={props.icon} /> : null}
-      <span className="truncate">{props.label}</span>
+      {props.icon && iconPosition === 'center' ? <ButtonIcon name={props.icon} /> : null}
+      <span className={isIconOnly ? 'sr-only' : 'truncate'}>{props.label}</span>
       {props.icon && iconPosition === 'right' ? <ButtonIcon name={props.icon} /> : null}
     </span>
   );

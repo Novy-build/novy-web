@@ -20,11 +20,14 @@ describe('LocalStorageAppDataRepository', () => {
     await repo.createCollection('project_2', { name: 'Private' });
 
     expect(await repo.listCollections('project_1')).toEqual([created]);
+    expect(created.identifier).toEqual({ key: 'studentId', type: 'string', generation: 'backend' });
     const updated = await repo.updateCollection('project_1', created.id, {
       name: 'Learners',
       fields: [{ ...created.fields[0]!, label: 'Student name' }],
+      identifier: { key: 'learnerId', type: 'string', generation: 'backend' },
     });
     expect(updated.name).toBe('Learners');
+    expect(updated.identifier?.key).toBe('learnerId');
     expect((await repo.getCollection('project_1', created.id))?.fields[0]?.label).toBe('Student name');
     expect(await repo.getCollection('project_2', created.id)).toBeNull();
 
@@ -100,6 +103,20 @@ describe('LocalStorageAppDataRepository', () => {
         { id: 'b', key: 'student_name', label: 'B', type: 'text', required: false },
       ],
     })).rejects.toThrow('duplicated');
+  });
+
+  it('rejects malformed or conflicting record ID names', async () => {
+    const repo = repository();
+    await repo.createDatabase('project_1', { name: 'Project database' });
+    await expect(repo.createCollection('project_1', {
+      name: 'Notes',
+      identifier: { key: 'Note ID', type: 'string', generation: 'backend' },
+    })).rejects.toThrow('Record ID name');
+    await expect(repo.createCollection('project_1', {
+      name: 'Notes',
+      fields: [{ id: 'title', key: 'noteid', label: 'Title', type: 'text', required: false }],
+      identifier: { key: 'noteid', type: 'string', generation: 'backend' },
+    })).rejects.toThrow('conflicts');
   });
 
   it('cascades records when deleting a database', async () => {

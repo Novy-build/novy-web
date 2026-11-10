@@ -14,9 +14,15 @@ const CAPABILITY_LABELS: Readonly<Record<RuntimeRequirementDTO['capability'], st
 export function RuntimeReadinessPanel({
   requirements,
   onExport,
+  onDownloadReact,
+  isDownloading,
+  downloadError,
 }: {
   requirements: readonly RuntimeRequirementDTO[];
   onExport: () => void;
+  onDownloadReact: () => void;
+  isDownloading: boolean;
+  downloadError: string | null;
 }) {
   return (
     <section className="rounded-panel border border-hairline bg-surface p-5" aria-labelledby="runtime-readiness-title">
@@ -34,9 +40,29 @@ export function RuntimeReadinessPanel({
           </li>
         ))}
       </ul>
-      <Button className="mt-4" isBlock onClick={onExport}>Export backend handoff</Button>
+      <Button
+        className="mt-4"
+        disabled={isDownloading}
+        isBlock
+        isLoading={isDownloading}
+        onClick={onDownloadReact}
+      >
+        {isDownloading ? 'Generating React app…' : 'Download React app'}
+      </Button>
+      {downloadError ? (
+        <p
+          className="mt-2 rounded-tile border border-signal-invalid/30 bg-signal-invalid/5 p-2 text-xs text-signal-invalid"
+          role="alert"
+        >
+          {downloadError}
+        </p>
+      ) : null}
+      <Button className="mt-2" isBlock onClick={onExport} variant="ghost">
+        Export backend handoff
+      </Button>
       <p className="mt-2 text-xs text-ink-muted">
-        Includes project structure and collection schemas. Excludes records, secrets, camera captures, and biometric templates.
+        React export creates an editable Vite project. The diagnostics handoff includes project
+        structure and collection schemas. Both exclude records and secrets.
       </p>
     </section>
   );

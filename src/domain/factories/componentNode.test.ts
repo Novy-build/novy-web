@@ -29,13 +29,23 @@ describe('createComponentNode', () => {
     }
   });
 
+  it('creates layout widgets with zero default padding', () => {
+    const column = createComponentNode('column');
+    const row = createComponentNode('row');
+    const listView = createComponentNode('listview');
+
+    expect(column.type === 'column' ? column.props.padding : null).toEqual(createPadding(0));
+    expect(row.type === 'row' ? row.props.padding : null).toEqual(createPadding(0));
+    expect(listView.type === 'listview' ? listView.props.padding : null).toEqual(createPadding(0));
+  });
+
   it('creates an empty ListView ready for item-design setup', () => {
     const node = createComponentNode('listview');
 
     expect(node.type).toBe('listview');
     if (node.type === 'listview') {
       expect(node.props).toMatchObject({
-        padding: createPadding(12),
+        padding: createPadding(0),
         itemSpacing: 8,
         itemBorderRadius: 8,
       });

@@ -17,6 +17,7 @@ const collection: DataCollection = {
   projectId: 'project_notes',
   databaseId: database.id,
   name: 'Notes',
+  identifier: { key: 'noteId', type: 'string', generation: 'backend' },
   fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
@@ -68,9 +69,9 @@ describe('generated app manifest', () => {
     );
 
     expect(manifest).toMatchObject({
-      manifestVersion: 1,
+      manifestVersion: 2,
       generatedAt: '2026-11-07T12:00:00.000Z',
-      project: { schemaVersion: 12, id: 'project_notes' },
+      project: { schemaVersion: 13, id: 'project_notes' },
       appData: {
         database: { id: 'database_notes' },
         recordsIncluded: false,
@@ -151,11 +152,31 @@ describe('generated app manifest', () => {
       ],
       edges: [{ id: 'edge', fromNodeId: 'trigger', fromPort: 'next', toNodeId: 'navigate', toPort: 'in' }],
     }];
+    navigationProject.document.screens.push({
+      id: 'details',
+      name: 'Note details',
+      path: '/notes/:noteId',
+      routeParameters: [{
+        name: 'noteId',
+        source: { kind: 'record-id', collectionId: 'notes', identifierKey: 'noteId' },
+      }],
+      nodes: [], behaviors: [], logicGraphs: [],
+    });
 
-    const manifest = buildGeneratedAppManifest(navigationProject, null, []);
+    const manifest = buildGeneratedAppManifest(navigationProject, null, [collection]);
     expect(manifest.runtime.requirements.map((requirement) => requirement.capability)).toEqual([
       'database',
       'deployment',
     ]);
+    expect(manifest.appData.collections[0]?.identifier).toEqual({
+      key: 'noteId', type: 'string', generation: 'backend',
+    });
+    expect(manifest.runtime.routes[1]).toEqual({
+      screenId: 'details',
+      path: '/notes/:noteId',
+      parameters: [{
+        name: 'noteId', source: 'record-id', collectionId: 'notes', identifierKey: 'noteId',
+      }],
+    });
   });
 });
