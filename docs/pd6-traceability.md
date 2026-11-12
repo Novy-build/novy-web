@@ -140,7 +140,10 @@ Administration is intentionally excluded because Novy currently targets one appl
 - Evidence: environment selection, animated publish pipeline, fake live URLs, copy action,
   deployment history, View/Redeploy, custom-domain stub, validation blocking, failure preservation,
   inferred runtime requirements, and an exportable manifest-v2 backend handoff with collection
-  record identities and typed route parameters but without records or secrets.
+  record identities and typed route parameters but without records or secrets. Backend source
+  export now stores an immutable app version, generates a browser graph executor, and connects
+  declared CRUD/email actions to `/runtime/v1`; AI/RAG/CV and generated-app authentication remain
+  explicit unsupported boundaries.
 
 ## UC-08 Platform Administration
 

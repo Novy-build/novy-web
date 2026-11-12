@@ -115,6 +115,9 @@ describe('DataWorkspace', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'assets' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add ListView' }));
     fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'collection' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit item design' }));
+    fireEvent.click(screen.getByLabelText('Add Text'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Text content' }), { target: { value: 'student_name' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     const preview = await screen.findByRole('dialog');

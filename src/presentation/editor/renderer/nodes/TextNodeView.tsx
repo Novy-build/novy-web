@@ -13,6 +13,7 @@ export function TextNodeView({ props }: { props: TextProps }) {
   // line height would clip larger text.
   const hasSizeOverride = typeof props.fontSize === 'number' && props.fontSize > 0;
   const style: CSSProperties = {
+    fontFamily: props.fontFamily || undefined,
     fontSize: hasSizeOverride ? `${props.fontSize}px` : undefined,
     fontWeight: props.fontWeight ? TEXT_FONT_WEIGHT_VALUES[props.fontWeight] : undefined,
     lineHeight: hasSizeOverride ? 1.25 : undefined,

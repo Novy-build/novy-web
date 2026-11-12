@@ -24,6 +24,7 @@ export function SliderNodeView({
         </div>
       ) : (
         <input
+          aria-label={props.label.trim() || 'Slider'}
           className="w-full accent-brand-600"
           max={props.max}
           min={props.min}

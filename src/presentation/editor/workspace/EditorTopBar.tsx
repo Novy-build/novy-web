@@ -42,7 +42,7 @@ export function autosaveStatusText(saving: AutosaveStatus, now: Date): string {
 }
 
 /**
- * Editor chrome: back to Projects, inline-editable app name with autosave
+ * Editor chrome: exit to Projects, inline-editable app name with autosave
  * status, Design|Logic modes, undo/redo, Preview, and the primary Deploy.
  */
 export function EditorTopBar({
@@ -96,12 +96,12 @@ export function EditorTopBar({
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <button
-            aria-label="Back to projects"
-            className="rounded-tile p-1.5 text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
+            className="shrink-0 rounded-tile border border-hairline px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
             onClick={onBack}
+            title="Return to projects"
             type="button"
           >
-            ←
+            Exit work
           </button>
           {isEditingName ? (
             <form onSubmit={handleRenameSubmit}>

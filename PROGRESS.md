@@ -1,10 +1,15 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-10
+**Last reviewed:** 2026-11-12
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app builder**. Native mobile and desktop application generation are outside the
 current product scope.
+
+Planned, not yet implemented: a **website** project type with a section library and an
+`+ Add section` flow. See `docs/website-projects-plan.md` for the execution contract and
+`novy-backend/WEBSITE_PROJECTS_PLAN.md` for the backend half. Website projects are an explicit
+scope extension beyond the PD6 baseline, which covers web applications only.
 
 All features marked as implemented below exist in the frontend codebase. Features backed by local
 mock repositories or preview-only behavior are identified explicitly and must not be interpreted as
@@ -102,7 +107,7 @@ exist only in this browser.
 
 - [x] A project document can contain multiple screens.
 - [x] Add, select, rename, and delete screens.
-- [x] Screen tabs in the editor.
+- [x] Screen tabs in the editor with reserved label spacing for each tab's options control.
 - [x] Each screen owns its component tree, behaviors, and logic graphs.
 - [x] Each screen persists an explicit, editable, project-unique web route path.
 - [x] Screen navigation actions can reference another screen.
@@ -252,6 +257,7 @@ event binding, and its referenced logic graph:
                       "props": {
                         "text": "Note title",
                         "level": "body",
+                        "fontFamily": "Georgia, serif",
                         "fontSize": 18,
                         "fontWeight": "semibold"
                       }
@@ -486,7 +492,8 @@ event binding, and its referenced logic graph:
   omitted values from the resolved Tablet layout. Breakpoint overrides may also set `isHidden`.
 - Optional typed `appearance` values are shared by editor, preview, thumbnails, and generated JSON.
   Schema-v10 adds optional `appearance.dark` background/text/border overrides. Blank dark colors
-  inherit their base appearance. Older documents without these fields keep their previous colors.
+  inherit their base appearance. Optional `borderWidth` values set a non-negative pixel width;
+  older documents without these fields keep their previous colors and component border defaults.
 - Every appearance color field pairs its labeled hex input with a native color picker. The picker
   normalizes shorthand hex for the swatch, while the text input continues to accept free-form CSS
   color strings; appearance values and DTO shapes are unchanged.
@@ -501,8 +508,7 @@ event binding, and its referenced logic graph:
 - Container, Gesture Detector, Column, Row, and ListView widgets store nested components in
   `children`.
 - Schema v12 adds the transparent, child-bearing Gesture Detector with a persisted semantic action
-  label. It can be added from the palette or wrapped around an existing component without changing
-  the wrapped component's outer position; Enter and Space activate it in Preview.
+  label. It can be added from the palette; Enter and Space activate it in Preview.
 - Schema v13 adds explicit `routeParameters`. A record-aware detail route maps its named URL segment
   to one collection's backend-generated record identity instead of relying on matching conventions.
 - Container keeps free-form child coordinates. Column and Row resolve child placement from their
@@ -519,10 +525,15 @@ event binding, and its referenced logic graph:
   or `right`). Center placement creates an icon-only visual while retaining the label as accessible
   screen-reader text. The icon is decorative (`aria-hidden`), inherits the button text color, and
   is omitted from older saved buttons; unknown persisted icon names are ignored by the DTO mapper.
-- Text nodes expose optional `props.fontSize` (positive pixels) and `props.fontWeight`
-  (`normal`, `medium`, `semibold`, or `bold`) overrides. Omitted values fall back to the selected
-  `level` preset; custom sizes render with a proportional line height. Invalid persisted values are
-  ignored by the DTO mapper.
+- Text nodes expose optional `props.fontFamily` (a non-empty CSS font-family value),
+  `props.fontSize` (positive pixels), and `props.fontWeight` (`normal`, `medium`, `semibold`, or
+  `bold`) overrides. Omitted values fall back to the app font and selected `level` preset; custom
+  sizes render with a proportional line height. Invalid persisted values are ignored by the DTO
+  mapper.
+- Text fields retain their serialized `label` and may set optional `props.showLabel: false` to hide
+  it visually without losing the accessible name. Omitted `showLabel` values preserve the legacy
+  visible-label behavior. Border color, style, width, radius, and dark border color are applied to
+  the actual input or textarea in canvas, Preview, thumbnails, and generated layout properties.
 - ListView repeats its `children` as one shared free-form item template for structured static items
   or collection records. Direct template children retain explicit responsive `x`, `y`, `w`, and `h`
   geometry; nested Row and Column widgets still provide internal auto-layout. A focused **Edit item
@@ -662,7 +673,7 @@ Record identity and routing are explicit in that handoff:
 ### Editor shell
 
 - [x] Design, Logic, and Data workspaces.
-- [x] Return-to-projects navigation.
+- [x] Clearly labeled **Exit work** navigation from the editor back to the projects page.
 - [x] Inline project renaming.
 - [x] Saving, saved, unsaved, and retryable save-failure status feedback.
 - [x] Project validation badge.
@@ -671,7 +682,7 @@ Record identity and routing are explicit in that handoff:
 
 ### Component palette and renderer
 
-- [x] Searchable, categorized component palette.
+- [x] Searchable, categorized component palette with consistent Lucide SVG icons for every asset.
 - [x] Drag components from the palette onto the canvas.
 - [x] Click-to-add alternative to drag and drop.
 - [x] Shared renderer used by canvas, preview, and project thumbnails.
@@ -680,12 +691,13 @@ Record identity and routing are explicit in that handoff:
 Implemented component types:
 
 - [x] Button with an optional curated icon and left/center/right icon placement.
-- [x] Text with display/title/body presets plus optional font-size and font-weight overrides.
-- [x] Text input, including text, email, password, number, and multiline options.
+- [x] Text with display/title/body presets plus optional font-family, font-size, and font-weight overrides.
+- [x] Text field, including text, email, password, number, multiline, optional visible labels, and
+  full border color/style/width/radius controls.
 - [x] Image.
 - [x] Container/frame.
 - [x] Gesture Detector transparent interaction wrapper with a semantic label, keyboard activation,
-  nested-control click isolation, and a one-click **Wrap with Gesture Detector** action.
+  nested-control click isolation, and palette-based composition.
 - [x] Column with vertical child composition and main/cross-axis controls.
 - [x] Row with horizontal child composition and main/cross-axis controls.
 - [x] ListView with vertical/horizontal scrolling, static or collection data, and composed item
@@ -728,10 +740,13 @@ Implemented component types:
 - [x] Solid, dashed, and none border styles for Container, Column, and Row layout nodes, persisted
   through optional `appearance.borderStyle` and rendered consistently in canvas, preview,
   thumbnails, and generated-layout appearance data.
+- [x] Text field borders apply color, solid/dashed/none style, non-negative pixel width, and corner
+  radius directly to the input/textarea without adding a second outer frame border.
 - [x] Optional curated Button icons with left/center/right placement, decorative accessibility behavior,
   persisted `props.icon`/`props.iconPosition`, and backward-compatible label-only defaults.
-- [x] Optional Text font-size and font-weight overrides with level-preset fallbacks, proportional
-  custom line height, persisted typography values, and invalid-value rejection at the DTO boundary.
+- [x] Optional Text font-family, font-size, and font-weight overrides with app-font/level-preset
+  fallbacks, proportional custom line height, persisted typography values, and invalid-value
+  rejection at the DTO boundary.
 - [x] Duplicate and delete selected components.
 - [x] Bring components forward or send them backward.
 - [x] Nest components directly inside Container, Column, and Row widgets; edit ListView template
@@ -1021,6 +1036,11 @@ No external AI model or AI SDK is connected.
 - [x] Component geometry and size validation.
 - [x] Parent-container bounds warnings.
 - [x] Component-specific property validation.
+- [x] Cosmetic component/data labels may be blank without validation noise; interactive controls
+  keep accessible fallback names. Image alt text and Gesture Detector semantic labels remain
+  accessibility checks.
+- [x] An undesigned ListView item template is a blocking component error until at least one item
+  widget is added.
 - [x] Missing collection and field reference detection.
 - [x] Behavior target and graph reference validation.
 - [x] Logic trigger-count, edge, cycle, and incoming-connection validation.
@@ -1121,10 +1141,10 @@ The repository includes automated coverage for:
   canvas interactions, alignment, layers, inspector, logic, data, preview, deployment, and shared
   UI components.
 
-Verification completed on 2026-11-11:
+Verification completed on 2026-11-12:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 101 test files and 839 tests passed.
+- `npm test -- --run` — 101 test files and 851 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - Backend generated-app verification also ran the exported runtime's Vitest suite, TypeScript
   check, and production Vite build from a freshly installed archive.

@@ -84,7 +84,7 @@ export function ScreenTabs({
             ) : (
               <button
                 aria-current={isActive ? 'true' : undefined}
-                className={`h-9 rounded-t-tile border border-b-0 px-3 text-sm font-medium transition-colors ${
+                className={`h-9 rounded-t-tile border border-b-0 pl-3 pr-12 text-sm font-medium transition-colors ${
                   isActive
                     ? 'border-hairline bg-surface text-ink'
                     : 'border-transparent text-ink-muted hover:bg-surface hover:text-ink'
@@ -104,7 +104,7 @@ export function ScreenTabs({
                 aria-expanded={menuScreenId === screen.id}
                 aria-haspopup="menu"
                 aria-label={`Screen options for ${screen.name}`}
-                className="absolute right-0 top-0 h-9 rounded-t-tile px-1.5 text-xs text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+                className="absolute right-1 top-0 h-9 w-8 rounded-t-tile text-xs text-ink-muted transition-colors hover:bg-surface hover:text-ink"
                 onClick={() => setMenuScreenId((current) => (current === screen.id ? null : screen.id))}
                 type="button"
               >

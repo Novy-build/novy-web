@@ -46,6 +46,7 @@ function SelectNodeView({ props, renderStatic, isPreview, onValueChange }: {
     <div className="flex h-full w-full flex-col justify-center gap-1">
       {props.label ? <label className="text-xs font-medium text-ink-muted">{props.label}</label> : null}
       <select
+        aria-label={props.label.trim() || props.placeholder.trim() || 'Dropdown'}
         className="h-9 w-full rounded-tile border border-hairline bg-surface px-3 text-sm text-ink"
         onChange={(event) => {
           const index = Number(event.target.value);

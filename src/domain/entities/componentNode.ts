@@ -73,6 +73,8 @@ export interface ButtonProps {
 export interface TextProps {
   text: string;
   level: 'display' | 'title' | 'body';
+  /** Optional CSS font-family override; omitted uses the app font stack. */
+  fontFamily?: string;
   /** Optional pixel size override; omitted uses the level preset. */
   fontSize?: number;
   /** Optional weight override; omitted uses the level preset. */
@@ -87,8 +89,14 @@ export function isTextFontWeight(value: unknown): value is TextFontWeight {
   return typeof value === 'string' && (TEXT_FONT_WEIGHTS as readonly string[]).includes(value);
 }
 
+export function isTextFontFamily(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 export interface InputProps {
   label: string;
+  /** Omitted preserves the legacy behavior of showing the field label. */
+  showLabel?: boolean;
   placeholder: string;
   inputType: 'text' | 'email' | 'password' | 'number';
   multiline: boolean;
@@ -337,6 +345,8 @@ export interface ComponentAppearance {
   borderColor?: string;
   /** Omitted keeps the existing solid-if-colored border behavior. */
   borderStyle?: ComponentBorderStyle;
+  /** Optional border width in pixels; omitted keeps the component default. */
+  borderWidth?: number;
   borderRadius?: number;
   opacity?: number;
   /** Optional dark-theme color overrides; omitted colors inherit base appearance. */

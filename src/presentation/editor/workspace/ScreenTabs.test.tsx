@@ -31,6 +31,13 @@ describe('ScreenTabs', () => {
     expect(screen.getByRole('button', { name: 'About' })).not.toHaveAttribute('aria-current');
   });
 
+  it('reserves space between each screen name and its options control', () => {
+    renderTabs();
+
+    expect(screen.getByRole('button', { name: 'Home' })).toHaveClass('pl-3', 'pr-12');
+    expect(screen.getByRole('button', { name: 'Screen options for Home' })).toHaveClass('right-1', 'w-8');
+  });
+
   it('selects and adds screens', () => {
     const props = renderTabs();
 

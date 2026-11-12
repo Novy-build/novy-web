@@ -22,6 +22,80 @@ describe('validateProject', () => {
     ]));
   });
 
+  it('does not report blank cosmetic labels or text content', () => {
+    const screen = makeScreen('screen_home', [
+      makeButton('button', { props: { label: '', variant: 'solid' } }),
+      makeText('text', { props: { text: '', level: 'body' } }),
+      {
+        id: 'input', type: 'input', x: 0, y: 0, w: 200, h: 44,
+        props: { label: '', placeholder: '', inputType: 'text', multiline: false },
+      },
+      {
+        id: 'checkbox', type: 'checkbox', x: 0, y: 0, w: 200, h: 32,
+        props: { label: '', checked: false },
+      },
+      {
+        id: 'radio', type: 'radio', x: 0, y: 0, w: 200, h: 80,
+        props: { label: '', options: ['One'], selectedIndex: 0 },
+      },
+      {
+        id: 'switch', type: 'switch', x: 0, y: 0, w: 200, h: 32,
+        props: { label: '', checked: false },
+      },
+      {
+        id: 'dropdown', type: 'dropdown', x: 0, y: 0, w: 200, h: 44,
+        props: { label: '', placeholder: '', options: ['One'], selectedIndex: -1 },
+      },
+      {
+        id: 'slider', type: 'slider', x: 0, y: 0, w: 200, h: 44,
+        props: { label: '', min: 0, max: 100, step: 1, value: 50 },
+      },
+    ]);
+    const collection: DataCollection = {
+      id: 'notes', projectId: 'project', databaseId: 'database', name: 'Notes',
+      fields: [{ id: 'title', key: 'title', label: '', type: 'text', required: false }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+
+    const report = validateProject(documentWith(screen), [collection]);
+    expect(report.issues.filter((issue) => issue.code === 'component-label')).toEqual([]);
+    expect(report.issues.map((issue) => issue.code)).not.toContain('data-field-label');
+  });
+
+  it('keeps accessibility-critical image alt validation', () => {
+    const screen = makeScreen('screen_home', [{
+      id: 'image', type: 'image', x: 0, y: 0, w: 200, h: 100,
+      props: { src: 'https://example.com/photo.png', alt: '', fit: 'cover' },
+    }]);
+
+    expect(validateProject(documentWith(screen)).issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'component-alt', componentId: 'image' }),
+    ]));
+  });
+
+  it('treats an undesigned ListView as a blocking error', () => {
+    const screen = makeScreen('screen_home', [makeListView('list', { children: [] })]);
+    const report = validateProject(documentWith(screen));
+
+    expect(report.isValid).toBe(false);
+    expect(report.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'component-list-template-empty',
+        severity: 'error',
+        message: 'No items are designed for this ListView.',
+      }),
+    ]));
+  });
+
+  it('rejects invalid component border widths', () => {
+    const button = makeButton('button', { appearance: { borderWidth: -1 } });
+    const report = validateProject(documentWith(makeScreen('screen_home', [button])));
+
+    expect(report.issues).toContainEqual(expect.objectContaining({
+      code: 'component-border-width-invalid', componentId: 'button', severity: 'error',
+    }));
+  });
+
   it('accepts dynamic detail routes and record bindings supplied by navigation context', () => {
     const source = makeScreen('screen_home', [makeButton('open_note')]);
     source.behaviors = [{ id: 'open_behavior', name: 'Open note', event: 'click', graphId: 'open_graph', targetNodeId: 'open_note' }];
@@ -234,7 +308,6 @@ describe('validateProject', () => {
       'data-missing-collection',
       'data-collection-name',
       'data-field-duplicate-key',
-      'data-field-label',
     ]));
   });
 

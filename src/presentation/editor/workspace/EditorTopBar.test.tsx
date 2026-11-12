@@ -34,10 +34,10 @@ function renderTopBar(overrides: Record<string, unknown> = {}) {
 }
 
 describe('EditorTopBar', () => {
-  it('wires chrome actions: back, preview, deploy, undo, redo', () => {
+  it('wires chrome actions: exit work, preview, deploy, undo, redo', () => {
     const props = renderTopBar({ canUndo: true, canRedo: true });
 
-    fireEvent.click(screen.getByLabelText('Back to projects'));
+    fireEvent.click(screen.getByRole('button', { name: 'Exit work' }));
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     fireEvent.click(screen.getByRole('button', { name: 'Deploy' }));
     fireEvent.click(screen.getByLabelText('Undo'));

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { COMPONENT_MIME, ComponentsPalette } from './ComponentsPalette';
+import { COMPONENT_MIME, ComponentsPalette, PALETTE_ITEMS } from './ComponentsPalette';
 
 function renderPalette(onAddByType = vi.fn()) {
   render(<ComponentsPalette onAddByType={onAddByType} />);
@@ -25,6 +25,17 @@ describe('ComponentsPalette', () => {
     expect(screen.queryByLabelText('Add List')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Add Form')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Add Repeater')).not.toBeInTheDocument();
+  });
+
+  it('shows a decorative SVG icon for every asset', () => {
+    renderPalette();
+
+    const assetButtons = PALETTE_ITEMS.map((item) => screen.getByRole('button', { name: `Add ${item.label}` }));
+
+    expect(assetButtons).toHaveLength(PALETTE_ITEMS.length);
+    assetButtons.forEach((button) => {
+      expect(button.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
+    });
   });
 
   it('adds a component on click', () => {

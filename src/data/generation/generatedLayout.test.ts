@@ -76,6 +76,20 @@ describe('generated layout', () => {
     expect(project).toEqual(before);
   });
 
+  it('exports Text field label visibility and border appearance', () => {
+    const inputProject = structuredClone(project);
+    inputProject.document.screens[0]!.nodes = [{
+      id: 'email', type: 'input', x: 24, y: 24, w: 260, h: 44,
+      appearance: { borderColor: '#334155', borderStyle: 'dashed', borderWidth: 3, borderRadius: 12 },
+      props: { label: 'Email', showLabel: false, placeholder: 'you@example.com', inputType: 'email', multiline: false },
+    }];
+
+    expect(mapProjectToGeneratedLayout(inputProject).screens[0]?.nodes[0]).toMatchObject({
+      appearance: { borderColor: '#334155', borderStyle: 'dashed', borderWidth: 3, borderRadius: 12 },
+      props: { label: 'Email', showLabel: false },
+    });
+  });
+
   it('exports collection record identity and explicit route parameter mappings', () => {
     const collection: DataCollection = {
       id: 'notes', projectId: project.id, databaseId: 'database', name: 'Notes',

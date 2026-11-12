@@ -31,6 +31,7 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
 
   return (
     <button
+      aria-label={props.label.trim() || 'Button'}
       type="button"
       className={widgetClass}
     >

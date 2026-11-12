@@ -8,6 +8,7 @@ import {
   createSymmetricPadding,
   geometryAtBreakpoint,
   isButtonIconName,
+  isTextFontFamily,
   isTextFontWeight,
   listViewItemExtentAtBreakpoint,
   normalizePadding,
@@ -55,6 +56,13 @@ describe('button icon values', () => {
 });
 
 describe('text typography values', () => {
+  it('only accepts non-empty font families', () => {
+    expect(isTextFontFamily('Georgia, serif')).toBe(true);
+    expect(isTextFontFamily('   ')).toBe(false);
+    expect(isTextFontFamily(undefined)).toBe(false);
+    expect(isTextFontFamily(42)).toBe(false);
+  });
+
   it('only accepts curated font weights', () => {
     expect(isTextFontWeight('bold')).toBe(true);
     expect(isTextFontWeight('ultra')).toBe(false);

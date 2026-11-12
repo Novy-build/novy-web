@@ -4,6 +4,7 @@ import {
   isButtonIconName,
   isChildBearingNode,
   isHiddenAtBreakpoint,
+  isTextFontFamily,
   isTextFontWeight,
   normalizePadding,
   resolveEdgeInsets,
@@ -298,6 +299,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         props: {
           text: node.props.text,
           level: node.props.level,
+          ...(isTextFontFamily(node.props.fontFamily) ? { fontFamily: node.props.fontFamily.trim() } : {}),
           ...(typeof node.props.fontSize === 'number' && Number.isFinite(node.props.fontSize) && node.props.fontSize > 0
             ? { fontSize: node.props.fontSize }
             : {}),
@@ -313,7 +315,13 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, placeholder: node.props.placeholder, inputType: node.props.inputType, multiline: node.props.multiline },
+        props: {
+          label: node.props.label,
+          ...(typeof node.props.showLabel === 'boolean' ? { showLabel: node.props.showLabel } : {}),
+          placeholder: node.props.placeholder,
+          inputType: node.props.inputType,
+          multiline: node.props.multiline,
+        },
       };
     case 'checkbox':
       return {
@@ -540,6 +548,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         props: {
           text: dto.props.text,
           level: dto.props.level,
+          ...(isTextFontFamily(dto.props.fontFamily) ? { fontFamily: dto.props.fontFamily.trim() } : {}),
           ...(typeof dto.props.fontSize === 'number' && Number.isFinite(dto.props.fontSize) && dto.props.fontSize > 0
             ? { fontSize: dto.props.fontSize }
             : {}),
@@ -557,6 +566,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         h: dto.h,
         props: {
           label: dto.props.label,
+          ...(typeof dto.props.showLabel === 'boolean' ? { showLabel: dto.props.showLabel } : {}),
           placeholder: dto.props.placeholder,
           inputType: dto.props.inputType ?? 'text',
           multiline: dto.props.multiline ?? false,

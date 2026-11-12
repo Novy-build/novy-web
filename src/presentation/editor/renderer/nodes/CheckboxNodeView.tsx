@@ -19,6 +19,7 @@ export function CheckboxNodeView({
     </span>
   ) : (
     <input
+      aria-label={props.label.trim() || 'Checkbox'}
       checked={checked}
       className="h-4 w-4 accent-brand-600"
       onChange={(event) => {

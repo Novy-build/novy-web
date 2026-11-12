@@ -5,6 +5,117 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-12 — Website projects implementation plan
+
+#### Added
+- `docs/website-projects-plan.md` documents the planned website-project work: a persisted
+  `app` / `website` project type chosen at creation, a Canva-style `+ Add section` button
+  with an eight-preset section library, a long scrolling page canvas for website screens, and the
+  generated-app changes required to publish a website project.
+- The plan records that a website project is a deliberate scope extension beyond the PD6
+  baseline, which covers web applications only.
+
+#### Notes
+- This entry records a plan only. No website-project behaviour is implemented in this repository
+  yet, and the Project schema version stays at 13 because `projectType` is project metadata
+  rather than document content.
+
+### 2026-11-12 — Focused validation and Text field presentation controls
+
+#### Added
+- Text fields now persist a **Show field label** option. Hiding a label is non-destructive and keeps
+  its accessible name, while older projects continue to show labels by default.
+- Text field borders now support color, solid/dashed/none style, non-negative pixel width, and
+  corner radius on the actual input or textarea across canvas, Preview, thumbnails, Project JSON,
+  and generated-layout output.
+
+#### Changed
+- Blank cosmetic labels and empty Text content no longer add validation warnings for Buttons, Text,
+  Text fields, selection controls, sliders, or data-field display names. Interactive controls use
+  accessible fallback names when needed; image alt text and Gesture Detector semantic labels remain
+  validated.
+- Empty ListView item templates now produce the blocking error **No items are designed for this
+  ListView.**
+- Removed the **Wrap with Gesture Detector** shortcut from the Inspector while preserving the
+  Gesture Detector palette component and existing saved wrappers.
+
+#### Tests
+- Added validation, Inspector, renderer, mapper, generated-layout, accessibility-fallback, and
+  Data-workspace integration coverage for the new behavior.
+
+#### Verification
+- `npm run typecheck` — passed.
+- Focused feature tests — 6 test files and 135 tests passed.
+- `npm test -- --run` — 101 test files and 851 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+- `git diff --check` — passed.
+
+### 2026-11-12 — Screen-tab options spacing
+
+#### Changed
+- Screen tabs now reserve dedicated space between the screen name and its three-dot options control,
+  preventing short labels such as **Home** from visually colliding with the menu trigger.
+
+#### Tests
+- Added focused Screen Tabs coverage for the label padding and fixed options-control width.
+
+#### Verification
+- `npm run typecheck` — passed.
+- Focused Screen Tabs test — 1 test file and 7 tests passed.
+- `npm test -- --run` — 101 test files and 842 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+
+### 2026-11-12 — Text font-family overrides
+
+#### Added
+- Text widgets now accept an optional font-family override from the Inspector and render it
+  consistently on the editor canvas, in Preview, and in project thumbnails.
+- Project DTOs and generated-layout component properties preserve non-empty `fontFamily` values;
+  older projects continue using the app font stack, and invalid blank values are discarded at the
+  mapper boundary.
+
+#### Tests
+- Added domain validation, Inspector interaction, renderer styling, and mapper round-trip coverage
+  for font-family overrides and their fallback behavior.
+
+#### Verification
+- `npm run typecheck` — passed.
+- Focused typography tests — 4 test files and 115 tests passed.
+- `npm test -- --run` — 101 test files and 842 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+
+### 2026-11-12 — Explicit editor exit label
+
+#### Changed
+- Replaced the editor's icon-only back control with a visible **Exit work** button that keeps the
+  existing navigation to the projects page.
+
+#### Tests
+- Updated editor top-bar coverage to locate and activate the exit action by its visible label.
+
+#### Verification
+- `npm run typecheck` — passed.
+- Focused editor top-bar test — 1 test file and 8 tests passed.
+- `npm test -- --run` — 101 test files and 840 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+
+### 2026-11-12 — Asset palette icons
+
+#### Changed
+- Every component in the editor Assets palette now has a consistent Lucide SVG icon beside its
+  visible label, improving visual scanning without using emoji or changing click-and-drag behavior.
+- Asset icons are decorative for assistive technology because each palette control retains its
+  explicit accessible name and visible text label.
+
+#### Tests
+- Added palette coverage verifying that every available asset renders a decorative SVG icon.
+
+#### Verification
+- `npm run typecheck` — passed.
+- Focused component-palette test — 1 test file and 6 tests passed.
+- `npm test -- --run` — 101 test files and 840 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+
 ### 2026-11-11 — Generated non-AI runtime handoff
 
 #### Changed

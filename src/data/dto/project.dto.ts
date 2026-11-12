@@ -29,6 +29,7 @@ export interface ComponentNodeDTOBase {
     textColor?: string;
     borderColor?: string;
     borderStyle?: 'solid' | 'dashed' | 'none';
+    borderWidth?: number;
     borderRadius?: number;
     opacity?: number;
     dark?: { backgroundColor?: string; textColor?: string; borderColor?: string };
@@ -56,6 +57,8 @@ export interface TextNodeDTO extends ComponentNodeDTOBase {
   props: {
     text: string;
     level: 'display' | 'title' | 'body';
+    /** Optional CSS font-family override; omitted uses the app font stack. */
+    fontFamily?: string;
     /** Optional pixel size override; omitted uses the level preset. */
     fontSize?: number;
     fontWeight?: TextFontWeight;
@@ -65,7 +68,7 @@ export interface TextNodeDTO extends ComponentNodeDTOBase {
 
 export interface InputNodeDTO extends ComponentNodeDTOBase {
   type: 'input';
-  props: { label: string; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number'; multiline?: boolean };
+  props: { label: string; showLabel?: boolean; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number'; multiline?: boolean };
 }
 
 export interface ImageNodeDTO extends ComponentNodeDTOBase {

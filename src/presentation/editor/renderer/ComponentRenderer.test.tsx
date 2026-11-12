@@ -72,19 +72,20 @@ describe('ComponentRenderer', () => {
     expect(container.querySelector('[data-button-icon="mail"]')).not.toBeNull();
   });
 
-  it('applies text font size and weight overrides with a proportional line height', () => {
+  it('applies text font family, size, and weight overrides with a proportional line height', () => {
     const node = makeText('text_override', {
-      props: { text: 'Custom type', level: 'title', fontSize: 32, fontWeight: 'bold' },
+      props: { text: 'Custom type', level: 'title', fontFamily: 'Georgia, serif', fontSize: 32, fontWeight: 'bold' },
     });
     const { rerender } = render(<ComponentRenderer mode="canvas" node={node} selected={false} />);
 
     const paragraph = screen.getByText('Custom type');
-    expect(paragraph).toHaveStyle({ fontSize: '32px', fontWeight: '700', lineHeight: '1.25' });
+    expect(paragraph).toHaveStyle({ fontFamily: 'Georgia, serif', fontSize: '32px', fontWeight: '700', lineHeight: '1.25' });
 
     rerender(<ComponentRenderer mode="canvas" node={makeText('text_override', {
       props: { text: 'Custom type', level: 'title' },
     })} selected={false} />);
     const preset = screen.getByText('Custom type');
+    expect(preset.style.fontFamily).toBe('');
     expect(preset.style.fontSize).toBe('');
     expect(preset.style.fontWeight).toBe('');
     expect(preset.className).toContain('text-lg');
@@ -272,6 +273,32 @@ describe('ComponentRenderer', () => {
 
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } });
     expect(onNodeEvent).toHaveBeenCalledWith('node_email', 'change', 'ada@example.com');
+  });
+
+  it('hides a Text field label without losing its accessible name and styles its actual border', () => {
+    const input: InputNode = {
+      id: 'node_email', type: 'input', x: 0, y: 0, w: 180, h: 60,
+      appearance: { borderColor: '#334155', borderStyle: 'dashed', borderWidth: 3, borderRadius: 12 },
+      props: { label: 'Email', showLabel: false, placeholder: 'you@school.edu', inputType: 'email', multiline: false },
+    };
+    const { container } = render(<ComponentRenderer mode="preview" node={input} selected={false} />);
+
+    expect(screen.queryByText('Email')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Email' })).toHaveStyle({
+      borderColor: '#334155', borderStyle: 'dashed', borderWidth: '3px', borderRadius: '12px',
+    });
+    expect(container.querySelector('[data-node-id="node_email"]')).not.toHaveStyle({ borderStyle: 'dashed' });
+  });
+
+  it('applies Text field border controls to multiline fields and falls back to an accessible name', () => {
+    const input: InputNode = {
+      id: 'node_message', type: 'input', x: 0, y: 0, w: 240, h: 100,
+      appearance: { borderStyle: 'none', borderWidth: 5 },
+      props: { label: '', showLabel: false, placeholder: 'Your message', inputType: 'text', multiline: true },
+    };
+    render(<ComponentRenderer mode="preview" node={input} selected={false} />);
+
+    expect(screen.getByRole('textbox', { name: 'Your message' })).toHaveStyle({ borderStyle: 'none', borderWidth: '0px' });
   });
 
   it('renders container children relative to the container', () => {

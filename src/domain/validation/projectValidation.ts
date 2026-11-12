@@ -132,9 +132,6 @@ export function validateProject(
       if (!field.key.trim()) {
         issues.push(issue('data-field-key', 'error', 'data', 'Field key is required.', { collectionId: collection.id, fieldId: field.id }));
       }
-      if (!field.label.trim()) {
-        issues.push(issue('data-field-label', 'warning', 'data', 'Field label is empty.', { collectionId: collection.id, fieldId: field.id }));
-      }
     }
   }
 
@@ -160,6 +157,12 @@ function validateScreenTree(
       }
       if (node.w <= 0 || node.h <= 0) {
         issues.push(issue('component-size-invalid', 'error', 'component', 'Component width and height must be positive.', { screenId, componentId: node.id }));
+      }
+      if (
+        node.appearance?.borderWidth !== undefined
+        && (!Number.isFinite(node.appearance.borderWidth) || node.appearance.borderWidth < 0)
+      ) {
+        issues.push(issue('component-border-width-invalid', 'error', 'component', 'Component border width must be a non-negative number.', { screenId, componentId: node.id }));
       }
       if (node.responsive) {
         for (const [breakpoint, override] of Object.entries(node.responsive)) {
@@ -200,13 +203,10 @@ function validateComponentProps(
   validateComponentBindings(node, itemSource, screenRecordCollectionIds, screenId, collections, issues);
   switch (node.type) {
     case 'button':
-      if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Button label is empty.', base));
       break;
     case 'text':
-      if (!node.props.text.trim()) issues.push(issue('component-label', 'warning', 'component', 'Text content is empty.', base));
       break;
     case 'input':
-      if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Input label is empty.', base));
       break;
     case 'image':
       if (node.props.src && !node.props.alt.trim()) issues.push(issue('component-alt', 'warning', 'component', 'Image should have alt text.', base));
@@ -243,20 +243,17 @@ function validateComponentProps(
       } else {
         validateStaticListSource(node, screenId, issues);
       }
-      if (node.children.length === 0) issues.push(issue('component-list-template-empty', 'warning', 'component', 'ListView item template is empty.', base));
+      if (node.children.length === 0) issues.push(issue('component-list-template-empty', 'error', 'component', 'No items are designed for this ListView.', base));
       break;
     case 'checkbox':
     case 'switch':
-      if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Control label is empty.', base));
       break;
     case 'radio':
     case 'dropdown':
-      if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Control label is empty.', base));
       if (node.props.options.length === 0) issues.push(issue('component-options', 'error', 'component', 'Control needs at least one option.', base));
       if (node.props.selectedIndex >= node.props.options.length || node.props.selectedIndex < -1) issues.push(issue('component-selection', 'warning', 'component', 'Selected option index is out of range.', base));
       break;
     case 'slider':
-      if (!node.props.label.trim()) issues.push(issue('component-label', 'warning', 'component', 'Slider label is empty.', base));
       if (node.props.min >= node.props.max) issues.push(issue('component-range', 'error', 'component', 'Slider minimum must be less than maximum.', base));
       if (node.props.step <= 0) issues.push(issue('component-range', 'error', 'component', 'Slider step must be positive.', base));
       if (node.props.value < node.props.min || node.props.value > node.props.max) issues.push(issue('component-range', 'warning', 'component', 'Slider value is outside its range.', base));

@@ -253,6 +253,25 @@ describe('project mapper', () => {
     expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
   });
 
+  it('round-trips Text field label visibility and border appearance', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    const column = project.document.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (column?.type !== 'column') throw new Error('Fixture column is missing');
+    const input = column.children.find((node) => node.id === 'node_form_email');
+    if (input?.type !== 'input') throw new Error('Fixture input is missing');
+    input.props = { ...input.props, showLabel: false };
+    input.appearance = { borderColor: '#334155', borderStyle: 'dashed', borderWidth: 3, borderRadius: 12 };
+
+    const dto = mapProjectToDto(project);
+    const dtoColumn = dto.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (dtoColumn?.type !== 'column') throw new Error('DTO column is missing');
+    expect(dtoColumn.children.find((node) => node.id === 'node_form_email')).toMatchObject({
+      appearance: { borderColor: '#334155', borderStyle: 'dashed', borderWidth: 3, borderRadius: 12 },
+      props: { label: 'Email', showLabel: false },
+    });
+    expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
+  });
+
   it('round-trips curated button icons and center icon position', () => {
     const project = structuredClone(FIXTURE_PROJECT);
     const button = project.document.screens[0]!.nodes.find((node) => node.id === 'node_button');
@@ -277,19 +296,19 @@ describe('project mapper', () => {
     expect(node?.type === 'button' ? node.props : null).toEqual({ label: 'Save', variant: 'solid' });
   });
 
-  it('round-trips text font size and weight overrides', () => {
+  it('round-trips text font family, size, and weight overrides', () => {
     const project = structuredClone(FIXTURE_PROJECT);
     const column = project.document.screens[0]!.nodes.find((node) => node.id === 'node_column');
     if (column?.type !== 'column') throw new Error('Fixture column is missing');
     const text = column.children.find((node) => node.id === 'node_form_title');
     if (text?.type !== 'text') throw new Error('Fixture text is missing');
-    text.props = { ...text.props, fontSize: 32, fontWeight: 'bold' };
+    text.props = { ...text.props, fontFamily: 'Georgia, serif', fontSize: 32, fontWeight: 'bold' };
 
     const dto = mapProjectToDto(project);
     const dtoColumn = dto.screens[0]!.nodes.find((node) => node.id === 'node_column');
     if (dtoColumn?.type !== 'column') throw new Error('DTO column is missing');
     expect(dtoColumn.children.find((node) => node.id === 'node_form_title')).toMatchObject({
-      props: { text: 'Contact us', level: 'title', fontSize: 32, fontWeight: 'bold' },
+      props: { text: 'Contact us', level: 'title', fontFamily: 'Georgia, serif', fontSize: 32, fontWeight: 'bold' },
     });
     expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
   });
@@ -300,6 +319,7 @@ describe('project mapper', () => {
     if (column?.type !== 'column') throw new Error('DTO column is missing');
     const text = column.children.find((node) => node.id === 'node_form_title');
     if (text?.type !== 'text') throw new Error('DTO text is missing');
+    text.props.fontFamily = '   ';
     text.props.fontSize = -4;
     text.props.fontWeight = 'ultra' as typeof text.props.fontWeight;
 

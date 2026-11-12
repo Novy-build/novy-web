@@ -336,10 +336,17 @@ describe('Inspector', () => {
     });
   });
 
-  it('edits and clears text font size and weight overrides', () => {
+  it('edits and clears text font family, size, and weight overrides', () => {
     const { onAction } = renderInspector(makeText('node_1', {
-      props: { text: 'Hello, World!', level: 'body', fontSize: 20, fontWeight: 'bold' },
+      props: { text: 'Hello, World!', level: 'body', fontFamily: 'Inter', fontSize: 20, fontWeight: 'bold' },
     }));
+
+    fireEvent.change(screen.getByLabelText('Font family'), { target: { value: 'Georgia, serif' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-text',
+      nodeId: 'node_1',
+      props: { fontFamily: 'Georgia, serif' },
+    });
 
     fireEvent.change(screen.getByLabelText('Font size (px)'), { target: { value: '32' } });
     expect(onAction).toHaveBeenLastCalledWith({
@@ -367,6 +374,39 @@ describe('Inspector', () => {
       type: 'node/props-text',
       nodeId: 'node_1',
       props: { fontWeight: undefined },
+    });
+
+    fireEvent.change(screen.getByLabelText('Font family'), { target: { value: '   ' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-text',
+      nodeId: 'node_1',
+      props: { fontFamily: undefined },
+    });
+  });
+
+  it('toggles Text field labels and configures the full field border', () => {
+    const node = createComponentNode('input');
+    if (node.type !== 'input') throw new Error('Expected input node');
+    node.props.showLabel = false;
+    node.appearance = { borderColor: '#334155', borderStyle: 'solid', borderWidth: 1, borderRadius: 6 };
+    const { onAction } = renderInspector(node);
+
+    expect(screen.getByLabelText('Field label')).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show field label' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-input', nodeId: node.id, props: { showLabel: true },
+    });
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Border style' })).getByRole('button', { name: 'Dashed' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance', nodeId: node.id,
+      appearance: { borderColor: '#334155', borderStyle: 'dashed', borderWidth: 1, borderRadius: 6 },
+    });
+
+    fireEvent.change(screen.getByLabelText('Border width'), { target: { value: '4' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance', nodeId: node.id,
+      appearance: { borderColor: '#334155', borderStyle: 'solid', borderWidth: 4, borderRadius: 6 },
     });
   });
 
@@ -620,6 +660,7 @@ describe('Inspector', () => {
 
     expect(screen.getByText('Containers keep free-form child positioning.')).toBeInTheDocument();
     expect(screen.getByText('Fixed for the MVP.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Wrap with Gesture Detector' })).not.toBeInTheDocument();
     expect(onAction).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Logic mode' }));

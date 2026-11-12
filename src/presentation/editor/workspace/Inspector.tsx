@@ -12,7 +12,7 @@ import type {
   ResponsiveBreakpoint,
   StaticListViewItem,
 } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isButtonIconName, isTextFontWeight } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isButtonIconName, isTextFontFamily, isTextFontWeight } from '@domain/entities/componentNode';
 import {
   RECORD_IDENTIFIER_KEY_PATTERN,
   recordIdentifierForCollection,
@@ -252,7 +252,9 @@ export function Inspector({
   const node: ComponentNode = candidate;
   const effectiveGeometry = geometryAtBreakpoint(node, device);
   const isLayoutNode = node.type === 'container' || node.type === 'column' || node.type === 'row';
-  const layoutBorderStyle = node.appearance?.borderStyle ?? (node.type === 'container' ? 'solid' : 'dashed');
+  const hasBorderStyleControl = isLayoutNode || node.type === 'input';
+  const activeBorderStyle = node.appearance?.borderStyle
+    ?? (node.type === 'column' || node.type === 'row' ? 'dashed' : 'solid');
   const listViewCollectionSource = node.type === 'listview' && node.props.dataSource.kind === 'collection'
     ? node.props.dataSource
     : null;
@@ -366,6 +368,20 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-text', nodeId: node.id, props: { text: event.target.value } })}
             value={node.props.text}
           />
+          <TextInput
+            label="Font family"
+            name="inspector-text-font-family"
+            onChange={(event) => {
+              const value = event.target.value;
+              onAction({
+                type: 'node/props-text',
+                nodeId: node.id,
+                props: { fontFamily: isTextFontFamily(value) ? value : undefined },
+              });
+            }}
+            placeholder="App default"
+            value={node.props.fontFamily ?? ''}
+          />
           <div className="grid grid-cols-2 gap-2">
             <TextInput
               label="Font size (px)"
@@ -411,7 +427,7 @@ export function Inspector({
               </select>
             </label>
           </div>
-          <p className="text-xs text-ink-muted">Blank values use the selected text level preset.</p>
+          <p className="text-xs text-ink-muted">Blank values use the app font and selected text level preset.</p>
         </div>
       ) : null}
 
@@ -419,11 +435,20 @@ export function Inspector({
         <div className="mt-4 grid gap-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
           <TextInput
+            disabled={node.props.showLabel === false}
             label="Field label"
             name="inspector-input-label"
             onChange={(event) => onAction({ type: 'node/props-input', nodeId: node.id, props: { label: event.target.value } })}
             value={node.props.label}
           />
+          <label className="flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={node.props.showLabel !== false}
+              onChange={(event) => onAction({ type: 'node/props-input', nodeId: node.id, props: { showLabel: event.target.checked } })}
+              type="checkbox"
+            />
+            Show field label
+          </label>
           <TextInput
             label="Placeholder text"
             name="inspector-input-placeholder"
@@ -1086,10 +1111,24 @@ export function Inspector({
               if (value !== null) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, borderRadius: Math.max(0, value) } });
             }}
             type="number"
-            value={node.appearance?.borderRadius ?? 0}
+            value={node.appearance?.borderRadius ?? (node.type === 'input' ? 6 : 0)}
           />
+          {node.type === 'input' ? (
+            <TextInput
+              label="Border width"
+              min={0}
+              name="inspector-appearance-border-width"
+              onChange={(event) => {
+                const value = numberFromEvent(event);
+                if (value !== null) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, borderWidth: Math.max(0, value) } });
+              }}
+              step={1}
+              type="number"
+              value={node.appearance?.borderWidth ?? 1}
+            />
+          ) : null}
         </div>
-        {isLayoutNode ? (
+        {hasBorderStyleControl ? (
           <div className="mb-3">
             <p className="mb-2 text-xs font-medium text-ink-muted">Border style</p>
             <SegmentedControl
@@ -1104,7 +1143,7 @@ export function Inspector({
                 { value: 'dashed', label: 'Dashed' },
                 { value: 'none', label: 'None' },
               ]}
-              value={layoutBorderStyle}
+              value={activeBorderStyle}
             />
           </div>
         ) : null}
@@ -1169,22 +1208,13 @@ export function Inspector({
             value={node.props.fit}
           />
         ) : null}
-        {node.type === 'input' || node.type === 'container' || node.type === 'column' || node.type === 'row' || node.type === 'listview' || node.type === 'checkbox' || node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' || node.type === 'progress' || node.type === 'divider' || node.type === 'camera' ? (
+        {node.type === 'container' || node.type === 'column' || node.type === 'row' || node.type === 'listview' || node.type === 'checkbox' || node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' || node.type === 'progress' || node.type === 'divider' || node.type === 'camera' ? (
           <p className="text-sm text-ink-muted">Fixed for the MVP.</p>
         ) : null}
       </div>
 
       <div className="mt-6">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Behavior</p>
-        {node.type !== 'gesture-detector' && node.type !== 'listview' ? (
-          <button
-            className="mb-3 w-full rounded-tile border border-hairline px-3 py-2 text-xs font-medium text-ink transition-colors hover:bg-canvas"
-            onClick={() => onAction({ type: 'node/wrap-gesture-detector', nodeId: node.id })}
-            type="button"
-          >
-            Wrap with Gesture Detector
-          </button>
-        ) : null}
         {behaviors.some((behavior) => behavior.targetNodeId === node.id) ? (
           <ul className="mb-2 grid gap-1" data-testid="bound-behaviors">
             {behaviors

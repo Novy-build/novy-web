@@ -116,6 +116,7 @@ export function ComponentRenderer({
   const geometry = { id: node.id, ...(geometryOverride ?? geometryAtBreakpoint(node, breakpoint)) };
   const isSelected = selected || selectedNodeId === node.id;
   const renderStatic = mode === 'thumbnail';
+  const resolvedAppearance = resolveThemeAppearance(node.appearance, appTheme?.theme === 'dark');
   // Runtime clicks only exist in the reactive preview; canvas delegates to
   // selection and thumbnails stay inert dashboard tiles.
   const runtimeClick = mode === 'preview' && onNodeAction ? onNodeAction : undefined;
@@ -131,7 +132,7 @@ export function ComponentRenderer({
   const frame = (children: React.ReactNode) => (
     <NodeFrame
       geometry={geometry}
-      appearance={resolveThemeAppearance(node.appearance, appTheme?.theme === 'dark')}
+      appearance={node.type === 'input' ? undefined : resolvedAppearance}
       interactive={interactive}
       selected={isSelected}
       onSelect={onSelect}
@@ -159,6 +160,7 @@ export function ComponentRenderer({
     case 'input':
       return frame(
         <InputNodeView
+          appearance={resolvedAppearance}
           isPreview={mode === 'preview'}
           value={componentValues?.get(node.id)}
           onValueChange={(value) => {
@@ -338,7 +340,7 @@ function appearanceStyle(appearance: ComponentAppearance | undefined): CSSProper
     color: appearance.textColor || undefined,
     borderColor: hasVisibleBorder ? appearance.borderColor || 'var(--color-hairline)' : undefined,
     borderStyle,
-    borderWidth: hasVisibleBorder ? 1 : appearance.borderStyle === 'none' ? 0 : undefined,
+    borderWidth: hasVisibleBorder ? appearance.borderWidth ?? 1 : appearance.borderStyle === 'none' ? 0 : undefined,
     borderRadius: appearance.borderRadius,
     opacity: appearance.opacity,
     overflow: appearance.borderRadius ? 'hidden' : undefined,

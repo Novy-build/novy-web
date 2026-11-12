@@ -1,4 +1,24 @@
 import { useState, type DragEvent } from 'react';
+import {
+  Camera,
+  CircleDot,
+  CircleGauge,
+  Columns3,
+  Image as ImageIcon,
+  List as ListIcon,
+  ListFilter,
+  MousePointerClick,
+  RectangleEllipsis,
+  Rows3,
+  SeparatorHorizontal,
+  SlidersHorizontal,
+  SquareCheck,
+  SquareDashed,
+  TextCursorInput,
+  ToggleRight,
+  Type as TypeIcon,
+  type LucideIcon,
+} from 'lucide-react';
 import type { ComponentType } from '@domain/entities/componentNode';
 import { TextInput } from '@presentation/components/ui/TextInput';
 
@@ -9,26 +29,27 @@ interface PaletteItemConfig {
   label: string;
   description: string;
   category: PaletteCategory;
+  icon: LucideIcon;
 }
 
 export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
-  { type: 'column', label: 'Column', description: 'Arrange children vertically', category: 'Layout' },
-  { type: 'row', label: 'Row', description: 'Arrange children horizontally', category: 'Layout' },
-  { type: 'container', label: 'Container', description: 'Free-form frame for children', category: 'Layout' },
-  { type: 'gesture-detector', label: 'Gesture Detector', description: 'Make a visual group tappable', category: 'Interaction' },
-  { type: 'text', label: 'Text', description: 'Heading or body copy', category: 'Basic' },
-  { type: 'button', label: 'Button', description: 'Tap target with a label', category: 'Basic' },
-  { type: 'image', label: 'Image', description: 'Picture with alt text', category: 'Basic' },
-  { type: 'camera', label: 'Camera', description: 'Capture a live image', category: 'Basic' },
-  { type: 'divider', label: 'Divider', description: 'Horizontal or vertical separator', category: 'Basic' },
-  { type: 'input', label: 'Text field', description: 'Labelled text input', category: 'Form controls' },
-  { type: 'checkbox', label: 'Checkbox', description: 'Toggle a single option', category: 'Form controls' },
-  { type: 'radio', label: 'Radio group', description: 'Choose one of several options', category: 'Form controls' },
-  { type: 'switch', label: 'Switch', description: 'On/off toggle', category: 'Form controls' },
-  { type: 'dropdown', label: 'Dropdown', description: 'Select from a list of options', category: 'Form controls' },
-  { type: 'slider', label: 'Slider', description: 'Pick a value from a range', category: 'Form controls' },
-  { type: 'progress', label: 'Progress', description: 'Show completion status', category: 'Form controls' },
-  { type: 'listview', label: 'ListView', description: 'Scrollable repeated item template', category: 'Data' },
+  { type: 'column', label: 'Column', description: 'Arrange children vertically', category: 'Layout', icon: Rows3 },
+  { type: 'row', label: 'Row', description: 'Arrange children horizontally', category: 'Layout', icon: Columns3 },
+  { type: 'container', label: 'Container', description: 'Free-form frame for children', category: 'Layout', icon: SquareDashed },
+  { type: 'gesture-detector', label: 'Gesture Detector', description: 'Make a visual group tappable', category: 'Interaction', icon: MousePointerClick },
+  { type: 'text', label: 'Text', description: 'Heading or body copy', category: 'Basic', icon: TypeIcon },
+  { type: 'button', label: 'Button', description: 'Tap target with a label', category: 'Basic', icon: RectangleEllipsis },
+  { type: 'image', label: 'Image', description: 'Picture with alt text', category: 'Basic', icon: ImageIcon },
+  { type: 'camera', label: 'Camera', description: 'Capture a live image', category: 'Basic', icon: Camera },
+  { type: 'divider', label: 'Divider', description: 'Horizontal or vertical separator', category: 'Basic', icon: SeparatorHorizontal },
+  { type: 'input', label: 'Text field', description: 'Labelled text input', category: 'Form controls', icon: TextCursorInput },
+  { type: 'checkbox', label: 'Checkbox', description: 'Toggle a single option', category: 'Form controls', icon: SquareCheck },
+  { type: 'radio', label: 'Radio group', description: 'Choose one of several options', category: 'Form controls', icon: CircleDot },
+  { type: 'switch', label: 'Switch', description: 'On/off toggle', category: 'Form controls', icon: ToggleRight },
+  { type: 'dropdown', label: 'Dropdown', description: 'Select from a list of options', category: 'Form controls', icon: ListFilter },
+  { type: 'slider', label: 'Slider', description: 'Pick a value from a range', category: 'Form controls', icon: SlidersHorizontal },
+  { type: 'progress', label: 'Progress', description: 'Show completion status', category: 'Form controls', icon: CircleGauge },
+  { type: 'listview', label: 'ListView', description: 'Scrollable repeated item template', category: 'Data', icon: ListIcon },
 ];
 
 const CATEGORY_ORDER: readonly PaletteCategory[] = ['Layout', 'Interaction', 'Basic', 'Form controls', 'Data'];
@@ -88,22 +109,33 @@ export function ComponentsPalette({ onAddByType, isEmbedded = false }: Component
                 {category}
               </h3>
               <ul className="grid grid-cols-2 gap-2">
-                {items.map((item) => (
-                  <li key={item.type}>
-                    <button
-                      aria-label={`Add ${item.label}`}
-                      className="flex w-full flex-col gap-0.5 rounded-tile border border-hairline bg-surface px-2.5 py-2 text-left transition-colors hover:bg-canvas focus-visible:outline-2"
-                      draggable
-                      onClick={() => onAddByType(item.type)}
-                      onDragStart={(event) => handleDragStart(event, item.type)}
-                      title="Drag onto the canvas or click to add"
-                      type="button"
-                    >
-                      <span className="text-xs font-semibold text-ink">{item.label}</span>
-                      <span className="text-[10px] leading-tight text-ink-muted">{item.description}</span>
-                    </button>
-                  </li>
-                ))}
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.type}>
+                      <button
+                        aria-label={`Add ${item.label}`}
+                        className="flex w-full flex-col gap-1 rounded-tile border border-hairline bg-surface px-2.5 py-2 text-left transition-colors hover:bg-canvas focus-visible:outline-2"
+                        draggable
+                        onClick={() => onAddByType(item.type)}
+                        onDragStart={(event) => handleDragStart(event, item.type)}
+                        title="Drag onto the canvas or click to add"
+                        type="button"
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <Icon
+                            aria-hidden="true"
+                            className="shrink-0 text-ink-muted"
+                            size={16}
+                            strokeWidth={1.75}
+                          />
+                          <span className="truncate text-xs font-semibold text-ink">{item.label}</span>
+                        </span>
+                        <span className="text-[10px] leading-tight text-ink-muted">{item.description}</span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           );
