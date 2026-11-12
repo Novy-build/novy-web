@@ -23,6 +23,7 @@ describe('RuntimeReadinessPanel', () => {
     expect(screen.getByText('Computer Vision / biometrics')).toBeInTheDocument();
     expect(screen.getByText('Browser permission')).toBeInTheDocument();
     expect(screen.getByText('Backend required')).toBeInTheDocument();
+    expect(screen.getByText(/client workflows and the secure Novy runtime client/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Download React app' }));
     expect(onDownloadReact).toHaveBeenCalledTimes(1);

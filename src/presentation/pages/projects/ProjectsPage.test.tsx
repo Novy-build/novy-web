@@ -1,11 +1,21 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
+import type { ProjectSummary } from '@domain/entities/project';
+import type { Template } from '@domain/entities/template';
 import { ensureDemoProject } from '@data/seeding/demoSeed';
+import type { Repositories } from '@data/repositories/local';
 import { RepositoriesProvider } from '@main/providers/RepositoriesProvider';
 import { SessionProvider } from '@main/providers/SessionProvider';
 import { AppRoutes } from '@main/routes';
 import { createStubRepositories, STUB_USER } from '@test/stubRepositories';
+
+const BLANK_TEMPLATE: Template = {
+  id: 'template_blank',
+  name: 'Blank',
+  description: 'Empty screen',
+  screens: [{ id: 'screen_blank', name: 'Home', path: '/', nodes: [], behaviors: [], logicGraphs: [] }],
+};
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -15,8 +25,9 @@ beforeEach(() => {
  * Renders the real route tree at /projects with the seeded sample project in
  * the workspace (as the bootstrap does before the first render).
  */
-async function renderProjectsPage(): Promise<void> {
-  const repositories = createStubRepositories({ sessionUser: STUB_USER });
+async function renderProjectsPage(
+  repositories: Repositories = createStubRepositories({ sessionUser: STUB_USER }),
+): Promise<void> {
   await ensureDemoProject(repositories);
 
   render(
@@ -136,5 +147,31 @@ describe('ProjectsPage', () => {
     const card = getProjectCard('Hello, World!');
     expect(within(card).getByRole('button', { name: 'Duplicate Hello, World!' })).toBeInTheDocument();
     expect(within(card).getByRole('link', { name: 'Open Hello, World!' })).toBeInTheDocument();
+  });
+
+  it('imports a browser project and refreshes the dashboard', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    const localProject: ProjectSummary = {
+      id: 'project_browser_only',
+      name: 'Local app',
+      createdAt: new Date('2026-11-11T12:00:00.000Z'),
+      updatedAt: new Date('2026-11-11T12:00:00.000Z'),
+      screenCount: 1,
+      previewScreen: null,
+    };
+    repositories.localProjectImport = {
+      listImportableProjects: vi.fn().mockResolvedValue([localProject]),
+      importProject: vi.fn().mockImplementation(async () =>
+        repositories.projects.createProject('Local app', BLANK_TEMPLATE),
+      ),
+    };
+
+    await renderProjectsPage(repositories);
+    await screen.findByRole('heading', { name: 'Hello, World!' });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Import Local app' }));
+
+    expect(await screen.findByRole('heading', { name: 'Local app' })).toBeInTheDocument();
+    expect(screen.getByText('Imported "Local app" into your account.')).toBeInTheDocument();
   });
 });

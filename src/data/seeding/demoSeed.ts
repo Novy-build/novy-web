@@ -11,6 +11,11 @@ const TEMPLATE_BLANK_ID = 'template_blank';
  * runs when the project list is completely empty.
  */
 export async function ensureDemoProject(repositories: Repositories): Promise<void> {
+  // Remote accounts start empty; the sample project is a browser-only
+  // convenience and must never be uploaded on every cold start.
+  if (repositories.projects.isRemote) {
+    return;
+  }
   const existing = await repositories.projects.listProjects();
   if (existing.length > 0) {
     return;

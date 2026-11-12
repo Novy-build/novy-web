@@ -61,8 +61,9 @@ export function RuntimeReadinessPanel({
         Export backend handoff
       </Button>
       <p className="mt-2 text-xs text-ink-muted">
-        React export creates an editable Vite project. The diagnostics handoff includes project
-        structure and collection schemas. Both exclude records and secrets.
+        React export creates an editable Vite project with client workflows and the secure Novy
+        runtime client. Configure its runtime base URL for CRUD and email actions. The diagnostics
+        handoff excludes records and secrets.
       </p>
     </section>
   );

@@ -99,6 +99,12 @@ export interface DataRecord {
   updatedAt: Date;
 }
 
+export interface AppDataStore {
+  databases: ProjectDatabase[];
+  collections: DataCollection[];
+  records: DataRecord[];
+}
+
 export interface CreateCollectionInput {
   name: string;
   databaseId?: string;

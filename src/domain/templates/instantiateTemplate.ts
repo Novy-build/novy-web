@@ -23,6 +23,9 @@ export async function instantiateTemplateProject(
   repositories: TemplateInstantiationRepositories,
 ): Promise<Project> {
   const project = await repositories.projects.createProject(name, template);
+  // Remote project creation provisions the template blueprint in the same
+  // backend transaction, so the browser must not create a second copy.
+  if (repositories.projects.provisionsTemplateData) return project;
   if (!template.data || template.data.collections.length === 0) return project;
 
   let databaseId: string | null = null;

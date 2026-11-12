@@ -1,4 +1,5 @@
 import type {
+  AppDataStore,
   CreateCollectionInput,
   CreateDatabaseInput,
   DataCollection,
@@ -297,6 +298,22 @@ export class LocalStorageAppDataRepository implements AppDataRepository {
       (record) => !(record.id === recordId && record.projectId === projectId && record.collectionId === collectionId),
     );
     this.write(store);
+  }
+
+  async exportProjectData(projectId: string): Promise<AppDataStore> {
+    await sleep(this.latencyMs);
+    const store = this.read();
+    return {
+      databases: store.databases
+        .filter((database) => database.projectId === projectId)
+        .map(mapDatabaseFromDto),
+      collections: store.collections
+        .filter((collection) => collection.projectId === projectId)
+        .map(mapCollectionFromDto),
+      records: store.records
+        .filter((record) => record.projectId === projectId)
+        .map(mapRecordFromDto),
+    };
   }
 
   private requireCollection(store: AppDataStoreDTO, projectId: string, collectionId: string): DataCollection {

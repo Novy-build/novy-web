@@ -94,7 +94,9 @@ accepted, and submitted passwords are ignored. Production still requires Supabas
 - [x] Viewport-safe, internally scrollable template modal with a responsive one/two/three-column
   gallery.
 
-Project persistence is currently local to the browser.
+Project persistence uses the Novy backend when `VITE_API_BASE_URL` is configured and remains
+browser-local otherwise. The dashboard offers an explicit import path for projects that already
+exist only in this browser.
 
 ## 4. Project model and multiple screens
 
@@ -122,9 +124,9 @@ The serialized project model currently contains:
 ### Generated project JSON
 
 The frontend converts the domain project into a versioned `ProjectDTO` through
-`src/data/mappers/project.mapper.ts`. The current local repository writes this DTO as JSON. A future
-remote `ProjectRepository` implementation can send the same DTO to the Novy backend without
-changing editor components.
+`src/data/mappers/project.mapper.ts`. Local mode writes this DTO as JSON; remote mode sends the
+document to `/api/v1/projects/{projectId}/document` with the current revision in `If-Match`, so
+editor components never depend on the persistence backend.
 
 The following representative payload shows two screens, component layout, a nested component, an
 event binding, and its referenced logic graph:
@@ -807,7 +809,8 @@ The viewport presets represent responsive web layouts; they do not generate nati
 - [x] One history entry per drag or resize gesture.
 - [x] Debounced project autosave through the project repository. In-flight saves survive the
   Saving-state rerender; failures clear the busy state and retry; newer edits remain dirty until
-  their own snapshot is saved.
+  their own snapshot is saved. Remote saves send the current revision in `If-Match`, refresh after
+  a stale-revision conflict, and surface the backend message in the save status.
 - [x] `Ctrl/Cmd + Z` to undo.
 - [x] `Ctrl/Cmd + Shift + Z` to redo.
 - [x] `Ctrl/Cmd + D` to duplicate.
@@ -841,8 +844,8 @@ Configurable events:
 - [x] Screen load.
 
 Click, change, and screen-load behaviors execute in the frontend preview. Collection operations
-use isolated state by default, or the browser-local project repository when explicitly enabled.
-Production execution remains a generated-app/backend responsibility.
+use isolated state by default, or the configured project-data repository when explicitly enabled.
+Production workflow execution remains a generated-app/backend responsibility.
 
 ## 7. Logic Builder
 
@@ -910,15 +913,14 @@ Production execution remains a generated-app/backend responsibility.
   state only. It does not mutate Project JSON, replace static seed items, or write to a database.
 - [ ] Add complementary local runtime operations only when required, such as Update List Item,
   Remove List Item, and Clear List Items.
-- [x] Preview and browser-local persistence generate record IDs and reconcile successful
-  Insert/Update/Delete operations into the collection record map, so all collection-backed
-  ListViews rerender without a separate refresh node.
-- [ ] When the production backend is connected, successful Insert/Update/Delete Record actions must
-  return canonical record data and update or invalidate the frontend collection cache so every
-  collection-bound ListView rerenders automatically without a page refresh or a separate Add List
-  Item action.
-- [ ] Keep Refresh Collection as an explicit refetch tool for external or stale-data scenarios, not
-  as a mandatory step after every normal collection mutation.
+- [x] Preview and project-data persistence reconcile successful Insert/Update/Delete operations into
+  the collection record map, so all collection-backed ListViews rerender without a separate refresh
+  node.
+- [x] Generated applications receive canonical Insert/Update/Delete records from `/runtime/v1` and
+  reconcile collection caches so every bound ListView rerenders without a page refresh or a
+  separate Add Local List Item action.
+- [x] Generated-app Refresh Collection remains an explicit refetch tool for external or stale-data
+  scenarios, not a mandatory step after normal collection mutations.
 - [ ] Consider optimistic Insert Record as a later enhancement with temporary IDs, success
   reconciliation, failure rollback, and visible error feedback.
 
@@ -929,7 +931,8 @@ the ListView. The local-only flow is `On Click -> Add Local List Item`.
 
 ### External action nodes
 
-- [x] Send Email configuration with preview-only simulated delivery.
+- [x] Send Email configuration with preview-only simulated delivery in the editor and declared
+  action-by-ID execution through the generated-app backend runtime.
 
 ### AI and Computer Vision nodes
 
@@ -947,8 +950,10 @@ the ListView. The local-only flow is `On Click -> Add Local List Item`.
 - [x] Camera media input mapping, consent validation, liveness/verification output mapping, and
   preview-only biometric simulation.
 
-Production execution of logic graphs is not implemented in the frontend. The preview simulates safe
-effects against isolated state.
+The editor preview continues to simulate safe effects against isolated state. Downloaded React apps
+now include a generated client executor for supported browser nodes and call immutable `/runtime/v1`
+actions for CRUD/email. AI, RAG, Computer Vision, and generated-app end-user authentication remain
+explicitly unsupported in production runtime.
 
 ## 8. Project data workspace
 
@@ -980,9 +985,15 @@ effects against isolated state.
 - [x] Templates can declare project-data blueprints. Project creation provisions databases,
   collections, fields, and seed records, remaps collection aliases across component and workflow
   references, and rolls back partial projects when provisioning fails.
-
-Collections and records currently use a local-storage repository. They are not connected to a
-production database.
+- [x] When the backend is configured, project creation provisions the template blueprint atomically
+  on the server and skips the browser-side provisioning path.
+- [x] Project databases, collections, fields, and records persist through
+  `/api/v1/projects/{projectId}` when the backend is configured, with backend-generated record IDs
+  and canonical record responses.
+- [x] The dashboard lists browser-only projects that have not been imported yet and uploads their
+  project document plus app data on request. Local data is retained, and imported IDs are marked so
+  the same project is not offered twice.
+- [x] A local-storage app-data repository remains the fallback when no backend URL is configured.
 
 ## 9. AI assistant demo
 
@@ -1058,8 +1069,9 @@ No external AI model or AI SDK is connected.
 - [x] Camera capture remains in isolated preview component state and is never written into Project
   JSON or project collections implicitly.
 - [x] Composed inputs and buttons create isolated preview records through normal logic workflows.
-- [x] Default Preview state remains isolated. Opt-in saved changes affect only the browser-local
-  project-data repository; Preview does not write a production database or invoke external services.
+- [x] Default Preview state remains isolated. Opt-in saved changes write through the configured
+  project-data repository (the backend when configured, browser storage otherwise); Preview does
+  not invoke other external services.
 - [x] Switching from modified sandbox records to saved project data requests confirmation and
   discards the temporary records rather than implicitly persisting them. Repeated click/menu
   submissions are guarded while the same workflow is running.
@@ -1109,11 +1121,13 @@ The repository includes automated coverage for:
   canvas interactions, alignment, layers, inspector, logic, data, preview, deployment, and shared
   UI components.
 
-Verification completed on 2026-11-10:
+Verification completed on 2026-11-11:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 96 test files and 815 tests passed.
+- `npm test -- --run` — 101 test files and 839 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Backend generated-app verification also ran the exported runtime's Vitest suite, TypeScript
+  check, and production Vite build from a freshly installed archive.
 - Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.
 
@@ -1124,13 +1138,14 @@ features:
 
 - Live Supabase project verification (the backend adapter and frontend repository are implemented,
   but no real Supabase credentials are configured in this workspace).
-- Remote project persistence and user-owned project authorization.
-- Uploading the Project JSON to the Novy backend.
-- Generated-app workflow execution and production runtime API integration. The current backend
-  consumes manifest v2 for static source export only and preserves logic as metadata.
-- Generated-app runtime client and authenticated runtime API calls.
-- Production workflow execution and external side effects such as email delivery.
-- Real database persistence for generated applications.
+- Live PostgreSQL verification of project/app-data persistence, immutable app versions, and runtime
+  CRUD; automated SQLite-backed API/repository coverage passes, but no PostgreSQL test URL is set.
+- Live Resend delivery verification with a verified sender and API key; development delivery and
+  mocked provider tests pass.
+- Generated-app end-user authentication. Session mappings fail explicitly and never reuse builder
+  identity.
+- AI, RAG, and Computer Vision production execution; these actions return an explicit unsupported
+  capability error.
 - Actual Vercel deployment and deployment-status polling.
 - Real custom domains.
 - Real AI model integration.

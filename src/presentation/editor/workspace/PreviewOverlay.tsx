@@ -580,8 +580,8 @@ export function PreviewOverlay({
       </div>
       <p aria-live="polite" className="mt-2 shrink-0 text-center text-xs text-ink-muted" id="preview-data-mode-hint" ref={footerRef}>
         {persistDataChanges
-          ? 'Database actions create, update, and delete this browser’s project records. Other preview state remains isolated.'
-          : 'Click, change, and screen-load behaviors run against isolated preview state. Enabling Save data changes allows database actions to create, update, and delete project records on this browser.'}
+          ? 'Database actions create, update, and delete this project’s records. Other preview state remains isolated.'
+          : 'Click, change, and screen-load behaviors run against isolated preview state. Enabling Save data changes allows database actions to create, update, and delete project records.'}
       </p>
       {toast ? (
         <div

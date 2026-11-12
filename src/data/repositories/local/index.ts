@@ -1,6 +1,7 @@
 import type { AuthRepository } from '@domain/repositories/auth.repository';
 import type { AppDataRepository } from '@domain/repositories/appData.repository';
 import type { DeploymentRepository } from '@domain/repositories/deployment.repository';
+import type { ProjectImportRepository } from '@domain/repositories/projectImport.repository';
 import type { ProjectRepository } from '@domain/repositories/project.repository';
 import type { ReactExportRepository } from '@domain/repositories/reactExport.repository';
 import type { TemplateRepository } from '@domain/repositories/template.repository';
@@ -24,6 +25,11 @@ export interface Repositories {
   deployments: DeploymentRepository;
   appData: AppDataRepository;
   reactExport: ReactExportRepository;
+  /**
+   * Present only when browser-local projects can be migrated into the
+   * authenticated backend account. Local-only compositions omit it.
+   */
+  localProjectImport?: ProjectImportRepository;
 }
 
 export interface LocalRepositoriesOptions {

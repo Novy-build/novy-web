@@ -1,4 +1,5 @@
 import type {
+  AppDataStore,
   CreateCollectionInput,
   CreateDatabaseInput,
   DataCollection,
@@ -25,4 +26,7 @@ export interface AppDataRepository {
   createRecord(projectId: string, collectionId: string, values: Record<string, DataValue>): Promise<DataRecord>;
   updateRecord(projectId: string, collectionId: string, recordId: string, values: Record<string, DataValue>): Promise<DataRecord>;
   deleteRecord(projectId: string, collectionId: string, recordId: string): Promise<void>;
+
+  /** Reads every database, collection, and record for local-project import. */
+  exportProjectData(projectId: string): Promise<AppDataStore>;
 }

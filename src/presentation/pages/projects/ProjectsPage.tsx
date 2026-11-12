@@ -7,6 +7,7 @@ import { LoadingScreen } from '@presentation/components/system/LoadingScreen';
 import { TextInput } from '@presentation/components/ui/TextInput';
 import { useProjects } from './useProjects';
 import { ProjectCard } from './ProjectCard';
+import { LocalProjectImportPanel } from './LocalProjectImportPanel';
 import { useTemplates } from './useTemplates';
 import { ConfirmDeleteDialog } from './dialogs/ConfirmDeleteDialog';
 import { RenameDialog } from './dialogs/RenameDialog';
@@ -96,6 +97,8 @@ export function ProjectsPage() {
             </Button>
           </div>
         </div>
+
+        <LocalProjectImportPanel onImported={reload} />
 
         {isLoading ? (
           <div className="mt-8">

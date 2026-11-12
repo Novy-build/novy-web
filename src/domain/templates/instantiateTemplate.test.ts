@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TEMPLATE_CATALOG } from '@data/templates/templateCatalog';
 import { createLocalRepositories } from '@data/repositories/local';
+import type { Project } from '../entities/project';
+import type { AppDataRepository } from '../repositories/appData.repository';
+import type { ProjectRepository } from '../repositories/project.repository';
 import { validateProject } from '../validation/projectValidation';
 import { instantiateTemplateProject } from './instantiateTemplate';
 
@@ -57,5 +60,36 @@ describe('instantiateTemplateProject', () => {
 
     expect(await repositories.projects.listProjects()).toEqual([]);
     expect(await repositories.appData.listDatabases(createdProjectId)).toEqual([]);
+  });
+
+  it('leaves template data to a repository that provisions it atomically', async () => {
+    const template = TEMPLATE_CATALOG.find((candidate) => candidate.id === 'template_notes')!;
+    const project: Project = {
+      id: 'project_remote',
+      name: 'Remote Notes',
+      createdAt: new Date('2026-11-11T12:00:00.000Z'),
+      updatedAt: new Date('2026-11-11T12:00:00.000Z'),
+      document: { screens: [] },
+    };
+    const projects = {
+      provisionsTemplateData: true,
+      createProject: vi.fn().mockResolvedValue(project),
+    };
+    const appData = {
+      createDatabase: vi.fn(),
+      createCollection: vi.fn(),
+      createRecord: vi.fn(),
+    };
+
+    const created = await instantiateTemplateProject('Remote Notes', template, {
+      projects: projects as unknown as ProjectRepository,
+      appData: appData as unknown as AppDataRepository,
+    });
+
+    expect(created).toBe(project);
+    expect(projects.createProject).toHaveBeenCalledWith('Remote Notes', template);
+    expect(appData.createDatabase).not.toHaveBeenCalled();
+    expect(appData.createCollection).not.toHaveBeenCalled();
+    expect(appData.createRecord).not.toHaveBeenCalled();
   });
 });

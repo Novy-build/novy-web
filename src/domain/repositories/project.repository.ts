@@ -8,6 +8,16 @@ import type { Template } from '../entities/template';
  * implementation later — presentation code only ever depends on this.
  */
 export interface ProjectRepository {
+  /**
+   * True when the repository talks to the Novy backend. Presentation code
+   * uses this to skip browser-only bootstrap work such as demo seeding.
+   */
+  readonly isRemote?: boolean;
+  /**
+   * True when creating a project also provisions its template database,
+   * collections, and starter records on the server.
+   */
+  readonly provisionsTemplateData?: boolean;
   listProjects(): Promise<ProjectSummary[]>;
   createProject(name: string, template: Template): Promise<Project>;
   getProject(projectId: string): Promise<Project | null>;

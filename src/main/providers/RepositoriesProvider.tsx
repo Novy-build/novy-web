@@ -10,11 +10,12 @@ interface RepositoriesProviderProps {
 }
 
 /**
- * Main-layer dependency injection: repositories are created once (per mount)
- * here and consumed anywhere below via useRepositories(). Any consumer swap
- * between local and API-backed implementations happens here only. Demo-data
- * seeding is NOT a provider concern — index.tsx bootstraps it before the
- * first render, so data hooks never race their own seed.
+ * Main-layer dependency injection: one repository set is created per mount
+ * (or injected by bootstrap/tests) and consumed anywhere below via
+ * useRepositories(). Local-versus-API composition lives in
+ * `@data/repositories`, never in presentation components. Demo-data seeding is
+ * NOT a provider concern — index.tsx bootstraps it before the first render, so
+ * data hooks never race their own seed.
  */
 export function RepositoriesProvider({ children, repositories }: RepositoriesProviderProps) {
   const [value] = useState<Repositories>(() => repositories ?? createLocalRepositories());

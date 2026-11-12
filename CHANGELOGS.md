@@ -5,6 +5,53 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-11 — Generated non-AI runtime handoff
+
+#### Changed
+- Deployment handoff copy now explains that downloaded React projects include executable client
+  workflows and the secure Novy runtime client, and that separately hosted apps must configure the
+  runtime backend base URL for CRUD and email actions.
+- Runtime-readiness coverage verifies the updated generated-app boundary while manifest v2 remains
+  record- and secret-free.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 101 test files and 839 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+
+### 2026-11-11 — Remote project and app-data integration
+
+#### Added
+- `ApiProjectRepository`, which lists, creates, loads, renames, duplicates, deletes, and autosaves
+  projects through `/api/v1/projects`. Saves send the quoted backend revision in `If-Match`, adopt
+  returned revisions, refresh after a `stale_revision` conflict, and surface typed `ProjectError`
+  codes for validation, not-found, conflict, session, rate-limit, and network failures.
+- `ApiAppDataRepository`, which manages databases, collections, fields, and records through the
+  project-scoped backend routes and reads a complete `AppDataStore` for import/export.
+- `ApiProjectImportRepository` plus a dashboard **Projects saved in this browser** panel that lists
+  browser-only projects, imports the project document and app data into the authenticated account,
+  keeps the local copy, and records imported IDs in `novy.imported-projects.v1` so they are not
+  offered twice.
+- Template DTO/mapper support so starter screens and data blueprints travel with project creation,
+  and tests for API project/app-data repositories, import uploads, template mapping, and the import
+  panel.
+
+#### Changed
+- Repository composition switches projects, app data, and local-project import to the API when
+  `VITE_API_BASE_URL` is configured; explicit `projectClient: null` keeps the browser-local stack.
+- Template instantiation skips browser-side database provisioning when the repository reports
+  `provisionsTemplateData`, because the backend creates the template data atomically with the
+  project.
+- Demo-project seeding is skipped for remote repositories so an authenticated account starts empty
+  and browser demo data is never uploaded automatically.
+- `AppDataRepository` now exposes `exportProjectData`, and local app-data storage implements it for
+  explicit import.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 101 test files and 839 tests passed.
+- `npm run build` — passed (Vite reported only its existing non-blocking large-chunk advisory).
+
 ### 2026-11-10 — Local dummy-backend authentication setup
 
 #### Changed
