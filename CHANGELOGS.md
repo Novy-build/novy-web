@@ -5,6 +5,23 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-14 — Harden async UI test timeout
+
+#### Fixed
+- Raised the shared Testing Library `asyncUtilTimeout` to 3000ms in `src/test/setup.ts`, so
+  `findBy*`/`waitFor` queries over the simulated-latency local repositories do not flake under
+  parallel test load (the seeded dashboard could still be loading at the 1000ms default).
+
+#### Notes
+- Test infrastructure only; no production source or test assertion changed. Context7 was used to
+  confirm `configure({ asyncUtilTimeout })` is the supported React Testing Library option.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 105 test files and 870 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
 ### 2026-11-14 — README cleanup
 
 #### Fixed
