@@ -15,7 +15,12 @@ describe('StaticTemplateRepository', () => {
       'template_landing',
       'template_login',
       'template_students',
-       'template_notes',
+      'template_notes',
+      'template_site_blank',
+      'template_site_landing',
+      'template_site_portfolio',
+      'template_site_agency',
+      'template_site_coming_soon',
     ]);
   });
 

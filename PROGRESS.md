@@ -1,15 +1,15 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-12
+**Last reviewed:** 2026-11-14
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
-currently a **web app builder**. Native mobile and desktop application generation are outside the
-current product scope.
+currently a **web app and website builder**. Native mobile and desktop application generation are
+outside the current product scope.
 
-Planned, not yet implemented: a **website** project type with a section library and an
-`+ Add section` flow. See `docs/website-projects-plan.md` for the execution contract and
-`novy-backend/WEBSITE_PROJECTS_PLAN.md` for the backend half. Website projects are an explicit
-scope extension beyond the PD6 baseline, which covers web applications only.
+Novy now supports both fixed-viewport **web app** projects and scrolling **website** projects.
+Website projects are an explicit scope extension beyond the PD6 baseline, which covers web
+applications only. See `docs/website-projects-plan.md` and the backend companion
+`novy-backend/WEBSITE_PROJECTS_PLAN.md`.
 
 All features marked as implemented below exist in the frontend codebase. Features backed by local
 mock repositories or preview-only behavior are identified explicitly and must not be interpreted as
@@ -28,6 +28,8 @@ completed production backend integrations.
   `VITE_API_BASE_URL` is configured.
 - [x] API-backed React source-export repository, selected by the same backend base URL, with typed
   archive and backend-error handling.
+- [x] API-backed deployment repository for configured Vercel/Netlify providers, remote history,
+  asynchronous publish submission, and terminal-status polling.
 - [x] Local-storage repository implementations with simulated request latency.
 - [x] DTO and mapper boundaries between persisted/API-shaped data and domain entities.
 - [x] Versioned project payloads with migration coverage for previously saved documents.
@@ -80,6 +82,8 @@ accepted, and submitted passwords are ignored. Production still requires Supabas
 - [x] Projects dashboard with live project cards and rendered screen thumbnails.
 - [x] Search projects by name.
 - [x] Create projects from a template.
+- [x] Choose **Web app** or **Website** before selecting a type-filtered starter template; the
+  project type persists locally and through the backend and is shown on dashboard cards.
 - [x] Open an existing project in the editor.
 - [x] Rename projects.
 - [x] Duplicate projects.
@@ -98,6 +102,8 @@ accepted, and submitted passwords are ignored. Production still requires Supabas
 - [x] Template gallery with previews.
 - [x] Viewport-safe, internally scrollable template modal with a responsive one/two/three-column
   gallery.
+- [x] Website starters for Blank canvas, Landing page, Portfolio, Agency, and Coming soon. Blank
+  canvas creates one empty Home page; the other starters use reusable responsive sections.
 
 Project persistence uses the Novy backend when `VITE_API_BASE_URL` is configured and remains
 browser-local otherwise. The dashboard offers an explicit import path for projects that already
@@ -118,6 +124,10 @@ exist only in this browser.
 The serialized project model currently contains:
 
 - Project identity and timestamps.
+- Project type (`app` or `website`) as backward-compatible project metadata; legacy payloads
+  default to `app` and Project schema remains v13.
+- Responsive DTO mapping compacts legacy/backend `null` override members back to omitted inherited
+  fields, preventing false geometry and visibility validation errors.
 - Screens.
 - Component geometry, properties, hierarchy, and editor metadata.
 - Project database identity and collection-to-database association.
@@ -141,6 +151,7 @@ event binding, and its referenced logic graph:
   "schemaVersion": 13,
   "id": "project_notes",
   "name": "Notes App",
+  "projectType": "app",
   "createdAt": "2026-11-07T08:00:00.000Z",
   "updatedAt": "2026-11-07T08:30:00.000Z",
   "screens": [
@@ -774,6 +785,17 @@ Implemented component types:
   pointer is over a canvas.
 - [x] Space-drag and middle-button canvas panning.
 - [x] Responsive web viewport presets for mobile, tablet, and desktop widths.
+- [x] Website pages grow beyond one viewport, fit to width rather than shrinking to full-page
+  height, and scroll in the editor and Preview while web app screens remain fixed-height.
+- [x] Canva-style **Add section** control that inserts one selected, full-width blank canvas with
+  no child widgets; builders then add normal components from Assets.
+- [x] Root website sections are responsive Column trees with automatic height/position
+  normalization, one-step undo, Layers ordering, and explicit Move up/Move down controls.
+- [x] Website starter templates still use internal Hero, Features, Logo strip, Stats,
+  Testimonials, Pricing, CTA, and Footer presets, while those presets are intentionally omitted
+  from the user-facing Assets panel.
+- [x] The Design Inspector properties region retains a usable minimum height; Validation and the
+  large website Layers tree remain independently scrollable without hiding selected-widget fields.
 - [x] Independently minimizable Design, Logic, and Data side panels with narrow restore rails,
   including a dedicated Design Inspector header that keeps its collapse control clear of panel
   content such as the ListView item-frame controls.
@@ -788,6 +810,10 @@ Implemented component types:
 - [x] Breakpoint-aware movement, resizing, addition, duplication, nested bounds, reparenting,
   rendering, preview, thumbnails, and Inspector controls.
 - [x] Typed background, text, border, corner-radius, and opacity appearance controls.
+- [x] Website starter and blank sections ship with explicit dark appearance variants, keeping text
+  legible on section surfaces in the editor, Preview, thumbnails, and generated applications.
+- [x] Existing website documents without section dark colors receive backward-compatible fallback
+  appearances during DTO mapping and persist the repaired values on the next autosave.
 - [x] Native color pickers beside the base and dark-theme appearance hex inputs, with shorthand
   normalization and free-form hex editing preserved.
 - [x] Automatic refitting when the active viewport preset changes.
@@ -1061,6 +1087,8 @@ No external AI model or AI SDK is connected.
 - [x] Responsive web viewport switching.
 - [x] Preview zoom in, zoom out, and fit controls.
 - [x] Automatic fitting on open, viewport change, and browser resize.
+- [x] Website Preview uses the complete page height and width-based fitting so long pages remain
+  readable and vertically scrollable.
 - [x] Manual zoom with scroll containment.
 - [x] Click behavior-chain execution.
 - [x] Change and screen-load behavior-chain execution.
@@ -1096,15 +1124,16 @@ No external AI model or AI SDK is connected.
   discards the temporary records rather than implicitly persisting them. Repeated click/menu
   submissions are guarded while the same workflow is running.
 
-## 12. Deployment experience — frontend simulation
+## 12. Deployment experience
 
 - [x] Per-project deployment page.
 - [x] Preview and Production environment selection.
+- [x] Backend-reported deployment-provider selection (Vercel, Netlify, or local development).
 - [x] Project validation before publishing.
-- [x] Simulated Build, Optimize, Provision, and Live pipeline.
-- [x] Generated mock `novy.app` URLs.
+- [x] Build, Optimize, Provision, and Live progress driven by repository submission/status polling.
+- [x] Real provider URLs in API mode and generated mock `novy.app` URLs in local-only mode.
 - [x] Publish success modal and URL copy action.
-- [x] Persisted mock deployment history.
+- [x] Owner-scoped backend deployment history in API mode and persisted mock history locally.
 - [x] View and Redeploy actions.
 - [x] Failure feedback that states the previous successful deployment remains live.
 - [x] Loading, not-found, and retryable error states.
@@ -1114,9 +1143,11 @@ No external AI model or AI SDK is connected.
 - [x] Backend-connected **Download React app** action with generating and typed failure states when
   `VITE_API_BASE_URL` is configured; local-only mode explains that a backend is required.
 
-Publishing remains a frontend simulation. Static React/Vite source generation is connected, but
-workflow execution, build/deployment orchestration, Vercel API calls, and real live deployments are
-not implemented.
+When `VITE_API_BASE_URL` is configured, publishing uses the Novy backend's provider-neutral
+deployment endpoints. The backend uploads source to Vercel for provider-side Vite builds or creates
+a constrained local production build for Netlify static upload, then the frontend polls until live
+or failed. Local-only mode retains the side-effect-free simulated pipeline. Live provider calls have
+not been verified in this workspace because platform credentials are not configured.
 
 ## 13. Accessibility and resilience
 
@@ -1141,11 +1172,13 @@ The repository includes automated coverage for:
   canvas interactions, alignment, layers, inspector, logic, data, preview, deployment, and shared
   UI components.
 
-Verification completed on 2026-11-12:
+Verification completed on 2026-11-14:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 101 test files and 851 tests passed.
+- `npm test -- --run` — 105 test files and 870 tests passed.
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- Backend deployment verification: 137 passed, 2 skipped; provider REST adapters use mocked
+  transports because live Vercel/Netlify credentials are not configured in this workspace.
 - Backend generated-app verification also ran the exported runtime's Vitest suite, TypeScript
   check, and production Vite build from a freshly installed archive.
 - Representative Project JSON — parsed successfully.
@@ -1166,7 +1199,8 @@ features:
   identity.
 - AI, RAG, and Computer Vision production execution; these actions return an explicit unsupported
   capability error.
-- Actual Vercel deployment and deployment-status polling.
+- Live Vercel/Netlify verification with real platform credentials. Provider adapters, API contracts,
+  persistence, mocked transport tests, and frontend polling are implemented.
 - Real custom domains.
 - Real AI model integration.
 - Real vector storage, RAG model execution, biometric template storage, and Computer Vision

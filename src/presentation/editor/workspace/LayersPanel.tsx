@@ -18,6 +18,8 @@ interface LayersPanelProps {
   onToggleLock: (nodeId: string) => void;
   onMove: (nodeId: string, targetId: string, position: LayerDropPosition) => void;
   isEmbedded?: boolean;
+  /** Website page roots are a vertical section sequence, not a paint stack. */
+  isRootMainAxis?: boolean;
 }
 
 interface LayerRow {
@@ -66,6 +68,7 @@ export function LayersPanel({
   onToggleLock,
   onMove,
   isEmbedded = false,
+  isRootMainAxis = false,
 }: LayersPanelProps) {
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -83,7 +86,7 @@ export function LayersPanel({
     isBack: boolean;
     trigger: HTMLElement;
   } | null>(null);
-  const rows = buildRows(nodes, collapsedIds, frame ? 1 : 0, null, false);
+  const rows = buildRows(nodes, collapsedIds, frame ? 1 : 0, null, isRootMainAxis);
   const frameCollapsed = frame ? collapsedIds.has(frame.id) : false;
 
   function toggleExpanded(nodeId: string): void {

@@ -4,6 +4,7 @@ import type { ProjectDTO, ScreenDTO } from './project.dto';
 export interface ProjectSummaryDTO {
   id: string;
   name: string;
+  projectType?: 'app' | 'website';
   createdAt: string;
   updatedAt: string;
   screenCount: number;
@@ -18,6 +19,7 @@ export interface ProjectResponseDTO {
   schemaVersion: number;
   id: string;
   name: string;
+  projectType?: 'app' | 'website';
   createdAt: string;
   updatedAt: string;
   screens: ScreenDTO[];

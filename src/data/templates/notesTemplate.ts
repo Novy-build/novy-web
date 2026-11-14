@@ -307,6 +307,7 @@ export const NOTES_TEMPLATE: Template = {
   id: 'template_notes',
   name: 'Notes CRUD app',
   description: 'A basic notes app demonstrating create, read, update, and delete workflows.',
+  projectType: 'app',
   screens: [notesScreen, addNoteScreen, noteDetailScreen, editNoteScreen],
   data: {
     databaseName: 'Notes Database',

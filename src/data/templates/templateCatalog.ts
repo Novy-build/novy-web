@@ -4,6 +4,7 @@ import type { Template } from '@domain/entities/template';
 import type { Behavior, LogicGraph } from '@domain/entities/logic';
 import type { Screen } from '@domain/entities/screen';
 import { NOTES_TEMPLATE } from './notesTemplate';
+import { WEBSITE_TEMPLATES } from './websiteTemplates';
 
 /*
  * Starter templates for the New Project gallery.
@@ -22,13 +23,15 @@ const BLANK: Template = {
   id: 'template_blank',
   name: 'Blank',
   description: 'Start from an empty screen and drag your own components in.',
+  projectType: 'app',
   screens: [screen('screen_blank_home', 'Home', [])],
 };
 
 const LANDING: Template = {
   id: 'template_landing',
-  name: 'Landing page',
-  description: 'A classic hero + call to action for products and services.',
+  name: 'Landing screen',
+  description: 'A single-screen hero and call to action for an interactive web app.',
+  projectType: 'app',
   screens: [
     screen('screen_landing_home', 'Home', [
       {
@@ -87,6 +90,7 @@ const LOGIN_FORM: Template = {
   id: 'template_login',
   name: 'Login form',
   description: 'A ready-made sign-in screen to connect to your backend later.',
+  projectType: 'app',
   screens: [
     screen('screen_login_home', 'Sign in', [
       {
@@ -142,6 +146,7 @@ const STUDENT_LIST: Template = {
   id: 'template_students',
   name: 'Student list',
   description: 'A directory screen — the example app from the product spec.',
+  projectType: 'app',
   screens: [
     screen('screen_students_home', 'Home', [
       {
@@ -211,4 +216,6 @@ const STUDENT_LIST: Template = {
   ],
 };
 
-export const TEMPLATE_CATALOG: readonly Template[] = [BLANK, LANDING, LOGIN_FORM, STUDENT_LIST, NOTES_TEMPLATE];
+export const APP_TEMPLATES: readonly Template[] = [BLANK, LANDING, LOGIN_FORM, STUDENT_LIST, NOTES_TEMPLATE];
+export { WEBSITE_TEMPLATES };
+export const TEMPLATE_CATALOG: readonly Template[] = [...APP_TEMPLATES, ...WEBSITE_TEMPLATES];

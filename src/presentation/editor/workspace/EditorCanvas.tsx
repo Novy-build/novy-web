@@ -12,7 +12,9 @@ import { findFrameAtPoint, getComponentTreeLocation, type FrameHit } from '@doma
 import { ScreenFrame, type ScreenFrameSize } from '../renderer/ScreenFrame';
 import type { RendererDataContext } from '../renderer/renderer';
 import type { ListItemContext } from '@domain/entities/appData';
-import { SNAP_GRID, ZOOM_LIMITS, computeFitZoom, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
+import { SNAP_GRID, ZOOM_LIMITS, computeFitWidthZoom, computeFitZoom, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
+import { websitePageHeight } from '@domain/sections/sectionLayout';
+import { AddSectionButton } from '../sections/AddSectionButton';
 import {
   ALIGNMENT_THRESHOLD,
   computeAlignment,
@@ -72,6 +74,8 @@ interface EditorCanvasProps {
     showDividers: boolean;
     direction: 'vertical' | 'horizontal';
   };
+  isWebsite?: boolean;
+  onAddSection?: () => void;
   zoom: number;
   isSnapEnabled: boolean;
   selectedNodeId: string | null;
@@ -204,6 +208,8 @@ export function EditorCanvas({
   dataContext,
   itemContext,
   itemFramePreview,
+  isWebsite = false,
+  onAddSection,
 }: EditorCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const interactionLayerRef = useRef<HTMLDivElement>(null);
@@ -214,7 +220,10 @@ export function EditorCanvas({
   const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuide[]>([]);
   const [distanceIndicators, setDistanceIndicators] = useState<DistanceIndicator[]>([]);
 
-  const bounds = boundsOverride ?? deviceViewport(device);
+  const viewportBounds = boundsOverride ?? deviceViewport(device);
+  const bounds = isWebsite && !boundsOverride
+    ? { ...viewportBounds, height: websitePageHeight(screen, device) }
+    : viewportBounds;
   const targets = flattenInteractionTargets(screen.nodes, 0, 0, device);
   const frameWidth = bounds.width * zoom;
   const frameHeight = bounds.height * zoom;
@@ -238,7 +247,9 @@ export function EditorCanvas({
     if (!viewport) {
       return null;
     }
-    return computeFitZoom(viewport, bounds, CANVAS_PAD_PX, ZOOM_LIMITS);
+    return isWebsite && !boundsOverride
+      ? computeFitWidthZoom(viewport, bounds, CANVAS_PAD_PX, ZOOM_LIMITS)
+      : computeFitZoom(viewport, bounds, CANVAS_PAD_PX, ZOOM_LIMITS);
   }
 
   function toDesignPoint(clientX: number, clientY: number): { x: number; y: number } {
@@ -595,8 +606,9 @@ export function EditorCanvas({
               : undefined,
           }}
         >
+          <div className="mx-auto shrink-0" style={{ width: frameWidth }}>
           <div
-            className="relative mx-auto shrink-0 bg-surface shadow-sm ring-1 ring-inset ring-hairline"
+            className="relative bg-surface shadow-sm ring-1 ring-inset ring-hairline"
             data-testid="canvas-frame"
             style={{ height: frameHeight, width: frameWidth }}
           >
@@ -706,6 +718,12 @@ export function EditorCanvas({
               <AlignmentGuides guides={alignmentGuides} zoom={zoom} />
               <DistanceIndicators indicators={distanceIndicators} zoom={zoom} />
             </div>
+          </div>
+          {isWebsite && !boundsOverride && onAddSection ? (
+            <div className="mt-6" data-testid="add-section-control">
+              <AddSectionButton onClick={onAddSection} />
+            </div>
+          ) : null}
           </div>
         </div>
       </div>

@@ -26,6 +26,7 @@ const collection: DataCollection = {
 const project: Project = {
   id: 'project_notes',
   name: 'Private Notes',
+  projectType: 'app',
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-02T00:00:00Z'),
   document: {
@@ -71,7 +72,7 @@ describe('generated app manifest', () => {
     expect(manifest).toMatchObject({
       manifestVersion: 2,
       generatedAt: '2026-11-07T12:00:00.000Z',
-      project: { schemaVersion: 13, id: 'project_notes' },
+      project: { schemaVersion: 13, id: 'project_notes', projectType: 'app' },
       appData: {
         database: { id: 'database_notes' },
         recordsIncluded: false,

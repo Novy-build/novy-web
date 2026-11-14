@@ -97,6 +97,16 @@ describe('EditorCanvas', () => {
     expect(screen.getByTestId('interaction-node_text').style.left).toBe('176px'); // 88 * 2
   });
 
+  it('grows website pages and exposes the Add section control', () => {
+    const onAddSection = vi.fn();
+    const section = makeContainer('section', [], { y: 760, h: 300 });
+    render(<EditorCanvas {...canvasProps({ isWebsite: true, onAddSection, screen: makeScreen('screen_1', [section]) })} />);
+
+    expect(screen.getByTestId('canvas-frame').style.height).toBe('1060px');
+    fireEvent.click(screen.getByRole('button', { name: 'Add section' }));
+    expect(onAddSection).toHaveBeenCalledOnce();
+  });
+
   it('uses focused item-design bounds instead of the device viewport', () => {
     render(<EditorCanvas {...canvasProps({ boundsOverride: { width: 320, height: 780 } })} />);
 

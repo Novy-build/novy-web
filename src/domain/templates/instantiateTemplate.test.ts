@@ -67,6 +67,7 @@ describe('instantiateTemplateProject', () => {
     const project: Project = {
       id: 'project_remote',
       name: 'Remote Notes',
+      projectType: 'app',
       createdAt: new Date('2026-11-11T12:00:00.000Z'),
       updatedAt: new Date('2026-11-11T12:00:00.000Z'),
       document: { screens: [] },

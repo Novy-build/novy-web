@@ -20,6 +20,7 @@ export interface TemplateDTO {
   id: string;
   name: string;
   description: string;
+  projectType: 'app' | 'website';
   screens: ScreenDTO[];
   data?: TemplateDataBlueprintDTO;
 }

@@ -139,6 +139,7 @@ export class ApiProjectRepository implements ProjectRepository {
       schemaVersion: dto.schemaVersion,
       id: dto.id,
       name: dto.name,
+      projectType: dto.projectType,
       createdAt: dto.createdAt,
       updatedAt: dto.updatedAt,
       screens: dto.screens,
@@ -163,6 +164,7 @@ function mapSummary(dto: ProjectSummaryDTO): ProjectSummary {
   return {
     id: dto.id,
     name: dto.name,
+    projectType: dto.projectType === 'website' ? 'website' : 'app',
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),
     screenCount: dto.screenCount,
@@ -176,6 +178,7 @@ export function parseProjectResponse(value: unknown): ProjectResponseDTO {
     typeof value.schemaVersion !== 'number' ||
     typeof value.id !== 'string' ||
     typeof value.name !== 'string' ||
+    (value.projectType !== undefined && value.projectType !== 'app' && value.projectType !== 'website') ||
     typeof value.createdAt !== 'string' ||
     typeof value.updatedAt !== 'string' ||
     typeof value.revision !== 'number' ||
@@ -195,6 +198,7 @@ function parseProjectList(value: unknown): ProjectListResponseDTO {
       !isRecord(summary) ||
       typeof summary.id !== 'string' ||
       typeof summary.name !== 'string' ||
+      (summary.projectType !== undefined && summary.projectType !== 'app' && summary.projectType !== 'website') ||
       typeof summary.createdAt !== 'string' ||
       typeof summary.updatedAt !== 'string' ||
       typeof summary.screenCount !== 'number'

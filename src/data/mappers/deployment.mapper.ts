@@ -12,7 +12,14 @@ export function mapDeploymentToDto(record: DeploymentRecord): DeploymentRecordDT
     projectId: record.projectId,
     status: record.status,
     url: record.url,
+    appVersionId: record.appVersionId,
+    environment: record.environment,
+    provider: record.provider,
+    errorCode: record.errorCode,
+    errorMessage: record.errorMessage,
     createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+    completedAt: record.completedAt?.toISOString() ?? null,
   };
 }
 
@@ -22,6 +29,13 @@ export function mapDeploymentFromDto(dto: DeploymentRecordDTO): DeploymentRecord
     projectId: dto.projectId,
     status: dto.status,
     url: dto.url,
+    appVersionId: dto.appVersionId ?? null,
+    environment: dto.environment ?? 'preview',
+    provider: dto.provider ?? 'development',
+    errorCode: dto.errorCode ?? null,
+    errorMessage: dto.errorMessage ?? null,
     createdAt: new Date(dto.createdAt),
+    updatedAt: new Date(dto.updatedAt ?? dto.createdAt),
+    completedAt: dto.completedAt ? new Date(dto.completedAt) : null,
   };
 }

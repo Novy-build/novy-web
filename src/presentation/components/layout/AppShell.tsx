@@ -4,7 +4,7 @@ import { AppSidebar } from './AppSidebar';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
 import { useTemplates } from '@presentation/pages/projects/useTemplates';
 import { useCreateProject } from '@presentation/hooks/useCreateProject';
-import { TemplateGalleryModal } from '@presentation/pages/projects/TemplateGalleryModal';
+import { NewProjectDialog } from '@presentation/pages/projects/dialogs/NewProjectDialog';
 
 /**
  * App shell for the dashboard + deployment routes: persistent n8n-style sidebar
@@ -35,7 +35,7 @@ export function AppShell() {
         <Outlet />
       </main>
       {isGalleryOpen ? (
-        <TemplateGalleryModal
+        <NewProjectDialog
           onCancel={() => setIsGalleryOpen(false)}
           onCreate={handleCreate}
           templates={templates}

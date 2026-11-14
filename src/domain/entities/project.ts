@@ -1,8 +1,11 @@
 import type { ProjectDocument } from './screen';
 
+export type ProjectType = 'app' | 'website';
+
 export interface Project {
   id: string;
   name: string;
+  projectType: ProjectType;
   createdAt: Date;
   updatedAt: Date;
   document: ProjectDocument;
@@ -12,6 +15,7 @@ export interface Project {
 export interface ProjectSummary {
   id: string;
   name: string;
+  projectType: ProjectType;
   createdAt: Date;
   updatedAt: Date;
   screenCount: number;

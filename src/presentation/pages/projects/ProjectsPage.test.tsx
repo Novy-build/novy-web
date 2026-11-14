@@ -14,6 +14,7 @@ const BLANK_TEMPLATE: Template = {
   id: 'template_blank',
   name: 'Blank',
   description: 'Empty screen',
+  projectType: 'app',
   screens: [{ id: 'screen_blank', name: 'Home', path: '/', nodes: [], behaviors: [], logicGraphs: [] }],
 };
 
@@ -81,8 +82,9 @@ describe('ProjectsPage', () => {
     await screen.findByRole('heading', { name: 'Hello, World!' });
 
     fireEvent.click(screen.getByText('New project'));
-    expect(await screen.findByRole('heading', { name: 'Choose a starting template' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'What do you want to build?' })).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Web app' }));
     fireEvent.click(screen.getByRole('button', { name: /Student list/ }));
     fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Cornerstone' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
@@ -154,6 +156,7 @@ describe('ProjectsPage', () => {
     const localProject: ProjectSummary = {
       id: 'project_browser_only',
       name: 'Local app',
+      projectType: 'app',
       createdAt: new Date('2026-11-11T12:00:00.000Z'),
       updatedAt: new Date('2026-11-11T12:00:00.000Z'),
       screenCount: 1,

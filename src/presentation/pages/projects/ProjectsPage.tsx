@@ -11,7 +11,7 @@ import { LocalProjectImportPanel } from './LocalProjectImportPanel';
 import { useTemplates } from './useTemplates';
 import { ConfirmDeleteDialog } from './dialogs/ConfirmDeleteDialog';
 import { RenameDialog } from './dialogs/RenameDialog';
-import { TemplateGalleryModal } from './TemplateGalleryModal';
+import { NewProjectDialog } from './dialogs/NewProjectDialog';
 
 /**
  * Projects dashboard: member header, search over project cards, the New
@@ -131,7 +131,7 @@ export function ProjectsPage() {
       </main>
 
       {isGalleryOpen ? (
-        <TemplateGalleryModal
+        <NewProjectDialog
           onCancel={() => setIsGalleryOpen(false)}
           onCreate={handleCreate}
           templates={templates}

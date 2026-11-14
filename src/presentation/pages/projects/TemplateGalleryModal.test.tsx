@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Template } from '@domain/entities/template';
 import { TEMPLATE_CATALOG } from '@data/templates/templateCatalog';
@@ -8,7 +8,7 @@ import { TemplateGalleryModal } from './TemplateGalleryModal';
  * Tile accessible names include the whole tile content, so queries match on
  * the template name as a substring.
  */
-const BLANK_TILE_QUERY = { name: /^Blank/ } as const;
+const BLANK_TILE_QUERY = { name: /^Blank(?! canvas)/ } as const;
 const STUDENT_TILE_QUERY = { name: /Student list/ } as const;
 
 beforeEach(() => {
@@ -37,9 +37,9 @@ describe('TemplateGalleryModal', () => {
     renderGallery();
 
     expect(screen.getByRole('heading', { name: 'Choose a starting template' })).toBeInTheDocument();
-    expect(
-      screen.getAllByRole('button', { name: /Blank|Landing page|Login form|Student list/ }),
-    ).toHaveLength(4);
+    expect(within(screen.getByTestId('template-grid')).getAllByRole('button')).toHaveLength(
+      TEMPLATE_CATALOG.length,
+    );
   });
 
   it('uses a viewport-safe responsive gallery layout', () => {

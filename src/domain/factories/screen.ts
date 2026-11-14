@@ -66,6 +66,7 @@ export function createProjectFromTemplate(template: Template, name: string, now:
   return {
     id: generateId('project'),
     name,
+    projectType: template.projectType,
     createdAt: now,
     updatedAt: now,
     document: createProjectDocument(screens),

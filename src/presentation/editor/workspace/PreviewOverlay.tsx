@@ -16,12 +16,14 @@ import { DeviceToggle } from './DeviceToggle';
 import { PreviewZoomControls } from './PreviewZoomControls';
 import { DEFAULT_EDITOR_DEVICE } from '../state/geometry';
 import type { EditorDevice } from '../state/geometry';
-import { computeFitZoom } from '../state/geometry';
+import { computeFitWidthZoom, computeFitZoom } from '../state/geometry';
 import { CANVAS_PRESETS } from '../renderer/ScreenFrame';
 import type { RendererEventContext } from '../renderer/renderer';
 import type { AppTheme } from '../renderer/AppThemeContext';
 import { readDocumentAppTheme } from '../renderer/useDocumentAppTheme';
 import { findNodeInScreen } from '../state/editorState';
+import type { ProjectType } from '@domain/entities/project';
+import { websitePageHeight } from '@domain/sections/sectionLayout';
 
 const TOAST_VISIBLE_MS = 2400;
 const PREVIEW_ZOOM_LIMITS = { min: 0.25, max: 2, step: 0.25 } as const;
@@ -33,6 +35,7 @@ interface PreviewOverlayProps {
   initialScreenId?: string;
   initialDevice?: EditorDevice;
   projectName: string;
+  projectType?: ProjectType;
   onClose: () => void;
   collections?: readonly DataCollection[];
   recordsByCollection?: ReadonlyMap<string, readonly DataRecord[]>;
@@ -61,13 +64,14 @@ export function PreviewOverlay({
   initialScreenId,
   initialDevice = DEFAULT_EDITOR_DEVICE,
   projectName,
+  projectType = 'app',
   onClose,
   collections = [],
   recordsByCollection = new Map(),
   persistence,
 }: PreviewOverlayProps) {
   const [previewDevice, setPreviewDevice] = useState<EditorDevice>(initialDevice);
-  const bounds = CANVAS_PRESETS[previewDevice];
+  const viewportBounds = CANVAS_PRESETS[previewDevice];
   const headerRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLParagraphElement>(null);
   const isAutoFitRef = useRef(true);
@@ -105,6 +109,12 @@ export function PreviewOverlay({
   zoomRef.current = zoom;
 
   const screen: Screen | null = screens.find((candidate) => candidate.id === screenId) ?? screens[0] ?? null;
+  const bounds = useMemo(
+    () => projectType === 'website'
+      ? { ...viewportBounds, height: websitePageHeight(screen, previewDevice) }
+      : viewportBounds,
+    [previewDevice, projectType, screen, viewportBounds],
+  );
   const routeRecord = routeRecordContext
     ? (previewRecords.get(routeRecordContext.collectionId) ?? [])
         .find((record) => record.id === routeRecordContext.recordId) ?? null
@@ -453,13 +463,20 @@ export function PreviewOverlay({
     if (availableWidth <= 0 || availableHeight <= 0) {
       return null;
     }
-    return computeFitZoom(
-      { clientWidth: availableWidth, clientHeight: availableHeight },
-      bounds,
-      0,
-      PREVIEW_ZOOM_LIMITS,
-    );
-  }, [bounds]);
+    return projectType === 'website'
+      ? computeFitWidthZoom(
+          { clientWidth: availableWidth },
+          bounds,
+          0,
+          PREVIEW_ZOOM_LIMITS,
+        )
+      : computeFitZoom(
+          { clientWidth: availableWidth, clientHeight: availableHeight },
+          bounds,
+          0,
+          PREVIEW_ZOOM_LIMITS,
+        );
+  }, [bounds, projectType]);
 
   const fitToStage = useCallback(() => {
     const fitted = computeFittedZoom();
@@ -560,7 +577,7 @@ export function PreviewOverlay({
       </div>
       <div
         className="relative mt-3 flex min-h-0 overflow-auto rounded-tile border border-hairline bg-canvas p-3"
-        style={{ height: bounds.height * zoom + 24 }}
+        style={{ height: Math.min(bounds.height * zoom + 24, 720) }}
       >
         <div className="m-auto shrink-0">
           <ScreenFrame

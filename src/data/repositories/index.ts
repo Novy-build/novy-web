@@ -1,6 +1,7 @@
 import { axiosClient } from '../api/axiosClient';
 import type { ApiHttpClient } from '../api/http';
 import { ApiAppDataRepository } from './api/ApiAppDataRepository';
+import { ApiDeploymentRepository } from './api/ApiDeploymentRepository';
 import { ApiAuthRepository, type AuthHttpClient } from './api/ApiAuthRepository';
 import { ApiProjectImportRepository } from './api/ApiProjectImportRepository';
 import { ApiProjectRepository } from './api/ApiProjectRepository';
@@ -52,6 +53,7 @@ export function createRepositories(options?: RepositoriesOptions): Repositories 
       ? {
           projects: new ApiProjectRepository(projectClient),
           appData: new ApiAppDataRepository(projectClient),
+          deployments: new ApiDeploymentRepository(projectClient),
           localProjectImport: new ApiProjectImportRepository(
             projectClient,
             local.projects,

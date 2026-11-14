@@ -69,7 +69,7 @@ export function ValidationDock({
       </button>
       {isOpen ? (
         <div
-          className="flex shrink-0 flex-col overflow-hidden border-t border-hairline"
+          className="flex max-h-[40dvh] shrink-0 flex-col overflow-hidden border-t border-hairline"
           id={PANEL_ID}
           style={{ height: size }}
         >

@@ -52,6 +52,8 @@ describe('EditorPage (integration over the real route tree)', () => {
     const collapse = screen.getByRole('button', { name: 'Collapse inspector panel' });
     expect(collapse).not.toHaveClass('absolute');
     expect(collapse.parentElement).toHaveTextContent('Inspector');
+    expect(screen.getByTestId('inspector-properties-region')).toHaveClass('min-h-40', 'overflow-hidden');
+    expect(screen.getByTestId('inspector-layers-region')).toHaveClass('min-h-28', 'overflow-hidden');
     fireEvent.click(collapse);
     expect(screen.queryByRole('region', { name: 'Inspector' })).not.toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'inspector panel minimized' })).toBeInTheDocument();

@@ -7,6 +7,7 @@ import type { DataCollection, DataRecord } from '@domain/entities/appData';
 import { ComponentRenderer } from './ComponentRenderer';
 import { CANVAS_PRESETS, ScreenFrame } from './ScreenFrame';
 import { makeColumn, makeContainer, makeListView, makeText } from '@test/editorFixtures';
+import { buildSectionPreset } from '@domain/sections/sectionPresets';
 
 const BUTTON: ButtonNode = {
   id: 'node_save',
@@ -813,6 +814,22 @@ describe('ScreenFrame', () => {
     expect(container.querySelector('[data-node-id="node_card"]'))
       .toHaveStyle({ backgroundColor: '#1f2937' });
     expect(screen.getByText('Readable title')).toBeInTheDocument();
+  });
+
+  it('renders website sections with a contrasting dark surface in dark mode', () => {
+    document.documentElement.classList.add('dark');
+    const hero = buildSectionPreset('hero');
+    const websiteScreen: Screen = { ...homeScreen, nodes: [hero] };
+
+    const { container } = render(
+      <ScreenFrame mode="canvas" screen={websiteScreen} size={CANVAS_PRESETS.mobile} />,
+    );
+
+    expect(container.querySelector(`[data-node-id="${hero.id}"]`)).toHaveStyle({
+      backgroundColor: '#1e1b4b',
+      color: '#eef0f4',
+    });
+    expect(screen.getByText('Build something people remember')).toBeInTheDocument();
   });
 
   it('keeps an explicit preview app theme independent from the dark editor', () => {

@@ -14,6 +14,8 @@ import {
   type ListViewNode,
   type NodeGeometry,
   type ResponsiveBreakpoint,
+  type ResponsiveGeometry,
+  type ResponsiveNodeOverrides,
   type TextNode,
 } from '@domain/entities/componentNode';
 import type { ActionInputMappings, Behavior, LogicEdge, LogicGraph, LogicNode } from '@domain/entities/logic';
@@ -30,6 +32,7 @@ import type {
   ScreenDTO,
 } from '../dto/project.dto';
 import { normalizeLogicGraph } from '@domain/logic/graph';
+import { ensureWebsiteSectionDarkAppearances } from '@domain/sections/sectionLayout';
 
 /*
  * Domain <-> DTO boundaries. Dates become ISO-8601 strings on the wire; node
@@ -42,6 +45,7 @@ export function mapProjectToDto(project: Project): ProjectDTO {
     schemaVersion: 13,
     id: project.id,
     name: project.name,
+    projectType: project.projectType,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
     screens: project.document.screens.map(mapScreenToDto),
@@ -70,12 +74,17 @@ export function mapProjectFromDto(dto: ProjectDTO): Project {
   const document = (dto.schemaVersion ?? 0) < 13
     ? migrateRecordRouteParameters(layoutMigratedDocument)
     : layoutMigratedDocument;
+  const projectType = dto.projectType === 'website' ? 'website' : 'app';
+  const migratedDocument = projectType === 'website'
+    ? { screens: document.screens.map(ensureWebsiteSectionDarkAppearances) }
+    : document;
   return {
     id: dto.id,
     name: dto.name,
+    projectType,
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),
-    document,
+    document: migratedDocument,
   };
 }
 
@@ -220,6 +229,7 @@ export function mapProjectToSummary(project: Project): ProjectSummary {
   return {
     id: project.id,
     name: project.name,
+    projectType: project.projectType,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
     screenCount: project.document.screens.length,
@@ -989,13 +999,56 @@ function collectLegacyFormMigrations(nodes: readonly ComponentNodeDTO[]): Legacy
 function mapNodeEditorToDto(
   node: ComponentNode,
 ): Partial<Pick<ComponentNodeDTO, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive' | 'bindings'>> {
-  return compactEditorMetadata(node.name, node.isHidden, node.isLocked, node.appearance, node.responsive, node.bindings);
+  return compactEditorMetadata(
+    node.name,
+    node.isHidden,
+    node.isLocked,
+    node.appearance,
+    normalizeResponsiveOverrides(node.responsive),
+    node.bindings,
+  );
 }
 
 function mapNodeEditorFromDto(
   dto: ComponentNodeDTO,
 ): Partial<Pick<ComponentNode, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive' | 'bindings'>> {
-  return compactEditorMetadata(dto.name, dto.isHidden, dto.isLocked, dto.appearance, dto.responsive, dto.bindings);
+  return compactEditorMetadata(
+    dto.name,
+    dto.isHidden,
+    dto.isLocked,
+    dto.appearance,
+    normalizeResponsiveOverrides(dto.responsive),
+    dto.bindings,
+  );
+}
+
+/**
+ * API canonicalization before this migration expanded omitted responsive
+ * fields to null. Omission means inheritance in the domain model, so compact
+ * null/undefined values and retain only typed geometry/visibility overrides.
+ */
+function normalizeResponsiveOverrides(value: unknown): ResponsiveGeometry | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const source = value as Record<string, unknown>;
+  const normalized: ResponsiveGeometry = {};
+  for (const breakpoint of ['tablet', 'desktop'] as const) {
+    const candidate = source[breakpoint];
+    if (!candidate || typeof candidate !== 'object') continue;
+    const raw = candidate as Record<string, unknown>;
+    const geometry: Partial<NodeGeometry> = {};
+    for (const field of ['x', 'y', 'w', 'h'] as const) {
+      const fieldValue = raw[field];
+      if (typeof fieldValue === 'number' && Number.isFinite(fieldValue)) {
+        geometry[field] = fieldValue;
+      }
+    }
+    const override: ResponsiveNodeOverrides = {
+      ...geometry,
+      ...(typeof raw.isHidden === 'boolean' ? { isHidden: raw.isHidden } : {}),
+    };
+    if (Object.keys(override).length > 0) normalized[breakpoint] = override;
+  }
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
 function compactEditorMetadata(

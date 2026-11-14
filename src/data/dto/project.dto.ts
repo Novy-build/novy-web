@@ -602,6 +602,8 @@ export interface ProjectDTO {
   schemaVersion?: number;
   id: string;
   name: string;
+  /** Omitted by legacy payloads; the mapper treats omission as `app`. */
+  projectType?: 'app' | 'website';
   createdAt: string;
   updatedAt: string;
   screens: ScreenDTO[];

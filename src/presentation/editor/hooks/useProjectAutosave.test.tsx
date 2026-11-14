@@ -13,6 +13,7 @@ const DOC_A: ProjectDocument = makeDocument([makeScreen('screen_1', [])]);
 const STUB_PROJECT: Project = {
   id: 'project_1',
   name: 'Stub project',
+  projectType: 'app',
   createdAt: new Date('2026-01-01T10:00:00Z'),
   updatedAt: new Date('2026-01-01T10:00:00Z'),
   document: DOC_A,

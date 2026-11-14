@@ -33,6 +33,7 @@ import type {
 } from '@domain/entities/logic';
 import type { AssistantProposal } from '@domain/ai/assistant';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
+import type { ProjectType } from '@domain/entities/project';
 import type { EditorDevice } from './geometry';
 import { DEFAULT_EDITOR_DEVICE, ZOOM_LIMITS } from './geometry';
 export { ZOOM_LIMITS };/*
@@ -183,6 +184,10 @@ export type EditorChromeAction =
   | { type: 'design/item-template-close' }
   | { type: 'design/item-template-sample'; sampleItemId: string | null };
 
+export type EditorSectionAction =
+  | { type: 'section/add' }
+  | { type: 'section/move'; nodeId: string; direction: 'up' | 'down' };
+
 export type EditorHistoryAction = { type: 'history/undo' } | { type: 'history/redo' };
 
 export type EditorAutosaveAction =
@@ -200,6 +205,7 @@ export type EditorAction =
   | EditorLogicAction
   | EditorAssistantAction
   | EditorChromeAction
+  | EditorSectionAction
   | EditorHistoryAction
   | EditorAutosaveAction;
 
@@ -215,6 +221,7 @@ export type EditorDesignScope =
  * Pure — every behavior here is table-driven and unit-testable.
  */
 export interface EditorState {
+  readonly projectType: ProjectType;
   readonly document: ProjectDocument;
   readonly past: readonly ProjectDocument[];
   readonly future: readonly ProjectDocument[];
@@ -234,8 +241,9 @@ export interface EditorState {
 }
 
 // ZOOM_LIMITS is re-exported from ./geometry to keep a single source of truth.
-export function createEditorState(document: ProjectDocument): EditorState {
+export function createEditorState(document: ProjectDocument, projectType: ProjectType = 'app'): EditorState {
   return {
+    projectType,
     document,
     past: [],
     future: [],

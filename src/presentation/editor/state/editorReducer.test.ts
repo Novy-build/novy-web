@@ -46,6 +46,37 @@ function stateAt(pastCount = 0): ReturnType<typeof createEditorState> {
   };
 }
 
+describe('website sections', () => {
+  it('adds a blank canvas as one undoable root section', () => {
+    const initial = createEditorState({ screens: [{ ...SCREEN, nodes: [] }] }, 'website');
+    const next = editorReducer(initial, { type: 'section/add' });
+
+    expect(next.document.screens[0]?.nodes).toHaveLength(1);
+    expect(next.document.screens[0]?.nodes[0]?.type).toBe('column');
+    expect(next.document.screens[0]?.nodes[0]?.h).toBe(360);
+    expect(next.document.screens[0]?.nodes[0]?.type === 'column'
+      ? next.document.screens[0].nodes[0].children
+      : ['unexpected']).toEqual([]);
+    expect(next.selectedNodeId).toBe(next.document.screens[0]?.nodes[0]?.id);
+    expect(next.past).toHaveLength(1);
+  });
+
+  it('does not add sections to app projects', () => {
+    const initial = createEditorState({ screens: [{ ...SCREEN, nodes: [] }] }, 'app');
+    expect(editorReducer(initial, { type: 'section/add' })).toBe(initial);
+  });
+
+  it('moves website sections in one history entry', () => {
+    let state = createEditorState({ screens: [{ ...SCREEN, nodes: [] }] }, 'website');
+    state = editorReducer(state, { type: 'section/add' });
+    state = editorReducer(state, { type: 'section/add' });
+    const footerId = state.document.screens[0]!.nodes[1]!.id;
+    const moved = editorReducer(state, { type: 'section/move', nodeId: footerId, direction: 'up' });
+    expect(moved.document.screens[0]?.nodes[0]?.id).toBe(footerId);
+    expect(moved.past).toHaveLength(3);
+  });
+});
+
 describe('load', () => {
   it('selects the first screen and starts empty-handed', () => {
     const state = createEditorState(DOCUMENT);

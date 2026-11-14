@@ -10,6 +10,7 @@ const TEMPLATE: Template = {
   id: 'template_blank',
   name: 'Blank',
   description: 'Empty screen',
+  projectType: 'app',
   screens: [{ id: 'screen_blank', name: 'Home', path: '/', nodes: [], behaviors: [], logicGraphs: [] }],
 };
 

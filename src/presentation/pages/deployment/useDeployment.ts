@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { deploymentUrl } from '@domain/deployment/deploymentUrl';
 import type {
   DeploymentEnvironment,
+  DeploymentProvider,
   DeploymentRecord,
 } from '@domain/entities/deployment';
 import { DEPLOYMENT_STAGES } from '@domain/entities/deployment';
@@ -17,21 +18,23 @@ export interface DeploymentController {
   status: DeploymentPageStatus;
   environment: DeploymentEnvironment;
   setEnvironment: (environment: DeploymentEnvironment) => void;
+  providers: DeploymentProvider[];
+  provider: DeploymentProvider | null;
+  setProvider: (provider: DeploymentProvider) => void;
   isPublishing: boolean;
   activeStageIndex: number | null;
   publishError: string | null;
   validationError: string | null;
   successfulDeployment: DeploymentRecord | null;
-  publish: () => Promise<void>;
+  publish: (manifest?: unknown) => Promise<void>;
   closeSuccess: () => void;
   reload: () => void;
 }
 
 /**
- * Loads one project and its deployment history, then orchestrates the mock
- * Build → Optimize → Provision → Live pipeline. Persistence remains behind
- * repository contracts; replacing localStorage with an API does not affect
- * the page.
+ * Loads one project, deployment providers, and remote or local publish history.
+ * The selected repository owns provider submission and polling while this hook
+ * owns validation and presentation state.
  */
 export function useDeployment(
   projectId: string,
@@ -44,6 +47,8 @@ export function useDeployment(
   const [status, setStatus] = useState<DeploymentPageStatus>('loading');
   const [reloadCount, setReloadCount] = useState(0);
   const [environment, setEnvironment] = useState<DeploymentEnvironment>('preview');
+  const [providers, setProviders] = useState<DeploymentProvider[]>([]);
+  const [provider, setProvider] = useState<DeploymentProvider | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [activeStageIndex, setActiveStageIndex] = useState<number | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -60,13 +65,20 @@ export function useDeployment(
     void Promise.all([
       projects.getProject(projectId),
       deploymentRepository.listDeployments(projectId),
+      deploymentRepository.listProviders(),
     ]).then(
-      ([loadedProject, history]) => {
+      ([loadedProject, history, availableProviders]) => {
         if (!active) {
           return;
         }
         setProject(loadedProject);
         setDeployments(history);
+        setProviders(availableProviders);
+        setProvider((current) =>
+          current && availableProviders.includes(current)
+            ? current
+            : (availableProviders[0] ?? null),
+        );
         setStatus(loadedProject ? 'ready' : 'notFound');
       },
       () => {
@@ -83,8 +95,8 @@ export function useDeployment(
     };
   }, [deploymentRepository, projectId, projects, reloadCount]);
 
-  const publish = useCallback(async (): Promise<void> => {
-    if (!project || isPublishing) {
+  const publish = useCallback(async (manifest?: unknown): Promise<void> => {
+    if (!project || !provider || isPublishing) {
       return;
     }
 
@@ -102,6 +114,9 @@ export function useDeployment(
       }
       const created = await deploymentRepository.publishDeployment({
         projectId: project.id,
+        manifest,
+        environment,
+        provider,
         url: deploymentUrl(project.name, environment),
       }, (stage) => {
         if (isMounted.current && publishRun.current === run) {
@@ -113,9 +128,21 @@ export function useDeployment(
       }
       setDeployments((current) => [created, ...current]);
       setSuccessfulDeployment(created);
-    } catch {
+    } catch (cause) {
       if (isMounted.current && publishRun.current === run) {
-        setPublishError('Publish failed. Your previous deployment is still live — try again.');
+        setPublishError(
+          cause instanceof Error
+            ? cause.message.startsWith('Publish failed')
+              ? cause.message
+              : `Publish failed. ${cause.message}`
+            : 'Publish failed. Your previous deployment is still live — try again.',
+        );
+        try {
+          const history = await deploymentRepository.listDeployments(project.id);
+          if (isMounted.current && publishRun.current === run) setDeployments(history);
+        } catch {
+          // Keep the current history when a follow-up refresh also fails.
+        }
       }
     } finally {
       if (isMounted.current && publishRun.current === run) {
@@ -123,7 +150,7 @@ export function useDeployment(
         setActiveStageIndex(null);
       }
     }
-  }, [collections, deploymentRepository, environment, isPublishing, project]);
+  }, [collections, deploymentRepository, environment, isPublishing, project, provider]);
 
   return {
     project,
@@ -131,6 +158,9 @@ export function useDeployment(
     status,
     environment,
     setEnvironment,
+    providers,
+    provider,
+    setProvider,
     isPublishing,
     activeStageIndex,
     publishError,

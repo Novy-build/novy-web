@@ -4,6 +4,10 @@ This document maps the builder-facing requirements in `project_information/PD6_A
 implemented frontend surfaces, domain/data contracts, and automated tests. UC-08 Platform
 Administration is intentionally excluded because Novy currently targets one application builder.
 
+Website projects, long scrolling pages, and the reusable section library are an explicit product
+extension beyond PD6, which describes web applications only. Their implementation and tests are
+documented in `docs/website-projects-plan.md`; they are not claimed as evidence for a PD6 use case.
+
 ## UC-01 Register and Sign In
 
 - Routes: `/login`, guarded `/projects`, `/project/:id/editor`, `/project/:id/deploy`

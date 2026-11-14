@@ -6,6 +6,7 @@ const TEMPLATE: Template = {
   id: 'template_notes',
   name: 'Notes',
   description: 'Track notes',
+  projectType: 'app',
   screens: [
     {
       id: 'screen_notes',

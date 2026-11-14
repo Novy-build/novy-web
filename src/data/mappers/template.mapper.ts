@@ -12,6 +12,7 @@ export function mapTemplateToDto(template: Template): TemplateDTO {
     id: template.id,
     name: template.name,
     description: template.description,
+    projectType: template.projectType,
     screens: template.screens.map(mapScreenToDto),
     ...(template.data
       ? {

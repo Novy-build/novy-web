@@ -65,6 +65,17 @@ export function computeFitZoom(
   return Number(clamped.toFixed(2));
 }
 
+export function computeFitWidthZoom(
+  viewport: { clientWidth: number },
+  bounds: ScreenFrameSize,
+  padding = 48,
+  limits: { min: number; max: number } = ZOOM_LIMITS,
+): number {
+  const availableWidth = viewport.clientWidth - padding * 2;
+  if (availableWidth <= 0) return 1;
+  return Number(Math.min(limits.max, Math.max(limits.min, availableWidth / bounds.width)).toFixed(2));
+}
+
 export type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
 export const RESIZE_HANDLES: readonly ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];

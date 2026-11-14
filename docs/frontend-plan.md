@@ -2,6 +2,9 @@
 
 > Status: frontend phases 0–8 complete; PD6 interaction redesign Gates 1–6 complete — Tailwind v4, react-router, useReducer + Context state, localStorage mock repos, width-switchable device frame.
 
+> Website projects, long scrolling pages, and the section library are specified in
+> `docs/website-projects-plan.md` and implemented as an explicit extension beyond the PD6 baseline.
+
 ## 1 · Ground rules
 
 - **Clean Architecture per `AGENTS.md`** stays the skeleton:

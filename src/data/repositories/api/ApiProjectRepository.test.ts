@@ -49,6 +49,7 @@ const BLANK_TEMPLATE: Template = {
   id: 'template_blank',
   name: 'Blank',
   description: 'Empty screen',
+  projectType: 'app',
   screens: [{ id: 'screen_blank', name: 'Home', path: '/', nodes: [], behaviors: [], logicGraphs: [] }],
 };
 
@@ -78,6 +79,7 @@ describe('ApiProjectRepository', () => {
       {
         id: 'project_1',
         name: 'My app',
+        projectType: 'app',
         createdAt: new Date(NOW),
         updatedAt: new Date(NOW),
         screenCount: 2,
@@ -100,6 +102,7 @@ describe('ApiProjectRepository', () => {
         id: 'template_blank',
         name: 'Blank',
         description: 'Empty screen',
+        projectType: 'app',
         screens: BLANK_TEMPLATE.screens,
       },
     });

@@ -31,7 +31,12 @@ export function ProjectCard({ project, onRename, onDuplicate, onDelete }: Projec
         </div>
       </Link>
       <div className="flex flex-1 flex-col gap-3 p-4">
-        <h2 className="text-sm font-semibold text-ink">{name}</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-ink">{name}</h2>
+          <span className="rounded-full border border-hairline bg-canvas px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
+            {project.projectType === 'website' ? 'Website' : 'App'}
+          </span>
+        </div>
         <p className="mt-1 text-xs font-mono tabular-nums text-ink-muted">
           {project.screenCount} {screenLabel} &middot; Edited {formatRelativeTime(project.updatedAt, new Date())}
         </p>

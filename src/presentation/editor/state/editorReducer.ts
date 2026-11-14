@@ -37,6 +37,9 @@ import {
 import type { ScreenFrameSize } from '@presentation/editor/renderer/ScreenFrame';
 import { clampNodeToBounds, deviceViewport, MIN_NODE_SIZE, SNAP_GRID, snapOrRaw } from './geometry';
 import { behaviorDisplayName } from '../logic/behaviorLabels';
+import { createBlankWebsiteSection } from '@domain/sections/blankSection';
+import { moveWebsiteSection } from '@domain/sections/sectionTree';
+import { normalizeWebsiteScreen, websitePageHeight, WEBSITE_PAGE_WIDTHS } from '@domain/sections/sectionLayout';
 import {
   createEditorState,
   findNodeInScreen,
@@ -55,9 +58,44 @@ import {
 const MAX_HISTORY = 50;
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
+  const next = reduceEditorState(state, action);
+  if (next.projectType !== 'website' || next.document === state.document) return next;
+  return {
+    ...next,
+    document: {
+      screens: next.document.screens.map(normalizeWebsiteScreen),
+    },
+  };
+}
+
+function reduceEditorState(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'document/set':
-      return createEditorState(action.document);
+      return createEditorState(action.document, state.projectType);
+
+    case 'section/add': {
+      if (state.projectType !== 'website' || state.designScope.kind !== 'screen') return state;
+      const sectionCount = getActiveScreen(state).nodes.filter((node) => node.type === 'column').length;
+      const created = createBlankWebsiteSection(`Section ${sectionCount + 1}`);
+      return pushHistory(state, (document) => ({
+        ...state,
+        document: replaceScreen(document, state.activeScreenId, (screen) => ({
+          ...screen,
+          nodes: [...screen.nodes, created],
+        })),
+        selectedNodeId: created.id,
+      }) as EditorState);
+    }
+
+    case 'section/move':
+      if (state.projectType !== 'website') return state;
+      return pushHistory(state, (document) => ({
+        ...state,
+        document: replaceScreen(document, state.activeScreenId, (screen) => ({
+          ...screen,
+          nodes: moveWebsiteSection(screen.nodes, action.nodeId, action.direction),
+        })),
+      }) as EditorState);
 
     // Screens -----------------------------------------------------------------
     case 'screen/select': {
@@ -1355,6 +1393,9 @@ function addNode(
 ): EditorState {
   const activeScreen = getActiveScreen(state);
   const resolvedParentId = resolveDesignParentId(state, parentId);
+  if (state.projectType === 'website' && resolvedParentId === null && nodeType !== 'column') {
+    return state;
+  }
   if (!canUseDesignParent(state, resolvedParentId)) {
     return state;
   }
@@ -1370,10 +1411,16 @@ function addNode(
   if (validParent === undefined) {
     return state;
   }
+  const rootBounds = state.projectType === 'website'
+    ? {
+        width: WEBSITE_PAGE_WIDTHS[state.device],
+        height: websitePageHeight(activeScreen, state.device) + deviceViewport(state.device).height,
+      }
+    : deviceViewport(state.device);
   const bounds = childGeometryBounds(
     validParent?.node ?? null,
     state.device,
-    deviceViewport(state.device),
+    rootBounds,
   );
   const defaults = getDefaultNodeSize(nodeType);
   const listParent = validParent?.node.type === 'listview' ? validParent.node : null;

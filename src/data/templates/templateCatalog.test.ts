@@ -1,9 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { TEMPLATE_CATALOG } from './templateCatalog';
+import { APP_TEMPLATES, TEMPLATE_CATALOG, WEBSITE_TEMPLATES } from './templateCatalog';
 
 describe('templateCatalog', () => {
-  it('contains exactly five starter templates', () => {
-    expect(TEMPLATE_CATALOG).toHaveLength(5);
+  it('contains app and website starter templates', () => {
+    expect(APP_TEMPLATES).toHaveLength(5);
+    expect(WEBSITE_TEMPLATES).toHaveLength(5);
+    expect(TEMPLATE_CATALOG).toHaveLength(10);
+    expect(APP_TEMPLATES.every((template) => template.projectType === 'app')).toBe(true);
+    expect(WEBSITE_TEMPLATES.every((template) => template.projectType === 'website')).toBe(true);
+  });
+
+  it('provides a blank website canvas without sections or widgets', () => {
+    const blankWebsite = WEBSITE_TEMPLATES.find((template) => template.id === 'template_site_blank');
+
+    expect(blankWebsite?.name).toBe('Blank canvas');
+    expect(blankWebsite?.screens).toHaveLength(1);
+    expect(blankWebsite?.screens[0]?.nodes).toEqual([]);
   });
 
   it('uses unique ids', () => {

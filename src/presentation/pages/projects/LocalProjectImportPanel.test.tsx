@@ -12,6 +12,7 @@ const NOW = new Date('2026-11-11T12:00:00.000Z');
 const SUMMARY: ProjectSummary = {
   id: 'project_local',
   name: 'Local app',
+  projectType: 'app',
   createdAt: NOW,
   updatedAt: NOW,
   screenCount: 1,
@@ -21,6 +22,7 @@ const SUMMARY: ProjectSummary = {
 const PROJECT: Project = {
   id: 'project_local',
   name: 'Local app',
+  projectType: 'app',
   createdAt: NOW,
   updatedAt: NOW,
   document: { screens: [] },

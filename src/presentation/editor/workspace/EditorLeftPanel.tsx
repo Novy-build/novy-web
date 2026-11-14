@@ -14,6 +14,7 @@ interface EditorLeftPanelProps {
   frame?: ListViewNode | null;
   selectedNodeId: string | null;
   onAddByType: (type: ComponentType) => void;
+  isWebsite?: boolean;
   onSelect: (nodeId: string) => void;
   onOrder: (nodeId: string, direction: 'forward' | 'backward' | 'front' | 'back') => void;
   onRename: (nodeId: string, name: string) => void;
@@ -28,6 +29,7 @@ export function EditorLeftPanel({
   frame = null,
   selectedNodeId,
   onAddByType,
+  isWebsite = false,
   onSelect,
   onOrder,
   onRename,
@@ -103,6 +105,7 @@ export function EditorLeftPanel({
             <LayersPanel
               frame={frame}
               isEmbedded
+              isRootMainAxis={isWebsite}
               nodes={nodes}
               onMove={onMove}
               onOrder={onOrder}

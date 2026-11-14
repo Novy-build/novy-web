@@ -1,9 +1,9 @@
 # Novy Website Projects — Frontend Implementation Plan
 
-**Status:** Planned — **not implemented**. This document is the execution contract for the
-website-project work in `novy-web`.
+**Status:** Implemented. This document records the execution contract for the website-project
+work in `novy-web`.
 
-**Last reviewed:** 2026-11-12
+**Last reviewed:** 2026-11-14
 
 **Companion document:** `C:\Users\Calexx\Desktop\novy-backend\WEBSITE_PROJECTS_PLAN.md`
 The backend must land the `projectType` persistence and the generated-app template changes
@@ -16,16 +16,15 @@ described there before website projects can be published.
 ## 1. Goal
 
 Add a **Website** project type to Novy alongside the existing **Web app** type, and give website
-projects a Canva-style **"+ Add section"** flow backed by a library of ready-made sections, so a
-builder can assemble a landing page or a small marketing site without hand-positioning every
-widget.
+projects a Canva-style **"+ Add section"** flow that inserts an empty full-width canvas. Builders
+add normal widgets manually; internal section presets are reserved for starter templates.
 
 Two deliverables:
 
 1. **Project type at creation.** The builder picks *Web app* or *Website* when creating a project.
    The choice is persisted and survives reload, import, duplication, and publication.
-2. **Add section.** Website projects get a section library and an **"+ Add section"** button that
-   inserts a pre-designed band (Hero, Features, Pricing, …) into the page.
+2. **Add section.** Website projects get an **"+ Add section"** button that inserts a blank,
+   selected section with no child widgets.
 
 ## 2. Why this is more than a new button
 
@@ -51,7 +50,7 @@ is the actual blocker, and it is why this work is split into four phases.
 | Layout | Absolute, clamped to the viewport | Vertical flow; the page grows with its content |
 | Authoring | Widgets + data + logic | **Sections** stacked top → bottom |
 | Navigation | Routes between screens | In-page anchors + optional multi-page routes |
-| Editor tooling | Palette / Logic / Data | Palette + **Section library** + **Add section** |
+| Editor tooling | Palette / Logic / Data | Palette + **Add section** |
 | Data & logic | First-class | Optional; still fully supported |
 
 A website project may still contain multiple screens (Home, About, Contact). Each screen in a
@@ -72,8 +71,8 @@ These were decided with the product owner and must not be re-litigated during im
 | --- | --- |
 | Project type persistence | **Persisted server-side.** Requires the backend change in `novy-backend` (`projects.project_type` column + migration + contract/response fields). |
 | Published websites | **The generated-app template change ships in this slice.** Website pages must render as scrolling pages, not clipped fixed viewports. |
-| Section library breadth | **Core 8 presets**: Hero, Features, Logo strip, Stats, Testimonials, Pricing, CTA, Footer. |
-| Website templates in the gallery | 4: Landing page, Portfolio, Agency, Coming soon. |
+| Section insertion | **Blank canvas only.** Eight internal presets remain starter-template implementation details and are not exposed in Assets. |
+| Website templates in the gallery | 5: Blank canvas, Landing page, Portfolio, Agency, Coming soon. |
 | Project schema version | **Stays at 13.** `projectType` is project metadata, not document content, so the screens document shape is unchanged. |
 | Existing app projects | **Zero behavioural change.** Every app project, template, and test must behave exactly as before. |
 
@@ -216,6 +215,7 @@ export const TEMPLATE_CATALOG: readonly Template[] = [...APP_TEMPLATES, ...WEBSI
 | app | `template_login` | Login form | unchanged |
 | app | `template_students` | Student list | unchanged |
 | app | `template_notes` | Notes CRUD | unchanged (`src/data/templates/notesTemplate.ts`) |
+| website | `template_site_blank` | Blank canvas | One empty Home page with no sections or widgets |
 | website | `template_site_landing` | Landing page | Hero + Features + CTA + Footer, one long page |
 | website | `template_site_portfolio` | Portfolio | Hero + Gallery + CTA + Footer |
 | website | `template_site_agency` | Agency | Hero + Services + Stats + Testimonials + Contact + Footer |
@@ -345,29 +345,24 @@ Do not silently ship clipping.
 `src/presentation/editor/state/editorState.ts` — new actions:
 
 ```ts
-| { type: 'section/add'; presetId: SectionPresetId }
+| { type: 'section/add' }
 | { type: 'section/move'; nodeId: string; direction: 'up' | 'down' }
 ```
 
 `src/presentation/editor/state/editorReducer.ts`:
 
-- `section/add` — build the preset, place it at `nextSectionOffset(...)`, insert it into the
-  screen root, **push exactly one history entry**, and select the new section.
+- `section/add` — create an empty full-width Column, place it at the page end, **push exactly one
+  history entry**, and select the new section.
 - `section/move` — swap the section with its sibling in the root array, re-lay out the section
   offsets, one history entry.
 
 ### 7.5 New presentation components
 
-- `src/presentation/editor/sections/SectionLibraryModal.tsx` **(new)** — a modal grid of preset
-  cards. Each card shows a **live thumbnail** rendered with the existing renderer
-  (`ScreenFrame mode="thumbnail"`) over a synthetic single-section screen, plus the preset name and
-  description. Keyboard accessible; `role="dialog"` with focus handling consistent with
-  `src/presentation/components/system/Modal.tsx`.
 - `src/presentation/editor/sections/AddSectionButton.tsx` **(new)** — the Canva-style control: a
   full-width bordered pill reading **"+ Add section"** with a `Plus` icon, placed below the last
-  section inside the page frame. Opens the section library.
-- `src/presentation/editor/workspace/ComponentsPalette.tsx` — add a **Sections** category, shown
-  **only for website projects**, listing the 8 presets for people who prefer the left rail.
+  section inside the page frame. It inserts an empty section immediately.
+- `src/presentation/editor/workspace/ComponentsPalette.tsx` — continues to expose normal widgets;
+  section presets are deliberately not shown in Assets.
 
 ### 7.6 Inspector
 
@@ -466,8 +461,7 @@ App projects must keep their current fixed-viewport rendering exactly.
 | Reducer | `src/presentation/editor/state/editorReducer.test.ts` | `section/add` inserts one section in one history entry and selects it; `section/move` reorders; auto-height updates `h` and the tablet/desktop overrides |
 | Canvas | `src/presentation/editor/workspace/EditorCanvas.test.tsx` | website frame grows with content; app frame stays fixed; the Add-section button renders only for website projects |
 | Dialog | `src/presentation/pages/projects/dialogs/NewProjectDialog.test.tsx` | type selection filters templates; name validation; create passes the chosen type |
-| Library | `src/presentation/editor/sections/SectionLibraryModal.test.tsx` | renders the 8 presets; selecting one inserts it |
-| Button | `src/presentation/editor/sections/AddSectionButton.test.tsx` | renders, is keyboard reachable, opens the library |
+| Button | `src/presentation/editor/sections/AddSectionButton.test.tsx` | renders, is keyboard reachable, and triggers one blank-section action |
 | Regression | existing suites | **every existing app-project test must still pass unchanged** |
 
 ## 11. Acceptance criteria
@@ -475,9 +469,9 @@ App projects must keep their current fixed-viewport rendering exactly.
 1. The New Project flow offers **Web app** and **Website**; each shows only its own templates.
 2. A website project reloads (local mode and backend mode) and keeps its type and its badge.
 3. A website project's canvas grows past one viewport and scrolls; an app project does not change.
-4. **"+ Add section"** appears below the last section of a website page and opens a library of the
-   8 presets.
-5. Inserting a preset produces one undo entry and selects the new section.
+4. **"+ Add section"** appears below the last section and immediately creates a blank section with
+   no child widgets.
+5. Inserting the blank section produces one undo entry and selects the new section.
 6. Sections can be renamed, reordered, and deleted from the Layers panel.
 7. Editing copy inside a section never lets content overlap the next section.
 8. Preview renders the full page and scrolls.
@@ -530,7 +524,7 @@ Execute strictly in this order. Do not start a phase until the previous gate pas
 | Phase | Content | Gate |
 | --- | --- | --- |
 | 1 | Project type end to end | `npm run typecheck`, `npm test -- --run`, `npm run build`; backend `pytest` green |
-| 2 | Section domain module, presets, reducer actions, library UI | focused tests + full frontend gates |
+| 2 | Section domain module, blank insertion, starter-template presets, reducer actions | focused tests + full frontend gates |
 | 3 | Long-page canvas, bounds, fit zoom, preview | focused tests + full frontend gates |
 | 4 | Manifest check + backend generator template change | frontend gates + backend `pytest` + generated-app `vitest` / `tsc` / `build` |
 

@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router';
 import type { ProjectDatabase } from '@domain/entities/appData';
-import type { DeploymentEnvironment } from '@domain/entities/deployment';
+import type { DeploymentEnvironment, DeploymentProvider } from '@domain/entities/deployment';
 import {
   buildGeneratedAppManifest,
   generatedAppManifestFilename,
@@ -16,7 +16,7 @@ import { RuntimeReadinessPanel } from './RuntimeReadinessPanel';
 import { useDeployment } from './useDeployment';
 import { useReactExport } from './useReactExport';
 
-/** Per-project publish screen with mock environments, pipeline, and history. */
+/** Per-project publish screen backed by the configured deployment provider. */
 export function DeploymentPage() {
   const projectId = useParams<{ projectId: string }>().projectId ?? '';
   const navigate = useNavigate();
@@ -108,14 +108,14 @@ export function DeploymentPage() {
           <div>
             <h1 className="text-2xl font-semibold text-ink">Publish your app</h1>
             <p className="mt-1 text-sm text-ink-muted">
-              Choose an environment, run the mock pipeline, and share the generated URL.
+              Choose a provider and environment, then publish a shareable live URL.
             </p>
           </div>
           <Button
             className="min-w-36"
-            disabled={deployment.isPublishing}
+            disabled={deployment.isPublishing || !deployment.provider}
             isLoading={deployment.isPublishing}
-            onClick={() => void deployment.publish()}
+            onClick={() => void deployment.publish(handoff)}
           >
             {deployment.isPublishing ? 'Publishing…' : 'Publish'}
           </Button>
@@ -127,6 +127,12 @@ export function DeploymentPage() {
               disabled={deployment.isPublishing}
               onChange={deployment.setEnvironment}
               value={deployment.environment}
+            />
+            <ProviderSelector
+              disabled={deployment.isPublishing}
+              onChange={deployment.setProvider}
+              providers={deployment.providers}
+              value={deployment.provider}
             />
             {deployment.isPublishing && deployment.activeStageIndex !== null ? (
               <PublishStepper activeStageIndex={deployment.activeStageIndex} />
@@ -144,7 +150,7 @@ export function DeploymentPage() {
             <DeploymentHistory
               deployments={deployment.deployments}
               isPublishing={deployment.isPublishing}
-              onRedeploy={() => void deployment.publish()}
+              onRedeploy={() => void deployment.publish(handoff)}
             />
           </div>
           <div className="space-y-6">
@@ -170,6 +176,49 @@ export function DeploymentPage() {
   );
 }
 
+function ProviderSelector({
+  providers,
+  value,
+  disabled,
+  onChange,
+}: {
+  providers: DeploymentProvider[];
+  value: DeploymentProvider | null;
+  disabled: boolean;
+  onChange: (provider: DeploymentProvider) => void;
+}) {
+  return (
+    <section className="rounded-panel border border-hairline bg-surface p-5">
+      <h2 className="text-base font-semibold text-ink">Deployment provider</h2>
+      <p className="mt-1 text-sm text-ink-muted">
+        Hosting credentials stay securely on the Novy backend.
+      </p>
+      {providers.length > 0 ? (
+        <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="deployment-provider">
+          Provider
+          <select
+            className="mt-1 block h-10 w-full rounded-tile border border-hairline bg-canvas px-3 text-sm text-ink"
+            disabled={disabled}
+            id="deployment-provider"
+            onChange={(event) => onChange(event.target.value as DeploymentProvider)}
+            value={value ?? providers[0]}
+          >
+            {providers.map((provider) => (
+              <option key={provider} value={provider}>
+                {provider === 'development' ? 'Development preview' : provider[0]!.toUpperCase() + provider.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <p className="mt-4 rounded-tile border border-signal-invalid/30 bg-signal-invalid/5 p-3 text-sm text-signal-invalid" role="status">
+          No deployment provider is configured on the backend.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function EnvironmentSelector({
   value,
   disabled,
@@ -190,7 +239,7 @@ function EnvironmentSelector({
             aria-pressed={value === environment}
             className={`rounded-tile border p-4 text-left transition-colors ${
               value === environment
-                ? 'border-brand-600 bg-brand-50 ring-1 ring-brand-600'
+                ? 'border-brand-600 bg-brand-500/10 ring-1 ring-brand-600 dark:border-brand-400 dark:bg-brand-500/15 dark:ring-brand-400'
                 : 'border-hairline hover:bg-canvas'
             }`}
             disabled={disabled}

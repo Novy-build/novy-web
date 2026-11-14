@@ -32,6 +32,7 @@ export function DeploymentHistory({
                 <th className="px-5 py-3 font-medium" scope="col">Version</th>
                 <th className="px-5 py-3 font-medium" scope="col">Published</th>
                 <th className="px-5 py-3 font-medium" scope="col">Status</th>
+                <th className="px-5 py-3 font-medium" scope="col">Provider</th>
                 <th className="px-5 py-3 text-right font-medium" scope="col">Actions</th>
               </tr>
             </thead>
@@ -49,6 +50,7 @@ export function DeploymentHistory({
                     <td className="px-5 py-4">
                       <StatusBadge status={deployment.status} />
                     </td>
+                    <td className="px-5 py-4 capitalize text-ink-muted">{deployment.provider}</td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
                         {deployment.url ? (

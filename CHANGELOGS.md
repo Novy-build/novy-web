@@ -5,6 +5,129 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-14 — Real Vercel and Netlify publishing
+
+#### Added
+- An API-backed deployment repository now loads backend-enabled providers, submits generated-app
+  manifest v2 to owner-scoped project deployment endpoints, polls building releases, and maps remote
+  history into domain entities.
+- The deployment page now selects Vercel, Netlify, or the backend development provider and shows the
+  provider for every publish attempt while preserving Preview/Production selection, live links,
+  redeploy, and copy-URL flows.
+
+#### Changed
+- Build/Optimize/Provision/Live progress is driven by the deployment repository. API mode uses real
+  backend/provider state; local-only development retains the existing side-effect-free simulation.
+- Failed API publishes refresh remote history and continue to explain that the previous successful
+  deployment remains live.
+
+#### Tests
+- Added API deployment repository coverage for provider discovery, publish payloads, polling, DTO
+  mapping, and stage progress; existing local repository, hook, and deployment-page suites remain.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 105 test files and 870 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+- Backend: 137 passed, 2 skipped; Ruff, formatting, and mypy passed. Live hosting-provider calls
+  remain unverified because platform credentials are not configured in this workspace.
+
+### 2026-11-14 — Blank website starter
+
+#### Added
+- Website project creation now offers **Blank canvas** as the first/default starter. It creates one
+  empty Home page with no sections or widgets, ready for manual section and component insertion.
+
+#### Tests
+- Added catalog, repository, hook, and creation-dialog coverage for the empty website starter.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 104 test files and 868 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+
+### 2026-11-14 — Dark-theme contrast fixes
+
+#### Fixed
+- Light website sections now include explicit dark surface, text, and border variants, preventing
+  dark-theme text tokens from rendering nearly white over white or pale section backgrounds across
+  canvas, Preview, thumbnails, and generated applications.
+- Newly added blank website sections also receive a contrasting dark surface before widgets are
+  placed inside them.
+- Existing saved website sections without dark colors are upgraded at the DTO boundary when the
+  project is reopened, so the fix is not limited to newly created templates.
+- Selected Preview/Production environment cards now use theme-safe translucent brand surfaces
+  instead of a fixed pale background paired with dark-theme white text.
+
+#### Tests
+- Added rendered dark website-section contrast coverage and selected deployment-environment token
+  assertions.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 104 test files and 867 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+
+### 2026-11-14 — Blank section workflow and Inspector sizing
+
+#### Changed
+- **Add section** now immediately creates and selects a full-width, 360px blank canvas with no
+  child widgets, matching the Canva-style workflow. The previous preset-selection modal and the
+  Sections group in Assets were removed; normal widgets are added manually from Assets.
+- Internal section presets remain available only to compose the four website starter templates.
+
+#### Fixed
+- Large website layer trees and an expanded Validation panel no longer shrink the selected
+  component's Inspector fields to zero height. Properties, Validation, and Layers now use bounded,
+  independently scrollable regions.
+- Empty sections preserve their authored height during responsive website normalization instead of
+  collapsing to the minimum content height.
+
+#### Tests
+- Added blank-section factory/height/history coverage, confirmed Assets omits Sections, and added
+  Inspector-region sizing and accessible Add-section control regressions.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 104 test files and 866 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+- `git diff --check` — passed (line-ending conversion warnings only).
+
+### 2026-11-14 — Website projects and reusable page sections
+
+#### Added
+- Project creation now starts with a **Web app** or **Website** choice, filters the starter gallery
+  to that type, persists the choice locally and through the API, and labels dashboard cards.
+- Four website starters (Landing page, Portfolio, Agency, and Coming soon) are composed from an
+  accessible section library containing Hero, Features, Logo strip, Stats, Testimonials, Pricing,
+  CTA, and Footer presets.
+- Website pages provide a Canva-style **Add section** control, section thumbnails, automatic
+  responsive height/position normalization, Layers ordering, one-step undo, and explicit Move
+  up/Move down controls.
+- Long website pages grow and scroll in the editor and Preview with width-based fitting, while
+  existing web app projects retain fixed-viewport behavior.
+
+#### Changed
+- `ProjectDTO` and template/API DTOs carry backward-compatible `projectType` metadata without a
+  Project schema bump; legacy payloads default to `app`.
+- The generated-app manifest now carries the type for the backend React generator.
+
+#### Fixed
+- Backend-canonicalized responsive overrides containing `null` geometry or visibility fields are
+  compacted at the DTO boundary. Existing affected projects now inherit omitted breakpoint values
+  correctly instead of reporting two validation errors per responsive override.
+
+#### Tests
+- Added domain section-layout/preset tests, project-type mapper/repository coverage, project-creation
+  dialog tests, section-library controls, reducer history/reordering tests, and long-page canvas
+  coverage.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 104 test files and 866 tests passed.
+- `npm run build` — passed with the existing non-blocking large-chunk advisory.
+- `git diff --check` — passed (line-ending conversion warnings only).
+
 ### 2026-11-12 — Website projects implementation plan
 
 #### Added

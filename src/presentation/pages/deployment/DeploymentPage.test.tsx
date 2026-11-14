@@ -53,10 +53,13 @@ describe('DeploymentPage', () => {
     renderDeployment(projectId, repositories);
 
     expect(await screen.findByRole('heading', { name: 'Publish your app' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Preview environment' })).toHaveAttribute(
+    const previewEnvironment = screen.getByRole('button', { name: 'Preview environment' });
+    expect(previewEnvironment).toHaveAttribute(
       'aria-pressed',
       'true',
     );
+    expect(previewEnvironment).toHaveClass('bg-brand-500/10', 'dark:bg-brand-500/15');
+    expect(previewEnvironment).not.toHaveClass('bg-brand-50');
     expect(screen.getByRole('button', { name: 'Production environment' })).toHaveAttribute(
       'aria-pressed',
       'false',

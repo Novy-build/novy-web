@@ -17,6 +17,7 @@ const TEMPLATE: Template = {
   id: 'template_test',
   name: 'Test template',
   description: 'For factory tests',
+  projectType: 'app',
   screens: [
     {
       id: 'screen_template',

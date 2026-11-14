@@ -60,7 +60,7 @@ describe('AppSidebar', () => {
     await screen.findByRole('heading', { name: 'Projects' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
-    expect(await screen.findByRole('heading', { name: 'Choose a starting template' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'What do you want to build?' })).toBeInTheDocument();
   });
 
   it('opens the gallery from the Templates entry', async () => {
@@ -68,7 +68,7 @@ describe('AppSidebar', () => {
     await screen.findByRole('heading', { name: 'Projects' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Templates' }));
-    expect(await screen.findByRole('heading', { name: 'Choose a starting template' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'What do you want to build?' })).toBeInTheDocument();
   });
 
   it('signs out via the account menu', async () => {

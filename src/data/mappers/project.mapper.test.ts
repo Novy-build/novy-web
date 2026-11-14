@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { Project } from '@domain/entities/project';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
-import type { ScreenDTO } from '../dto/project.dto';
+import type { ComponentNodeDTO, ScreenDTO } from '../dto/project.dto';
+import { validateProject } from '@domain/validation/projectValidation';
 import {
   mapProjectFromDto,
   mapProjectToDto,
@@ -107,6 +108,7 @@ const FIXTURE_DOCUMENT: ProjectDocument = { screens: [FIXTURE_SCREEN] };
 const FIXTURE_PROJECT: Project = {
   id: 'project_1',
   name: 'Demo App',
+  projectType: 'app',
   createdAt: new Date('2026-01-01T10:00:00.000Z'),
   updatedAt: new Date('2026-01-02T12:30:00.000Z'),
   document: FIXTURE_DOCUMENT,
@@ -124,6 +126,41 @@ describe('project mapper', () => {
     expect(dto.createdAt).toBe('2026-01-01T10:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-02T12:30:00.000Z');
     expect(dto.schemaVersion).toBe(13);
+    expect(dto.projectType).toBe('app');
+  });
+
+  it('loads legacy projects without a project type as apps', () => {
+    const dto = mapProjectToDto(FIXTURE_PROJECT);
+    delete dto.projectType;
+    expect(mapProjectFromDto(dto).projectType).toBe('app');
+  });
+
+  it('adds safe dark appearances to legacy website sections', () => {
+    const website = { ...FIXTURE_PROJECT, projectType: 'website' as const };
+    const restored = mapProjectFromDto(mapProjectToDto(website));
+    const section = restored.document.screens[0]!.nodes.find((node) => node.id === 'node_column');
+
+    expect(restored.projectType).toBe('website');
+    expect(section?.appearance?.dark).toMatchObject({
+      backgroundColor: '#15181e',
+      textColor: '#eef0f4',
+    });
+  });
+
+  it('compacts backend nulls in partial responsive overrides', () => {
+    const dto = structuredClone(mapProjectToDto(FIXTURE_PROJECT));
+    dto.screens[0]!.nodes[0]!.responsive = {
+      tablet: { x: null, y: null, w: null, h: 88, isHidden: null },
+      desktop: { x: null, y: null, w: null, h: null, isHidden: null },
+    } as unknown as ComponentNodeDTO['responsive'];
+
+    const restored = mapProjectFromDto(dto);
+    const restoredNode = restored.document.screens[0]!.nodes[0]!;
+
+    expect(restoredNode.responsive).toEqual({ tablet: { h: 88 } });
+    expect(validateProject(restored.document).issues.filter((entry) =>
+      entry.code === 'component-responsive-geometry-invalid'
+      || entry.code === 'component-responsive-visibility-invalid')).toEqual([]);
   });
 
   it('round-trips projects losslessly', () => {
@@ -385,6 +422,7 @@ describe('project mapper', () => {
     expect(summary).toEqual({
       id: 'project_1',
       name: 'Demo App',
+      projectType: 'app',
       createdAt: FIXTURE_PROJECT.createdAt,
       updatedAt: FIXTURE_PROJECT.updatedAt,
       screenCount: 1,

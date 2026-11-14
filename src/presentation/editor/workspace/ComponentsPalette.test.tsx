@@ -25,6 +25,7 @@ describe('ComponentsPalette', () => {
     expect(screen.queryByLabelText('Add List')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Add Form')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Add Repeater')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Sections' })).not.toBeInTheDocument();
   });
 
   it('shows a decorative SVG icon for every asset', () => {

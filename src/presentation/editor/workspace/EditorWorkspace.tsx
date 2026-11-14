@@ -45,7 +45,7 @@ interface EditorWorkspaceProps {
 }
 
 export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: EditorWorkspaceProps) {
-  const [state, dispatch] = useReducer(editorReducer, project.document, createEditorState);
+  const [state, dispatch] = useReducer(editorReducer, createEditorState(project.document, project.projectType));
   const [mode, setMode] = useState<EditorMode>('design');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -62,6 +62,13 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
 
   const activeScreen = getActiveScreen(state);
   const selectedNode = state.selectedNodeId ? findNodeInScreen(activeScreen, state.selectedNodeId) : undefined;
+  const selectedSectionIndex = project.projectType === 'website' && selectedNode?.type === 'column'
+    ? activeScreen.nodes.findIndex((node) => node.id === selectedNode.id)
+    : -1;
+  const sectionNodes = activeScreen.nodes.filter((node) => node.type === 'column');
+  const selectedSectionPosition = selectedNode
+    ? sectionNodes.findIndex((node) => node.id === selectedNode.id)
+    : -1;
 
   const projectData = useProjectData(project.id);
   const itemSource = state.selectedNodeId
@@ -168,6 +175,23 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
         y: (location?.absoluteY ?? activeTemplate.y) + bounds.height / 2,
         parentId: activeTemplate.id,
       });
+    } else if (project.projectType === 'website') {
+      const targetSection = activeScreen.nodes.find((node) =>
+        node.type === 'column' && state.selectedNodeId !== null && containsNode(node, state.selectedNodeId))
+        ?? [...activeScreen.nodes].reverse().find((node) => node.type === 'column');
+      if (!targetSection) {
+        dispatch({ type: 'section/add' });
+        return;
+      }
+      const location = getComponentTreeLocation(activeScreen.nodes, targetSection.id, state.device);
+      const geometry = geometryAtBreakpoint(targetSection, state.device);
+      dispatch({
+        type: 'canvas/dropAt',
+        nodeType,
+        x: (location?.absoluteX ?? 0) + geometry.w / 2,
+        y: (location?.absoluteY ?? 0) + geometry.h,
+        parentId: targetSection.id,
+      });
     } else {
       dispatch({ type: 'node/add', nodeType, x: bounds.width / 2, y: bounds.height / 2 });
     }
@@ -242,6 +266,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                  frame={activeTemplate}
                  nodes={designNodes}
             onAddByType={addFromPalette}
+            isWebsite={project.projectType === 'website' && !activeTemplate}
             onMove={(nodeId, targetId, position) => dispatch({ type: 'node/layer-move', nodeId, targetId, position })}
             onOrder={(nodeId, direction) => dispatch({ type: 'node/order', nodeId, direction })}
             onRename={(nodeId, name) => dispatch({ type: 'node/layer-rename', nodeId, name })}
@@ -292,7 +317,33 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
             <ScreenRouteEditor
               onChange={(path) => dispatch({ type: 'screen/path', screenId: activeScreen.id, path })}
               path={activeScreen.path}
-            /></>}
+            />
+            {selectedSectionIndex >= 0 ? (
+              <div aria-label="Section order controls" className="flex min-h-11 items-center justify-between gap-3 border-b border-hairline bg-surface px-4">
+                <span className="truncate text-xs font-medium text-ink-muted">
+                  Section: {selectedNode?.name ?? 'Untitled section'}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    className="min-h-9 rounded-tile border border-hairline px-3 text-xs font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={selectedSectionPosition === 0}
+                    onClick={() => selectedNode && dispatch({ type: 'section/move', nodeId: selectedNode.id, direction: 'up' })}
+                    type="button"
+                  >
+                    Move up
+                  </button>
+                  <button
+                    className="min-h-9 rounded-tile border border-hairline px-3 text-xs font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={selectedSectionPosition === sectionNodes.length - 1}
+                    onClick={() => selectedNode && dispatch({ type: 'section/move', nodeId: selectedNode.id, direction: 'down' })}
+                    type="button"
+                  >
+                    Move down
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            </>}
             {activeTemplate && activeTemplate.children.length === 0 ? (
               <div className="border-b border-dashed border-hairline bg-surface px-4 py-3 text-center" role="status">
                 <span className="text-sm text-ink-muted">This item template is empty.</span>
@@ -311,9 +362,11 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                 direction: activeTemplate.props.scrollDirection,
               } : undefined}
               device={state.device}
+              isWebsite={project.projectType === 'website' && !activeTemplate}
               dropIndicator={state.dropIndicator}
               isSnapEnabled={state.isSnapEnabled}
               onAddBehavior={() => addBehaviorFromSelection('click')}
+              onAddSection={() => dispatch({ type: 'section/add' })}
               onDeleteSelected={() => {
                 if (state.selectedNodeId) {
                   dispatch({ type: 'node/delete', nodeId: state.selectedNodeId });
@@ -398,7 +451,10 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                     side="right"
                   />
                 </div>
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                <div
+                  className="flex min-h-40 flex-1 flex-col overflow-hidden"
+                  data-testid="inspector-properties-region"
+                >
                   <Inspector
                     behaviors={activeScreen.behaviors}
                     collections={projectData.collections}
@@ -434,10 +490,14 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                   onToggle={() => setIsValidationOpen((current) => !current)}
                   report={validation}
                 />
-                <div className="shrink-0 border-t border-hairline">
+                <div
+                  className="flex min-h-28 flex-[0_1_35%] flex-col overflow-hidden border-t border-hairline"
+                  data-testid="inspector-layers-region"
+                >
                   <LayersPanel
                     frame={activeTemplate}
                     isEmbedded
+                    isRootMainAxis={project.projectType === 'website' && !activeTemplate}
                     device={state.device}
                     nodes={designNodes}
                     onMove={(nodeId, targetId, position) => dispatch({ type: 'node/layer-move', nodeId, targetId, position })}
@@ -482,6 +542,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
             updateRecord: projectData.updateRecord,
           }}
           projectName={project.name}
+          projectType={project.projectType}
           recordsByCollection={projectData.recordsByCollection}
           screens={state.document.screens}
         />
@@ -515,6 +576,11 @@ function findNearestListView(
     if (found) return found;
   }
   return null;
+}
+
+function containsNode(root: ComponentNode, nodeId: string): boolean {
+  if (root.id === nodeId) return true;
+  return isChildBearingNode(root) && root.children.some((child) => containsNode(child, nodeId));
 }
 
 function templateSampleOptions(
