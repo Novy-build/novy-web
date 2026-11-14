@@ -5,6 +5,25 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-14 — README cleanup
+
+#### Fixed
+- Removed trailing UTF-16LE/NUL bytes from `README.md` that made the file appear binary to editors
+  and tooling.
+
+#### Changed
+- Documented the optional `VITE_API_BASE_URL` backend switch, the demo-user local session, and the
+  four Clean Architecture layers; kept the existing script list.
+
+#### Notes
+- Documentation only. No source, test, or configuration behaviour changed.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 105 test files and 870 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
 ### 2026-11-14 — Real Vercel and Netlify publishing
 
 #### Added
