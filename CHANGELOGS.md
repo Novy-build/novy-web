@@ -5,6 +5,27 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-14 — Continuous flex sizing implementation draft
+
+#### Added
+- `docs/continuous-flex-sizing-plan.md` — a **review-only draft** for Fill / Hug / percentage
+  sizing: problem statement with code evidence, a provisional data contract, five ordered phases,
+  history/undo policy, risks, cross-repo dependencies, acceptance criteria, documentation
+  obligations, and ten open questions for the leader.
+
+#### Notes
+- **Documentation only.** No implementation, schema bump, DTO change, or production code was
+  written; status is explicitly DRAFT / not approved and no phase has started.
+- Continuous flex sizing remains listed as not-yet-implemented in `PROGRESS.md` §15; this plan is
+  a proposal, not evidence of a completed feature.
+- Website projects remain an explicit scope extension beyond the PD6 baseline, not PD6 compliance.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 105 test files and 870 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --check` — passed.
+
 ### 2026-11-14 — Harden async UI test timeout
 
 #### Fixed
