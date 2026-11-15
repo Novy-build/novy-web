@@ -95,6 +95,27 @@ export function useDeployment(
     };
   }, [deploymentRepository, projectId, projects, reloadCount]);
 
+  // A release can keep building after the page reloads or the publish call
+  // ends, so the history follows provider status until every release settles.
+  const hasPendingDeployment = deployments.some((item) => item.status === 'building');
+  useEffect(() => {
+    if (!hasPendingDeployment || isPublishing || status !== 'ready') {
+      return;
+    }
+    let active = true;
+    const timer = window.setInterval(() => {
+      void deploymentRepository.listDeployments(projectId).then((history) => {
+        if (active) setDeployments(history);
+      }).catch(() => {
+        // Keep the last known history when a refresh fails.
+      });
+    }, 4_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [deploymentRepository, hasPendingDeployment, isPublishing, projectId, status]);
+
   const publish = useCallback(async (manifest?: unknown): Promise<void> => {
     if (!project || !provider || isPublishing) {
       return;

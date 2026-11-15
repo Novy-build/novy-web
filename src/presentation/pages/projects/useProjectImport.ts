@@ -117,6 +117,8 @@ function describeImportError(cause: unknown): string {
       return 'Your session expired. Sign in again to import projects.';
     case 'rate-limited':
       return 'Too many import attempts. Wait a moment and try again.';
+    case 'timeout':
+      return 'The backend took too long to respond. Try again in a moment.';
     case 'network':
     case 'unavailable':
       return 'The backend could not be reached. Check your connection and try again.';

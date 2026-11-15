@@ -9,6 +9,7 @@ export interface ProjectsState {
   isLoading: boolean;
   hasFailed: boolean;
   reload: () => void;
+  preloadProject: (projectId: string) => void;
   createProject: (name: string, template: Template) => Promise<Project>;
   renameProject: (projectId: string, name: string) => Promise<void>;
   duplicateProject: (projectId: string) => Promise<void>;
@@ -60,6 +61,13 @@ export function useProjects(): ProjectsState {
     setAttempt((value) => value + 1);
   }, []);
 
+  const preloadProject = useCallback((projectId: string): void => {
+    // The API repository deduplicates this with the editor's own load, so a
+    // hover/focus turns the visible wait into useful anticipation without
+    // issuing duplicate requests.
+    void projectRepository.getProject(projectId).catch(() => undefined);
+  }, [projectRepository]);
+
   const createProject = useCallback(
     async (name: string, template: Template): Promise<Project> => {
       const created = await instantiateProject(name, template);
@@ -98,6 +106,7 @@ export function useProjects(): ProjectsState {
     isLoading,
     hasFailed,
     reload,
+    preloadProject,
     createProject,
     renameProject,
     duplicateProject,

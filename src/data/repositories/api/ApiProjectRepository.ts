@@ -20,6 +20,7 @@ import { mapProjectFromDto, mapScreenFromDto, mapScreenToDto } from '../../mappe
 import { mapTemplateToDto } from '../../mappers/template.mapper';
 
 const PROJECTS_BASE = '/projects';
+const NAVIGATION_CACHE_TTL_MS = 30_000;
 
 /**
  * Backend-backed project persistence. Optimistic concurrency uses the
@@ -31,15 +32,37 @@ export class ApiProjectRepository implements ProjectRepository {
 
   private readonly client: ApiHttpClient;
   private readonly revisions = new Map<string, number>();
+  private readonly projects = new Map<string, { project: Project; storedAt: number }>();
+  private readonly inFlightProjects = new Map<string, Promise<Project | null>>();
+  private projectList: { projects: ProjectSummary[]; storedAt: number } | null = null;
+  private projectListRequest: Promise<ProjectSummary[]> | null = null;
 
   constructor(client: ApiHttpClient) {
     this.client = client;
   }
 
   async listProjects(): Promise<ProjectSummary[]> {
+    if (this.projectList && isFresh(this.projectList.storedAt)) {
+      return this.projectList.projects;
+    }
+    if (this.projectListRequest) {
+      return this.projectListRequest;
+    }
+    const request = this.loadProjectList();
+    this.projectListRequest = request;
+    try {
+      return await request;
+    } finally {
+      this.projectListRequest = null;
+    }
+  }
+
+  private async loadProjectList(): Promise<ProjectSummary[]> {
     try {
       const response = await this.client.get(PROJECTS_BASE);
-      return parseProjectList(response.data).projects.map(mapSummary);
+      const projects = parseProjectList(response.data).projects.map(mapSummary);
+      this.projectList = { projects, storedAt: Date.now() };
+      return projects;
     } catch (error) {
       throw mapApiProjectError(error);
     }
@@ -51,6 +74,7 @@ export class ApiProjectRepository implements ProjectRepository {
         name,
         template: mapTemplateToDto(template),
       });
+      this.invalidateProjectList();
       return this.adopt(parseProjectResponse(response.data));
     } catch (error) {
       throw mapApiProjectError(error);
@@ -58,6 +82,25 @@ export class ApiProjectRepository implements ProjectRepository {
   }
 
   async getProject(projectId: string): Promise<Project | null> {
+    const cached = this.projects.get(projectId);
+    if (cached && isFresh(cached.storedAt)) {
+      return cached.project;
+    }
+    const inFlight = this.inFlightProjects.get(projectId);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const request = this.loadProject(projectId);
+    this.inFlightProjects.set(projectId, request);
+    try {
+      return await request;
+    } finally {
+      this.inFlightProjects.delete(projectId);
+    }
+  }
+
+  private async loadProject(projectId: string): Promise<Project | null> {
     try {
       const response = await this.client.get(projectPath(projectId));
       return this.adopt(parseProjectResponse(response.data));
@@ -91,6 +134,7 @@ export class ApiProjectRepository implements ProjectRepository {
         },
         { headers: { 'If-Match': `"${revision}"` } },
       );
+      this.invalidateProjectList();
       return this.adopt(parseProjectResponse(response.data));
     } catch (error) {
       if (isStaleRevisionError(error)) {
@@ -106,6 +150,7 @@ export class ApiProjectRepository implements ProjectRepository {
   async renameProject(projectId: string, name: string): Promise<Project> {
     try {
       const response = await this.client.patch(projectPath(projectId), { name });
+      this.invalidateProjectList();
       return this.adopt(parseProjectResponse(response.data));
     } catch (error) {
       throw mapApiProjectError(error);
@@ -115,6 +160,7 @@ export class ApiProjectRepository implements ProjectRepository {
   async duplicateProject(projectId: string): Promise<Project> {
     try {
       const response = await this.client.post(`${projectPath(projectId)}/duplicate`);
+      this.invalidateProjectList();
       return this.adopt(parseProjectResponse(response.data));
     } catch (error) {
       throw mapApiProjectError(error);
@@ -130,12 +176,14 @@ export class ApiProjectRepository implements ProjectRepository {
       }
     } finally {
       this.revisions.delete(projectId);
+      this.projects.delete(projectId);
+      this.invalidateProjectList();
     }
   }
 
   private adopt(dto: ProjectResponseDTO): Project {
     this.revisions.set(dto.id, dto.revision);
-    return mapProjectFromDto({
+    const project = mapProjectFromDto({
       schemaVersion: dto.schemaVersion,
       id: dto.id,
       name: dto.name,
@@ -144,16 +192,34 @@ export class ApiProjectRepository implements ProjectRepository {
       updatedAt: dto.updatedAt,
       screens: dto.screens,
     });
+    this.projects.set(dto.id, { project, storedAt: Date.now() });
+    return project;
+  }
+
+  /** Adopts a project returned by another backend write, such as assistant acceptance. */
+  adoptProjectResponse(value: unknown): Project {
+    this.invalidateProjectList();
+    return this.adopt(parseProjectResponse(value));
+  }
+
+  private invalidateProjectList(): void {
+    this.projectList = null;
   }
 
   private async refreshRevision(projectId: string): Promise<void> {
     try {
-      await this.getProject(projectId);
+      // A conflict means the cached revision is known to be stale, so this
+      // refresh must bypass the short navigation cache.
+      await this.loadProject(projectId);
     } catch {
       // Keep the previous revision when the refresh itself fails; the next
       // save reports the real backend error.
     }
   }
+}
+
+function isFresh(storedAt: number): boolean {
+  return Date.now() - storedAt <= NAVIGATION_CACHE_TTL_MS;
 }
 
 function projectPath(projectId: string): string {
@@ -233,6 +299,9 @@ export function mapApiProjectError(error: unknown): ProjectError {
     return new ProjectError('unexpected');
   }
   if (!error.response) {
+    if (error.code === 'ECONNABORTED') {
+      return new ProjectError('timeout', 'The backend took too long to respond. Try again.');
+    }
     return new ProjectError('network', 'The backend could not be reached. Try again.');
   }
   const envelope = readEnvelope(error);

@@ -79,4 +79,27 @@ describe('useDeployment', () => {
     expect(result.current.deployments).toEqual([]);
     expect(result.current.publishError).toMatch(/Publish failed/);
   });
+
+  it('keeps refreshing history while a release is still building', async () => {
+    const repositories = createStubRepositories();
+    await ensureDemoProject(repositories);
+    const project = (await repositories.projects.listProjects())[0]!;
+    await repositories.deployments.createDeployment({
+      projectId: project.id,
+      status: 'building',
+    });
+    const setIntervalSpy = vi.spyOn(window, 'setInterval');
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <RepositoriesProvider repositories={repositories}>{children}</RepositoriesProvider>
+    );
+    const { result, unmount } = renderHook(() => useDeployment(project.id), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.deployments[0]?.status).toBe('building');
+
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 4_000);
+
+    unmount();
+    expect(clearIntervalSpy).toHaveBeenCalled();
+  });
 });

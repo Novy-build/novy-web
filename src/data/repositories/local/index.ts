@@ -1,4 +1,5 @@
 import type { AuthRepository } from '@domain/repositories/auth.repository';
+import type { AssistantRepository } from '@domain/repositories/assistant.repository';
 import type { AppDataRepository } from '@domain/repositories/appData.repository';
 import type { DeploymentRepository } from '@domain/repositories/deployment.repository';
 import type { ProjectImportRepository } from '@domain/repositories/projectImport.repository';
@@ -11,6 +12,7 @@ import { LocalStorageAppDataRepository } from './LocalStorageAppDataRepository';
 import { LocalStorageDeploymentRepository } from './LocalStorageDeploymentRepository';
 import { LocalStorageProjectRepository } from './LocalStorageProjectRepository';
 import { StaticTemplateRepository } from './StaticTemplateRepository';
+import { UnavailableAssistantRepository } from './UnavailableAssistantRepository';
 import { UnavailableReactExportRepository } from './UnavailableReactExportRepository';
 
 /**
@@ -20,6 +22,7 @@ import { UnavailableReactExportRepository } from './UnavailableReactExportReposi
  */
 export interface Repositories {
   auth: AuthRepository;
+  assistant: AssistantRepository;
   projects: ProjectRepository;
   templates: TemplateRepository;
   deployments: DeploymentRepository;
@@ -42,6 +45,7 @@ export function createLocalRepositories(options?: LocalRepositoriesOptions): Rep
   const latencyMs = options?.latencyMs;
   return {
     auth: new LocalAuthRepository(window.localStorage, { delayMs: latencyMs }),
+    assistant: new UnavailableAssistantRepository(),
     projects: new LocalStorageProjectRepository(window.localStorage, { latencyMs }),
     templates: new StaticTemplateRepository([...TEMPLATE_CATALOG], latencyMs ?? 120),
     deployments: new LocalStorageDeploymentRepository(window.localStorage, { latencyMs }),

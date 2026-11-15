@@ -105,7 +105,7 @@ export function validateProject(
       .map((match) => match[1]!);
     for (const segmentName of dynamicSegmentNames) {
       if (!(screen.routeParameters ?? []).some((parameter) => parameter.name === segmentName)) {
-        issues.push(issue('screen-route-segment-unmapped', 'warning', 'screen', `Route segment :${segmentName} is not mapped to a record identifier.`, { screenId: screen.id }));
+        issues.push(issue('screen-route-segment-unmapped', 'error', 'screen', `Route segment :${segmentName} is not mapped to a record identifier.`, { screenId: screen.id }));
       }
     }
     validateScreenTree(screen, componentIds, issues, screen.id, collectionById, screenRecordCollectionById.get(screen.id));

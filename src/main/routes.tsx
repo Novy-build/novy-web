@@ -1,10 +1,25 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
 import { RequireAuth } from '@presentation/components/routing/RequireAuth';
 import { AppShell } from '@presentation/components/layout/AppShell';
+import { LoadingScreen } from '@presentation/components/system/LoadingScreen';
 import { AuthPage } from '@presentation/pages/auth/AuthPage';
-import { ProjectsPage } from '@presentation/pages/projects/ProjectsPage';
-import { EditorPage } from '@presentation/pages/editor/EditorPage';
-import { DeploymentPage } from '@presentation/pages/deployment/DeploymentPage';
+
+const ProjectsPage = lazy(() =>
+  import('@presentation/pages/projects/ProjectsPage').then((module) => ({
+    default: module.ProjectsPage,
+  })),
+);
+const EditorPage = lazy(() =>
+  import('@presentation/pages/editor/EditorPage').then((module) => ({
+    default: module.EditorPage,
+  })),
+);
+const DeploymentPage = lazy(() =>
+  import('@presentation/pages/deployment/DeploymentPage').then((module) => ({
+    default: module.DeploymentPage,
+  })),
+);
 
 /**
  * Route tree per docs/frontend-plan.md:
@@ -16,18 +31,20 @@ import { DeploymentPage } from '@presentation/pages/deployment/DeploymentPage';
  */
 export function AppRoutes() {
   return (
-    <Routes>
-      <Route element={<RequireAuth />}>
-        <Route element={<AppShell />}>
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/project/:projectId/deploy" element={<DeploymentPage />} />
+    <Suspense fallback={<LoadingScreen label="Loading page…" />}>
+      <Routes>
+        <Route element={<RequireAuth />}>
+          <Route element={<AppShell />}>
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/project/:projectId/deploy" element={<DeploymentPage />} />
+          </Route>
+          <Route path="/project/:projectId" element={<Navigate to="editor" replace />} />
+          <Route path="/project/:projectId/editor" element={<EditorPage />} />
         </Route>
-        <Route path="/project/:projectId" element={<Navigate to="editor" replace />} />
-        <Route path="/project/:projectId/editor" element={<EditorPage />} />
-      </Route>
-      <Route path="/login" element={<AuthPage />} />
-      <Route path="/" element={<Navigate to="/projects" replace />} />
-      <Route path="*" element={<Navigate to="/projects" replace />} />
-    </Routes>
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="/" element={<Navigate to="/projects" replace />} />
+        <Route path="*" element={<Navigate to="/projects" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

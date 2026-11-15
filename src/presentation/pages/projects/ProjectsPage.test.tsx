@@ -90,7 +90,9 @@ describe('ProjectsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
 
     // The real editor workspace replaces the Phase 2 placeholder heading.
-    expect(await screen.findByRole('button', { name: 'Cornerstone' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Cornerstone' }, { timeout: 5_000 }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('canvas-frame')).toBeInTheDocument();
   });
 

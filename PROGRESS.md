@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-14
+**Last reviewed:** 2026-11-15
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -19,9 +19,11 @@ completed production backend integrations.
 
 - [x] React and TypeScript application with strict type checking.
 - [x] Vite development and production build configuration.
+- [x] Lazy-loaded projects, editor, and deployment route chunks; login remains eager for immediate
+  credential-form rendering.
 - [x] Clean Architecture separation across `domain`, `data`, `presentation`, and `main` layers.
-- [x] Dependency injection for authentication, projects, templates, project data, and deployment
-  repositories.
+- [x] Dependency injection for authentication, projects, templates, project data, deployment, and
+  builder-assistant repositories.
 - [x] Central Axios client configured with credentialed requests, a JSON content type, and
   automatic `X-CSRF-Token` headers for state-changing requests.
 - [x] API-backed authentication repository for the Novy backend, selected when
@@ -60,6 +62,8 @@ completed production backend integrations.
 - [x] Pending-email-confirmation guidance when Supabase requires confirmation before login.
 - [x] Development-only demo-user sign-in shortcut; API-backed auth never exposes it.
 - [x] Session provider and protected-route guard.
+- [x] Protected-route data requests start in parallel with session restoration; backend cookies and
+  authorization still decide access before protected data is returned.
 - [x] Restoration of the originally requested route after authentication.
 - [x] Sign-out support.
 - [x] Responsive application shell.
@@ -85,6 +89,10 @@ accepted, and submitted passwords are ignored. Production still requires Supabas
 - [x] Choose **Web app** or **Website** before selecting a type-filtered starter template; the
   project type persists locally and through the backend and is shown on dashboard cards.
 - [x] Open an existing project in the editor.
+- [x] Short-lived project/list navigation cache with hover/focus document preloading and in-flight
+  request deduplication.
+- [x] API repositories deduplicate concurrent StrictMode reads for auth, projects, app data, and
+  deployments instead of sending duplicate backend requests during development mounts.
 - [x] Rename projects.
 - [x] Duplicate projects.
 - [x] Delete projects with confirmation.
@@ -1014,6 +1022,8 @@ explicitly unsupported in production runtime.
 - [x] Create, update, and delete records.
 - [x] Confirmation before destructive data operations.
 - [x] Loading, empty, and retryable error states.
+- [x] API-backed Data workspace loads databases, collections, and records from one owner-scoped
+  snapshot endpoint instead of a sequential request waterfall.
 - [x] ListView-to-collection data binding with an optional record label, multiple display fields
   retained for saved-project compatibility, search/sort metadata, and a repeatable nested item
   template that supports text, image-only, and mixed-media designs.
@@ -1036,14 +1046,47 @@ explicitly unsupported in production runtime.
   the same project is not offered twice.
 - [x] A local-storage app-data repository remains the fallback when no backend URL is configured.
 
-## 9. AI assistant demo
+## 9. Selectable AI assistant providers
 
-- [x] Floating assistant entry point and slide-over conversation UI.
-- [x] Clearly labeled rule-based demo behavior.
-- [x] Structured proposals instead of direct document mutation.
-- [x] Keep and Undo proposal controls.
-- [x] Assistant changes share the editor's undo history.
-- [x] Graceful handling of unsupported or impossible proposals.
+- [x] Floating assistant entry point and keyboard-accessible slide-over conversation UI.
+- [x] API-backed complete-app proposals through FastAPI with an editor-session provider selector for
+  restricted OpenCode, local Ollama testing, and optional direct OpenRouter. Credentials and model
+  URLs remain backend-only, and provider failures never fall back automatically.
+- [x] Capability-aware image attachment for PNG/JPEG/GIF/WebP with provider locality, availability,
+  image support, and potential-cost disclosure in the composer.
+- [x] Session-only OpenCode model selection between backend-allowlisted Nemotron 3.5 Super VL and
+  GPT-6.1 Terra, with explicit OpenAI plan/API usage disclosure and quota-specific errors.
+- [x] Conversational Build-mode greetings without proposal cards, plus synchronous duplicate-request
+  suppression and clearer validation recovery guidance.
+- [x] Route-bound proposal blueprints preserve dynamic route parameters and record fields through
+  preview and explicit Apply, with proposal-integrity errors distinct from model validation errors.
+- [x] Versioned `AppBlueprintV1` proposals for screens, components, event-condition-action workflows,
+  and collection schemas rather than model-authored Project JSON or manifests.
+- [x] Provider-neutral backend Builder Skill Pack selects compact collection, form, and landing-page
+  recipes for the request. Approved examples are shared across selected providers without exposing
+  source, records, credentials, or triggering fallback.
+- [x] Deterministic backend completion and request-aware quality gates supply commonly omitted create
+  flows, form feedback, hero hierarchy, navigation reachability, required mappings, and valid route
+  record context before the proposal reaches preview.
+- [x] Structured preview of every proposed screen, route, component/workflow count, and collection
+  before persistence, with explicit **Apply app** and **Reject** controls.
+- [x] Pending autosave blocks proposal generation/acceptance so backend project revision remains
+  authoritative; stale acceptance is reported without changing project or app data.
+- [x] Accepted proposals adopt the backend Project v13 response as clean editor state and refresh the
+  project data snapshot. Project document and declared collection schemas are committed atomically by
+  the backend.
+- [x] Validation, bindings, routes, and item-template previews consume that refreshed project-data
+  snapshot immediately after Apply; empty collection templates show typed field-label samples rather
+  than generated field IDs.
+- [x] Apply persistence failures are distinct from backend connectivity failures, produce one
+  accurate conversation message, and leave the pending project document unchanged.
+- [x] Conversation state survives sheet close/reopen for the current editor session.
+- [x] Build mode sends bounded conversation and the latest validated pending blueprint so follow-up
+  instructions refine the preview without persistence; older pending previews are marked superseded.
+- [x] Ask Novy mode is separate from app generation, does not wait for autosave, and displays
+  backend-validated citations from the approved local documentation index.
+- [x] Unavailable providers remain disabled and visible instead of falling back to static keyword
+  responses or silently invoking a different provider.
 
 Implemented demo requests include:
 
@@ -1052,7 +1095,8 @@ Implemented demo requests include:
 - [x] Add a ListView, including the student-list example.
 - [x] Create a click behavior that changes text.
 
-No external AI model or AI SDK is connected.
+Remote inference is available only through an explicitly selected OpenCode or configured OpenRouter
+provider. Ollama remains the local generation/testing and embedding runtime.
 
 ## 10. Validation
 
@@ -1068,6 +1112,8 @@ No external AI model or AI SDK is connected.
 - [x] An undesigned ListView item template is a blocking component error until at least one item
   widget is added.
 - [x] Missing collection and field reference detection.
+- [x] Validation uses the editor's live project-data collection state, including assistant-created
+  schemas refreshed after Apply, rather than retaining a separate one-time collection snapshot.
 - [x] Behavior target and graph reference validation.
 - [x] Logic trigger-count, edge, cycle, and incoming-connection validation.
 - [x] Condition source validation.
@@ -1129,8 +1175,12 @@ No external AI model or AI SDK is connected.
 - [x] Per-project deployment page.
 - [x] Preview and Production environment selection.
 - [x] Backend-reported deployment-provider selection (Vercel, Netlify, or local development).
+- [x] Deployment readiness panel reports the connected hosting providers or that none are
+  configured, instead of a static backend-required label.
 - [x] Project validation before publishing.
 - [x] Build, Optimize, Provision, and Live progress driven by repository submission/status polling.
+- [x] Publishing progress uses theme-aware brand surfaces and readable state colors in light and
+  dark mode.
 - [x] Real provider URLs in API mode and generated mock `novy.app` URLs in local-only mode.
 - [x] Publish success modal and URL copy action.
 - [x] Owner-scoped backend deployment history in API mode and persisted mock history locally.
@@ -1172,17 +1222,21 @@ The repository includes automated coverage for:
   canvas interactions, alignment, layers, inspector, logic, data, preview, deployment, and shared
   UI components.
 
-Verification completed on 2026-11-14:
+Verification completed on 2026-11-15:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 105 test files and 870 tests passed.
-- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
-- Backend deployment verification: 137 passed, 2 skipped; provider REST adapters use mocked
+- `npm test -- --run` — 107 test files and 902 tests passed.
+- `npm run build` — passed.
+- Backend deployment verification: 151 passed, 2 skipped; provider REST adapters use mocked
   transports because live Vercel/Netlify credentials are not configured in this workspace.
 - Backend generated-app verification also ran the exported runtime's Vitest suite, TypeScript
   check, and production Vite build from a freshly installed archive.
 - Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.
+- Backend assistant verification: 222 passed, 4 skipped; Ruff, formatting, and mypy passed. The
+  PostgreSQL-only assistant ordering/rollback and profile tests require `TEST_DATABASE_URL`. Ollama
+  live model/structured-output, Project v13 compilation, 5-source/92-chunk index, and citation tests
+  passed.
 
 ## 15. Current frontend boundaries and remaining integrations
 
@@ -1197,8 +1251,8 @@ features:
   mocked provider tests pass.
 - Generated-app end-user authentication. Session mappings fail explicitly and never reuse builder
   identity.
-- AI, RAG, and Computer Vision production execution; these actions return an explicit unsupported
-  capability error.
+- Generated-app AI, RAG, and Computer Vision production execution; these actions return an explicit
+  unsupported capability error. This is separate from the implemented builder-facing assistant.
 - Live Vercel/Netlify verification with real platform credentials. Provider adapters, API contracts,
   persistence, mocked transport tests, and frontend polling are implemented.
 - Real custom domains.

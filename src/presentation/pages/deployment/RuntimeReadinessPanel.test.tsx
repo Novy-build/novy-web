@@ -8,6 +8,7 @@ describe('RuntimeReadinessPanel', () => {
     const onDownloadReact = vi.fn();
     render(
       <RuntimeReadinessPanel
+        deploymentProviders={[]}
         downloadError={null}
         isDownloading={false}
         onDownloadReact={onDownloadReact}
@@ -35,6 +36,7 @@ describe('RuntimeReadinessPanel', () => {
   it('shows generation progress and an export error', () => {
     render(
       <RuntimeReadinessPanel
+        deploymentProviders={[]}
         downloadError="The project manifest is invalid."
         isDownloading
         onDownloadReact={vi.fn()}
@@ -45,5 +47,40 @@ describe('RuntimeReadinessPanel', () => {
 
     expect(screen.getByRole('button', { name: 'Generating React app…' })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('The project manifest is invalid.');
+  });
+
+  it('reports the connected deployment providers', () => {
+    render(
+      <RuntimeReadinessPanel
+        deploymentProviders={['vercel', 'netlify']}
+        downloadError={null}
+        isDownloading={false}
+        onDownloadReact={vi.fn()}
+        onExport={vi.fn()}
+        requirements={[
+          { capability: 'deployment', configurationOwner: 'backend', requiredBinding: 'deployment.provider', requiredBy: ['project_1'] },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Deployment provider')).toBeInTheDocument();
+    expect(screen.getByText('Vercel, Netlify connected')).toBeInTheDocument();
+  });
+
+  it('reports that no deployment provider is configured', () => {
+    render(
+      <RuntimeReadinessPanel
+        deploymentProviders={[]}
+        downloadError={null}
+        isDownloading={false}
+        onDownloadReact={vi.fn()}
+        onExport={vi.fn()}
+        requirements={[
+          { capability: 'deployment', configurationOwner: 'backend', requiredBinding: 'deployment.provider', requiredBy: ['project_1'] },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Not configured')).toBeInTheDocument();
   });
 });

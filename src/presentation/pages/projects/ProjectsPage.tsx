@@ -25,6 +25,7 @@ export function ProjectsPage() {
     isLoading,
     hasFailed,
     reload,
+    preloadProject,
     createProject,
     renameProject,
     duplicateProject,
@@ -115,6 +116,7 @@ export function ProjectsPage() {
                 <ProjectCard
                   onDuplicate={() => void duplicateProject(project.id)}
                   onDelete={() => setDeleteTarget(project)}
+                  onPreload={() => preloadProject(project.id)}
                   onRename={() => setRenameTarget(project)}
                   project={project}
                 />

@@ -39,6 +39,21 @@ describe('ApiAuthRepository session', () => {
     expect(get).toHaveBeenCalledWith('/auth/session');
   });
 
+  it('deduplicates concurrent session restoration', async () => {
+    const { client, get } = makeClient();
+    get.mockResolvedValue(response(USER));
+    const repository = new ApiAuthRepository(client);
+
+    const [first, second] = await Promise.all([
+      repository.getSession(),
+      repository.getSession(),
+    ]);
+
+    expect(first).toEqual(USER);
+    expect(second).toEqual(USER);
+    expect(get).toHaveBeenCalledOnce();
+  });
+
   it('treats a 401 as an anonymous visitor', async () => {
     const { client, get } = makeClient();
     get.mockRejectedValue(apiFailure(401, 'session_required'));

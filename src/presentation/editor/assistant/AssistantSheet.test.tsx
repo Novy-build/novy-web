@@ -1,151 +1,218 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useReducer } from 'react';
-import type { ProjectDocument } from '@domain/entities/screen';
-import { editorReducer } from '../state/editorReducer';
-import { createEditorState, getActiveScreen, type EditorState } from '../state/editorState';
-import { makeButton, makeScreen, makeText } from '@test/editorFixtures';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import type { AssistantProposalV1 } from '@domain/entities/assistant';
 import { AssistantSheet } from './AssistantSheet';
+import type { AssistantConversation } from './useAssistantConversation';
 
-const SCREEN = makeScreen('screen_home', [
-  makeText('node_text', { x: 24, y: 24, w: 220, h: 36 }),
-  makeButton('node_button', { x: 24, y: 560, w: 160, h: 44 }),
-]);
-const DOCUMENT: ProjectDocument = { screens: [SCREEN] };
+const PROPOSAL: AssistantProposalV1 = {
+  id: 'proposal_1',
+  projectId: 'project_1',
+  baseRevision: 2,
+  message: 'A task app proposal.',
+  blueprint: {
+    version: 1,
+    summary: 'A task app proposal.',
+    screens: [
+      {
+        key: 'home',
+        name: 'Tasks',
+        path: '/',
+        components: [
+          { key: 'heading', type: 'text', text: 'Tasks' },
+          { key: 'add', type: 'button', label: 'Add task' },
+        ],
+        workflows: [
+          {
+            key: 'open',
+            name: 'Open form',
+            triggerComponentKey: 'add',
+            event: 'click',
+            actions: [{ type: 'navigate', targetScreenKey: 'create' }],
+          },
+        ],
+      },
+      {
+        key: 'create',
+        name: 'Create task',
+        path: '/new',
+        components: [{ key: 'title', type: 'input', label: 'Title' }],
+        workflows: [],
+      },
+    ],
+    collections: [
+      {
+        key: 'tasks',
+        name: 'Tasks',
+        fields: [{ key: 'title', label: 'Title', type: 'text', required: true }],
+      },
+    ],
+  },
+  preview: {
+    schemaVersion: 13,
+    document: { screens: [] },
+    collections: [],
+  },
+};
 
-/** Captures reducer state so tests can assert the applied document. */
-const latest: { current: EditorState | null } = { current: null };
-
-function Harness({ document, onClose }: { document: ProjectDocument; onClose: () => void }) {
-  const [state, dispatch] = useReducer(editorReducer, document, createEditorState);
-  latest.current = state;
-  return <AssistantSheet dispatch={dispatch} onClose={onClose} state={state} />;
+function conversation(overrides: Partial<AssistantConversation> = {}): AssistantConversation {
+  return {
+    messages: overrides.messages ?? [],
+    mode: overrides.mode ?? 'build',
+    isWorking: overrides.isWorking ?? false,
+    isAvailable: overrides.isAvailable ?? true,
+    providers: overrides.providers ?? [{
+      id: 'opencode', model: 'nemotron-free', available: true,
+      imageInput: true, location: 'remote', costWarning: false,
+      defaultModelId: 'nemotron-super',
+      models: [
+        {
+          id: 'nemotron-super', name: 'Nemotron 3.5 Super VL', model: 'opencode/nemotron',
+          available: true, imageInput: true, location: 'remote', costWarning: false,
+          usageNote: 'Free OpenCode quota; remote processing.',
+        },
+        {
+          id: 'gpt-6.1-terra', name: 'GPT-6.1 Terra', model: 'openai/gpt-6.1-terra',
+          available: true, imageInput: true, location: 'remote', costWarning: true,
+          usageNote: 'Uses the OpenAI account connected to OpenCode.',
+        },
+      ],
+    }],
+    selectedProviderId: overrides.selectedProviderId ?? 'opencode',
+    setSelectedProviderId: overrides.setSelectedProviderId ?? vi.fn(),
+    selectedModelId: overrides.selectedModelId ?? 'nemotron-super',
+    setSelectedModelId: overrides.setSelectedModelId ?? vi.fn(),
+    setMode: overrides.setMode ?? vi.fn(),
+    send: overrides.send ?? vi.fn().mockResolvedValue(undefined),
+    accept: overrides.accept ?? vi.fn().mockResolvedValue(undefined),
+    reject: overrides.reject ?? vi.fn(),
+  };
 }
-
-function renderSheet(document: ProjectDocument = DOCUMENT) {
-  const onClose = vi.fn();
-  render(<Harness document={document} onClose={onClose} />);
-  return onClose;
-}
-
-/** Types a message into the composer and submits it; returns the dialog. */
-function ask(message: string): HTMLElement {
-  const dialog = screen.getByRole('dialog');
-  fireEvent.change(within(dialog).getByLabelText('Message'), { target: { value: message } });
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Send' }));
-  return dialog;
-}
-
-beforeEach(() => {
-  latest.current = null;
-  window.localStorage.clear();
-});
 
 describe('AssistantSheet', () => {
-  it('shows the demo badge and hint, and disables Send until text is typed', () => {
-    renderSheet();
+  it('identifies the live provider and explains preview-before-apply', () => {
+    render(<AssistantSheet conversation={conversation()} onClose={vi.fn()} />);
 
-    expect(screen.getByText(/Demo responses — real AI arrives with the backend/)).toBeInTheDocument();
-    expect(screen.getByText('Try a demo command')).toBeInTheDocument();
+    expect(screen.getByText('Nemotron 3.5 Super VL · remote processing')).toBeInTheDocument();
+    expect(screen.getByText('Describe the app you want')).toBeInTheDocument();
+    expect(screen.getByText(/Nothing is saved until/)).toBeInTheDocument();
     expect(screen.getByRole('log')).toHaveAttribute('aria-live', 'polite');
-    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
     expect(screen.getByLabelText('Message')).toHaveFocus();
-
-    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'hi' } });
-    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
   });
 
-  it('keeps keyboard focus inside the sheet', () => {
-    renderSheet();
-    const close = screen.getByRole('button', { name: 'Close assistant' });
-    const message = screen.getByLabelText('Message');
+  it('sends a complete-app request through the conversation controller', () => {
+    const controller = conversation();
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
 
-    // Send is disabled, so Message is currently the final tabbable control.
-    fireEvent.keyDown(document, { key: 'Tab' });
-    expect(close).toHaveFocus();
-    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
-    expect(message).toHaveFocus();
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Build a task app' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(controller.send).toHaveBeenCalledWith('Build a task app', []);
   });
 
-  it('answers unknown intents without proposing a change', () => {
-    renderSheet();
-    const dialog = ask('make it pop');
+  it('lets the builder explicitly select an available provider', () => {
+    const setSelectedProviderId = vi.fn();
+    render(<AssistantSheet conversation={conversation({
+      providers: [
+        { id: 'opencode', model: 'nemotron', available: true, imageInput: true, location: 'remote', costWarning: false, defaultModelId: null, models: [] },
+        { id: 'ollama', model: 'qwen3', available: true, imageInput: false, location: 'local', costWarning: false, defaultModelId: null, models: [] },
+        { id: 'openrouter', model: '', available: false, imageInput: true, location: 'remote', costWarning: true, defaultModelId: null, models: [] },
+      ],
+      setSelectedProviderId,
+    })} onClose={vi.fn()} />);
 
-    expect(within(dialog).getByText(/demo commands/)).toBeInTheDocument();
-    expect(within(dialog).queryByTestId('assistant-proposal')).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Keep' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Assistant provider'), { target: { value: 'ollama' } });
+
+    expect(setSelectedProviderId).toHaveBeenCalledWith('ollama');
+    expect(screen.getByRole('option', { name: /OpenRouter/ })).toBeDisabled();
   });
 
-  it('keeps an add-button proposal and undoes it through the shared history', () => {
-    renderSheet();
+  it('lets the builder select GPT-6.1 Terra and discloses account usage', () => {
+    const setSelectedModelId = vi.fn();
+    render(<AssistantSheet conversation={conversation({
+      selectedModelId: 'gpt-6.1-terra',
+      setSelectedModelId,
+    })} onClose={vi.fn()} />);
 
-    const dialog = ask('add a button "Sign up"');
-    expect(within(dialog).getByText('Add a button “Sign up”')).toBeInTheDocument();
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep' }));
-
-    const keptScreen = getActiveScreen(latest.current!);
-    expect(keptScreen.nodes.some((node) => node.type === 'button' && node.props.label === 'Sign up')).toBe(true);
-    expect(within(dialog).getByText(/Applied — one undo step/)).toBeInTheDocument();
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Undo' }));
-
-    expect(getActiveScreen(latest.current!).nodes).toHaveLength(SCREEN.nodes.length);
-    expect(within(dialog).getByText(/Undone/)).toBeInTheDocument();
-  });
-
-  it('keeps a student-list proposal with the demo names', () => {
-    renderSheet();
-
-    const dialog = ask('create a list of students');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep' }));
-
-    const list = getActiveScreen(latest.current!).nodes.find((node) => node.type === 'listview');
-    expect(list?.type === 'listview' && list.props.dataSource.kind === 'static'
-      ? list.props.dataSource.items.map((item) => item.values.value)
-      : []).toEqual([
-      'Ada Lovelace',
-      'Alan Turing',
-      'Grace Hopper',
-    ]);
-  });
-
-  it('wires a click-to-change-text proposal on Keep', () => {
-    renderSheet();
-
-    const dialog = ask('make the text change when clicked');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep' }));
-
-    const screen = getActiveScreen(latest.current!);
-    expect(screen.behaviors).toHaveLength(1);
-    expect(screen.behaviors[0]).toMatchObject({ event: 'click', targetNodeId: 'node_button' });
-
-    const step = screen.logicGraphs[0]!.nodes[1]!;
-    expect(step.kind === 'action' ? step.payload : undefined).toEqual({
-      type: 'change-text',
-      targetNodeId: 'node_text',
-      text: 'It changed!',
+    expect(screen.getByLabelText('Assistant model')).toHaveValue('gpt-6.1-terra');
+    expect(screen.getByText('Uses the OpenAI account connected to OpenCode.')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Assistant model'), {
+      target: { value: 'nemotron-super' },
     });
+    expect(setSelectedModelId).toHaveBeenCalledWith('nemotron-super');
   });
 
-  it('explains what is missing instead of proposing an impossible binding', () => {
-    renderSheet({ screens: [makeScreen('screen_home', [makeText('node_text')])] });
+  it('attaches a supported image to the next request', async () => {
+    const controller = conversation();
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+    const file = new File(
+      [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1])],
+      'layout.png',
+      { type: 'image/png' },
+    );
 
-    const dialog = ask('make the text change when clicked');
+    fireEvent.change(screen.getByLabelText('Attach image'), { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByText('Image: layout.png')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Use this layout' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-    expect(within(dialog).getByText(/text component and a button/)).toBeInTheDocument();
-    expect(within(dialog).queryByTestId('assistant-proposal')).not.toBeInTheDocument();
+    expect(controller.send).toHaveBeenCalledWith(
+      'Use this layout',
+      [expect.objectContaining({ name: 'layout.png', mimeType: 'image/png' })],
+    );
   });
 
-  it('closes via the close button, the scrim, and Escape', () => {
-    const onClose = renderSheet();
+  it('shows proposal details and requires explicit apply or reject', () => {
+    const controller = conversation({
+      messages: [
+        { id: 'user_1', mode: 'build', role: 'user', text: 'Build tasks' },
+        { id: 'assistant_1', mode: 'build', role: 'assistant', text: PROPOSAL.message, proposal: PROPOSAL, status: 'pending' },
+      ],
+    });
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+    const preview = screen.getByRole('region', { name: 'App proposal preview' });
+
+    expect(within(preview).getByText('Tasks')).toBeInTheDocument();
+    expect(within(preview).getByText('Create task')).toBeInTheDocument();
+    expect(within(preview).getByText(/Tasks \(1 fields\)/)).toBeInTheDocument();
+
+    fireEvent.click(within(preview).getByRole('button', { name: 'Apply app' }));
+    expect(controller.accept).toHaveBeenCalledWith('assistant_1');
+    fireEvent.click(within(preview).getByRole('button', { name: 'Reject' }));
+    expect(controller.reject).toHaveBeenCalledWith('assistant_1');
+  });
+
+  it('shows grounded help citations in Ask Novy mode', () => {
+    render(<AssistantSheet conversation={conversation({
+      mode: 'help',
+      messages: [{
+        id: 'help_1',
+        mode: 'help',
+        role: 'assistant',
+        text: 'Autosave uses optimistic concurrency. [S1]',
+        help: {
+          answer: 'Autosave uses optimistic concurrency. [S1]',
+          insufficientContext: false,
+          sources: [{
+            reference: 'S1',
+            title: 'PD6 traceability',
+            uri: 'novy-web/docs/pd6-traceability.md',
+            heading: 'Persistence',
+            page: null,
+          }],
+        },
+      }],
+    })} onClose={vi.fn()} />);
+
+    expect(screen.getByRole('tab', { name: 'Ask Novy' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('region', { name: 'Answer sources' })).toHaveTextContent('PD6 traceability');
+  });
+
+  it('closes via the close button, scrim, and Escape', () => {
+    const onClose = vi.fn();
+    render(<AssistantSheet conversation={conversation()} onClose={onClose} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Close assistant' }));
-    expect(onClose).toHaveBeenCalledTimes(1);
-
     fireEvent.click(screen.getByTestId('assistant-scrim'));
-    expect(onClose).toHaveBeenCalledTimes(2);
-
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(3);
   });

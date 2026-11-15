@@ -2,7 +2,7 @@ import { useEffect, useReducer, useState } from 'react';
 import type { Project } from '@domain/entities/project';
 import type { ComponentNode, ComponentType, ListViewNode } from '@domain/entities/componentNode';
 import { geometryAtBreakpoint, isChildBearingNode, listViewItemExtentAtBreakpoint, resolveEdgeInsets } from '@domain/entities/componentNode';
-import type { DataRecord, DataValue, ListItemContext } from '@domain/entities/appData';
+import type { DataCollection, DataRecord, DataValue, ListItemContext } from '@domain/entities/appData';
 import type { TriggerEvent } from '@domain/entities/logic';
 import type { Screen } from '@domain/entities/screen';
 import { deviceViewport } from '../state/geometry';
@@ -26,6 +26,7 @@ import { Inspector } from './Inspector';
 import { LayersPanel } from './LayersPanel';
 import { AssistantChip } from '../assistant/AssistantChip';
 import { AssistantSheet } from '../assistant/AssistantSheet';
+import { useAssistantConversation } from '../assistant/useAssistantConversation';
 import { LogicWorkspace } from '../logic/LogicWorkspace';
 import { DataWorkspace } from '../data/DataWorkspace';
 import { useProjectData } from '../data/useProjectData';
@@ -71,6 +72,12 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     : -1;
 
   const projectData = useProjectData(project.id);
+  const assistantConversation = useAssistantConversation(
+    project.id,
+    state,
+    dispatch,
+    projectData.reload,
+  );
   const itemSource = state.selectedNodeId
     ? findNearestListView(activeScreen.nodes, state.selectedNodeId)
     : null;
@@ -133,9 +140,10 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
         activeTemplate,
         state.designScope.kind === 'list-item-template' ? state.designScope.sampleItemId : null,
         projectData.recordsByCollection,
+        activeTemplateCollection,
       )
     : undefined;
-  const validation = useProjectValidation(project.id, state.document);
+  const validation = useProjectValidation(state.document, projectData.collections);
 
   useProjectAutosave({
     projectId: project.id,
@@ -551,9 +559,8 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       <AssistantChip isHidden={isAssistantOpen} onOpen={() => setIsAssistantOpen(true)} />
       {isAssistantOpen ? (
         <AssistantSheet
-          dispatch={dispatch}
+          conversation={assistantConversation}
           onClose={() => setIsAssistantOpen(false)}
-          state={state}
         />
       ) : null}
     </main>
@@ -606,6 +613,7 @@ function resolveTemplateItemContext(
   listView: ListViewNode,
   sampleItemId: string | null,
   recordsByCollection: ReadonlyMap<string, readonly DataRecord[]>,
+  collection: DataCollection | null,
 ): ListItemContext {
   if (listView.props.dataSource.kind === 'static') {
     const source = listView.props.dataSource;
@@ -622,7 +630,12 @@ function resolveTemplateItemContext(
   return {
     listViewId: listView.id,
     itemId: record?.id ?? 'listview-template',
-    values: record?.values ?? Object.fromEntries(source.displayFieldIds.map((fieldId) => [fieldId, fieldId])),
+    values: record?.values ?? Object.fromEntries(
+      (collection?.id === source.collectionId
+        ? collection.fields
+        : source.displayFieldIds.map((fieldId) => ({ id: fieldId, label: 'Sample value', type: 'text' as const })))
+        .map((field) => [field.id, sampleValue(field.type, field.label)]),
+    ),
   };
 }
 

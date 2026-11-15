@@ -41,3 +41,10 @@ export interface AppDataStoreDTO {
   collections: DataCollectionDTO[];
   records: DataRecordDTO[];
 }
+
+/** Backend snapshot optimized for opening the editor data panel in one request. */
+export interface AppDataSnapshotDTO {
+  databases: ProjectDatabaseDTO[];
+  collections: DataCollectionDTO[];
+  recordsByCollection: Record<string, DataRecordDTO[]>;
+}

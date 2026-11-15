@@ -152,13 +152,16 @@ describe('validateProject', () => {
     ]));
   });
 
-  it('warns when a dynamic route segment has no record mapping', () => {
+  it('errors when a dynamic route segment has no record mapping', () => {
     const screen = makeScreen('screen_blog', []);
     screen.path = '/blog/:slug';
 
     const report = validateProject(documentWith(screen));
 
     expect(report.issues.map((issue) => issue.code)).toContain('screen-route-segment-unmapped');
+    expect(
+      report.issues.find((issue) => issue.code === 'screen-route-segment-unmapped')?.severity,
+    ).toBe('error');
   });
 
   it('warns when record-aware navigation targets the home route', () => {

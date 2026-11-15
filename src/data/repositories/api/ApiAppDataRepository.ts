@@ -13,6 +13,7 @@ import { ProjectError } from '@domain/errors/ProjectError';
 import type { AppDataRepository } from '@domain/repositories/appData.repository';
 import { isRecord, type ApiHttpClient } from '../../api/http';
 import type {
+  AppDataSnapshotDTO,
   DataCollectionDTO,
   DataRecordDTO,
   ProjectDatabaseDTO,
@@ -35,12 +36,20 @@ const PROJECTS_BASE = '/projects';
 /** Backend-backed project app-data persistence. */
 export class ApiAppDataRepository implements AppDataRepository {
   private readonly client: ApiHttpClient;
+  private readonly databaseRequests = new Map<string, Promise<ProjectDatabase[]>>();
+  private readonly collectionRequests = new Map<string, Promise<DataCollection[]>>();
+  private readonly recordRequests = new Map<string, Promise<DataRecord[]>>();
+  private readonly snapshotRequests = new Map<string, Promise<AppDataStore>>();
 
   constructor(client: ApiHttpClient) {
     this.client = client;
   }
 
   async listDatabases(projectId: string): Promise<ProjectDatabase[]> {
+    return deduplicate(this.databaseRequests, projectId, () => this.loadDatabases(projectId));
+  }
+
+  private async loadDatabases(projectId: string): Promise<ProjectDatabase[]> {
     try {
       const response = await this.client.get(databasesPath(projectId));
       return parseArray<ProjectDatabaseDTO>(response.data, 'database list').map(
@@ -100,6 +109,16 @@ export class ApiAppDataRepository implements AppDataRepository {
   }
 
   async listCollections(
+    projectId: string,
+    databaseId?: string,
+  ): Promise<DataCollection[]> {
+    const requestKey = `${projectId}:${databaseId ?? ''}`;
+    return deduplicate(this.collectionRequests, requestKey, () =>
+      this.loadCollections(projectId, databaseId),
+    );
+  }
+
+  private async loadCollections(
     projectId: string,
     databaseId?: string,
   ): Promise<DataCollection[]> {
@@ -180,6 +199,13 @@ export class ApiAppDataRepository implements AppDataRepository {
   }
 
   async listRecords(projectId: string, collectionId: string): Promise<DataRecord[]> {
+    const requestKey = `${projectId}:${collectionId}`;
+    return deduplicate(this.recordRequests, requestKey, () =>
+      this.loadRecords(projectId, collectionId),
+    );
+  }
+
+  private async loadRecords(projectId: string, collectionId: string): Promise<DataRecord[]> {
     try {
       const response = await this.client.get(recordsPath(projectId, collectionId));
       return parseArray<DataRecordDTO>(response.data, 'record list').map(mapRecordFromDto);
@@ -235,17 +261,42 @@ export class ApiAppDataRepository implements AppDataRepository {
   }
 
   async exportProjectData(projectId: string): Promise<AppDataStore> {
-    const [databases, collections] = await Promise.all([
-      this.listDatabases(projectId),
-      this.listCollections(projectId),
-    ]);
-    const records = (
-      await Promise.all(
-        collections.map((collection) => this.listRecords(projectId, collection.id)),
-      )
-    ).flat();
-    return { databases, collections, records };
+    return deduplicate(this.snapshotRequests, projectId, () => this.loadProjectData(projectId));
   }
+
+  private async loadProjectData(projectId: string): Promise<AppDataStore> {
+    try {
+      const response = await this.client.get(appDataPath(projectId));
+      const snapshot = parseAppDataSnapshot(response.data);
+      return {
+        databases: snapshot.databases.map(mapDatabaseFromDto),
+        collections: snapshot.collections.map(mapCollectionFromDto),
+        records: Object.values(snapshot.recordsByCollection).flat().map(mapRecordFromDto),
+      };
+    } catch (error) {
+      throw mapApiProjectError(error);
+    }
+  }
+}
+
+async function deduplicate<T>(
+  requests: Map<string, Promise<T>>,
+  key: string,
+  load: () => Promise<T>,
+): Promise<T> {
+  const current = requests.get(key);
+  if (current) return current;
+  const request = load();
+  requests.set(key, request);
+  try {
+    return await request;
+  } finally {
+    requests.delete(key);
+  }
+}
+
+function appDataPath(projectId: string): string {
+  return `${PROJECTS_BASE}/${encodeURIComponent(projectId)}/app-data`;
 }
 
 function databasesPath(projectId: string): string {
@@ -265,6 +316,19 @@ function parseArray<T>(value: unknown, label: string): T[] {
     throw new ProjectError('unexpected', `The backend returned an invalid ${label}.`);
   }
   return value as T[];
+}
+
+function parseAppDataSnapshot(value: unknown): AppDataSnapshotDTO {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.databases) ||
+    !Array.isArray(value.collections) ||
+    !isRecord(value.recordsByCollection) ||
+    Object.values(value.recordsByCollection).some((records) => !Array.isArray(records))
+  ) {
+    throw new ProjectError('unexpected', 'The backend returned invalid project data.');
+  }
+  return value as unknown as AppDataSnapshotDTO;
 }
 
 function parseObject<T>(value: unknown, label: string): T {

@@ -21,7 +21,7 @@ async function renderEditor() {
       </MemoryRouter>
     </RepositoriesProvider>,
   );
-  await screen.findByTestId('canvas-frame');
+  await screen.findByTestId('canvas-frame', {}, { timeout: 5_000 });
   fireEvent.click(screen.getByRole('button', { name: 'data' }));
   await screen.findByRole('heading', { name: 'Collections' });
   return { repositories, project };

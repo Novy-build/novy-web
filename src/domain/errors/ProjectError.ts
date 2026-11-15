@@ -8,6 +8,7 @@ export type ProjectErrorCode =
   | 'rate-limited'
   | 'unavailable'
   | 'network'
+  | 'timeout'
   | 'unexpected';
 
 /**

@@ -5,6 +5,226 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-15 — Higher-quality assistant app proposals
+
+#### Improved
+- Every selected OpenCode, Ollama, or OpenRouter model now receives the backend's same curated,
+  request-relevant Novy composition recipes without provider fallback or browser-exposed source,
+  records, or credentials.
+- Deterministic backend completion and quality gates recover omitted collection create flows, form
+  feedback, hero hierarchy, navigation reachability, required mappings, and route record context
+  before a proposal reaches the existing preview and atomic Apply workflow.
+- Generated proposals receive stronger typography, two-field ListView item hierarchy, and responsive
+  website section structure from the deterministic compiler rather than model-authored raw layout.
+
+#### Verification
+- Live local Ollama benchmarks produced validation-clean Notes and agency/contact proposals without
+  fallback; coordinated backend coverage increased to 233 passed with 4 PostgreSQL-only skips.
+
+### 2026-11-15 — Collection-backed assistant apps resolve immediately
+
+#### Fixed
+- Accepted assistant proposals now validate against the editor's refreshed project-data collections,
+  eliminating stale missing-collection, missing-field, route, and record-context errors after Apply.
+- Empty collection-backed ListView templates now render typed samples from field labels, such as
+  `Title`, instead of exposing internal generated field IDs.
+
+#### Tests
+- Added an editor-route regression that applies a collection-backed proposal, waits for persistence
+  and app-data refresh, verifies a valid project, and checks the friendly item-template sample.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 902 tests, and `npm run build` passed.
+
+### 2026-11-15 — Accurate assistant Apply failures
+
+#### Fixed
+- Assistant Apply now distinguishes the backend's stable proposal-persistence failure from a network
+  outage and reports once that the proposal was not applied and the project was not changed.
+
+#### Tests
+- Added repository mapping coverage for HTTP 500 `assistant_acceptance_failed` responses and hook
+  coverage proving a failed Apply emits one message without adopting or changing the project.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 901 tests, and `npm run build` passed.
+- Coordinated backend: 222 passed, 4 skipped; Ruff, formatting, and mypy passed.
+
+### 2026-11-15 — Route-bound assistant proposals apply safely
+
+#### Fixed
+- Assistant proposal mapping now preserves `routeParameters` and `recordFields`, so dynamic detail
+  screens survive the preview-to-apply round trip without changing the backend proposal hash.
+- Proposal-integrity rejection is reported as a changed preview rather than incorrectly blaming the
+  selected model's generated output.
+
+#### Tests
+- Added a route-bound notes proposal regression covering preview parsing and the exact Apply payload,
+  plus proposal-integrity error mapping and conversation messaging.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 899 tests run serially, and `npm run build` passed.
+- Coordinated backend: 221 passed, 2 skipped; Ruff and mypy passed.
+
+### 2026-11-15 — Reliable assistant conversations
+
+#### Fixed
+- Build-mode greetings render as ordinary assistant messages instead of trivial app proposal cards.
+- A synchronous in-flight guard prevents duplicate requests and duplicate validation errors before
+  React has rerendered the disabled composer state.
+- Invalid model output now recommends rephrasing or choosing another model instead of incorrectly
+  assuming that every validation failure was caused by request size.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 896 tests run serially, and `npm run build` passed.
+- Coordinated backend: 221 passed, 2 skipped; Ruff, formatting, and mypy passed.
+
+### 2026-11-15 — OpenCode model selector
+
+#### Added
+- A session-only model selector under OpenCode for Nemotron 3.5 Super VL and GPT-6.1 Terra, including
+  availability, image support, remote-processing, and OpenAI account-usage disclosure.
+
+#### Fixed
+- Exhausted model quota is now explained separately from provider and backend connectivity failures.
+- Model selection is sent as a backend-defined alias and never triggers automatic fallback.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 893 tests run serially, and `npm run build` passed.
+- Coordinated backend: 220 passed, 2 skipped; Ruff, formatting, and mypy passed.
+
+### 2026-11-15 — Assistant provider selector and image input
+
+#### Added
+- A composer provider selector for OpenCode, Ollama, and optional OpenRouter with disabled unavailable
+  choices, local/remote labels, image capability, and potential-cost warnings.
+- One validated PNG/JPEG/GIF/WebP attachment per assistant request with preview/removal controls.
+
+#### Changed
+- Proposal and grounded-help requests carry an explicit provider alias and never request automatic
+  fallback. Provider model IDs, URLs, and credentials remain backend-controlled.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 890 tests run serially, and `npm run build` passed.
+- Coordinated backend: 218 passed, 2 skipped; Ruff, formatting, and mypy passed.
+
+### 2026-11-15 — Honest route validation
+
+#### Changed
+- An unmapped dynamic route segment is now an editor error rather than a warning, so a detail
+  route that can never receive a record cannot present as valid.
+
+#### Tests
+- Updated the route-segment validation expectation to assert the error severity.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 887 tests, and `npm run build` passed.
+- Backend: 213 passed, 2 skipped; Ruff, formatting, and mypy passed.
+
+### 2026-11-15 — Accurate assistant connection errors
+
+#### Fixed
+- Assistant errors now distinguish a reachable backend with unavailable Ollama from an actual
+  frontend-to-backend network failure, including failures while applying a proposal.
+
+#### Tests
+- Added repository error-mapping coverage for provider versus backend network failures.
+
+#### Verification
+- `npm run typecheck` and 107 test files / 887 tests passed.
+
+### 2026-11-15 — Local builder agent and grounded help
+
+#### Added
+- Explicit **Build app** and **Ask Novy** assistant modes. Build mode can refine the latest pending
+  blueprint through bounded conversation context; help mode renders backend-validated documentation
+  citations and insufficient-context answers.
+
+#### Changed
+- Replaced OpenRouter branding and cloud-provider errors with local Ollama status and guidance. No
+  model credentials or project record values are exposed to the browser.
+
+#### Tests
+- Added local-mode UI, help citation, repository mapping, pending-refinement, and autosave-independent
+  help coverage.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 886 tests, and `npm run build` passed.
+- Backend: 192 passed, 2 skipped; Ruff, formatting, mypy, and PostgreSQL migration `0008` passed.
+- Ollama 0.40.16 passed strict-output, full blueprint compilation, 5-source/92-chunk indexing, and
+  grounded citation verification with the pinned local models.
+
+### 2026-11-15 — OpenRouter assistant provider
+
+#### Changed
+- Replaced AgentRouter branding and unavailable-provider guidance with OpenRouter. The structured app
+  preview and explicit Apply/Reject workflow are unchanged, and credentials remain exclusively in
+  FastAPI.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 882 tests, and `npm run build` passed.
+- Backend: 185 passed, 2 skipped; Ruff, formatting, and mypy passed. Live OpenRouter verification
+  remains pending a configured key and pinned model.
+
+### 2026-11-15 — AgentRouter app assistant
+
+#### Added
+- API-backed assistant repository and strict `AppBlueprintV1` proposal boundary for complete screens,
+  components, event-condition-action workflows, and collection schemas.
+- A structured app preview with screen/component/workflow/data counts and explicit **Apply app** and
+  **Reject** controls before any saved project changes.
+
+#### Changed
+- The editor no longer uses the static keyword demo at runtime. Assistant conversation state now
+  survives sheet close/reopen for the editor session, waits for autosave, and adopts the accepted
+  backend project revision plus refreshed app data.
+- Local-only mode fails clearly instead of pretending to run AI; AgentRouter credentials remain
+  exclusively in FastAPI and are never exposed through Vite configuration.
+
+#### Tests
+- Added API proposal/acceptance mapping, autosave gating and accepted-document orchestration, and
+  accessible preview/apply/reject sheet coverage.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 882 tests, and `npm run build` passed.
+- Backend: 182 passed, 2 skipped; Ruff, formatting, and mypy passed. Live AgentRouter verification
+  remains pending a configured key and model.
+
+### 2026-11-14 — Dark publishing progress
+
+#### Fixed
+- The deployment progress stepper now uses theme-aware translucent brand surfaces, borders, text,
+  and connectors instead of a light-only background that appeared white in dark mode.
+
+#### Tests
+- Added deployment-page coverage preventing the light-only progress background from returning.
+
+#### Verification
+- `npm run typecheck`, 105 test files / 882 tests, and `npm run build` passed.
+
+### 2026-11-14 — Faster navigation and editor data loading
+
+#### Changed
+- Session restoration and protected-page data loading now start in parallel instead of serializing
+  every screen behind `/auth/session`; backend authorization remains authoritative.
+- Project dashboard, editor, and deployment routes are code-split with `React.lazy`; the small login
+  route stays eager so credential forms render immediately.
+- Project lists and loaded documents use a 30-second navigation cache. Hovering or focusing a project
+  card preloads its document, and the editor load deduplicates against that in-flight request.
+- Concurrent StrictMode loads for session restoration, project lists/documents, app-data snapshots,
+  collection/record lists, deployment providers, and deployment history share one in-flight request.
+- The Data workspace loads databases, collections, and records through one app-data snapshot request
+  instead of a databases → collections → per-collection records waterfall.
+
+#### Tests
+- Added API repository coverage for app-data snapshot validation, navigation caching, and concurrent
+  auth, project, app-data, and deployment request deduplication.
+
+#### Verification
+- `npm run typecheck`, 105 test files / 882 tests, and `npm run build` passed; production output now
+  contains separate Projects, Deployment, and Editor route chunks.
+
+
 ### 2026-11-14 — Real Vercel and Netlify publishing
 
 #### Added
@@ -20,16 +240,27 @@ first, and retain previous entries as project history.
   backend/provider state; local-only development retains the existing side-effect-free simulation.
 - Failed API publishes refresh remote history and continue to explain that the previous successful
   deployment remains live.
+- The deployment history now follows provider status while a release is still building, so a page
+  reload no longer leaves a release looking pending.
+- The backend handoff panel reports the configured hosting providers instead of a static
+  "Backend required" label, and the environment copy describes reviewable and live releases.
+- A publish that outlasts the client polling window explains that the release may still finish
+  rather than reporting a hard timeout.
+- The API client now allows 30 seconds per request, because a backend with a remote database can
+  legitimately take several seconds to answer.
+- A request that exceeds the client timeout reports that the backend was too slow instead of
+  claiming it could not be reached, so the two failures stay distinguishable.
 
 #### Tests
 - Added API deployment repository coverage for provider discovery, publish payloads, polling, DTO
-  mapping, and stage progress; existing local repository, hook, and deployment-page suites remain.
+  mapping, and stage progress; deployment-page coverage for the provider readiness badge; and hook
+  coverage for refreshing history while a release is building.
 
 #### Verification
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 105 test files and 870 tests passed.
+- `npm test -- --run` — 105 test files and 874 tests passed.
 - `npm run build` — passed with the existing non-blocking large-chunk advisory.
-- Backend: 137 passed, 2 skipped; Ruff, formatting, and mypy passed. Live hosting-provider calls
+- Backend: 151 passed, 2 skipped; Ruff, formatting, and mypy passed. Live hosting-provider calls
   remain unverified because platform credentials are not configured in this workspace.
 
 ### 2026-11-14 — Blank website starter

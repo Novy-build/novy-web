@@ -18,6 +18,8 @@ export class ApiDeploymentRepository implements DeploymentRepository {
   private readonly client: ApiHttpClient;
   private readonly pollIntervalMs: number;
   private readonly maxPollAttempts: number;
+  private providersRequest: Promise<DeploymentProvider[]> | null = null;
+  private readonly historyRequests = new Map<string, Promise<DeploymentRecord[]>>();
 
   constructor(client: ApiHttpClient, options: ApiDeploymentOptions = {}) {
     this.client = client;
@@ -26,6 +28,17 @@ export class ApiDeploymentRepository implements DeploymentRepository {
   }
 
   async listProviders(): Promise<DeploymentProvider[]> {
+    if (this.providersRequest) return this.providersRequest;
+    const request = this.loadProviders();
+    this.providersRequest = request;
+    try {
+      return await request;
+    } finally {
+      this.providersRequest = null;
+    }
+  }
+
+  private async loadProviders(): Promise<DeploymentProvider[]> {
     try {
       const response = await this.client.get('/deployments/providers');
       const dto = response.data as DeploymentProvidersDTO;
@@ -43,6 +56,18 @@ export class ApiDeploymentRepository implements DeploymentRepository {
   }
 
   async listDeployments(projectId: string): Promise<DeploymentRecord[]> {
+    const current = this.historyRequests.get(projectId);
+    if (current) return current;
+    const request = this.loadDeployments(projectId);
+    this.historyRequests.set(projectId, request);
+    try {
+      return await request;
+    } finally {
+      this.historyRequests.delete(projectId);
+    }
+  }
+
+  private async loadDeployments(projectId: string): Promise<DeploymentRecord[]> {
     try {
       const response = await this.client.get(`/projects/${encodeURIComponent(projectId)}/deployments`);
       if (!isRecord(response.data) || !Array.isArray(response.data.deployments)) {
@@ -94,7 +119,10 @@ export class ApiDeploymentRepository implements DeploymentRepository {
         onStage('provision');
         deployment = await this.getDeployment(input.projectId, deployment.id);
       }
-      throw new Error('Publishing timed out. Your previous deployment is still live.');
+      throw new Error(
+        'Publishing is taking longer than expected. Check the deployment history in a moment — ' +
+          'your previous deployment is still live.',
+      );
     } catch (cause) {
       throw deploymentError(cause, 'Publish failed. Your previous deployment is still live.');
     }

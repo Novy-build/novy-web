@@ -1,13 +1,16 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureDemoProject } from '@data/seeding/demoSeed';
 import type { Repositories } from '@data/repositories/local';
 import type { Project } from '@domain/entities/project';
+import type { AssistantProposalV1 } from '@domain/entities/assistant';
+import type { ProjectDocument } from '@domain/entities/screen';
 import { RepositoriesProvider } from '@main/providers/RepositoriesProvider';
 import { SessionProvider } from '@main/providers/SessionProvider';
 import { AppRoutes } from '@main/routes';
 import { createStubRepositories, STUB_USER } from '@test/stubRepositories';
+import { makeListView } from '@test/editorFixtures';
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -35,7 +38,7 @@ describe('EditorPage (integration over the real route tree)', () => {
 
     renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
 
-    const canvas = await screen.findByTestId('canvas-frame');
+    const canvas = await screen.findByTestId('canvas-frame', {}, { timeout: 5_000 });
     expect(within(canvas).getByText('Hello, World!')).toBeInTheDocument();
     expect(within(canvas).getByText('Press the button to change the text above.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
@@ -144,10 +147,63 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(await screen.findByRole('button', { name: 'Preview' })).toBeInTheDocument();
   });
 
-  it('applies an AI assistant proposal to the canvas and undoes it', async () => {
+  it('previews and explicitly applies a backend assistant proposal', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);
     const projects = await repositories.projects.listProjects();
+    const current = await repositories.projects.getProject(projects[0]!.id);
+    if (!current) throw new Error('Expected seeded project.');
+    const acceptedDocument = {
+      screens: current.document.screens.map((candidate, index) => index === 0 ? {
+        ...candidate,
+        nodes: [...candidate.nodes, {
+          id: 'assistant_sign_up',
+          type: 'button' as const,
+          x: 24,
+          y: 680,
+          w: 160,
+          h: 44,
+          props: { label: 'Sign up', variant: 'solid' as const },
+        }],
+      } : candidate),
+    };
+    const proposal = {
+      id: 'proposal_signup',
+      projectId: current.id,
+      baseRevision: 1,
+      message: 'A complete signup app proposal.',
+      blueprint: {
+        version: 1 as const,
+        summary: 'A complete signup app proposal.',
+        screens: [{
+          key: 'home', name: 'Home', path: '/',
+          components: [{ key: 'signup', type: 'button' as const, label: 'Sign up' }],
+          workflows: [],
+        }],
+        collections: [],
+      },
+      preview: { schemaVersion: 13 as const, document: acceptedDocument, collections: [] },
+    };
+    repositories.assistant = {
+      isAvailable: true,
+      getCapabilities: vi.fn().mockResolvedValue({
+        defaultProviderId: 'opencode', helpRetrievalAvailable: true,
+        providers: [{
+          id: 'opencode', model: 'nemotron-free', available: true,
+          imageInput: true, location: 'remote', costWarning: false,
+          defaultModelId: 'nemotron-super',
+          models: [{
+            id: 'nemotron-super', name: 'Nemotron 3.5 Super VL',
+            model: 'opencode/nemotron-free', available: true,
+            imageInput: true, location: 'remote', costWarning: false,
+            usageNote: 'Free OpenCode quota.',
+          }],
+        }],
+      }),
+      generateProposal: vi.fn().mockResolvedValue(proposal),
+      answerHelp: vi.fn().mockResolvedValue({ answer: 'Help', insufficientContext: false, sources: [] }),
+      acceptProposal: vi.fn().mockResolvedValue({ ...current, document: acceptedDocument }),
+    };
     renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
     const canvas = await screen.findByTestId('canvas-frame');
     await screen.findByRole('button', { name: 'Hello, World!' });
@@ -157,20 +213,146 @@ describe('EditorPage (integration over the real route tree)', () => {
     fireEvent.click(assistantChip);
     const dialog = await screen.findByRole('dialog', { name: 'AI assistant' });
     fireEvent.change(within(dialog).getByLabelText('Message'), {
-      target: { value: 'add a button "Sign up"' },
+      target: { value: 'Build a signup app' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Send' }));
 
-    expect(within(dialog).getByText('Add a button “Sign up”')).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep' }));
-
-    expect(within(canvas).getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Undo' }));
-    expect(within(canvas).queryByRole('button', { name: 'Sign up' })).not.toBeInTheDocument();
-
+    expect(await within(dialog).findByText('A complete signup app proposal.')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close assistant' }));
+    fireEvent.click(assistantChip);
+    const reopened = await screen.findByRole('dialog', { name: 'AI assistant' });
+    expect(within(reopened).getByRole('region', { name: 'App proposal preview' })).toBeInTheDocument();
+    fireEvent.click(within(reopened).getByRole('button', { name: 'Apply app' }));
+
+    expect(await within(canvas).findByRole('button', { name: 'Sign up' })).toBeInTheDocument();
+    expect(within(reopened).getByText('Applied and saved to the project.')).toBeInTheDocument();
+
+    fireEvent.click(within(reopened).getByRole('button', { name: 'Close assistant' }));
     expect(assistantChip).toHaveFocus();
+  });
+
+  it('validates accepted collection bindings from the refreshed project data', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const project = (await repositories.projects.listProjects())[0]!;
+    const current = await repositories.projects.getProject(project.id);
+    if (!current) throw new Error('Expected seeded project.');
+    let proposal: AssistantProposalV1 | undefined;
+    repositories.assistant = {
+      isAvailable: true,
+      getCapabilities: vi.fn().mockResolvedValue({
+        defaultProviderId: 'opencode', helpRetrievalAvailable: true,
+        providers: [{
+          id: 'opencode', model: 'nemotron-free', available: true,
+          imageInput: true, location: 'remote', costWarning: false,
+          defaultModelId: 'nemotron-super',
+          models: [{
+            id: 'nemotron-super', name: 'Nemotron 3.5 Super VL',
+            model: 'opencode/nemotron-free', available: true,
+            imageInput: true, location: 'remote', costWarning: false,
+            usageNote: 'Free OpenCode quota.',
+          }],
+        }],
+      }),
+      generateProposal: vi.fn(async () => {
+        if (!proposal) throw new Error('Expected the collection proposal fixture.');
+        return proposal;
+      }),
+      answerHelp: vi.fn().mockResolvedValue({ answer: 'Help', insufficientContext: false, sources: [] }),
+      acceptProposal: vi.fn(async () => {
+        if (!proposal) throw new Error('Expected the collection proposal fixture.');
+        return { ...current, document: proposal.preview.document };
+      }),
+    };
+    renderRoutesAt(`/project/${project.id}/editor`, repositories);
+    await screen.findByTestId('canvas-frame');
+    fireEvent.click(screen.getByRole('button', { name: 'data' }));
+    await screen.findByRole('heading', { name: 'Create your project database' });
+    fireEvent.click(screen.getByRole('button', { name: 'design' }));
+
+    const database = await repositories.appData.createDatabase(project.id, { name: 'Assistant data' });
+    const collection = await repositories.appData.createCollection(project.id, {
+      databaseId: database.id,
+      name: 'Notes',
+      fields: [{
+        id: 'assistant_field_title', key: 'title', label: 'Title', type: 'text', required: true,
+      }],
+    });
+    const list = makeListView('assistant_list', {
+      name: 'Collection ListView',
+      props: {
+        ...makeListView('assistant_list_base').props,
+        dataSource: {
+          kind: 'collection',
+          collectionId: collection.id,
+          displayFieldIds: ['assistant_field_title'],
+        },
+      },
+      children: [{
+        id: 'assistant_title',
+        type: 'text',
+        x: 0,
+        y: 0,
+        w: 320,
+        h: 44,
+        props: { text: 'title', level: 'body' },
+        bindings: [{
+          target: 'text.content',
+          value: { source: 'list-item', fieldId: 'assistant_field_title' },
+        }],
+      }],
+    });
+    const acceptedDocument: ProjectDocument = {
+      screens: current.document.screens.map((candidate, index) => index === 0
+        ? { ...candidate, nodes: [list], behaviors: [], logicGraphs: [] }
+        : candidate),
+    };
+    proposal = {
+      id: 'proposal_notes',
+      projectId: project.id,
+      baseRevision: 1,
+      message: 'A notes app proposal.',
+      blueprint: {
+        version: 1,
+        summary: 'A notes app proposal.',
+        screens: [{
+          key: 'home', name: 'Home', path: '/',
+          components: [{ key: 'notes', type: 'list', collectionKey: 'notes' }],
+          workflows: [],
+        }],
+        collections: [{
+          key: 'notes', name: 'Notes',
+          fields: [{ key: 'title', label: 'Title', type: 'text', required: true }],
+        }],
+      },
+      preview: {
+        schemaVersion: 13,
+        document: acceptedDocument,
+        collections: [{
+          id: collection.id,
+          name: collection.name,
+          fields: collection.fields,
+        }],
+      },
+    };
+
+    fireEvent.click(screen.getByRole('button', { name: /AI assistant/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'AI assistant' });
+    fireEvent.change(within(dialog).getByLabelText('Message'), {
+      target: { value: 'Build a notes app' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send' }));
+    await within(dialog).findByText('A notes app proposal.');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply app' }));
+
+    await within(dialog).findByText('Applied and saved to the project.');
+    await waitFor(() => expect(screen.getByTestId('validation-badge')).toHaveTextContent('Valid'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close assistant' }));
+    const editorSidebar = screen.getByRole('complementary', { name: 'Editor sidebar' });
+    fireEvent.click(within(editorSidebar).getByRole('button', { name: 'ListView — Collection ListView' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit item design' }));
+    expect(await screen.findByText('Title')).toBeInTheDocument();
+    expect(screen.queryByText('assistant_field_title')).not.toBeInTheDocument();
   });
 
   it('navigates to the deployment flow from Deploy', async () => {

@@ -46,16 +46,16 @@ export function useProjectData(projectId: string): ProjectDataController {
     let active = true;
     setStatus('loading');
     setError(null);
-    void appData.listDatabases(projectId).then(async (loadedDatabases) => {
-      const primary = loadedDatabases[0] ?? null;
-      const loaded = primary ? await appData.listCollections(projectId, primary.id) : await appData.listCollections(projectId);
-      const recordLists = await Promise.all(
-        loaded.map(async (collection) => [collection.id, await appData.listRecords(projectId, collection.id)] as const),
-      );
+    void appData.exportProjectData(projectId).then((store) => {
+      const primary = store.databases[0] ?? null;
+      const recordLists = store.collections.map((collection) => [
+        collection.id,
+        store.records.filter((record) => record.collectionId === collection.id),
+      ] as const);
       if (!active) return;
-      setDatabases(loadedDatabases);
+      setDatabases(store.databases);
       setDatabase(primary);
-      setCollections(loaded);
+      setCollections(store.collections);
       setRecordsByCollection(new Map(recordLists));
       setStatus('ready');
     }).catch(() => {

@@ -1,6 +1,7 @@
 import { axiosClient } from '../api/axiosClient';
 import type { ApiHttpClient } from '../api/http';
 import { ApiAppDataRepository } from './api/ApiAppDataRepository';
+import { ApiAssistantRepository } from './api/ApiAssistantRepository';
 import { ApiDeploymentRepository } from './api/ApiDeploymentRepository';
 import { ApiAuthRepository, type AuthHttpClient } from './api/ApiAuthRepository';
 import { ApiProjectImportRepository } from './api/ApiProjectImportRepository';
@@ -45,13 +46,19 @@ export function createRepositories(options?: RepositoriesOptions): Repositories 
   const projectClient =
     options?.projectClient !== undefined ? options.projectClient : hasApi ? axiosClient : null;
 
+  const apiProjects = projectClient ? new ApiProjectRepository(projectClient) : null;
+
   return {
     ...local,
     ...(authClient ? { auth: new ApiAuthRepository(authClient) } : {}),
     ...(exportClient ? { reactExport: new ApiReactExportRepository(exportClient) } : {}),
     ...(projectClient
       ? {
-          projects: new ApiProjectRepository(projectClient),
+           projects: apiProjects!,
+           assistant: new ApiAssistantRepository(
+             projectClient,
+             (value) => apiProjects!.adoptProjectResponse(value),
+           ),
           appData: new ApiAppDataRepository(projectClient),
           deployments: new ApiDeploymentRepository(projectClient),
           localProjectImport: new ApiProjectImportRepository(

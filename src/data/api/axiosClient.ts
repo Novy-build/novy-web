@@ -8,7 +8,10 @@ import { attachCsrfHeader } from './csrf';
  */
 export const axiosClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 10_000,
+  // The backend may sit behind a remote database, where the first request
+  // after a restart pays for connection setup. A slow response must not be
+  // reported as an unreachable backend.
+  timeout: 30_000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

@@ -148,6 +148,53 @@ describe('ApiProjectRepository', () => {
     await expect(new ApiProjectRepository(client).getProject('project_missing')).resolves.toBeNull();
   });
 
+  it('reuses a recently loaded project during navigation', async () => {
+    const { client, get } = makeClient();
+    get.mockResolvedValue(projectResponse());
+    const repository = new ApiProjectRepository(client);
+
+    const first = await repository.getProject('project_1');
+    const second = await repository.getProject('project_1');
+
+    expect(first).toBe(second);
+    expect(get).toHaveBeenCalledOnce();
+  });
+
+  it('deduplicates a preload and editor load in flight', async () => {
+    const { client, get } = makeClient();
+    let resolve!: (response: ApiHttpResponse) => void;
+    get.mockReturnValue(new Promise((next) => { resolve = next; }));
+    const repository = new ApiProjectRepository(client);
+
+    const preload = repository.getProject('project_1');
+    const editorLoad = repository.getProject('project_1');
+    resolve(projectResponse());
+
+    await expect(Promise.all([preload, editorLoad])).resolves.toHaveLength(2);
+    expect(get).toHaveBeenCalledOnce();
+  });
+
+  it('reuses a recently loaded project list', async () => {
+    const { client, get } = makeClient();
+    get.mockResolvedValue({ status: 200, data: { projects: [] } });
+    const repository = new ApiProjectRepository(client);
+
+    await repository.listProjects();
+    await repository.listProjects();
+
+    expect(get).toHaveBeenCalledOnce();
+  });
+
+  it('deduplicates concurrent project-list loads', async () => {
+    const { client, get } = makeClient();
+    get.mockResolvedValue({ status: 200, data: { projects: [] } });
+    const repository = new ApiProjectRepository(client);
+
+    await Promise.all([repository.listProjects(), repository.listProjects()]);
+
+    expect(get).toHaveBeenCalledOnce();
+  });
+
   it('maps validation failures to a typed project error', async () => {
     const { client, post } = makeClient();
     post.mockRejectedValue(
@@ -172,6 +219,19 @@ describe('ApiProjectRepository', () => {
     await expect(new ApiProjectRepository(client).listProjects()).rejects.toMatchObject({
       name: 'ProjectError',
       code: 'network',
+    } satisfies Partial<ProjectError>);
+  });
+
+  it('reports a slow backend as a timeout instead of an unreachable one', async () => {
+    const { client, get } = makeClient();
+    const timeoutError = new AxiosError('timeout of 30000ms exceeded');
+    timeoutError.code = 'ECONNABORTED';
+    get.mockRejectedValue(timeoutError);
+
+    await expect(new ApiProjectRepository(client).listProjects()).rejects.toMatchObject({
+      name: 'ProjectError',
+      code: 'timeout',
+      message: 'The backend took too long to respond. Try again.',
     } satisfies Partial<ProjectError>);
   });
 });

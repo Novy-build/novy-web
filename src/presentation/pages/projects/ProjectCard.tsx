@@ -8,6 +8,7 @@ interface ProjectCardProps {
   onRename: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onPreload: () => void;
 }
 
 /**
@@ -15,7 +16,7 @@ interface ProjectCardProps {
  * summary meta, and management actions. The preview is the same renderer the
  * canvas and preview overlay use, just CSS-scaled.
  */
-export function ProjectCard({ project, onRename, onDuplicate, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onRename, onDuplicate, onDelete, onPreload }: ProjectCardProps) {
   const name = project.name;
   const screenLabel = project.screenCount === 1 ? 'screen' : 'screens';
 
@@ -24,6 +25,8 @@ export function ProjectCard({ project, onRename, onDuplicate, onDelete }: Projec
       <Link
         aria-label={`Open ${name}`}
         className="block overflow-hidden rounded-t-none bg-canvas"
+        onFocus={onPreload}
+        onMouseEnter={onPreload}
         to={`/project/${project.id}/editor`}
       >
         <div className="flex h-40 justify-center overflow-hidden">

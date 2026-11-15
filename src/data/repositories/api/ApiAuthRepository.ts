@@ -76,12 +76,26 @@ export class ApiAuthRepository implements AuthRepository {
   readonly supportsDemo = false;
 
   private readonly client: AuthHttpClient;
+  private sessionRequest: Promise<User | null> | null = null;
 
   constructor(client: AuthHttpClient) {
     this.client = client;
   }
 
   async getSession(): Promise<User | null> {
+    if (this.sessionRequest) {
+      return this.sessionRequest;
+    }
+    const request = this.loadSession();
+    this.sessionRequest = request;
+    try {
+      return await request;
+    } finally {
+      this.sessionRequest = null;
+    }
+  }
+
+  private async loadSession(): Promise<User | null> {
     try {
       const response = await this.client.get(`${AUTH_BASE}/session`);
       return mapUserDtoToEntity(parseUserDto(response.data));

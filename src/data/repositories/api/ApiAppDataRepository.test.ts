@@ -123,17 +123,50 @@ describe('ApiAppDataRepository', () => {
 
   it('exports a complete project data store for local import', async () => {
     const { client, get } = makeClient();
-    get.mockImplementation(async (url: string) => {
-      if (url.endsWith('/databases')) return { status: 200, data: [DATABASE] };
-      if (url.endsWith('/collections')) return { status: 200, data: [COLLECTION] };
-      if (url.endsWith('/records')) return { status: 200, data: [RECORD] };
-      throw new Error(`Unexpected URL: ${url}`);
+    get.mockResolvedValue({
+      status: 200,
+      data: {
+        databases: [DATABASE],
+        collections: [COLLECTION],
+        recordsByCollection: { collection_1: [RECORD] },
+      },
     });
 
     const store = await new ApiAppDataRepository(client).exportProjectData('project_1');
 
+    expect(get).toHaveBeenCalledOnce();
+    expect(get).toHaveBeenCalledWith('/projects/project_1/app-data');
     expect(store.databases.map((database) => database.id)).toEqual(['database_1']);
     expect(store.collections.map((collection) => collection.id)).toEqual(['collection_1']);
     expect(store.records.map((record) => record.id)).toEqual(['record_1']);
+  });
+
+  it('deduplicates concurrent project data loads', async () => {
+    const { client, get } = makeClient();
+    get.mockResolvedValue({
+      status: 200,
+      data: {
+        databases: [DATABASE],
+        collections: [COLLECTION],
+        recordsByCollection: { collection_1: [RECORD] },
+      },
+    });
+    const repository = new ApiAppDataRepository(client);
+
+    await Promise.all([
+      repository.exportProjectData('project_1'),
+      repository.exportProjectData('project_1'),
+    ]);
+
+    expect(get).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a malformed project data snapshot', async () => {
+    const { client, get } = makeClient();
+    get.mockResolvedValue({ status: 200, data: { databases: [], collections: [] } });
+
+    await expect(
+      new ApiAppDataRepository(client).exportProjectData('project_1'),
+    ).rejects.toMatchObject({ code: 'unexpected' });
   });
 });

@@ -17,9 +17,9 @@ export function PublishStepper({ activeStageIndex }: PublishStepperProps) {
     <section
       aria-label="Publish progress"
       aria-live="polite"
-      className="rounded-panel border border-brand-200 bg-brand-50 p-5"
+      className="rounded-panel border border-brand-500/30 bg-brand-500/10 p-5 dark:border-brand-400/35 dark:bg-brand-500/15"
     >
-      <p className="text-sm font-medium text-brand-900">
+      <p className="text-sm font-medium text-brand-700 dark:text-brand-300">
         Publishing — {STAGE_LABELS[DEPLOYMENT_STAGES[activeStageIndex] ?? 'build']}
       </p>
       <ol className="mt-4 grid grid-cols-4 gap-2">
@@ -34,8 +34,8 @@ export function PublishStepper({ activeStageIndex }: PublishStepperProps) {
                     state === 'complete'
                       ? 'bg-brand-600 text-white'
                       : state === 'active'
-                        ? 'animate-pulse border-2 border-brand-600 bg-surface text-brand-700'
-                        : 'border border-brand-200 bg-surface text-ink-muted'
+                        ? 'animate-pulse border-2 border-brand-600 bg-surface text-brand-700 dark:border-brand-400 dark:text-brand-300'
+                        : 'border border-hairline bg-surface text-ink-muted'
                   }`}
                 >
                   {state === 'complete' ? '✓' : index + 1}
@@ -43,7 +43,11 @@ export function PublishStepper({ activeStageIndex }: PublishStepperProps) {
                 {index < DEPLOYMENT_STAGES.length - 1 ? (
                   <span
                     aria-hidden="true"
-                    className={`h-0.5 flex-1 ${index < activeStageIndex ? 'bg-brand-600' : 'bg-brand-200'}`}
+                    className={`h-0.5 flex-1 ${
+                      index < activeStageIndex
+                        ? 'bg-brand-600'
+                        : 'bg-brand-500/25 dark:bg-brand-400/25'
+                    }`}
                   />
                 ) : null}
               </div>

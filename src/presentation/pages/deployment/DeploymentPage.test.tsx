@@ -93,6 +93,9 @@ describe('DeploymentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
     expect(screen.getByText('Publishing — Build')).toBeInTheDocument();
+    const publishProgress = screen.getByRole('region', { name: 'Publish progress' });
+    expect(publishProgress).toHaveClass('bg-brand-500/10', 'dark:bg-brand-500/15');
+    expect(publishProgress).not.toHaveClass('bg-brand-50');
     expect(screen.getByRole('button', { name: 'Publishing…' })).toBeDisabled();
     await act(async () => vi.advanceTimersToNextTimerAsync());
     expect(screen.getByText('Publishing — Optimize')).toBeInTheDocument();

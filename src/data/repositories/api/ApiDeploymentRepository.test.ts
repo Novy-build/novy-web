@@ -31,6 +31,16 @@ function makeClient(): { client: ApiHttpClient; get: ReturnType<typeof vi.fn>; p
 }
 
 describe('ApiDeploymentRepository', () => {
+  it('deduplicates concurrent provider discovery', async () => {
+    const { client, get } = makeClient();
+    get.mockResolvedValue({ status: 200, data: { providers: ['vercel'] } });
+    const repository = new ApiDeploymentRepository(client);
+
+    await Promise.all([repository.listProviders(), repository.listProviders()]);
+
+    expect(get).toHaveBeenCalledOnce();
+  });
+
   it('loads configured providers and deployment history', async () => {
     const { client, get } = makeClient();
     get

@@ -155,6 +155,7 @@ export function DeploymentPage() {
           </div>
           <div className="space-y-6">
             <RuntimeReadinessPanel
+              deploymentProviders={deployment.providers}
               downloadError={reactExport.error}
               isDownloading={reactExport.isDownloading}
               onDownloadReact={() => void reactExport.download()}
@@ -231,7 +232,9 @@ function EnvironmentSelector({
   return (
     <section className="rounded-panel border border-hairline bg-surface p-5">
       <h2 className="text-base font-semibold text-ink">Environment</h2>
-      <p className="mt-1 text-sm text-ink-muted">Preview is isolated; Production uses your public Novy URL.</p>
+      <p className="mt-1 text-sm text-ink-muted">
+        Preview publishes a reviewable release. Production updates the live site your visitors use.
+      </p>
       <div aria-label="Deployment environment" className="mt-4 grid grid-cols-2 gap-3" role="group">
         {(['preview', 'production'] as const).map((environment) => (
           <button
@@ -249,7 +252,7 @@ function EnvironmentSelector({
           >
             <span className="block text-sm font-semibold capitalize text-ink">{environment}</span>
             <span className="mt-1 block text-xs text-ink-muted">
-              {environment === 'preview' ? 'Safe test release' : 'Public live release'}
+              {environment === 'preview' ? 'Reviewable release' : 'Live release for visitors'}
             </span>
           </button>
         ))}
