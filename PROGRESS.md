@@ -1205,6 +1205,13 @@ Verification completed on 2026-11-14 (continuous flex sizing draft):
 - `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
 - `git diff --check` — passed.
 
+Verification completed on 2026-11-16 (website section overflow detection helper):
+
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 106 test files and 875 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --cached --check` — passed.
+
 ## 15. Current frontend boundaries and remaining integrations
 
 The following are **not yet implemented** and should not be reported as completed frontend

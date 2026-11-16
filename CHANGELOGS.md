@@ -5,6 +5,29 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-16 — Website section content-overflow detection helper
+
+#### Added
+- `src/domain/sections/sectionOverflow.ts` — pure `findSectionContentOverflows(screen, breakpoint)`
+  reports root website sections whose authored height is smaller than the height their visible
+  content needs. This is the detection half of the **"never silently ship clipping"** fallback in
+  `docs/website-projects-plan.md` §7.3; it does not render UI or mutate the document.
+- `src/domain/sections/sectionOverflow.test.ts` — covers overflowing sections, sufficient height,
+  empty/hidden sections, non-section root nodes, and breakpoint-specific authored heights.
+
+#### Notes
+- Additive and self-contained: no production behaviour, schema, DTO, or backend change. Intended as
+  a cherry-pickable building block for the Inspector warning described in §7.3.
+- This branch is based on `f855211`; the newest `main` (`dbcefaa`) independently passes its own
+  gates (107 test files / 902 tests). The helper imports only modules unchanged between them.
+- Website projects remain an explicit scope extension beyond the PD6 baseline.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 106 test files and 875 tests passed (this branch).
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --cached --check` — passed.
+
 ### 2026-11-14 — Continuous flex sizing implementation draft
 
 #### Added
