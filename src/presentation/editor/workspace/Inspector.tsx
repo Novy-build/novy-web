@@ -21,6 +21,7 @@ import {
   type DataValue,
 } from '@domain/entities/appData';
 import { bindingTargetsForComponent, isFieldTypeCompatible } from '@domain/bindings/componentBindings';
+import { measureSectionHeight } from '@domain/sections/sectionLayout';
 import type { Behavior } from '@domain/entities/logic';
 import { TextInput } from '@presentation/components/ui/TextInput';
 import { Modal } from '@presentation/components/system/Modal';
@@ -41,6 +42,8 @@ interface InspectorProps {
   onOpenLogic: () => void;
   collections?: readonly DataCollection[];
   device?: ResponsiveBreakpoint;
+  /** True when the selected node is a root-level section of a website page. */
+  isWebsiteSection?: boolean;
   listItemFields?: readonly ListItemBindingField[];
   /** Human-readable name of the collection or manual item source being bound. */
   listItemSourceName?: string;
@@ -213,6 +216,7 @@ export function Inspector({
   onOpenLogic,
   collections = [],
   device = 'mobile',
+  isWebsiteSection = false,
   listItemFields = [],
   listItemSourceName,
   itemFrame = null,
@@ -1072,6 +1076,11 @@ export function Inspector({
             value={effectiveGeometry.h}
           />
         </div>
+        {isWebsiteSection && node.type === 'column' ? (
+          <p className="mt-2 text-xs text-ink-muted" data-testid="inspector-measured-height">
+            Measured height (effective): {measureSectionHeight(node, device)} px
+          </p>
+        ) : null}
         {device !== 'mobile' && node.responsive?.[device] ? (
           <button className="mt-2 text-xs font-medium text-brand-700" onClick={() => onAction({ type: 'node/responsive-reset', nodeId: node.id })} type="button">
             Reset responsive overrides

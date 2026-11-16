@@ -5,6 +5,37 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-16 — Complete website plan §10 domain coverage and §7.6 measured height
+
+#### Added
+- `src/domain/sections/sectionPresets.test.ts` — all eight presets, unique ids, fresh trees,
+  per-breakpoint normalised geometry, and registry/direct builder equivalence.
+- `src/domain/sections/sectionTree.test.ts` — `websiteSections` filtering and `moveWebsiteSection`
+  boundaries, interleaved non-section nodes, immutability, and multi-section moves.
+- `src/domain/sections/blankSection.test.ts` — blank canvas dimensions, padding/gap, dark
+  appearance, and unique ids.
+- `src/domain/sections/sectionLayout.metrics.test.ts` — `nextSectionOffset` (including breakpoint
+  overrides), `ensureWebsiteSectionDarkAppearances` (inference, explicit palettes, no mutation),
+  `websitePageHeight`, and the width/min-height constants.
+- `Inspector` now shows the **measured height as the effective height** for a selected root website
+  section (`isWebsiteSection` prop, wired from `EditorWorkspace`), with regression tests for
+  website columns, app columns, and non-column nodes.
+
+#### Notes
+- Closes the two remaining in-scope gaps in `docs/website-projects-plan.md`: the §10 Domain testing
+  matrix and §7.6's Inspector requirement. Backend items B1–B5 and the backend/generated-app gates
+  in §9.2/§14/§15 remain owned by `novy-backend` and are out of scope here.
+- Test-only plus one read-only UI readout: no editor behaviour, schema, DTO, or backend change.
+- Website projects remain an explicit scope extension beyond the PD6 baseline.
+- One full-suite run hit transient 5000ms per-test timeouts under parallel load (every affected file
+  passed in isolation); the final default `npm test -- --run` run passed.
+
+#### Verification
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 111 test files and 937 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --cached --check` — passed.
+
 ### 2026-11-15 — Higher-quality assistant app proposals
 
 #### Improved

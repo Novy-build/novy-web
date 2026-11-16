@@ -467,6 +467,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                     behaviors={activeScreen.behaviors}
                     collections={projectData.collections}
                     device={state.device}
+                    isWebsiteSection={selectedSectionIndex >= 0 && !activeTemplate}
                     itemFrame={activeTemplate}
                     itemCollection={activeTemplateCollection}
                     listItemFields={listItemFields}

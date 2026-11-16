@@ -6,6 +6,7 @@ import { makeButton, makeColumn, makeContainer, makeImage, makeListView, makeTex
 import type { DataCollection } from '@domain/entities/appData';
 import { createPadding } from '@domain/entities/componentNode';
 import { createComponentNode } from '@domain/factories/componentNode';
+import { measureSectionHeight } from '@domain/sections/sectionLayout';
 
 const COLLECTION: DataCollection = {
   id: 'collection_students',
@@ -321,6 +322,34 @@ describe('Inspector', () => {
 
     fireEvent.change(screen.getByLabelText('X'), { target: { value: '' } });
     expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it('shows the measured height as the effective height for a website section', () => {
+    const node = makeColumn('section_1');
+    const onAction = vi.fn<(action: EditorAction) => void>();
+
+    render(
+      <Inspector
+        behaviors={[]}
+        device="desktop"
+        isWebsiteSection
+        node={node}
+        onAction={onAction}
+        onOpenLogic={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('inspector-measured-height')).toHaveTextContent(
+      `Measured height (effective): ${measureSectionHeight(node, 'desktop')} px`,
+    );
+  });
+
+  it('hides the measured height for app columns and non-column nodes', () => {
+    renderInspector(makeColumn('column_1'));
+    expect(screen.queryByTestId('inspector-measured-height')).not.toBeInTheDocument();
+
+    render(<Inspector behaviors={[]} isWebsiteSection node={makeButton('button_1')} onAction={vi.fn()} onOpenLogic={vi.fn()} />);
+    expect(screen.queryByTestId('inspector-measured-height')).not.toBeInTheDocument();
   });
 
   it('edits text levels for text nodes', () => {

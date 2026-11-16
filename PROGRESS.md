@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-15
+**Last reviewed:** 2026-11-16
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -1237,6 +1237,13 @@ Verification completed on 2026-11-15:
   PostgreSQL-only assistant ordering/rollback and profile tests require `TEST_DATABASE_URL`. Ollama
   live model/structured-output, Project v13 compilation, 5-source/92-chunk index, and citation tests
   passed.
+
+Verification completed on 2026-11-16 (website plan §10 domain coverage and §7.6 measured height):
+
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 111 test files and 937 tests passed.
+- `npm run build` — passed (Vite reported only its non-blocking large-chunk advisory).
+- `git diff --cached --check` — passed.
 
 ## 15. Current frontend boundaries and remaining integrations
 
