@@ -546,6 +546,25 @@ export function Inspector({
         </div>
       ) : null}
 
+      {node.type === 'file-input' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">File input</p>
+          <TextInput label="Label" name="inspector-file-label" onChange={(event) => onAction({ type: 'node/props-file-input', nodeId: node.id, props: { label: event.target.value } })} value={node.props.label} />
+          <TextInput label="Helper text" name="inspector-file-helper" onChange={(event) => onAction({ type: 'node/props-file-input', nodeId: node.id, props: { helperText: event.target.value } })} value={node.props.helperText} />
+          <p className="text-xs text-ink-muted">Text, Markdown, HTML, and PDF are extracted by the runtime; original bytes are discarded.</p>
+        </div>
+      ) : null}
+
+      {node.type === 'chat' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Chat</p>
+          <TextInput label="Title" name="inspector-chat-title" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { title: event.target.value } })} value={node.props.title} />
+          <TextInput label="Composer placeholder" name="inspector-chat-placeholder" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { placeholder: event.target.value } })} value={node.props.placeholder} />
+          <TextInput label="Send button label" name="inspector-chat-send" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { sendLabel: event.target.value } })} value={node.props.sendLabel} />
+          <TextInput label="Empty text" name="inspector-chat-empty" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { emptyText: event.target.value } })} value={node.props.emptyText} />
+        </div>
+      ) : null}
+
       {node.type === 'column' || node.type === 'row' ? (
         <div className="mt-4 grid gap-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Axis layout</p>

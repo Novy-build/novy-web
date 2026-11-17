@@ -212,6 +212,16 @@ export interface CameraNodeDTO extends ComponentNodeDTOBase {
   props: { label: string; facingMode: 'user' | 'environment'; captureLabel: string };
 }
 
+export interface FileInputNodeDTO extends ComponentNodeDTOBase {
+  type: 'file-input';
+  props: { label: string; helperText: string; accept: string[] };
+}
+
+export interface ChatNodeDTO extends ComponentNodeDTOBase {
+  type: 'chat';
+  props: { title: string; placeholder: string; sendLabel: string; emptyText: string; showCitations: boolean };
+}
+
 export type ComponentNodeDTO =
   | ButtonNodeDTO
   | TextNodeDTO
@@ -232,7 +242,9 @@ export type ComponentNodeDTO =
   | SliderNodeDTO
   | ProgressNodeDTO
   | DividerNodeDTO
-  | CameraNodeDTO;
+  | CameraNodeDTO
+  | FileInputNodeDTO
+  | ChatNodeDTO;
 
 export interface BehaviorDTO {
   id: string;
@@ -307,6 +319,18 @@ export interface SendEmailPayloadDTO {
 export interface RefreshCollectionPayloadDTO {
   type: 'refresh-collection';
   collectionId: string;
+}
+
+export interface DocumentUploadPayloadDTO {
+  type: 'document-upload';
+  mediaReference: string;
+}
+
+export interface ChatMessagePayloadDTO {
+  type: 'chat-message';
+  targetNodeId: string;
+  role: 'user' | 'assistant';
+  text: string;
 }
 
 /** Schema-v3 compatibility only; migrated to granular schema-v4 nodes on load. */
@@ -514,6 +538,8 @@ export type ActionPayloadDTO =
   | DeleteRecordPayloadDTO
   | SendEmailPayloadDTO
   | RefreshCollectionPayloadDTO
+  | DocumentUploadPayloadDTO
+  | ChatMessagePayloadDTO
   | SetVariablePayloadDTO
   | SetComponentValuePayloadDTO
   | AddLocalListItemPayloadDTO

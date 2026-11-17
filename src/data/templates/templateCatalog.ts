@@ -3,7 +3,9 @@ import { createPadding } from '@domain/entities/componentNode';
 import type { Template } from '@domain/entities/template';
 import type { Behavior, LogicGraph } from '@domain/entities/logic';
 import type { Screen } from '@domain/entities/screen';
+import { CV_STARTER_TEMPLATE } from './cvStarterTemplate';
 import { NOTES_TEMPLATE } from './notesTemplate';
+import { RAG_CHAT_TEMPLATE } from './ragChatTemplate';
 import { WEBSITE_TEMPLATES } from './websiteTemplates';
 
 /*
@@ -216,6 +218,14 @@ const STUDENT_LIST: Template = {
   ],
 };
 
-export const APP_TEMPLATES: readonly Template[] = [BLANK, LANDING, LOGIN_FORM, STUDENT_LIST, NOTES_TEMPLATE];
+export const APP_TEMPLATES: readonly Template[] = [
+  BLANK,
+  LANDING,
+  LOGIN_FORM,
+  STUDENT_LIST,
+  NOTES_TEMPLATE,
+  CV_STARTER_TEMPLATE,
+  RAG_CHAT_TEMPLATE,
+];
 export { WEBSITE_TEMPLATES };
 export const TEMPLATE_CATALOG: readonly Template[] = [...APP_TEMPLATES, ...WEBSITE_TEMPLATES];

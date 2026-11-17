@@ -5,6 +5,136 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-17 — Full Run App server-action parity
+
+#### Added
+- Run App now executes CRUD, Send Email, CV Liveness/Enroll/Verify, document upload, and RAG through
+  immutable backend action IDs. CRUD responses reconcile canonical backend records into the shared
+  editor renderer, while writes stay in the backend's resettable preview-data sandbox.
+- Added **Reset preview data**, explicit sandbox/backend-service badges, generated-app passwordless
+  sign-in and sign-out controls, and automatic sign-in prompting for protected workflows.
+- Camera capture now emits a transient in-memory JPEG `File` used by the bounded multipart vision
+  endpoint; raw camera bytes remain outside Project JSON and browser persistence.
+
+#### Changed
+- The project-data persistence toggle is shown only in isolated simulation. Run App always uses its
+  preview sandbox for CRUD and labels real email/CV/RAG behavior explicitly.
+- The runtime-preview repository now owns passwordless identity, runtime CSRF state, vision
+  challenges/media execution, and sandbox reset contracts. Credentialed calls remain separate from
+  public credential-omitting action calls.
+
+#### Verification
+- Strict TypeScript, 113 test files / 939 tests, and the production build pass. Coordinated backend
+  verification passes with 323 tests and 5 optional integration skips; generated React/Vite apps
+  typecheck, test, and build.
+
+### 2026-11-17 — Real Preview Run App mode
+
+#### Added
+- Added explicit **Run App**, **Stop**, and **Apply changes** controls to Preview. Run App prepares
+  the current generated manifest as an immutable backend app version and marks it **Changes pending**
+  when subsequent editor edits require a new version.
+- Added a runtime-preview repository boundary, authenticated preparation client, and separate public
+  runtime client. Real RAG control actions use the same immutable action IDs and `/runtime/v1`
+  contracts as published apps while navigation and Chat transcript updates remain browser-owned.
+- Added transient `File` propagation through the shared renderer and multipart document upload.
+  Selected bytes stay in memory and are released after a successful upload; they never enter the
+  project document or browser persistence.
+
+#### Changed
+- Isolated Preview remains the default fast mode. In Run App mode, document upload, indexing,
+  pgvector retrieval, and configured AI responses are real; vector data uses backend-assigned
+  `novy-preview-*` namespaces rather than published-app namespaces.
+
+#### Current limits
+- Run App uses the shared editor renderer rather than a generated-app iframe. There is no runtime
+  console or automatic preview-version cleanup yet.
+
+### 2026-11-17 — Chat with a document starter
+
+#### Added
+- Added dedicated **File input** and **Chat** assets across domain contracts, DTOs, mappers,
+  factories, palette, Layers, Inspector, canvas, preview, validation, and generated manifests.
+- Added `document-upload` and browser-owned `chat-message` Logic actions. Chat owns its transcript
+  and composer state, while selected files use the same transient media-reference pattern as Camera.
+- Added the two-screen **Chat with a document** app starter. Selecting a text, Markdown, HTML, or PDF
+  file starts upload and indexing with `postgres-vector` and `ollama-embedding`; success navigates
+  to `/chat`, where `ollama-chat` answers through the existing restricted retrieval agent.
+- Added catalog, validation, component interaction, and cross-repository generated-build coverage.
+
+#### Security and UX
+- The starter is anonymous by design. File bytes are not written to Project JSON, browser storage,
+  or generated bundles, and the UI explains accepted types and the backend extraction boundary.
+- File and Chat controls stay inert on the editor canvas and become interactive only in Preview or
+  the generated application.
+
+#### Verification
+- `npm run typecheck`, 110 test files / 928 tests, and `npm run build` passed. Coordinated backend
+  verification passed with 304 tests and 5 optional integration skips.
+
+### 2026-11-16 — Generated-app RAG configuration
+
+#### Added
+- Added backend-owned RAG connection profiles to the Logic node inspector. Embedding, chat,
+  reranking, vector-store, and memory nodes now select a profile from the list the backend offers
+  instead of accepting a free-text profile ID, and the model control offers only the models the
+  selected profile allows.
+- Added a project-scoped **Document sources** panel to the Data workspace. Builders upload text,
+  Markdown, HTML, or PDF files, list them, and delete them. The returned source identifier is what a
+  Document Loader node references.
+- Added a `RagRepository` seam with API and local implementations. The local implementation
+  deliberately reports every profile as unavailable so the editor never implies that browser-side
+  inference is available.
+- Added profile and file-source DTOs, mappers, and repository coverage.
+
+#### Changed
+- Document Loader collection sources now declare their content, title, and document-ID fields, and the
+  Logic workspace warns when a saved profile is no longer offered by the backend.
+- Conversation Memory nodes require a connection profile, and user-scoped memory explains that a
+  signed-in application user is required at runtime.
+- Generated applications keep structured node outputs and render answers with canonical citations.
+
+#### Verification
+- `npm run typecheck`, 110 test files / 925 tests, and `npm run build` passed.
+
+### 2026-11-16 — Face verification starter template
+
+#### Added
+- Added a two-screen web-app starter: **Biometric Registration** contains its own Camera, unchecked
+  biometric-consent Checkbox, and CV Enroll flow; **Recognition Test** contains a separate Camera,
+  verification email, CV Liveness, and CV Verify controls.
+- The screens have forward/back navigation, and CV Verify feeds a condition that changes visible text
+  to **Face recognized** or **Face not recognized**. Camera media is mapped from the in-memory Camera
+  value without exposing credential or threshold controls.
+- Editor Preview now converts the Checkbox runtime value into explicit enrollment consent and uses
+  the authenticated preview user as the enrollment subject.
+
+#### Tests
+- Added catalog validation for both screens, navigation, all three CV actions, required mappings, and
+  recognition branches, plus runtime coverage for recognized and unrecognized results.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 906 tests, `npm run build`, and `git diff --check` passed.
+
+### 2026-11-15 — Secure generated-app Computer Vision handoff
+
+#### Changed
+- CV Enroll now requires a dynamic runtime consent mapping and explains that builder-saved consent is
+  not evidence of generated-app user consent.
+- CV Verify no longer exposes credential-ID or threshold controls; the protected backend resolves the
+  credential and enforces its threshold.
+- Generated Camera captures are passed as in-memory `Blob`s to one-time challenged multipart runtime
+  requests instead of entering project/runtime JSON or persistent browser storage.
+
+#### Integration status
+- Generated-app passwordless identity, biometric session issuance, and credential revocation are now
+  backed by the provider-neutral backend runtime. Real production biometric processing remains gated
+  on an explicitly selected provider; editor preview simulation is still labeled as simulation.
+
+#### Verification
+- `npm run typecheck`, 107 test files / 903 tests, and `npm run build` passed; coordinated backend
+  verification passed with 236 tests and 4 PostgreSQL-only skips.
+
 ### 2026-11-15 — Higher-quality assistant app proposals
 
 #### Improved

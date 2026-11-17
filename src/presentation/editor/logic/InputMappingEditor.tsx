@@ -34,7 +34,7 @@ export function InputMappingEditor({
   const componentSources = screenNodes.filter((node) =>
     node.type === 'input' || node.type === 'text' || node.type === 'checkbox' ||
     node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' ||
-    node.type === 'camera' || node.type === 'listview');
+    node.type === 'camera' || node.type === 'file-input' || node.type === 'chat' || node.type === 'listview');
   const outputSources = logicNodes.filter((node) => node.id !== currentNodeId && node.kind === 'action');
   const selectedOutputNode = mapping?.source === 'node-output'
     ? outputSources.find((node) => node.id === mapping.nodeId)
@@ -185,6 +185,7 @@ export function InputMappingEditor({
 function knownOutputPaths(node: Extract<LogicNode, { kind: 'action' }>, collections: readonly DataCollection[]): string[] {
   switch (node.payload.type) {
     case 'document-load': return ['documents'];
+    case 'document-upload': return ['sourceId', 'filename', 'mediaType'];
     case 'text-split': return ['chunks'];
     case 'embedding-generate': return ['chunks', 'embeddings'];
     case 'vector-upsert': return ['insertedCount', 'updatedCount', 'indexName', 'namespace'];
@@ -196,6 +197,7 @@ function knownOutputPaths(node: Extract<LogicNode, { kind: 'action' }>, collecti
     case 'prompt-template': return ['prompt', 'question', 'matches'];
     case 'llm-generate': return ['answer', 'citations', 'finishReason'];
     case 'chat-output': return ['answer', 'citations'];
+    case 'chat-message': return ['role', 'text', 'citations'];
     case 'memory': return ['conversationId', 'messages'];
     case 'vector-store': return ['insertedCount', 'updatedCount', 'removedCount', 'toolName'];
     case 'ai-agent': return ['answer', 'citations', 'toolCalls', 'messages', 'finishReason'];

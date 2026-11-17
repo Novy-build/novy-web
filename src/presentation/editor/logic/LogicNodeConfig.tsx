@@ -10,6 +10,7 @@ import type {
 } from '@domain/entities/logic';
 import { CURRENT_ITEM_ID_FIELD } from '@domain/entities/logic';
 import type { RecordRouteParameter } from '@domain/entities/screen';
+import type { RagFileSource, RagProfile } from '@domain/entities/rag';
 import { logicNodeTitle } from './logicLabels';
 import { nodeDisplayLabel, nodeLayerName } from '../workspace/nodeLabels';
 import { InputMappingEditor } from './InputMappingEditor';
@@ -40,6 +41,10 @@ interface LogicNodeConfigProps {
   currentItemCollection?: DataCollection | null;
   logicNodes: readonly LogicNode[];
   listItemFields?: readonly { id: string; label: string }[];
+  /** Backend-owned RAG connection profiles. */
+  profiles?: readonly RagProfile[];
+  /** Project-scoped RAG document sources. */
+  fileSources?: readonly RagFileSource[];
 }
 
 /**
@@ -62,6 +67,8 @@ export function LogicNodeConfig({
   currentItemCollection = null,
   logicNodes,
   listItemFields = [],
+  profiles = [],
+  fileSources = [],
 }: LogicNodeConfigProps) {
   if (!behavior) {
     return <EmptyDetails />;
@@ -445,8 +452,10 @@ export function LogicNodeConfig({
       {isGranularRagPayload(actionPayload) ? (
         <RagNodeConfig
           collections={collections}
+          fileSources={fileSources}
           onChange={(next) => configure(next)}
           payload={actionPayload}
+          profiles={profiles}
           screenNodes={screenNodes}
         />
       ) : null}
@@ -549,27 +558,14 @@ export function LogicNodeConfig({
             <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, mediaReference: event.target.value })} value={actionPayload.mediaReference} />
           </label>
           {actionPayload.type === 'cv-enroll' ? (
-            <>
-              <label className="text-xs font-medium text-ink-muted">User ID
-                <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, userId: event.target.value })} value={actionPayload.userId} />
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
-                <input checked={actionPayload.consent} onChange={(event) => configure({ ...actionPayload, consent: event.target.checked })} type="checkbox" />
-                Consent granted
-              </label>
-            </>
+            <p className="text-xs text-ink-muted">Enrollment uses the authenticated app user. Map Consent to an explicit runtime Checkbox; a saved builder setting is not proof of user consent.</p>
           ) : null}
           {actionPayload.type === 'cv-verify' ? (
             <>
               <label className="text-xs font-medium text-ink-muted">User ID
                 <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, userId: event.target.value })} value={actionPayload.userId ?? ''} />
               </label>
-              <label className="text-xs font-medium text-ink-muted">Credential ID
-                <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, credentialId: event.target.value })} value={actionPayload.credentialId ?? ''} />
-              </label>
-              <label className="text-xs font-medium text-ink-muted">Threshold
-                <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, threshold: Number(event.target.value) || 0 })} type="number" value={actionPayload.threshold ?? 0} />
-              </label>
+              <p className="text-xs text-ink-muted">The protected runtime resolves the enrolled credential and enforces its verification threshold. Client configuration cannot weaken either value.</p>
             </>
           ) : null}
           <p className="text-xs text-ink-muted">Preview simulates biometric processing; raw images and templates stay in the protected backend.</p>
@@ -666,12 +662,11 @@ function actionInputDefinitions(
     case 'cv-liveness': return [{ key: 'mediaReference', label: 'Camera media' }];
     case 'cv-enroll': return [
       { key: 'mediaReference', label: 'Camera media' },
-      { key: 'userId', label: 'User ID' },
+      { key: 'consent', label: 'Biometric consent' },
     ];
     case 'cv-verify': return [
       { key: 'mediaReference', label: 'Camera media' },
       { key: 'userId', label: 'User ID' },
-      { key: 'credentialId', label: 'Credential ID' },
     ];
     case 'document-load': return [
       { key: 'sourceReference', label: 'Source reference' },
@@ -679,6 +674,7 @@ function actionInputDefinitions(
       { key: 'title', label: 'Title' },
       { key: 'text', label: 'Document text' },
     ];
+    case 'document-upload': return [{ key: 'mediaReference', label: 'File media' }];
     case 'text-split': return [{ key: 'documents', label: 'Documents' }];
     case 'embedding-generate': return [{ key: 'chunks', label: 'Text chunks' }];
     case 'vector-upsert': return [
@@ -710,6 +706,10 @@ function actionInputDefinitions(
     ];
     case 'chat-output': return [
       { key: 'answer', label: 'Generated answer' },
+      { key: 'citations', label: 'Citations' },
+    ];
+    case 'chat-message': return [
+      { key: 'text', label: 'Message text' },
       { key: 'citations', label: 'Citations' },
     ];
     case 'memory': return [

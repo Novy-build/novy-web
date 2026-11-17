@@ -421,6 +421,28 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         h: node.h,
         props: { label: node.props.label, facingMode: node.props.facingMode, captureLabel: node.props.captureLabel },
       };
+    case 'file-input':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'file-input',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { label: node.props.label, helperText: node.props.helperText, accept: [...node.props.accept] },
+      };
+    case 'chat':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'chat',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { ...node.props },
+      };
     case 'image':
       return {
         id: node.id,
@@ -669,6 +691,28 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         w: dto.w,
         h: dto.h,
         props: { label: dto.props.label, facingMode: dto.props.facingMode, captureLabel: dto.props.captureLabel },
+      };
+    case 'file-input':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'file-input',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { label: dto.props.label, helperText: dto.props.helperText, accept: [...dto.props.accept] },
+      };
+    case 'chat':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'chat',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: { ...dto.props },
       };
     case 'image':
       return {

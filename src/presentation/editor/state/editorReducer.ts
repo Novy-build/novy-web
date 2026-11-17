@@ -381,6 +381,16 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
         node.type === 'camera' ? { ...node, props: { ...node.props, ...action.props } } : node,
       );
 
+    case 'node/props-file-input':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'file-input' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-chat':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'chat' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
     case 'node/props-checkbox':
       return updateNodeWithHistory(state, action.nodeId, (node) =>
         node.type === 'checkbox' ? { ...node, props: { ...node.props, ...action.props } } : node,

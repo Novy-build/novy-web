@@ -25,7 +25,9 @@ export type ComponentType =
   | 'slider'
   | 'progress'
   | 'divider'
-  | 'camera';
+  | 'camera'
+  | 'file-input'
+  | 'chat';
 
 /**
  * Curated Lucide icon names available to Button widgets. Keeping the set
@@ -326,6 +328,20 @@ export interface CameraProps {
   captureLabel: string;
 }
 
+export interface FileInputProps {
+  label: string;
+  helperText: string;
+  accept: string[];
+}
+
+export interface ChatProps {
+  title: string;
+  placeholder: string;
+  sendLabel: string;
+  emptyText: string;
+  showCitations: boolean;
+}
+
 export interface NodeGeometry {
   x: number;
   y: number;
@@ -548,6 +564,16 @@ export interface CameraNode extends NodeBase {
   props: CameraProps;
 }
 
+export interface FileInputNode extends NodeBase {
+  type: 'file-input';
+  props: FileInputProps;
+}
+
+export interface ChatNode extends NodeBase {
+  type: 'chat';
+  props: ChatProps;
+}
+
 export type ComponentNode =
   | ButtonNode
   | TextNode
@@ -565,7 +591,9 @@ export type ComponentNode =
   | SliderNode
   | ProgressNode
   | DividerNode
-  | CameraNode;
+  | CameraNode
+  | FileInputNode
+  | ChatNode;
 
 export type ChildBearingNode = ContainerNode | GestureDetectorNode | ColumnNode | RowNode | ListViewNode;
 
@@ -703,4 +731,6 @@ export const CHILD_WIDGET_TYPES: readonly ComponentType[] = [
   'progress',
   'divider',
   'camera',
+  'file-input',
+  'chat',
 ];

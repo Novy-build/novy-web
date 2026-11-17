@@ -634,6 +634,10 @@ function validateActionPayload(
       if (payload.source === 'inline' && !payload.text.trim()) issues.push(issue('logic-empty-document', 'warning', 'logic', 'Inline document text is empty.', base));
       if ((payload.source === 'url' || payload.source === 'file-reference') && !payload.sourceReference.trim()) issues.push(issue('logic-empty-document-source', 'warning', 'logic', 'Document source reference is empty.', base));
       if (payload.source === 'collection' && (!payload.collectionId || !collections.has(payload.collectionId))) issues.push(issue('data-missing-collection', 'error', 'logic', 'Document Loader references a missing collection.', base));
+      if (payload.source === 'collection' && payload.collectionId && collections.has(payload.collectionId) && !payload.contentFieldId) issues.push(issue('logic-missing-document-field', 'error', 'logic', 'Document Loader needs a collection content field.', base));
+      break;
+    case 'document-upload':
+      if (!payload.mediaReference.trim() && !inputMappings?.mediaReference) issues.push(issue('logic-empty-media', 'warning', 'logic', 'Map File input media before running this action.', base));
       break;
     case 'text-split':
       if (payload.chunkSize <= 0) issues.push(issue('logic-invalid-chunk-size', 'error', 'logic', 'Chunk size must be positive.', base));
@@ -670,8 +674,17 @@ function validateActionPayload(
       if (!payload.targetNodeId) issues.push(issue('logic-empty-target', 'warning', 'logic', 'Chat Output target is not set.', base));
       else if (!screen.nodes.flatMap(flattenNodeIds).includes(payload.targetNodeId)) issues.push(issue('logic-missing-target', 'error', 'logic', 'Chat Output target is missing.', base));
       break;
+    case 'chat-message': {
+      const target = screen.nodes.flatMap(flattenNodes).find((candidate) => candidate.id === payload.targetNodeId);
+      if (!payload.targetNodeId) issues.push(issue('logic-empty-target', 'warning', 'logic', 'Chat Message target is not set.', base));
+      else if (target?.type !== 'chat') issues.push(issue('logic-invalid-chat-target', 'error', 'logic', 'Chat Message requires a Chat widget target.', base));
+      if (!payload.text.trim() && !inputMappings?.text) issues.push(issue('logic-empty-chat-message', 'warning', 'logic', 'Chat Message needs text or a dynamic text mapping.', base));
+      break;
+    }
     case 'memory':
+      if (!payload.connectionProfileId.trim()) issues.push(issue('logic-missing-memory-profile', 'error', 'logic', 'Conversation memory connection profile is required.', base));
       if (payload.windowSize <= 0) issues.push(issue('logic-invalid-memory-window', 'error', 'logic', 'Memory window size must be positive.', base));
+      if (payload.scope === 'user') issues.push(issue('logic-user-scoped-memory', 'warning', 'logic', 'User-scoped memory requires a signed-in app user at runtime.', base));
       break;
     case 'vector-store':
       if (!payload.connectionProfileId.trim()) issues.push(issue('logic-missing-vector-profile', 'error', 'logic', 'Vector-store connection profile is required.', base));
@@ -689,9 +702,8 @@ function validateActionPayload(
     case 'cv-liveness':
     case 'cv-enroll':
     case 'cv-verify':
-      if (!payload.mediaReference.trim()) issues.push(issue('logic-empty-media', 'warning', 'logic', 'Media reference is empty.', base));
-      if (payload.type === 'cv-enroll' && !payload.consent) issues.push(issue('logic-missing-consent', 'warning', 'logic', 'Biometric consent is required.', base));
-      if (payload.type === 'cv-enroll' && !payload.userId.trim()) issues.push(issue('logic-empty-user', 'warning', 'logic', 'User ID is required.', base));
+      if (!payload.mediaReference.trim() && !inputMappings?.mediaReference) issues.push(issue('logic-empty-media', 'warning', 'logic', 'Map Camera media before running this action.', base));
+      if (payload.type === 'cv-enroll' && !inputMappings?.consent) issues.push(issue('logic-missing-consent', 'error', 'logic', 'CV Enroll requires explicit runtime biometric-consent mapping.', base));
       break;
     default: {
       const exhaustive: never = payload;
@@ -702,6 +714,10 @@ function validateActionPayload(
 
 function flattenNodeIds(node: ComponentNode): string[] {
   return isChildBearingNode(node) ? [node.id, ...node.children.flatMap(flattenNodeIds)] : [node.id];
+}
+
+function flattenNodes(node: ComponentNode): ComponentNode[] {
+  return isChildBearingNode(node) ? [node, ...node.children.flatMap(flattenNodes)] : [node];
 }
 
 function findComponentNode(nodes: readonly ComponentNode[], nodeId: string): ComponentNode | null {

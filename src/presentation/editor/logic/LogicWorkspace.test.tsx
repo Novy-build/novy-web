@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useReducer } from 'react';
 import type { ProjectDocument } from '@domain/entities/screen';
 import type { DataCollection } from '@domain/entities/appData';
+import { RepositoriesProvider } from '@main/providers/RepositoriesProvider';
+import { createStubRepositories } from '@test/stubRepositories';
 import { editorReducer } from '../state/editorReducer';
 import { createEditorState, getActiveScreen, type EditorState } from '../state/editorState';
 import { makeButton, makeListView, makeScreen, makeText } from '@test/editorFixtures';
@@ -34,7 +36,11 @@ function Harness({ document }: { document: ProjectDocument }) {
 }
 
 function renderWorkspace(document: ProjectDocument = DOCUMENT) {
-  render(<Harness document={document} />);
+  render(
+    <RepositoriesProvider repositories={createStubRepositories()}>
+      <Harness document={document} />
+    </RepositoriesProvider>,
+  );
   return screen.getByRole('region', { name: 'Logic workspace' });
 }
 

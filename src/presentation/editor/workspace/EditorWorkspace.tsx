@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useMemo, useReducer, useState } from 'react';
 import type { Project } from '@domain/entities/project';
 import type { ComponentNode, ComponentType, ListViewNode } from '@domain/entities/componentNode';
 import { geometryAtBreakpoint, isChildBearingNode, listViewItemExtentAtBreakpoint, resolveEdgeInsets } from '@domain/entities/componentNode';
@@ -37,6 +37,8 @@ import { ResizeHandle } from '../layout/ResizeHandle';
 import { useResizablePane } from '../layout/useResizablePane';
 import type { ListItemBindingField } from './Inspector';
 import { getComponentTreeLocation } from '@domain/componentTree';
+import { buildGeneratedAppManifest } from '@data/generation/generatedAppManifest';
+import { useRepositories } from '@main/providers/RepositoriesProvider';
 
 interface EditorWorkspaceProps {
   project: Project;
@@ -46,6 +48,7 @@ interface EditorWorkspaceProps {
 }
 
 export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: EditorWorkspaceProps) {
+  const { runtimePreview } = useRepositories();
   const [state, dispatch] = useReducer(editorReducer, createEditorState(project.document, project.projectType));
   const [mode, setMode] = useState<EditorMode>('design');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -72,6 +75,14 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     : -1;
 
   const projectData = useProjectData(project.id);
+  const runtimePreviewManifest = useMemo(
+    () => buildGeneratedAppManifest(
+      { ...project, document: state.document },
+      projectData.database,
+      projectData.collections,
+    ),
+    [project, projectData.collections, projectData.database, state.document],
+  );
   const assistantConversation = useAssistantConversation(
     project.id,
     state,
@@ -523,12 +534,18 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
         </div>
       ) : mode === 'logic' ? (
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <LogicWorkspace collections={projectData.collections} state={state} dispatch={dispatch} />
+          <LogicWorkspace
+            collections={projectData.collections}
+            dispatch={dispatch}
+            projectId={project.id}
+            state={state}
+          />
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <DataWorkspace
             data={projectData}
+            projectId={project.id}
             onRecordIdentifierChange={(collectionId, identifierKey) => dispatch({
               type: 'routes/record-identifier-sync',
               collectionId,
@@ -552,6 +569,8 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
           projectName={project.name}
           projectType={project.projectType}
           recordsByCollection={projectData.recordsByCollection}
+          runtimeManifest={runtimePreviewManifest}
+          runtimePreview={runtimePreview}
           screens={state.document.screens}
         />
       ) : null}

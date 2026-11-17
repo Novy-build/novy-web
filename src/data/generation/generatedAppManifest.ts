@@ -148,6 +148,7 @@ function detectActionCapabilities(
       requireCapability('email', source);
       return;
     case 'document-load':
+    case 'document-upload':
     case 'text-split':
     case 'embedding-generate':
     case 'vector-upsert':
@@ -164,6 +165,8 @@ function detectActionCapabilities(
     case 'chat-model':
     case 'ai-agent':
       requireCapability('rag', source);
+      return;
+    case 'chat-message':
       return;
     case 'cv-liveness':
     case 'cv-enroll':

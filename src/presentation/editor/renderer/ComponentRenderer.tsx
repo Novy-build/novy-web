@@ -6,10 +6,12 @@ import { type CSSProperties, type PropsWithChildren } from 'react';
 import type { ComponentRendererProps, RendererEventContext } from './renderer';
 import { ButtonNodeView } from './nodes/ButtonNodeView';
 import { CameraNodeView } from './nodes/CameraNodeView';
+import { ChatNodeView } from './nodes/ChatNodeView';
 import { CheckboxNodeView } from './nodes/CheckboxNodeView';
 import { ContainerNodeView } from './nodes/ContainerNodeView';
 import { DividerNodeView } from './nodes/DividerNodeView';
 import { DropdownNodeView } from './nodes/DropdownNodeView';
+import { FileInputNodeView } from './nodes/FileInputNodeView';
 import { ImageNodeView } from './nodes/ImageNodeView';
 import { InputNodeView } from './nodes/InputNodeView';
 import { LinearLayoutNodeView } from './nodes/LinearLayoutNodeView';
@@ -102,6 +104,7 @@ export function ComponentRenderer({
   onNodeAction,
   onNodeEvent,
   onNodeValueChange,
+  onNodeMediaChange,
   componentValues,
   dataContext,
   geometryOverride,
@@ -239,9 +242,36 @@ export function ComponentRenderer({
       return frame(
         <CameraNodeView
           isPreview={mode === 'preview'}
-          onCapture={(mediaReference) => {
+          onCapture={(mediaReference, media) => {
+            onNodeMediaChange?.(node.id, media);
             onNodeValueChange?.(node.id, mediaReference);
             emitRuntimeEvent('change', mediaReference);
+          }}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
+    case 'file-input':
+      return frame(
+        <FileInputNodeView
+          isPreview={mode === 'preview'}
+          onSelect={(mediaReference, file) => {
+            onNodeMediaChange?.(node.id, file);
+            onNodeValueChange?.(node.id, mediaReference);
+            emitRuntimeEvent('change', mediaReference);
+          }}
+          props={node.props}
+          renderStatic={renderStatic}
+        />,
+      );
+    case 'chat':
+      return frame(
+        <ChatNodeView
+          isPreview={mode === 'preview'}
+          messages={dataContext?.localItemsByListView?.get(node.id) ?? []}
+          onSubmit={(value) => {
+            onNodeValueChange?.(node.id, value);
+            emitRuntimeEvent('change', value);
           }}
           props={node.props}
           renderStatic={renderStatic}
@@ -267,6 +297,7 @@ export function ComponentRenderer({
           onNodeAction={runtimeClick}
           onNodeEvent={runtimeEvent}
           onNodeValueChange={onNodeValueChange}
+          onNodeMediaChange={onNodeMediaChange}
           selected={false}
           selectedNodeId={selectedNodeId}
         />
@@ -307,6 +338,7 @@ export function ComponentRenderer({
               onNodeAction={runtimeClick}
               onNodeEvent={runtimeEvent}
               onNodeValueChange={onNodeValueChange}
+              onNodeMediaChange={onNodeMediaChange}
               onSelect={onSelect}
               selected={false}
               selectedNodeId={selectedNodeId}

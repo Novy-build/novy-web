@@ -182,6 +182,11 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
     create: () => ({ kind: 'action', payload: { type: 'document-load', source: 'inline', sourceReference: '', documentId: '', title: '', text: '', metadata: {} } }),
   },
   {
+    id: 'document-upload', category: 'RAG Nodes', label: 'Document Upload', icon: 'U',
+    description: 'Upload and extract a runtime document', keywords: ['document', 'upload', 'file'],
+    create: () => ({ kind: 'action', payload: { type: 'document-upload', mediaReference: '' } }),
+  },
+  {
     id: 'text-split', category: 'RAG Nodes', label: 'Text Splitter', icon: 'S',
     description: 'Split documents into overlapping chunks', keywords: ['chunk', 'split', 'token', 'recursive'],
     create: () => ({ kind: 'action', payload: { type: 'text-split', strategy: 'recursive-character', chunkSize: 700, chunkOverlap: 100, separators: ['\n\n', '\n', '. ', ' '] } }),
@@ -225,6 +230,11 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
     id: 'chat-output', category: 'RAG Nodes', label: 'Chat Output', icon: 'A',
     description: 'Render an answer and citations', keywords: ['chat', 'answer', 'output', 'citation'],
     create: () => ({ kind: 'action', payload: { type: 'chat-output', targetNodeId: '' } }),
+  },
+  {
+    id: 'chat-message', category: 'RAG Nodes', label: 'Chat Message', icon: 'C',
+    description: 'Append a user or assistant message to a Chat widget', keywords: ['chat', 'message', 'bubble', 'transcript'],
+    create: () => ({ kind: 'action', payload: { type: 'chat-message', targetNodeId: '', role: 'assistant', text: '' } }),
   },
   {
     id: 'memory', category: 'RAG Nodes', label: 'Conversation Memory', icon: 'H',

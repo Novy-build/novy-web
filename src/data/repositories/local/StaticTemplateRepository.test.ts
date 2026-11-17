@@ -16,6 +16,8 @@ describe('StaticTemplateRepository', () => {
       'template_login',
       'template_students',
       'template_notes',
+      'template_cv_starter',
+      'template_rag_chat',
       'template_site_blank',
       'template_site_landing',
       'template_site_portfolio',

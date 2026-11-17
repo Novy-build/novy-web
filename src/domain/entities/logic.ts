@@ -80,6 +80,18 @@ export interface RefreshCollectionPayload {
   collectionId: string;
 }
 
+export interface DocumentUploadPayload {
+  type: 'document-upload';
+  mediaReference: string;
+}
+
+export interface ChatMessagePayload {
+  type: 'chat-message';
+  targetNodeId: string;
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 export interface DocumentLoadPayload {
   type: 'document-load';
   source: 'inline' | 'url' | 'collection' | 'file-reference' | 'previous-output';
@@ -264,6 +276,8 @@ export type ActionPayload =
   | DeleteRecordPayload
   | SendEmailPayload
   | RefreshCollectionPayload
+  | DocumentUploadPayload
+  | ChatMessagePayload
   | SetVariablePayload
   | SetComponentValuePayload
   | AddLocalListItemPayload

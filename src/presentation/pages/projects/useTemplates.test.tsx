@@ -26,6 +26,8 @@ describe('useTemplates', () => {
       'Login form',
       'Student list',
       'Notes CRUD app',
+      'Face verification',
+      'Chat with a document',
       'Blank canvas',
       'Landing page',
       'Portfolio',

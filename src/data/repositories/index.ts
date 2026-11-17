@@ -1,4 +1,5 @@
 import { axiosClient } from '../api/axiosClient';
+import { runtimeAxiosClient } from '../api/runtimeAxiosClient';
 import type { ApiHttpClient } from '../api/http';
 import { ApiAppDataRepository } from './api/ApiAppDataRepository';
 import { ApiAssistantRepository } from './api/ApiAssistantRepository';
@@ -6,6 +7,8 @@ import { ApiDeploymentRepository } from './api/ApiDeploymentRepository';
 import { ApiAuthRepository, type AuthHttpClient } from './api/ApiAuthRepository';
 import { ApiProjectImportRepository } from './api/ApiProjectImportRepository';
 import { ApiProjectRepository } from './api/ApiProjectRepository';
+import { ApiRagRepository } from './api/ApiRagRepository';
+import { ApiRuntimePreviewRepository } from './api/ApiRuntimePreviewRepository';
 import {
   ApiReactExportRepository,
   type ReactExportHttpClient,
@@ -61,6 +64,8 @@ export function createRepositories(options?: RepositoriesOptions): Repositories 
            ),
           appData: new ApiAppDataRepository(projectClient),
           deployments: new ApiDeploymentRepository(projectClient),
+           rag: new ApiRagRepository(projectClient),
+           runtimePreview: new ApiRuntimePreviewRepository(projectClient, runtimeAxiosClient),
           localProjectImport: new ApiProjectImportRepository(
             projectClient,
             local.projects,

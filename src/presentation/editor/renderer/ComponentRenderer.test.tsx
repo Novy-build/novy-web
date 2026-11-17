@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ButtonNode, CameraNode, ColumnNode, ComponentNode, ContainerNode, GestureDetectorNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
+import type { ButtonNode, CameraNode, ChatNode, ColumnNode, ComponentNode, ContainerNode, FileInputNode, GestureDetectorNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
 import { createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
@@ -45,6 +45,80 @@ describe('ComponentRenderer', () => {
     const rightIcon = rightButton.querySelector('[data-button-icon="check"]');
     expect(rightIcon).not.toBeNull();
     expect(rightButton.firstElementChild?.lastElementChild).toBe(rightIcon);
+  });
+
+  it('keeps File input inert on canvas and emits its transient media reference in preview', () => {
+    const node: FileInputNode = {
+      id: 'file_document',
+      type: 'file-input',
+      x: 10,
+      y: 20,
+      w: 320,
+      h: 100,
+      props: {
+        label: 'Choose a document',
+        helperText: 'Text or PDF',
+        accept: ['text/plain', 'application/pdf'],
+      },
+    };
+    const onNodeValueChange = vi.fn();
+    const onNodeMediaChange = vi.fn();
+    const { rerender } = render(
+      <ComponentRenderer mode="canvas" node={node} selected={false} onNodeMediaChange={onNodeMediaChange} onNodeValueChange={onNodeValueChange} />,
+    );
+    expect(screen.queryByLabelText('Choose a document')).not.toBeInTheDocument();
+
+    rerender(
+      <ComponentRenderer mode="preview" node={node} selected={false} onNodeMediaChange={onNodeMediaChange} onNodeValueChange={onNodeValueChange} />,
+    );
+    const input = screen.getByLabelText('Choose a document');
+    fireEvent.change(input, { target: { files: [new File(['hello'], 'handbook.txt', { type: 'text/plain' })] } });
+
+    expect(onNodeValueChange).toHaveBeenCalledWith(node.id, 'media:handbook.txt');
+    expect(onNodeMediaChange).toHaveBeenCalledWith(node.id, expect.any(File));
+    expect(screen.getByText('handbook.txt')).toBeInTheDocument();
+  });
+
+  it('renders Chat messages and submits composer text only in preview', () => {
+    const node: ChatNode = {
+      id: 'chat_document',
+      type: 'chat',
+      x: 10,
+      y: 20,
+      w: 340,
+      h: 500,
+      props: {
+        title: 'Ask your document',
+        placeholder: 'Ask a question',
+        sendLabel: 'Send',
+        emptyText: 'Ask your first question.',
+        showCitations: true,
+      },
+    };
+    const onNodeValueChange = vi.fn();
+    render(
+      <ComponentRenderer
+        dataContext={{
+          collections: [],
+          recordsByCollection: new Map(),
+          localItemsByListView: new Map([[node.id, [{
+            itemId: 'message_1',
+            placement: 'append',
+            values: { role: 'assistant', text: 'The answer is 42.', citations: 'Handbook' },
+          }]]]),
+        }}
+        mode="preview"
+        node={node}
+        onNodeValueChange={onNodeValueChange}
+        selected={false}
+      />,
+    );
+
+    expect(screen.getByText('The answer is 42.')).toBeInTheDocument();
+    expect(screen.getByText('Handbook')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Ask a question'), { target: { value: 'What is the answer?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(onNodeValueChange).toHaveBeenCalledWith(node.id, 'What is the answer?');
   });
 
   it('centers an icon while keeping the button label accessible', () => {

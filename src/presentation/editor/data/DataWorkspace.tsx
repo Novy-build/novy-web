@@ -1,9 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { DataRecord, DataValue } from '@domain/entities/appData';
+import type { RagFileSource } from '@domain/entities/rag';
+import { useRepositories } from '@main/providers/RepositoriesProvider';
 import { Button } from '@presentation/components/ui/Button';
 import { LoadingScreen } from '@presentation/components/system/LoadingScreen';
 import { Modal } from '@presentation/components/system/Modal';
 import { CollectionSchemaEditor } from './CollectionSchemaEditor';
+import { RagSourcesPanel } from './RagSourcesPanel';
 import { RecordDialog } from './RecordDialog';
 import { RecordsTable } from './RecordsTable';
 import type { ProjectDataController } from './useProjectData';
@@ -11,17 +14,20 @@ import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl
 import { ResizeHandle } from '../layout/ResizeHandle';
 import { useResizablePane } from '../layout/useResizablePane';
 
-type DataTab = 'schema' | 'records';
+type DataTab = 'schema' | 'records' | 'sources';
 
 export function DataWorkspace({
   data,
   onRecordIdentifierChange,
+  projectId,
 }: {
   data: ProjectDataController;
   onRecordIdentifierChange?: (collectionId: string, identifierKey: string) => void;
+  projectId?: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<DataTab>('schema');
+  const [ragSources, setRagSources] = useState<RagFileSource[]>([]);
   const [newDatabaseName, setNewDatabaseName] = useState('');
   const [creatingDatabase, setCreatingDatabase] = useState(false);
   const [newName, setNewName] = useState('');
@@ -39,6 +45,25 @@ export function DataWorkspace({
     storageKey: 'novy.editor.layout.v1.data-collections',
     grow: 1,
   });
+  const { rag } = useRepositories();
+
+  useEffect(() => {
+    if (!projectId) {
+      setRagSources([]);
+      return;
+    }
+    let active = true;
+    rag.listFileSources(projectId)
+      .then((loaded) => {
+        if (active) setRagSources(loaded);
+      })
+      .catch(() => {
+        if (active) setRagSources([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectId, rag]);
 
   useEffect(() => {
     if (selectedId && data.collections.some((collection) => collection.id === selectedId)) return;
@@ -177,9 +202,21 @@ export function DataWorkspace({
             <button className="text-sm font-medium text-red-600" onClick={() => setDeleteCollectionOpen(true)} type="button">Delete collection</button>
           </header>
           <div className="flex gap-1 border-b border-hairline bg-surface px-5 py-2" role="tablist" aria-label="Data view">
-            {(['schema', 'records'] as const).map((candidate) => <button aria-selected={tab === candidate} className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize ${tab === candidate ? 'bg-canvas text-ink' : 'text-ink-muted'}`} key={candidate} onClick={() => setTab(candidate)} role="tab" type="button">{candidate}</button>)}
+            {(['schema', 'records', 'sources'] as const).map((candidate) => <button aria-selected={tab === candidate} className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize ${tab === candidate ? 'bg-canvas text-ink' : 'text-ink-muted'}`} key={candidate} onClick={() => setTab(candidate)} role="tab" type="button">{candidate}</button>)}
           </div>
-          {tab === 'schema' ? (
+          {tab === 'sources' ? (
+            projectId ? (
+              <RagSourcesPanel
+                onChanged={setRagSources}
+                projectId={projectId}
+                sources={ragSources}
+              />
+            ) : (
+              <p className="p-5 text-sm text-ink-muted" role="status">
+                Connect this project to the Novy backend to manage document sources.
+              </p>
+            )
+          ) : tab === 'schema' ? (
             <CollectionSchemaEditor
               collection={collection}
               key={`${collection.id}-${collection.updatedAt.getTime()}`}
@@ -197,7 +234,20 @@ export function DataWorkspace({
           )}
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center p-8 text-center"><div><h2 className="text-lg font-semibold text-ink">Create your first collection</h2><p className="mt-1 text-sm text-ink-muted">Define a schema, add records, then bind components and logic nodes.</p></div></div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex gap-1 border-b border-hairline bg-surface px-5 py-2" role="tablist" aria-label="Data view">
+            <button aria-selected={tab === 'sources'} className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize ${tab === 'sources' ? 'bg-canvas text-ink' : 'text-ink-muted'}`} onClick={() => setTab('sources')} role="tab" type="button">sources</button>
+          </div>
+          {tab === 'sources' && projectId ? (
+            <RagSourcesPanel
+              onChanged={setRagSources}
+              projectId={projectId}
+              sources={ragSources}
+            />
+          ) : (
+            <div className="flex flex-1 items-center justify-center p-8 text-center"><div><h2 className="text-lg font-semibold text-ink">Create your first collection</h2><p className="mt-1 text-sm text-ink-muted">Define a schema, add records, then bind components and logic nodes.</p></div></div>
+          )}
+        </div>
       )}
 
       {collection && recordTarget ? (

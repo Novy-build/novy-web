@@ -388,6 +388,7 @@ export function isAsyncActionPayload(payload: ActionPayload): boolean {
     payload.type === 'delete-record' ||
     payload.type === 'send-email' ||
     payload.type === 'document-load' ||
+    payload.type === 'document-upload' ||
     payload.type === 'embedding-generate' ||
     payload.type === 'vector-upsert' ||
     payload.type === 'vector-delete' ||

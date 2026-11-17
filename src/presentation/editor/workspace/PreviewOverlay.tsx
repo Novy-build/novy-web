@@ -24,6 +24,13 @@ import { readDocumentAppTheme } from '../renderer/useDocumentAppTheme';
 import { findNodeInScreen } from '../state/editorState';
 import type { ProjectType } from '@domain/entities/project';
 import { websitePageHeight } from '@domain/sections/sectionLayout';
+import type { ActionPayload } from '@domain/entities/logic';
+import type { RuntimePreviewRepository } from '@domain/repositories/runtimePreview.repository';
+import {
+  RuntimePreviewError,
+  type RuntimePreviewUser,
+} from '@domain/repositories/runtimePreview.repository';
+import { RuntimePreviewAuthPanel } from './RuntimePreviewAuthPanel';
 
 const TOAST_VISIBLE_MS = 2400;
 const PREVIEW_ZOOM_LIMITS = { min: 0.25, max: 2, step: 0.25 } as const;
@@ -40,6 +47,9 @@ interface PreviewOverlayProps {
   collections?: readonly DataCollection[];
   recordsByCollection?: ReadonlyMap<string, readonly DataRecord[]>;
   persistence?: PreviewPersistenceActions;
+  /** Current generated-app manifest used to start a real immutable runtime version. */
+  runtimeManifest?: unknown;
+  runtimePreview?: RuntimePreviewRepository;
 }
 
 export interface PreviewPersistenceActions {
@@ -69,6 +79,8 @@ export function PreviewOverlay({
   collections = [],
   recordsByCollection = new Map(),
   persistence,
+  runtimeManifest,
+  runtimePreview,
 }: PreviewOverlayProps) {
   const [previewDevice, setPreviewDevice] = useState<EditorDevice>(initialDevice);
   const viewportBounds = CANVAS_PRESETS[previewDevice];
@@ -102,6 +114,12 @@ export function PreviewOverlay({
   >(() => new Map());
   const knowledgeRef = useRef<Map<string, Record<string, unknown>>>(new Map());
   const memoryRef = useRef<Map<string, unknown[]>>(new Map());
+  const mediaRef = useRef<Map<string, File>>(new Map());
+  const [runtimeAppId, setRuntimeAppId] = useState<string | null>(null);
+  const [runtimeUser, setRuntimeUser] = useState<RuntimePreviewUser | null>(null);
+  const [authPrompt, setAuthPrompt] = useState<string | null>(null);
+  const [runtimeStatus, setRuntimeStatus] = useState<'simulated' | 'starting' | 'live' | 'stale' | 'error'>('simulated');
+  const startedManifestRef = useRef<unknown>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [zoom, setZoom] = useState(1);
 
@@ -186,6 +204,158 @@ export function PreviewOverlay({
     };
   }
 
+  async function startRealRuntime(): Promise<void> {
+    if (!runtimeManifest || !runtimePreview?.isAvailable || runtimeStatus === 'starting') return;
+    setRuntimeStatus('starting');
+    setToast(null);
+    try {
+      const session = await runtimePreview.prepare(runtimeManifest);
+      startedManifestRef.current = runtimeManifest;
+      setRuntimeAppId(session.appId);
+      setRuntimeStatus('live');
+      const user = await runtimePreview.getSession(session.appId).catch(() => null);
+      setRuntimeUser(user);
+      knowledgeRef.current.clear();
+      memoryRef.current.clear();
+      setToast({ id: Date.now(), message: 'Real runtime is connected.' });
+    } catch (error: unknown) {
+      setRuntimeAppId(null);
+      setRuntimeStatus('error');
+      setToast({
+        id: Date.now(),
+        message: error instanceof Error ? error.message : 'The real runtime could not be started.',
+        kind: 'error',
+      });
+    }
+  }
+
+  function stopRealRuntime(): void {
+    setRuntimeAppId(null);
+    setRuntimeUser(null);
+    setAuthPrompt(null);
+    setRuntimeStatus('simulated');
+    startedManifestRef.current = null;
+    mediaRef.current.clear();
+    setToast({ id: Date.now(), message: 'Returned to isolated simulation.' });
+  }
+
+  useEffect(() => {
+    if (runtimeStatus === 'live' && startedManifestRef.current !== runtimeManifest) {
+      setRuntimeStatus('stale');
+    }
+  }, [runtimeManifest, runtimeStatus]);
+
+  async function executeRealServerAction(
+    actionId: string,
+    payload: ActionPayload,
+    inputs: Readonly<Record<string, unknown>>,
+  ): Promise<unknown> {
+    if (!runtimeAppId || !runtimePreview) throw new Error('Start the real runtime before running server actions.');
+    activeOperationsRef.current += 1;
+    setPendingOperations((current) => current + 1);
+    try {
+      if (payload.type === 'document-upload') {
+        const reference = typeof inputs.mediaReference === 'string'
+          ? inputs.mediaReference
+          : payload.mediaReference;
+        const file = mediaRef.current.get(reference);
+        if (!file) throw new Error('Choose a document before running Document Upload.');
+        const output = await runtimePreview.uploadDocument(runtimeAppId, actionId, inputs, file);
+        mediaRef.current.delete(reference);
+        return output;
+      }
+      if (payload.type.startsWith('cv-')) {
+        const reference = typeof inputs.mediaReference === 'string'
+          ? inputs.mediaReference
+          : String((payload as { mediaReference?: unknown }).mediaReference ?? '');
+        const file = mediaRef.current.get(reference);
+        if (!file) throw new Error('Choose or capture media before running Computer Vision.');
+        const output = await runtimePreview.executeVision(runtimeAppId, actionId, inputs, file);
+        if (payload.type === 'cv-verify' && output.verified === true) {
+          setRuntimeUser(await runtimePreview.getSession(runtimeAppId));
+        }
+        return output;
+      }
+      const output = await runtimePreview.execute(runtimeAppId, actionId, payload, inputs);
+      reconcileRuntimeRecords(payload, output);
+      return output;
+    } catch (error: unknown) {
+      if (error instanceof RuntimePreviewError
+        && (error.code === 'runtime_auth_required' || error.code === 'rag_memory_auth_required')) {
+        setAuthPrompt('This action needs a generated-app user session.');
+      }
+      throw error;
+    } finally {
+      activeOperationsRef.current -= 1;
+      setPendingOperations((current) => Math.max(0, current - 1));
+    }
+  }
+
+  function reconcileRuntimeRecords(
+    payload: ActionPayload,
+    output: Readonly<Record<string, unknown>>,
+  ): void {
+    if (!('collectionId' in payload) || typeof payload.collectionId !== 'string') return;
+    const collectionId = payload.collectionId;
+    if (payload.type === 'get-records' && Array.isArray(output.records)) {
+      replacePreviewCollection(
+        collectionId,
+        output.records.map(readRuntimeRecord).filter((record): record is DataRecord => record !== null),
+      );
+      return;
+    }
+    const record = readRuntimeRecord(output.record);
+    const current = previewRecordsRef.current.get(collectionId) ?? [];
+    if (payload.type === 'insert-record' && record) {
+      replacePreviewCollection(collectionId, [...current, record]);
+    } else if (payload.type === 'update-record' && record) {
+      replacePreviewCollection(
+        collectionId,
+        current.map((candidate) => candidate.id === record.id ? record : candidate),
+      );
+    } else if (payload.type === 'get-record' && record) {
+      replacePreviewCollection(
+        collectionId,
+        current.some((candidate) => candidate.id === record.id)
+          ? current.map((candidate) => candidate.id === record.id ? record : candidate)
+          : [...current, record],
+      );
+    } else if (payload.type === 'delete-record' && typeof output.deletedRecordId === 'string') {
+      replacePreviewCollection(
+        collectionId,
+        current.filter((candidate) => candidate.id !== output.deletedRecordId),
+      );
+    }
+  }
+
+  async function resetRuntimeData(): Promise<void> {
+    if (!runtimePreview || !runtimeManifest || runtimeStatus === 'starting') return;
+    const projectId = projectIdFromManifest(runtimeManifest);
+    if (!projectId) {
+      setToast({ id: Date.now(), message: 'The preview project ID is unavailable.', kind: 'error' });
+      return;
+    }
+    setRuntimeStatus('starting');
+    try {
+      const cleared = await runtimePreview.resetData(projectId);
+      const session = await runtimePreview.prepare(runtimeManifest);
+      setRuntimeAppId(session.appId);
+      startedManifestRef.current = runtimeManifest;
+      setRuntimeStatus('live');
+      setToast({
+        id: Date.now(),
+        message: `Preview data reset${cleared ? ` (${cleared} records cleared)` : ''}.`,
+      });
+    } catch (error: unknown) {
+      setRuntimeStatus('error');
+      setToast({
+        id: Date.now(),
+        message: error instanceof Error ? error.message : 'Preview data could not be reset.',
+        kind: 'error',
+      });
+    }
+  }
+
   const handleNodeEvent = useCallback(
     (nodeId: string, event: TriggerEvent, value?: string, eventContext?: RendererEventContext): void => {
       if (!screen) {
@@ -216,7 +386,12 @@ export function PreviewOverlay({
           createLocalListItemId: () => generateId('preview-list-item'),
           data: previewRuntimeData(),
           executeDataOperation: applyDataOperation,
-          session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
+          ...((runtimeStatus === 'live' || runtimeStatus === 'stale') && runtimeAppId
+            ? { executeServerAction: executeRealServerAction }
+            : {}),
+          session: runtimeStatus === 'live' || runtimeStatus === 'stale'
+            ? { user: runtimeUser ? { ...runtimeUser, name: runtimeUser.email.split('@')[0] } : undefined }
+            : { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
       ).then(applyPreviewEffects).catch((error: unknown) => {
         setToast({ id: Date.now(), message: error instanceof Error ? error.message : 'Workflow failed.', kind: 'error' });
@@ -227,7 +402,7 @@ export function PreviewOverlay({
         }
       });
     },
-    [componentValues, persistDataChanges, persistence, screens, screen, variables],
+    [componentValues, persistDataChanges, persistence, runtimeAppId, runtimeStatus, screens, screen, variables],
   );
 
   function applyPreviewEffects(effects: readonly AsyncPreviewEffect[]): void {
@@ -265,6 +440,9 @@ export function PreviewOverlay({
           case 'email-simulated':
             setToast({ id: Date.now(), message: `Preview email to ${effect.to} was simulated.` });
             break;
+          case 'server-action-complete':
+            setToast({ id: Date.now(), message: 'Email sent by the real runtime.' });
+            break;
           case 'set-variable':
             setVariables((previous) => new Map([...previous, [effect.name, effect.value]]));
             break;
@@ -282,7 +460,10 @@ export function PreviewOverlay({
             setToast({ id: Date.now(), message: 'Local list item added for this preview session.' });
             break;
           case 'vector-indexed':
-            setToast({ id: Date.now(), message: `Indexed ${effect.insertedCount} chunks (simulated).` });
+            setToast({
+              id: Date.now(),
+              message: `Indexed ${effect.insertedCount} chunks${runtimeStatus === 'live' || runtimeStatus === 'stale' ? ' using the real runtime' : ' (simulated)'}.`,
+            });
             break;
           case 'vector-deleted':
             setToast({ id: Date.now(), message: `Removed ${effect.documentId} from the knowledge base (simulated).` });
@@ -297,13 +478,31 @@ export function PreviewOverlay({
             }
             setToast({ id: Date.now(), message: effect.answer || 'No answer was generated.' });
             break;
+          case 'chat-message':
+            setLocalItemsByListView((previous) => {
+              const current = previous.get(effect.chatId) ?? [];
+              return new Map([
+                ...previous,
+                [effect.chatId, [...current, {
+                  itemId: `chat_${Date.now()}_${current.length + 1}`,
+                  placement: 'append' as const,
+                  values: {
+                    role: effect.role,
+                    text: effect.text,
+                    citations: effect.citations.map((citation) => citation.title).filter(Boolean).join(', '),
+                  },
+                }]],
+              ]);
+            });
+            break;
           case 'cv-result': {
+            const real = runtimeStatus === 'live' || runtimeStatus === 'stale';
             const message = effect.operation === 'liveness'
-              ? effect.isLive ? 'Live face detected (simulated).' : 'Live face was not detected.'
+              ? effect.isLive ? `Live face detected${real ? '.' : ' (simulated).'}` : 'Live face was not detected.'
               : effect.operation === 'enroll'
-                ? `Biometric credential ${effect.credentialId ?? ''} enrolled (simulated).`
+                ? `Biometric credential ${effect.credentialId ?? ''} enrolled${real ? '.' : ' (simulated).'}`
                 : effect.verified
-                  ? 'Biometric verification succeeded (simulated).'
+                  ? `Biometric verification succeeded${real ? '.' : ' (simulated).'}`
                   : 'Biometric verification was rejected.';
             setToast({ id: Date.now(), message });
             break;
@@ -332,7 +531,12 @@ export function PreviewOverlay({
           createLocalListItemId: () => generateId('preview-list-item'),
           data: previewRuntimeData(),
           executeDataOperation: applyDataOperation,
-          session: { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
+          ...((runtimeStatus === 'live' || runtimeStatus === 'stale') && runtimeAppId
+            ? { executeServerAction: executeRealServerAction }
+            : {}),
+          session: runtimeStatus === 'live' || runtimeStatus === 'stale'
+            ? { user: runtimeUser ? { ...runtimeUser, name: runtimeUser.email.split('@')[0] } : undefined }
+            : { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
       ).then(applyPreviewEffects).catch((error: unknown) => {
         setToast({ id: Date.now(), message: error instanceof Error ? error.message : 'Workflow failed.', kind: 'error' });
@@ -551,6 +755,86 @@ export function PreviewOverlay({
             value={previewDevice}
           />
           <div className="flex flex-wrap items-center gap-2">
+            {runtimePreview?.isAvailable && runtimeManifest ? (
+              runtimeStatus === 'live' || runtimeStatus === 'stale' ? (
+                <>
+                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${runtimeStatus === 'stale' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                     {runtimeStatus === 'stale' ? 'Changes pending' : 'Real runtime'}
+                   </span>
+                   <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-900">
+                     Sandbox CRUD · Backend services
+                   </span>
+                   {runtimeUser ? (
+                     <span className="max-w-56 truncate rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-900" title={runtimeUser.email}>
+                       Signed in: {runtimeUser.email}
+                     </span>
+                   ) : (
+                     <button
+                       className="min-h-11 rounded-tile border border-hairline bg-surface px-3 text-xs font-semibold text-ink hover:bg-canvas"
+                       onClick={() => setAuthPrompt('Sign in to test user-scoped workflows and biometric enrollment.')}
+                       type="button"
+                     >
+                       Sign in to app
+                     </button>
+                   )}
+                  {runtimeStatus === 'stale' ? (
+                    <button
+                      className="min-h-11 rounded-tile bg-brand-600 px-4 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                      disabled={pendingClicks > 0 || pendingOperations > 0}
+                      onClick={() => void startRealRuntime()}
+                      type="button"
+                    >
+                      Apply changes
+                    </button>
+                  ) : null}
+                   <button
+                     className="min-h-11 rounded-tile border border-hairline bg-surface px-3 text-xs font-semibold text-ink hover:bg-canvas disabled:opacity-60"
+                     disabled={pendingClicks > 0 || pendingOperations > 0}
+                     onClick={() => void resetRuntimeData()}
+                     type="button"
+                   >
+                     Reset preview data
+                   </button>
+                   {runtimeUser ? (
+                     <button
+                       className="min-h-11 rounded-tile border border-hairline bg-surface px-3 text-xs font-semibold text-ink hover:bg-canvas disabled:opacity-60"
+                       disabled={pendingClicks > 0 || pendingOperations > 0}
+                       onClick={() => {
+                         if (!runtimeAppId || !runtimePreview) return;
+                         void runtimePreview.logout(runtimeAppId)
+                           .then(() => setRuntimeUser(null))
+                           .catch((error: unknown) => setToast({
+                             id: Date.now(),
+                             message: error instanceof Error ? error.message : 'Sign out failed.',
+                             kind: 'error',
+                           }));
+                       }}
+                       type="button"
+                     >
+                       Sign out
+                     </button>
+                   ) : null}
+                   <button
+                     className="min-h-11 rounded-tile border border-hairline bg-surface px-3 text-xs font-semibold text-ink hover:bg-canvas"
+                    disabled={pendingClicks > 0 || pendingOperations > 0}
+                    onClick={stopRealRuntime}
+                    type="button"
+                  >
+                    Stop
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="min-h-11 rounded-tile bg-brand-600 px-4 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                  disabled={runtimeStatus === 'starting' || pendingClicks > 0 || pendingOperations > 0}
+                  onClick={() => void startRealRuntime()}
+                  type="button"
+                >
+                  {runtimeStatus === 'starting' ? 'Starting…' : runtimeStatus === 'error' ? 'Retry Run App' : 'Run App'}
+                </button>
+              )
+            ) : null}
+            {runtimeStatus !== 'live' && runtimeStatus !== 'stale' ? (
             <label className="flex min-h-11 items-center gap-2 rounded-tile border border-hairline bg-surface px-3 text-xs font-medium text-ink">
               <input
                 checked={persistDataChanges}
@@ -561,6 +845,7 @@ export function PreviewOverlay({
               />
               Save data changes
             </label>
+            ) : null}
             <PreviewZoomControls
               max={PREVIEW_ZOOM_LIMITS.max}
               min={PREVIEW_ZOOM_LIMITS.min}
@@ -588,6 +873,10 @@ export function PreviewOverlay({
             itemContext={routeItemContext}
             mode="preview"
             onNodeEvent={handleNodeEvent}
+            onNodeMediaChange={(_nodeId, media) => {
+              if (!media) return;
+              mediaRef.current.set(`media:${media.name}`, media);
+            }}
             onAppThemeChange={setAppTheme}
             screen={effectiveScreen}
             size={bounds}
@@ -596,7 +885,9 @@ export function PreviewOverlay({
         </div>
       </div>
       <p aria-live="polite" className="mt-2 shrink-0 text-center text-xs text-ink-muted" id="preview-data-mode-hint" ref={footerRef}>
-        {persistDataChanges
+         {runtimeStatus === 'live' || runtimeStatus === 'stale'
+          ? `Run App mode: CRUD uses a resettable preview-data sandbox; email, Computer Vision, RAG, and AI execute through the configured backend providers.${runtimeStatus === 'stale' ? ' Apply changes to run the latest editor state.' : ''}`
+          : persistDataChanges
           ? 'Database actions create, update, and delete this project’s records. Other preview state remains isolated.'
           : 'Click, change, and screen-load behaviors run against isolated preview state. Enabling Save data changes allows database actions to create, update, and delete project records.'}
       </p>
@@ -610,6 +901,48 @@ export function PreviewOverlay({
           {toast.message}
         </div>
       ) : null}
+      {authPrompt && runtimeAppId && runtimePreview ? (
+        <RuntimePreviewAuthPanel
+          appId={runtimeAppId}
+          onClose={() => setAuthPrompt(null)}
+          onSignedIn={(user) => { setRuntimeUser(user); setAuthPrompt(null); }}
+          reason={authPrompt}
+          repository={runtimePreview}
+        />
+      ) : null}
     </Modal>
   );
+}
+
+function readRuntimeRecord(value: unknown): DataRecord | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.id !== 'string'
+    || typeof record.projectId !== 'string'
+    || typeof record.collectionId !== 'string'
+    || typeof record.values !== 'object'
+    || record.values === null
+    || Array.isArray(record.values)) return null;
+  const values: Record<string, DataValue> = {};
+  for (const [key, candidate] of Object.entries(record.values)) {
+    if (candidate === null || ['string', 'number', 'boolean'].includes(typeof candidate)) {
+      values[key] = candidate as DataValue;
+    }
+  }
+  return {
+    id: record.id,
+    projectId: record.projectId,
+    collectionId: record.collectionId,
+    values,
+    createdAt: typeof record.createdAt === 'string' ? new Date(record.createdAt) : new Date(),
+    updatedAt: typeof record.updatedAt === 'string' ? new Date(record.updatedAt) : new Date(),
+  };
+}
+
+function projectIdFromManifest(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const project = (value as Record<string, unknown>).project;
+  if (typeof project !== 'object' || project === null || Array.isArray(project)) return null;
+  const id = (project as Record<string, unknown>).id;
+  return typeof id === 'string' && id ? id : null;
 }

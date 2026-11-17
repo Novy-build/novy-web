@@ -12,7 +12,7 @@ export function CameraNodeView({
   props: CameraProps;
   isPreview?: boolean;
   renderStatic?: boolean;
-  onCapture?: (mediaReference: string) => void;
+  onCapture?: (mediaReference: string, media: File) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -21,6 +21,9 @@ export function CameraNodeView({
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
   useEffect(() => () => stopStream(streamRef.current), []);
+  useEffect(() => () => {
+    if (capturedImage?.startsWith('blob:')) URL.revokeObjectURL(capturedImage);
+  }, [capturedImage]);
 
   async function enableCamera(): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -48,7 +51,7 @@ export function CameraNodeView({
     }
   }
 
-  function capture(): void {
+  async function capture(): Promise<void> {
     const video = videoRef.current;
     if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return;
     const canvas = document.createElement('canvas');
@@ -57,12 +60,20 @@ export function CameraNodeView({
     const context = canvas.getContext('2d');
     if (!context) return;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const reference = canvas.toDataURL('image/jpeg', 0.85);
-    setCapturedImage(reference);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    if (!blob) {
+      setError('The camera image could not be prepared.');
+      setStatus('error');
+      return;
+    }
+    const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    const reference = `media:${file.name}`;
+    const previewUrl = URL.createObjectURL(blob);
+    setCapturedImage(previewUrl);
     setStatus('captured');
     stopStream(streamRef.current);
     streamRef.current = null;
-    onCapture?.(reference);
+    onCapture?.(reference, file);
   }
 
   function retake(): void {
@@ -105,7 +116,7 @@ export function CameraNodeView({
         ) : null}
         {status === 'requesting' ? <span className="text-xs" role="status">Requesting camera…</span> : null}
         {status === 'ready' ? (
-          <button className="rounded-tile bg-brand-600 px-3 py-1.5 text-xs font-medium text-white" onClick={capture} type="button">
+          <button className="rounded-tile bg-brand-600 px-3 py-1.5 text-xs font-medium text-white" onClick={() => void capture()} type="button">
             {props.captureLabel || 'Capture'}
           </button>
         ) : null}

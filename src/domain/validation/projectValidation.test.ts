@@ -282,6 +282,48 @@ describe('validateProject', () => {
     ]));
   });
 
+  it('requires CV enrollment consent to come from a runtime mapping', () => {
+    const screen = makeScreen('screen_home', [
+      makeButton('enroll'),
+      {
+        id: 'camera', type: 'camera', x: 0, y: 60, w: 320, h: 220,
+        props: { label: 'Face camera', facingMode: 'user', captureLabel: 'Capture' },
+      },
+      {
+        id: 'consent', type: 'checkbox', x: 0, y: 300, w: 240, h: 32,
+        props: { label: 'I consent', checked: false },
+      },
+    ]);
+    screen.logicGraphs = [{
+      id: 'graph_enroll', name: 'Enroll', sourceNodeId: 'enroll',
+      nodes: [
+        { kind: 'trigger', id: 'trigger', event: 'click', position: { x: 80, y: 160 } },
+        {
+          kind: 'action', id: 'action', position: { x: 312, y: 160 },
+          payload: { type: 'cv-enroll', mediaReference: '', userId: '', consent: true },
+          inputMappings: {
+            mediaReference: { source: 'component', nodeId: 'camera', property: 'value' },
+          },
+        },
+      ],
+      edges: [{ id: 'edge', fromNodeId: 'trigger', fromPort: 'next', toNodeId: 'action', toPort: 'in' }],
+    }];
+
+    const withoutConsent = validateProject(documentWith(screen));
+    expect(withoutConsent.issues).toContainEqual(expect.objectContaining({
+      code: 'logic-missing-consent', severity: 'error',
+    }));
+
+    const enrollAction = screen.logicGraphs[0]!.nodes[1]!;
+    if (enrollAction.kind !== 'action') throw new Error('Expected CV enrollment action.');
+    enrollAction.inputMappings = {
+      ...enrollAction.inputMappings,
+      consent: { source: 'component', nodeId: 'consent', property: 'value' },
+    };
+    const withConsent = validateProject(documentWith(screen));
+    expect(withConsent.issues.map((issue) => issue.code)).not.toContain('logic-missing-consent');
+  });
+
   it('reports missing data collections and fields', () => {
     const screen = makeScreen('screen_home', [
       makeListView('node_list', {

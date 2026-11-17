@@ -4,16 +4,20 @@ import type { AppDataRepository } from '@domain/repositories/appData.repository'
 import type { DeploymentRepository } from '@domain/repositories/deployment.repository';
 import type { ProjectImportRepository } from '@domain/repositories/projectImport.repository';
 import type { ProjectRepository } from '@domain/repositories/project.repository';
+import type { RagRepository } from '@domain/repositories/rag.repository';
 import type { ReactExportRepository } from '@domain/repositories/reactExport.repository';
 import type { TemplateRepository } from '@domain/repositories/template.repository';
+import type { RuntimePreviewRepository } from '@domain/repositories/runtimePreview.repository';
 import { TEMPLATE_CATALOG } from '../../templates/templateCatalog';
 import { LocalAuthRepository } from './LocalAuthRepository';
 import { LocalStorageAppDataRepository } from './LocalStorageAppDataRepository';
 import { LocalStorageDeploymentRepository } from './LocalStorageDeploymentRepository';
 import { LocalStorageProjectRepository } from './LocalStorageProjectRepository';
+import { LocalRagRepository } from './LocalRagRepository';
 import { StaticTemplateRepository } from './StaticTemplateRepository';
 import { UnavailableAssistantRepository } from './UnavailableAssistantRepository';
 import { UnavailableReactExportRepository } from './UnavailableReactExportRepository';
+import { UnavailableRuntimePreviewRepository } from './UnavailableRuntimePreviewRepository';
 
 /**
  * The set of repositories injected through the presentation layer.
@@ -28,6 +32,9 @@ export interface Repositories {
   deployments: DeploymentRepository;
   appData: AppDataRepository;
   reactExport: ReactExportRepository;
+  /** Backend-owned RAG connection profiles and project file sources. */
+  rag: RagRepository;
+  runtimePreview: RuntimePreviewRepository;
   /**
    * Present only when browser-local projects can be migrated into the
    * authenticated backend account. Local-only compositions omit it.
@@ -51,5 +58,7 @@ export function createLocalRepositories(options?: LocalRepositoriesOptions): Rep
     deployments: new LocalStorageDeploymentRepository(window.localStorage, { latencyMs }),
     appData: new LocalStorageAppDataRepository(window.localStorage, { latencyMs }),
     reactExport: new UnavailableReactExportRepository(),
+    rag: new LocalRagRepository(latencyMs ?? 0),
+    runtimePreview: new UnavailableRuntimePreviewRepository(),
   };
 }

@@ -34,6 +34,7 @@ export interface ScreenFrameProps {
   onNodeAction?: (nodeId: string) => void;
   onNodeEvent?: (nodeId: string, event: TriggerEvent, value?: string, context?: RendererEventContext) => void;
   onNodeValueChange?: (nodeId: string, value: string) => void;
+  onNodeMediaChange?: (nodeId: string, media: File | null) => void;
   dataContext?: RendererDataContext;
   componentValues?: ReadonlyMap<string, string>;
   itemContext?: ListItemContext;
@@ -57,6 +58,7 @@ export function ScreenFrame({
   onNodeAction,
   onNodeEvent,
   onNodeValueChange,
+  onNodeMediaChange,
   componentValues,
   dataContext,
   itemContext,
@@ -110,6 +112,7 @@ export function ScreenFrame({
             onNodeAction={onNodeAction}
             onNodeEvent={onNodeEvent}
             onNodeValueChange={onNodeValueChange}
+            onNodeMediaChange={onNodeMediaChange}
             dataContext={dataContext}
             itemContext={itemContext}
             interactiveNodeIds={interactiveNodeIds}

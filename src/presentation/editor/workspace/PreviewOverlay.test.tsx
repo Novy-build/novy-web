@@ -8,6 +8,7 @@ import { makeButton, makeColumn, makeListView, makeScreen, makeText } from '@tes
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
 import { createPadding } from '@domain/entities/componentNode';
 import { PreviewOverlay } from './PreviewOverlay';
+import type { RuntimePreviewRepository } from '@domain/repositories/runtimePreview.repository';
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -52,6 +53,92 @@ function renderPreview(onClose = vi.fn(), screens: Screen[] = buildScreens([])) 
 }
 
 describe('PreviewOverlay', () => {
+  it('starts and stops a real runtime preview explicitly', async () => {
+    const prepare = vi.fn<RuntimePreviewRepository['prepare']>().mockResolvedValue({ appId: 'app_preview' });
+    const resetData = vi.fn<RuntimePreviewRepository['resetData']>().mockResolvedValue(2);
+    const manifest = { manifestVersion: 2, project: { id: 'project_1' } };
+    const runtimePreview: RuntimePreviewRepository = {
+      isAvailable: true,
+      prepare,
+      resetData,
+      execute: vi.fn(),
+      uploadDocument: vi.fn(),
+      executeVision: vi.fn(),
+      requestCode: vi.fn(),
+      verifyCode: vi.fn(),
+      getSession: vi.fn(async () => null),
+      logout: vi.fn(),
+    };
+    render(
+      <PreviewOverlay
+        initialDevice="mobile"
+        onClose={vi.fn()}
+        projectName="My App"
+        runtimeManifest={manifest}
+        runtimePreview={runtimePreview}
+        screens={buildScreens([])}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run App' }));
+
+    await waitFor(() => expect(prepare).toHaveBeenCalledWith(manifest));
+    expect(await screen.findByText('Real runtime')).toBeInTheDocument();
+    expect(screen.getByText(/CRUD uses a resettable preview-data sandbox/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reset preview data' }));
+    await waitFor(() => expect(resetData).toHaveBeenCalledWith('project_1'));
+    await waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(screen.queryByText('Real runtime')).not.toBeInTheDocument();
+  });
+
+  it('signs a generated-app user into Run App with an emailed code', async () => {
+    const requestCode = vi.fn<RuntimePreviewRepository['requestCode']>();
+    const verifyCode = vi.fn<RuntimePreviewRepository['verifyCode']>().mockResolvedValue({
+      id: 'runtime_user',
+      email: 'owner@example.com',
+    });
+    const runtimePreview: RuntimePreviewRepository = {
+      isAvailable: true,
+      prepare: vi.fn(async () => ({ appId: 'app_preview' })),
+      resetData: vi.fn(async () => 0),
+      execute: vi.fn(),
+      uploadDocument: vi.fn(),
+      executeVision: vi.fn(),
+      requestCode,
+      verifyCode,
+      getSession: vi.fn(async () => null),
+      logout: vi.fn(),
+    };
+    render(
+      <PreviewOverlay
+        initialDevice="mobile"
+        onClose={vi.fn()}
+        projectName="My App"
+        runtimeManifest={{ manifestVersion: 2 }}
+        runtimePreview={runtimePreview}
+        screens={buildScreens([])}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Run App' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in to app' }));
+    fireEvent.change(screen.getByLabelText('Email address'), {
+      target: { value: 'owner@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a code' }));
+
+    await waitFor(() => expect(requestCode).toHaveBeenCalledWith('app_preview', 'owner@example.com'));
+    fireEvent.change(await screen.findByLabelText('Six-digit code'), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => expect(verifyCode).toHaveBeenCalledWith(
+      'app_preview',
+      'owner@example.com',
+      '123456',
+    ));
+    expect(await screen.findByText('Signed in: owner@example.com')).toBeInTheDocument();
+  });
+
   it('previews the first screen at full size', () => {
     renderPreview();
 

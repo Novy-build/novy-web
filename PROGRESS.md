@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-15
+**Last reviewed:** 2026-11-17
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -30,6 +30,8 @@ completed production backend integrations.
   `VITE_API_BASE_URL` is configured.
 - [x] API-backed React source-export repository, selected by the same backend base URL, with typed
   archive and backend-error handling.
+- [x] API-backed Run App repository with immutable preview preparation, resettable scoped CRUD,
+  passwordless runtime sessions/CSRF, bounded CV multipart execution, email, and RAG actions.
 - [x] API-backed deployment repository for configured Vercel/Netlify providers, remote history,
   asynchronous publish submission, and terminal-status polling.
 - [x] Local-storage repository implementations with simulated request latency.
@@ -107,6 +109,11 @@ accepted, and submitted passwords are ignored. Production still requires Supabas
 - [x] Student list.
 - [x] Notes CRUD app with list cards, add/detail/edit screens, detail and overflow-menu deletion,
   seeded example records, and fully wired current-record workflows.
+- [x] Two-screen Face verification starter: Biometric Registration provides Camera capture, explicit
+  enrollment consent, and CV Enroll; Recognition Test provides a separate Camera, verification email,
+  CV Liveness/Verify, and a condition-driven **Face recognized / Face not recognized** text result.
+  Enrollment remains bound to the authenticated generated-app user; verification credentials and
+  thresholds stay backend-controlled.
 - [x] Template gallery with previews.
 - [x] Viewport-safe, internally scrollable template modal with a responsive one/two/three-column
   gallery.
@@ -741,6 +748,9 @@ Implemented component types:
 - [x] Progress indicator.
 - [x] Divider.
 - [x] Camera Capture with explicit permission, capture/retake states, and no Project JSON image persistence.
+- [x] File input for transient published-app document selection; file bytes never enter Project JSON
+  or persistent browser storage.
+- [x] Chat transcript/composer with user and assistant message roles plus optional citations.
 
 ### Layout and direct manipulation
 
@@ -996,13 +1006,36 @@ the ListView. The local-only flow is `On Click -> Add Local List Item`.
 - [x] AI Agent main node with attached generic Chat Model, Memory, Vector Store Tool, Prompt,
   Embeddings, and optional Reranker resources.
 - [x] CV Liveness, CV Enroll, and CV Verify provider-agnostic payloads.
-- [x] Camera media input mapping, consent validation, liveness/verification output mapping, and
-  preview-only biometric simulation.
+- [x] Camera media input mapping, required dynamic enrollment-consent mapping,
+  liveness/verification output mapping, and preview-only editor simulation.
+- [x] Generated Camera captures remain in-memory `Blob`s and call the protected backend's challenged
+  multipart CV endpoint. Verification credentials and thresholds are intentionally not configurable
+  by generated clients.
 
 The editor preview continues to simulate safe effects against isolated state. Downloaded React apps
-now include a generated client executor for supported browser nodes and call immutable `/runtime/v1`
-actions for CRUD/email. AI, RAG, Computer Vision, and generated-app end-user authentication remain
-explicitly unsupported in production runtime.
+call immutable `/runtime/v1` actions for CRUD/email, provider-neutral CV, and generated-app RAG,
+including separate passwordless/biometric app sessions. Real production biometric processing
+remains blocked until a production provider is explicitly selected and implemented.
+
+### Generated-app RAG configuration
+
+- [x] RAG connection profiles are selected from the list the backend offers. The inspector never
+  accepts a free-text profile ID, and the model control offers only the allowed models of the
+  selected profile.
+- [x] Profile locality, cost warnings, availability, and usage notes are surfaced so a builder can
+  see that a remote profile sends prompts off the Novy backend.
+- [x] A saved profile that the backend no longer offers is preserved in the document and reported as
+  an actionable warning instead of being silently dropped.
+- [x] Project-scoped document sources are uploaded, listed, and deleted from the Data workspace. The
+  returned source identifier is what a Document Loader node references.
+- [x] Document Loader collection sources declare their content, title, and document-ID fields.
+- [x] Conversation Memory nodes require a connection profile, and user-scoped memory explains the
+  signed-in application user requirement.
+- [x] Generated applications keep structured node outputs and render answers with canonical
+  citations.
+- [x] Published-app `document-upload` and browser-owned `chat-message` actions, including a
+  two-screen **Chat with a document** starter that indexes the selected file before navigating to
+  `/chat`. It uses the explicit `postgres-vector`, `ollama-embedding`, and `ollama-chat` profiles.
 
 ## 8. Project data workspace
 
@@ -1024,6 +1057,8 @@ explicitly unsupported in production runtime.
 - [x] Loading, empty, and retryable error states.
 - [x] API-backed Data workspace loads databases, collections, and records from one owner-scoped
   snapshot endpoint instead of a sequential request waterfall.
+- [x] Project-scoped RAG document sources with upload, list, and delete. Uploaded binaries are
+  extracted and stored by the backend and are never persisted in the browser.
 - [x] ListView-to-collection data binding with an optional record label, multiple display fields
   retained for saved-project compatibility, search/sort metadata, and a repeatable nested item
   template that supports text, image-only, and mixed-media designs.
@@ -1160,12 +1195,21 @@ provider. Ollama remains the local generation/testing and embedding runtime.
 - [x] Simulated collection refresh/refetch and Send Email success effects.
 - [x] Simulated granular document loading, chunking, embeddings, isolated vector indexing/search,
   reranking, prompt compilation, generation, citations, memory, and biometric effects.
+- [x] Explicit **Run App** mode prepares the current manifest as a validated immutable backend app
+  version and executes real generated-app RAG actions through `/runtime/v1`; **Stop** returns to the
+  isolated simulator.
+- [x] Real Run App document selection stays transient, uses the bounded multipart runtime upload,
+  and supports upload → real indexing → navigation → grounded answer/citations in the shared
+  Preview renderer.
+- [x] A running immutable preview is marked **Changes pending** when the editor manifest changes;
+  **Apply changes** prepares the updated version. Backend-assigned `novy-preview-*` vector namespaces
+  keep preview embeddings separate from published-app indexes.
 - [x] Camera capture remains in isolated preview component state and is never written into Project
   JSON or project collections implicitly.
 - [x] Composed inputs and buttons create isolated preview records through normal logic workflows.
 - [x] Default Preview state remains isolated. Opt-in saved changes write through the configured
-  project-data repository (the backend when configured, browser storage otherwise); Preview does
-  not invoke other external services.
+  project-data repository (the backend when configured, browser storage otherwise). External RAG
+  services are invoked only after the builder explicitly starts **Run App**.
 - [x] Switching from modified sandbox records to saved project data requests confirmation and
   discards the temporary records rather than implicitly persisting them. Repeated click/menu
   submissions are guarded while the same workflow is running.
@@ -1225,12 +1269,14 @@ The repository includes automated coverage for:
 Verification completed on 2026-11-15:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 107 test files and 902 tests passed.
+- `npm test -- --run` — 107 test files and 906 tests passed.
 - `npm run build` — passed.
 - Backend deployment verification: 151 passed, 2 skipped; provider REST adapters use mocked
   transports because live Vercel/Netlify credentials are not configured in this workspace.
 - Backend generated-app verification also ran the exported runtime's Vitest suite, TypeScript
   check, and production Vite build from a freshly installed archive.
+- Backend provider-neutral CV verification: 236 passed, 4 PostgreSQL-only skips; Ruff, formatting,
+  mypy, challenged multipart media, credential revocation, and generated CV build coverage passed.
 - Representative Project JSON — parsed successfully.
 - `git diff --check` — passed.
 - Backend assistant verification: 222 passed, 4 skipped; Ruff, formatting, and mypy passed. The
@@ -1249,16 +1295,20 @@ features:
   CRUD; automated SQLite-backed API/repository coverage passes, but no PostgreSQL test URL is set.
 - Live Resend delivery verification with a verified sender and API key; development delivery and
   mocked provider tests pass.
-- Generated-app end-user authentication. Session mappings fail explicitly and never reuse builder
-  identity.
-- Generated-app AI, RAG, and Computer Vision production execution; these actions return an explicit
-  unsupported capability error. This is separate from the implemented builder-facing assistant.
+- A production Computer Vision provider. Generated-app passwordless identity and challenged
+  liveness/enrollment/verification contracts are implemented, but deterministic development
+  simulation is rejected in production and never reuses builder identity.
+- Production validation of generated-app RAG with a remotely hosted model/provider. Runtime RAG is
+  implemented for explicitly selected Ollama/OpenRouter profiles with no automatic fallback, and
+  local Run App execution uses the same contracts.
 - Live Vercel/Netlify verification with real platform credentials. Provider adapters, API contracts,
   persistence, mocked transport tests, and frontend polling are implemented.
 - Real custom domains.
-- Real AI model integration.
-- Real vector storage, RAG model execution, biometric template storage, and Computer Vision
-  processing. Current RAG and biometric behavior is explicit frontend simulation only.
+- A sandboxed generated-app iframe, Preview runtime console, and automatic cleanup/TTL for immutable
+  preview versions and preview vector data. The first Run App milestone uses the shared renderer.
+- Real Run App execution for email/CV and unified CRUD server-action execution. Preview email/CV
+  remain simulated, while CRUD retains the existing optional project-data persistence mode.
+- Production provider-side biometric template storage and Computer Vision processing.
 - Live collaboration, multi-user project access, or platform-administration screens.
 - Continuous flex sizing modes such as Fill, Hug, or percentage dimensions that automatically
   reflow after a later parent resize. Current Row/Column placement performs a one-time fit and then

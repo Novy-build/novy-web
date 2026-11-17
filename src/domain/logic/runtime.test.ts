@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Screen } from '../entities/screen';
 import type { LogicGraph } from '../entities/logic';
 import { makeListView } from '@test/editorFixtures';
@@ -91,6 +91,93 @@ describe('runClickBehavior', () => {
       { kind: 'data-operation-error', message: 'Title is required.' },
       { kind: 'show-message', message: 'Not saved' },
     ]);
+  });
+
+  it('uses the real runtime executor for RAG actions and forwards prior output', async () => {
+    const { screen, graphId } = buildScreen();
+    let graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'document-upload',
+      mediaReference: 'media:handbook.txt',
+    });
+    graph = appendAction(graph, {
+      type: 'vector-store',
+      operation: 'upsert',
+      connectionProfileId: 'postgres-vector',
+      indexName: 'handbook',
+      namespace: '',
+      documentInputMode: 'document-loader',
+      conflictMode: 'replace',
+      documentId: '',
+      topK: 5,
+      minimumScore: 0,
+    });
+    const withGraph = {
+      ...screen,
+      logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item),
+    };
+    const executeServerAction = vi.fn(async (_id, payload, inputs) =>
+      payload.type === 'document-upload'
+        ? { sourceId: 'source_1', filename: 'handbook.txt', mediaType: 'text/plain' }
+        : { insertedCount: 1, chunkCount: 2, previous: inputs.$previous });
+
+    const effects = await runBehaviorAsync(
+      { screens: [withGraph] },
+      withGraph,
+      'node_button',
+      'click',
+      {
+        componentValues: new Map(),
+        executeDataOperation: async () => ({}),
+        executeServerAction,
+      },
+    );
+
+    expect(executeServerAction).toHaveBeenCalledTimes(2);
+    expect(executeServerAction.mock.calls[1]?.[2]).toMatchObject({
+      $previous: { sourceId: 'source_1', filename: 'handbook.txt' },
+    });
+    expect(effects).toEqual([{ kind: 'vector-indexed', insertedCount: 1 }]);
+  });
+
+  it('routes CRUD and email through the real runtime without replaying simulated effects', async () => {
+    const { screen, graphId } = buildScreen();
+    let graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'insert-record',
+      collectionId: 'notes',
+      values: { title: 'Saved by backend' },
+    });
+    graph = appendAction(graph, {
+      type: 'send-email',
+      to: 'owner@example.com',
+      subject: 'Saved',
+      body: 'The record was saved.',
+    });
+    const withGraph = {
+      ...screen,
+      logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item),
+    };
+    const executeDataOperation = vi.fn(async () => {
+      throw new Error('The local data executor must not run.');
+    });
+    const executeServerAction = vi.fn(async (_id, payload) => payload.type === 'insert-record'
+      ? { record: { id: 'record_backend', collectionId: 'notes' } }
+      : { messageId: 'email_backend' });
+
+    const effects = await runBehaviorAsync(
+      { screens: [withGraph] },
+      withGraph,
+      'node_button',
+      'click',
+      {
+        componentValues: new Map(),
+        executeDataOperation,
+        executeServerAction,
+      },
+    );
+
+    expect(executeServerAction).toHaveBeenCalledTimes(2);
+    expect(executeDataOperation).not.toHaveBeenCalled();
+    expect(effects).toEqual([{ kind: 'server-action-complete', action: 'send-email' }]);
   });
 
   it('executes the whole chain of the behavior bound to the clicked node', () => {
@@ -328,6 +415,66 @@ describe('runClickBehavior', () => {
         reason: 'simulated',
       },
       { kind: 'show-message', message: 'Unlocked' },
+    ]);
+  });
+
+  it('maps runtime enrollment consent and uses the authenticated app user', () => {
+    const { screen, graphId } = buildScreen();
+    let graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'cv-enroll',
+      mediaReference: '',
+      userId: '',
+      consent: false,
+    });
+    const enroll = graph.nodes[1]!;
+    if (enroll.kind !== 'action') throw new Error('Expected action node');
+    graph = {
+      ...graph,
+      nodes: graph.nodes.map((node) => node.id === enroll.id ? {
+        ...enroll,
+        inputMappings: {
+          mediaReference: { source: 'component', nodeId: 'node_input', property: 'value' },
+          consent: { source: 'component', nodeId: 'node_consent', property: 'value' },
+        },
+      } : node),
+    };
+    graph = appendAction(graph, { type: 'show-message', message: 'Enrolled' });
+    const withGraph: Screen = {
+      ...screen,
+      nodes: [
+        ...screen.nodes,
+        {
+          id: 'node_consent',
+          type: 'checkbox',
+          x: 10,
+          y: 180,
+          w: 200,
+          h: 32,
+          props: { label: 'I consent', checked: false },
+        },
+      ],
+      logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item),
+    };
+
+    expect(runClickBehavior(
+      { screens: [withGraph] },
+      withGraph,
+      'node_button',
+      {
+        componentValues: new Map([
+          ['node_input', 'data:image/jpeg;base64,preview'],
+          ['node_consent', 'true'],
+        ]),
+        session: { user: { id: 'app-user-1' } },
+      },
+    )).toEqual([
+      {
+        kind: 'cv-result',
+        operation: 'enroll',
+        credentialId: 'credential_app-user-1',
+        reason: 'simulated',
+      },
+      { kind: 'show-message', message: 'Enrolled' },
     ]);
   });
 

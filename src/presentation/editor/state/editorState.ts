@@ -7,8 +7,10 @@ import type {
   ComponentPropertyBinding,
   GestureDetectorProps,
   CameraProps,
+  ChatProps,
   ColumnProps,
   DividerProps,
+  FileInputProps,
   DropdownProps,
   ImageProps,
   InputProps,
@@ -69,6 +71,8 @@ export type EditorNodeAction =
   | { type: 'node/props-row'; nodeId: string; props: Partial<RowProps> }
   | { type: 'node/props-listview'; nodeId: string; props: Partial<ListViewProps> }
   | { type: 'node/props-camera'; nodeId: string; props: Partial<CameraProps> }
+  | { type: 'node/props-file-input'; nodeId: string; props: Partial<FileInputProps> }
+  | { type: 'node/props-chat'; nodeId: string; props: Partial<ChatProps> }
   | { type: 'node/props-checkbox'; nodeId: string; props: Partial<CheckboxProps> }
   | { type: 'node/props-radio'; nodeId: string; props: Partial<RadioProps> }
   | { type: 'node/props-switch'; nodeId: string; props: Partial<SwitchProps> }

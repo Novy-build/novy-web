@@ -53,6 +53,8 @@ const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
   progress: ' ',
   divider: '—',
   camera: '◉',
+  'file-input': '⇧',
+  chat: '◌',
 };
 
 /** Figma-inspired hierarchical layer tree with persisted layer controls. */

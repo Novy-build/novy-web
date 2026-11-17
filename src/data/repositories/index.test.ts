@@ -4,12 +4,14 @@ import { ApiAppDataRepository } from './api/ApiAppDataRepository';
 import { ApiAuthRepository, type AuthHttpClient } from './api/ApiAuthRepository';
 import { ApiProjectImportRepository } from './api/ApiProjectImportRepository';
 import { ApiProjectRepository } from './api/ApiProjectRepository';
+import { ApiRuntimePreviewRepository } from './api/ApiRuntimePreviewRepository';
 import { ApiReactExportRepository, type ReactExportHttpClient } from './api/ApiReactExportRepository';
 import { createRepositories } from './index';
 import { LocalAuthRepository } from './local/LocalAuthRepository';
 import { LocalStorageAppDataRepository } from './local/LocalStorageAppDataRepository';
 import { LocalStorageProjectRepository } from './local/LocalStorageProjectRepository';
 import { UnavailableReactExportRepository } from './local/UnavailableReactExportRepository';
+import { UnavailableRuntimePreviewRepository } from './local/UnavailableRuntimePreviewRepository';
 
 const authClient: AuthHttpClient = {
   get: async () => ({ status: 200, data: null }),
@@ -41,6 +43,7 @@ describe('createRepositories', () => {
     expect(repositories.appData).toBeInstanceOf(LocalStorageAppDataRepository);
     expect(repositories.localProjectImport).toBeUndefined();
     expect(repositories.reactExport).toBeInstanceOf(UnavailableReactExportRepository);
+    expect(repositories.runtimePreview).toBeInstanceOf(UnavailableRuntimePreviewRepository);
   });
 
   it('swaps auth, projects, app data, and import when an API client is configured', () => {
@@ -51,6 +54,7 @@ describe('createRepositories', () => {
     expect(repositories.projects).toBeInstanceOf(ApiProjectRepository);
     expect(repositories.appData).toBeInstanceOf(ApiAppDataRepository);
     expect(repositories.localProjectImport).toBeInstanceOf(ApiProjectImportRepository);
+    expect(repositories.runtimePreview).toBeInstanceOf(ApiRuntimePreviewRepository);
   });
 
   it('keeps projects local when only auth is API-backed', () => {

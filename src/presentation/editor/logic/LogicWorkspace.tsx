@@ -30,11 +30,14 @@ import { nodeDisplayLabel } from '../workspace/nodeLabels';
 import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
 import { ResizeHandle } from '../layout/ResizeHandle';
 import { useResizablePane } from '../layout/useResizablePane';
+import { useRagConfiguration } from './useRagConfiguration';
 
 interface LogicWorkspaceProps {
   state: EditorState;
   dispatch: Dispatch<EditorAction>;
   collections?: readonly DataCollection[];
+  /** Project id used to load backend-owned RAG profiles and file sources. */
+  projectId?: string;
 }
 
 const EMPTY_GRAPH: LogicGraph = {
@@ -46,12 +49,18 @@ const EMPTY_GRAPH: LogicGraph = {
 };
 
 /** n8n-inspired workspace: Nodes library, workflow canvas, and focused Details inspector. */
-export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorkspaceProps) {
+export function LogicWorkspace({
+  state,
+  dispatch,
+  collections = [],
+  projectId,
+}: LogicWorkspaceProps) {
   const screen = getActiveScreen(state);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [libraryMessage, setLibraryMessage] = useState('');
   const [isNodesCollapsed, setIsNodesCollapsed] = useState(false);
   const [isDetailsCollapsed, setIsDetailsCollapsed] = useState(false);
+  const rag = useRagConfiguration(projectId);
   const { size: nodesWidth, isDragging: isNodesDragging, startResize: startNodesResize, onKeyDown: nodesKeyDown, reset: resetNodesWidth } = useResizablePane({
     defaultSize: 256,
     minSize: 200,
@@ -346,6 +355,7 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
                 behavior={behavior}
                 collections={collections}
                 currentScreenId={screen.id}
+                fileSources={rag.fileSources}
                 node={selectedNode}
                 logicNodes={graph?.nodes ?? []}
                 listItemFields={listItemFields}
@@ -356,6 +366,7 @@ export function LogicWorkspace({ state, dispatch, collections = [] }: LogicWorks
                 onConfigureTrigger={configureTrigger}
                 onDeleteBehavior={removeWorkflow}
                 onRemoveSelected={removeSelectedStep}
+                profiles={rag.profiles}
                 screenNodes={flatNodes}
                 screens={state.document.screens.map((candidate) => ({
                   id: candidate.id,
@@ -388,6 +399,8 @@ function defaultEventForComponent(node: ComponentNode): TriggerEvent | null {
     case 'dropdown':
     case 'slider':
     case 'camera':
+    case 'file-input':
+    case 'chat':
       return 'change';
     default:
       return null;

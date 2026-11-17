@@ -8,7 +8,7 @@ export type RendererMode = 'canvas' | 'preview' | 'thumbnail';
 export interface RendererDataContext {
   collections: readonly DataCollection[];
   recordsByCollection: ReadonlyMap<string, readonly DataRecord[]>;
-  /** Preview/generated-runtime additions keyed by static ListView component ID. */
+  /** Preview/generated-runtime items keyed by ListView or Chat component ID. */
   localItemsByListView?: ReadonlyMap<string, readonly LocalListItemAddition[]>;
 }
 
@@ -30,6 +30,8 @@ export interface ComponentRendererProps {
   onNodeEvent?: (nodeId: string, event: TriggerEvent, value?: string, context?: RendererEventContext) => void;
   /** Preview-only input value updates consumed by condition nodes. */
   onNodeValueChange?: (nodeId: string, value: string) => void;
+  /** Preview-only transient media; never persisted into the project document. */
+  onNodeMediaChange?: (nodeId: string, media: File | null) => void;
   componentValues?: ReadonlyMap<string, string>;
   dataContext?: RendererDataContext;
   /** Internal recursive override produced by a Column, Row, or ListView parent. */

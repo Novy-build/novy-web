@@ -7,7 +7,9 @@ import type {
   GestureDetectorNode,
   ColumnNode,
   CameraNode,
+  ChatNode,
   DividerNode,
+  FileInputNode,
   DropdownNode,
   ImageNode,
   InputNode,
@@ -238,6 +240,40 @@ function createCameraNode(): CameraNode {
   };
 }
 
+function createFileInputNode(): FileInputNode {
+  return {
+    id: generateId('node'),
+    type: 'file-input',
+    x: 24,
+    y: 24,
+    w: 320,
+    h: 104,
+    props: {
+      label: 'Upload document',
+      helperText: 'Text, Markdown, HTML, or PDF up to 5 MB',
+      accept: ['text/plain', 'text/markdown', 'text/html', 'application/pdf'],
+    },
+  };
+}
+
+function createChatNode(): ChatNode {
+  return {
+    id: generateId('node'),
+    type: 'chat',
+    x: 24,
+    y: 24,
+    w: 342,
+    h: 520,
+    props: {
+      title: 'Ask your document',
+      placeholder: 'Type a question…',
+      sendLabel: 'Send',
+      emptyText: 'Ask a question to start the conversation.',
+      showCitations: true,
+    },
+  };
+}
+
 function createDividerNode(): DividerNode {
   return {
     id: generateId('node'),
@@ -271,6 +307,8 @@ const factories: Record<ComponentType, NodeFactory> = {
   slider: createSliderNode,
   progress: createProgressNode,
   camera: createCameraNode,
+  'file-input': createFileInputNode,
+  chat: createChatNode,
   divider: createDividerNode,
 };
 

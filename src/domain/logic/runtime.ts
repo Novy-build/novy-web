@@ -46,16 +46,25 @@ export type PreviewEffect =
   | { kind: 'vector-indexed'; insertedCount: number }
   | { kind: 'vector-deleted'; documentId: string }
   | { kind: 'chat-response'; nodeId: string; citationsNodeId?: string; answer: string; citations: RagCitation[] }
+  | { kind: 'chat-message'; chatId: string; role: 'user' | 'assistant'; text: string; citations: RagCitation[] }
   | { kind: 'cv-result'; operation: string; isLive?: boolean; verified?: boolean; credentialId?: string; reason?: string };
 
 export type DataOperationPayload = Extract<ActionPayload, {
   type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record';
 }>;
 
-export type AsyncPreviewEffect = PreviewEffect | { kind: 'data-operation-error'; message: string };
+export type AsyncPreviewEffect = PreviewEffect
+  | { kind: 'data-operation-error'; message: string }
+  | { kind: 'server-action-complete'; action: 'send-email' };
 
 export interface AsyncPreviewRuntimeContext extends PreviewRuntimeContext {
   executeDataOperation: (payload: DataOperationPayload) => Promise<unknown>;
+  /** Optional real generated-app runtime. When absent, Preview remains isolated simulation. */
+  executeServerAction?: (
+    actionId: string,
+    payload: ActionPayload,
+    inputs: Readonly<Record<string, unknown>>,
+  ) => Promise<unknown>;
 }
 
 export interface RagCitation {
@@ -254,7 +263,28 @@ export async function runBehaviorAsync(
       const inputs = resolveInputMappings(node.inputMappings, document, runtimeContext);
       const payload = applyActionInputMappings(node.payload, node.inputMappings, document, runtimeContext);
 
-      if (isDataOperationPayload(payload)) {
+      if (context.executeServerAction && isRealRuntimeServerPayload(payload)) {
+        try {
+          const previous = previousControlOutput(graph, node.id, outputs);
+          const serverInputs = previous === undefined
+            ? inputs
+            : { ...inputs, $previous: previous };
+          const result = await context.executeServerAction(node.id, payload, serverInputs);
+          outputs.set(node.id, result);
+          const effect = isDataOperationPayload(payload)
+            ? null
+            : payload.type === 'send-email'
+              ? { kind: 'server-action-complete', action: 'send-email' } as const
+              : effectFor(payload, document, runtimeContext, inputs, result);
+          if (effect) effects.push(effect);
+          output = 'success';
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Runtime action failed.';
+          outputs.set(node.id, { error: message });
+          effects.push({ kind: 'data-operation-error', message });
+          output = 'error';
+        }
+      } else if (isDataOperationPayload(payload)) {
         try {
           const result = await context.executeDataOperation(payload);
           outputs.set(node.id, result);
@@ -292,6 +322,35 @@ export async function runBehaviorAsync(
 function isDataOperationPayload(payload: ActionPayload): payload is DataOperationPayload {
   return payload.type === 'get-records' || payload.type === 'get-record' || payload.type === 'insert-record' ||
     payload.type === 'update-record' || payload.type === 'delete-record';
+}
+
+function isRealRuntimeServerPayload(payload: ActionPayload): boolean {
+  return [
+    'get-records',
+    'get-record',
+    'insert-record',
+    'update-record',
+    'delete-record',
+    'send-email',
+    'cv-liveness',
+    'cv-enroll',
+    'cv-verify',
+    'document-upload',
+    'document-load',
+    'text-split',
+    'embedding-generate',
+    'vector-upsert',
+    'vector-delete',
+    'query-embedding',
+    'vector-retrieve',
+    'rerank',
+    'prompt-template',
+    'llm-generate',
+    'memory',
+    'vector-store',
+    'chat-model',
+    'ai-agent',
+  ].includes(payload.type);
 }
 
 function setActionOutput(
@@ -371,6 +430,8 @@ function applyActionInputMappings(
   if (!mappings || Object.keys(mappings).length === 0) return payload;
   const resolve = (key: string, fallback: string): string =>
     mappings[key] ? runtimeText(resolveValueExpression(mappings[key], document, context)) : fallback;
+  const resolveBoolean = (key: string, fallback: boolean): boolean =>
+    mappings[key] ? runtimeBoolean(resolveValueExpression(mappings[key], document, context)) : fallback;
   switch (payload.type) {
     case 'change-text': return { ...payload, text: resolve('text', payload.text) };
     case 'show-message': return { ...payload, message: resolve('message', payload.message) };
@@ -388,13 +449,16 @@ function applyActionInputMappings(
       title: resolve('title', payload.title),
       text: resolve('text', payload.text),
     };
+    case 'document-upload': return { ...payload, mediaReference: resolve('mediaReference', payload.mediaReference) };
+    case 'chat-message': return { ...payload, text: resolve('text', payload.text) };
     case 'vector-delete': return { ...payload, documentId: resolve('documentId', payload.documentId) };
     case 'chat-input': return { ...payload, staticQuestion: resolve('question', payload.staticQuestion) };
     case 'cv-liveness': return { ...payload, mediaReference: resolve('mediaReference', payload.mediaReference) };
     case 'cv-enroll': return {
       ...payload,
       mediaReference: resolve('mediaReference', payload.mediaReference),
-      userId: resolve('userId', payload.userId),
+      userId: context.session?.user?.id || resolve('userId', payload.userId),
+      consent: resolveBoolean('consent', payload.consent),
     };
     case 'cv-verify': return {
       ...payload,
@@ -462,6 +526,7 @@ function applyActionInputMappings(
 type GranularRagPayload = Extract<ActionPayload, {
   type:
     | 'document-load'
+    | 'document-upload'
     | 'text-split'
     | 'embedding-generate'
     | 'vector-upsert'
@@ -479,6 +544,7 @@ type GranularRagPayload = Extract<ActionPayload, {
 function isGranularRagPayload(payload: ActionPayload): payload is GranularRagPayload {
   return [
     'document-load', 'text-split', 'embedding-generate', 'vector-upsert', 'vector-delete',
+    'document-upload',
     'chat-input', 'query-embedding', 'vector-retrieve', 'rerank', 'prompt-template',
     'llm-generate', 'chat-output', 'memory',
   ].includes(payload.type);
@@ -521,6 +587,15 @@ function executeGranularRagAction(
           text: payload.text || `Simulated content from ${payload.sourceReference || payload.source}.`,
           metadata: { ...payload.metadata },
         }],
+      };
+    }
+    case 'document-upload': {
+      const mediaReference = runtimeText(inputs.mediaReference) || payload.mediaReference;
+      const filename = mediaReference.replace(/^media:/, '') || 'uploaded-document';
+      return {
+        sourceId: `preview-source:${stableHash(filename)}`,
+        filename,
+        mediaType: 'text/plain',
       };
     }
     case 'text-split': {
@@ -786,6 +861,12 @@ function runtimeNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function runtimeBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  const normalized = runtimeText(value).trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
+
 function runtimeArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
@@ -979,6 +1060,28 @@ function effectFor(
         citations,
       } : null;
     }
+    case 'chat-message': {
+      const target = document.screens
+        .flatMap((screen) => flattenNodes(screen.nodes))
+        .find((node) => node.id === payload.targetNodeId);
+      if (target?.type !== 'chat') return null;
+      const citations = runtimeArray(inputs.citations).map((citation) => {
+        const value = runtimeRecord(citation);
+        return {
+          documentId: runtimeText(value.documentId),
+          title: runtimeText(value.title),
+          snippet: runtimeText(value.snippet),
+          score: runtimeNumber(value.score),
+        };
+      });
+      return {
+        kind: 'chat-message',
+        chatId: payload.targetNodeId,
+        role: payload.role,
+        text: runtimeText(inputs.text) || payload.text,
+        citations,
+      };
+    }
     case 'cv-liveness': {
       if (!payload.mediaReference) return null;
       const result = context.data?.cvLiveness?.(payload) ?? {
@@ -1043,6 +1146,7 @@ function effectFor(
       };
     }
     case 'document-load':
+    case 'document-upload':
     case 'text-split':
     case 'embedding-generate':
     case 'chat-input':
