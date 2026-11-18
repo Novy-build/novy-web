@@ -2,6 +2,7 @@ import {
   createPadding,
   geometryAtBreakpoint,
   isButtonIconName,
+  isAppIconName,
   isChildBearingNode,
   isHiddenAtBreakpoint,
   isTextFontFamily,
@@ -42,12 +43,13 @@ import { ensureWebsiteSectionDarkAppearances } from '@domain/sections/sectionLay
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
-    schemaVersion: 13,
+    schemaVersion: 14,
     id: project.id,
     name: project.name,
     projectType: project.projectType,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
+    ...(project.document.designSystem ? { designSystem: structuredClone(project.document.designSystem) } : {}),
     screens: project.document.screens.map(mapScreenToDto),
   };
 }
@@ -55,6 +57,7 @@ export function mapProjectToDto(project: Project): ProjectDTO {
 export function mapProjectFromDto(dto: ProjectDTO): Project {
   const takenPaths = new Set(dto.screens.flatMap((screen) => screen.path ? [screen.path] : []));
   const mappedDocument: ProjectDocument = {
+    ...(dto.designSystem ? { designSystem: structuredClone(dto.designSystem) } : {}),
     screens: dto.screens.map((screen, index) => {
       const mapped = mapScreenFromDto(screen, index);
       if (screen.path) return mapped;
@@ -74,10 +77,11 @@ export function mapProjectFromDto(dto: ProjectDTO): Project {
   const document = (dto.schemaVersion ?? 0) < 13
     ? migrateRecordRouteParameters(layoutMigratedDocument)
     : layoutMigratedDocument;
+  const normalizedDocument = normalizeLegacyCvStarter(document);
   const projectType = dto.projectType === 'website' ? 'website' : 'app';
   const migratedDocument = projectType === 'website'
-    ? { screens: document.screens.map(ensureWebsiteSectionDarkAppearances) }
-    : document;
+    ? { screens: normalizedDocument.screens.map(ensureWebsiteSectionDarkAppearances) }
+    : normalizedDocument;
   return {
     id: dto.id,
     name: dto.name,
@@ -86,6 +90,221 @@ export function mapProjectFromDto(dto: ProjectDTO): Project {
     updatedAt: new Date(dto.updatedAt),
     document: migratedDocument,
   };
+}
+
+/**
+ * Projects clone starter screens, so changing the template does not update an
+ * already-saved Face verification project. Normalize only the starter's known
+ * IDs and untouched legacy defaults; authored copy and geometry stay intact.
+ */
+function normalizeLegacyCvStarter(document: ProjectDocument): ProjectDocument {
+  const registration = document.screens.find((screen) => screen.id === 'screen_cv_registration');
+  const test = document.screens.find((screen) => screen.id === 'screen_cv_test');
+  if (!registration || !test) return document;
+
+  return {
+    screens: document.screens.map((screen) => {
+      if (screen.id === registration.id) return normalizeCvRegistrationScreen(screen);
+      if (screen.id === test.id) return normalizeCvTestScreen(screen);
+      return screen;
+    }),
+  };
+}
+
+function normalizeCvRegistrationScreen(screen: Screen): Screen {
+  return {
+    ...screen,
+    nodes: screen.nodes.map((node) => {
+      if (node.id === 'cv_registration_camera' && node.type === 'camera'
+        && node.props.captureMode === undefined) {
+        return {
+          ...node,
+          props: {
+            ...node.props,
+            captureMode: 'guided-face',
+            captureLabel: node.props.captureLabel === 'Capture face'
+              ? 'Capture now'
+              : node.props.captureLabel,
+          },
+        };
+      }
+      if (node.type !== 'text') return node;
+      if (node.id === 'cv_registration_intro'
+        && node.props.text === 'Capture a clear face image and grant consent to register the signed-in app user.') {
+        return {
+          ...node,
+          props: { ...node.props, text: 'Capture a clear face image and grant consent. No account or email is required.' },
+        };
+      }
+      if (node.id === 'cv_registration_status'
+        && node.props.text === 'Registration status: sign in, capture a face, and grant consent.') {
+        return {
+          ...node,
+          props: { ...node.props, text: 'Registration status: capture a face and grant consent.' },
+        };
+      }
+      return node;
+    }),
+    logicGraphs: screen.logicGraphs.map((graph) => ({
+      ...graph,
+      nodes: graph.nodes.map((node) => {
+        if (node.kind !== 'action' || node.payload.type !== 'change-text') return node;
+        if (node.id === 'cv_registration_graph_enroll_success'
+          && node.payload.text === 'Registration status: face registered for the signed-in app user.') {
+          return {
+            ...node,
+            payload: { ...node.payload, text: 'Registration status: face registered on this device.' },
+          };
+        }
+        if (node.id === 'cv_registration_graph_enroll_error'
+          && node.payload.text === 'Registration status: sign in, capture a face, and grant consent.') {
+          return {
+            ...node,
+            payload: { ...node.payload, text: 'Registration status: capture a face and grant consent.' },
+          };
+        }
+        return node;
+      }),
+    })),
+  };
+}
+
+function normalizeCvTestScreen(screen: Screen): Screen {
+  const removeLegacyEmail = screen.nodes.some(isUntouchedLegacyCvEmailNode);
+  const migrateAutomaticVerify = screen.nodes.some(isUntouchedLegacyCvVerifyButton)
+    && screen.behaviors.some((behavior) => behavior.id === 'cv_test_behavior_verify'
+      && behavior.event === 'click'
+      && behavior.targetNodeId === 'cv_test_verify'
+      && behavior.graphId === 'cv_test_graph_verify')
+    && screen.logicGraphs.some((graph) => graph.id === 'cv_test_graph_verify'
+      && graph.sourceNodeId === 'cv_test_verify'
+      && graph.nodes.some((node) => node.kind === 'trigger'
+        && node.id === 'cv_test_verify_trigger'
+        && node.event === 'click'));
+  return {
+    ...screen,
+    nodes: screen.nodes
+      .filter((node) => (!removeLegacyEmail || node.id !== 'cv_test_email')
+        && (!migrateAutomaticVerify || node.id !== 'cv_test_verify'))
+      .map((node) => normalizeCvTestNode(node, removeLegacyEmail, migrateAutomaticVerify)),
+    behaviors: screen.behaviors.map((behavior) => migrateAutomaticVerify
+      && behavior.id === 'cv_test_behavior_verify'
+      ? {
+          ...behavior,
+          name: 'Verify captured face',
+          event: 'change',
+          targetNodeId: 'cv_test_camera',
+        }
+      : behavior),
+    logicGraphs: screen.logicGraphs.map((graph) => ({
+      ...graph,
+      ...(migrateAutomaticVerify && graph.id === 'cv_test_graph_verify'
+        ? { name: 'Recognize face automatically', sourceNodeId: 'cv_test_camera' }
+        : {}),
+      nodes: graph.nodes.map((node) => migrateAutomaticVerify
+        && node.kind === 'trigger'
+        && node.id === 'cv_test_verify_trigger'
+        ? { ...node, event: 'change' }
+        : normalizeCvTestLogicNode(node)),
+    })),
+  };
+}
+
+function isUntouchedLegacyCvEmailNode(node: ComponentNode): boolean {
+  return node.id === 'cv_test_email'
+    && node.type === 'input'
+    && node.x === 24
+    && node.y === 368
+    && node.w === 342
+    && node.h === 64
+    && node.props.label === 'Enrolled account email'
+    && node.props.placeholder === 'you@example.com'
+    && node.props.inputType === 'email'
+    && node.props.multiline === false;
+}
+
+function isUntouchedLegacyCvVerifyButton(node: ComponentNode): boolean {
+  return node.id === 'cv_test_verify'
+    && node.type === 'button'
+    && node.x === 24
+    && (node.y === 440 || node.y === 504)
+    && node.w === 342
+    && node.h === 44
+    && (node.props.label === 'Recognize face' || node.props.label === 'Unlock with face')
+    && node.props.variant === 'solid';
+}
+
+function normalizeCvTestNode(
+  node: ComponentNode,
+  compactLayout: boolean,
+  automaticVerify: boolean,
+): ComponentNode {
+  if (node.id === 'cv_test_camera' && node.type === 'camera'
+    && node.props.captureMode === undefined) {
+    return {
+      ...node,
+      props: {
+        ...node.props,
+        captureMode: 'guided-face',
+        captureLabel: node.props.captureLabel === 'Capture face'
+          ? 'Capture now'
+          : node.props.captureLabel,
+      },
+    };
+  }
+  if (node.id === 'cv_test_intro' && node.type === 'text'
+    && node.props.text === 'Capture a face and enter the account email used by the enrolled app user.') {
+    return {
+      ...node,
+      props: { ...node.props, text: 'Capture the enrolled face to unlock this app on this device.' },
+    };
+  }
+  if (automaticVerify && node.id === 'cv_test_status' && node.type === 'text') {
+    const text = node.props.text === 'Recognition result: not tested yet. Editor preview uses simulation.'
+      ? 'Recognition starts automatically after a clear face is captured.'
+      : node.props.text;
+    return node.y === 504 || node.y === 568
+      ? { ...node, y: 448, props: { ...node.props, text } }
+      : { ...node, props: { ...node.props, text } };
+  }
+  if (automaticVerify && node.id === 'cv_test_back' && (node.y === 576 || node.y === 640)) {
+    return { ...node, y: 520 };
+  }
+  if (!compactLayout) return node;
+  if (node.id === 'cv_test_liveness' && node.y === 448) return { ...node, y: 384 };
+  if (node.id === 'cv_test_status' && node.y === 568) return { ...node, y: 504 };
+  if (node.id === 'cv_test_back' && node.y === 640) return { ...node, y: 576 };
+  return node;
+}
+
+function normalizeCvTestLogicNode(node: LogicNode): LogicNode {
+  if (node.kind !== 'action') return node;
+  if (node.id === 'cv_test_action_verify' && node.payload.type === 'cv-verify') {
+    const { userId: legacyUserId, ...inputMappings } = node.inputMappings ?? {};
+    const removeUserId = legacyUserId?.source === 'component'
+      && legacyUserId.nodeId === 'cv_test_email'
+      && legacyUserId.property === 'value';
+    return {
+      ...node,
+      ...(removeUserId ? { inputMappings } : {}),
+    };
+  }
+  if (node.payload.type !== 'change-text') return node;
+  if (node.id === 'cv_test_status_recognized'
+    && node.payload.text === 'Recognition result: Face recognized.') {
+    return {
+      ...node,
+      payload: { ...node.payload, text: 'Recognition result: Face recognized. App unlocked.' },
+    };
+  }
+  if (node.id === 'cv_test_status_verify_error'
+    && node.payload.text === 'Recognition result: capture a face and enter the enrolled account email.') {
+    return {
+      ...node,
+      payload: { ...node.payload, text: 'Recognition result: enroll on this device, then capture a face.' },
+    };
+  }
+  return node;
 }
 
 function migrateRecordRouteParameters(document: ProjectDocument): ProjectDocument {
@@ -234,6 +453,7 @@ export function mapProjectToSummary(project: Project): ProjectSummary {
     updatedAt: project.updatedAt,
     screenCount: project.document.screens.length,
     previewScreen: firstScreen,
+    ...(project.document.designSystem ? { previewDesignSystem: structuredClone(project.document.designSystem) } : {}),
   };
 }
 
@@ -245,6 +465,7 @@ export function mapScreenToDto(screen: Screen): ScreenDTO {
     ...(screen.routeParameters && screen.routeParameters.length > 0
       ? { routeParameters: structuredClone(screen.routeParameters) }
       : {}),
+    ...(screen.appearance ? { appearance: structuredClone(screen.appearance) } : {}),
     nodes: screen.nodes.map(mapNodeToDto),
     behaviors: screen.behaviors.map(mapBehaviorToDto),
     logicGraphs: screen.logicGraphs.map(mapLogicGraphToDto),
@@ -262,6 +483,7 @@ export function mapScreenFromDto(dto: ScreenDTO, index = 0): Screen {
     ...(dto.routeParameters && dto.routeParameters.length > 0
       ? { routeParameters: structuredClone(dto.routeParameters) }
       : {}),
+    ...(dto.appearance ? { appearance: structuredClone(dto.appearance) } : {}),
     nodes: dto.nodes.map(mapNodeFromDto),
     behaviors: [
       ...behaviors,
@@ -314,7 +536,24 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
             ? { fontSize: node.props.fontSize }
             : {}),
           ...(isTextFontWeight(node.props.fontWeight) ? { fontWeight: node.props.fontWeight } : {}),
+          ...(typeof node.props.lineHeight === 'number' && Number.isFinite(node.props.lineHeight) && node.props.lineHeight > 0 ? { lineHeight: node.props.lineHeight } : {}),
+          ...(typeof node.props.letterSpacing === 'number' && Number.isFinite(node.props.letterSpacing) ? { letterSpacing: node.props.letterSpacing } : {}),
+          ...(node.props.textAlign ? { textAlign: node.props.textAlign } : {}),
+          ...(node.props.fontStyle ? { fontStyle: node.props.fontStyle } : {}),
+          ...(node.props.textTransform ? { textTransform: node.props.textTransform } : {}),
+          ...(typeof node.props.lineClamp === 'number' && Number.isFinite(node.props.lineClamp) && node.props.lineClamp > 0 ? { lineClamp: Math.floor(node.props.lineClamp) } : {}),
         },
+      };
+    case 'icon':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'icon',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: { icon: node.props.icon, label: node.props.label, strokeWidth: node.props.strokeWidth },
       };
     case 'input':
       return {
@@ -419,7 +658,12 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, facingMode: node.props.facingMode, captureLabel: node.props.captureLabel },
+        props: {
+          label: node.props.label,
+          facingMode: node.props.facingMode,
+          captureLabel: node.props.captureLabel,
+          ...(node.props.captureMode ? { captureMode: node.props.captureMode } : {}),
+        },
       };
     case 'file-input':
       return {
@@ -585,6 +829,27 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
             ? { fontSize: dto.props.fontSize }
             : {}),
           ...(isTextFontWeight(dto.props.fontWeight) ? { fontWeight: dto.props.fontWeight } : {}),
+          ...(typeof dto.props.lineHeight === 'number' && Number.isFinite(dto.props.lineHeight) && dto.props.lineHeight > 0 ? { lineHeight: dto.props.lineHeight } : {}),
+          ...(typeof dto.props.letterSpacing === 'number' && Number.isFinite(dto.props.letterSpacing) ? { letterSpacing: dto.props.letterSpacing } : {}),
+          ...(dto.props.textAlign ? { textAlign: dto.props.textAlign } : {}),
+          ...(dto.props.fontStyle ? { fontStyle: dto.props.fontStyle } : {}),
+          ...(dto.props.textTransform ? { textTransform: dto.props.textTransform } : {}),
+          ...(typeof dto.props.lineClamp === 'number' && Number.isFinite(dto.props.lineClamp) && dto.props.lineClamp > 0 ? { lineClamp: Math.floor(dto.props.lineClamp) } : {}),
+        },
+      };
+    case 'icon':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'icon',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: {
+          icon: isAppIconName(dto.props.icon) ? dto.props.icon : 'box',
+          label: dto.props.label,
+          strokeWidth: Number.isFinite(dto.props.strokeWidth) ? Math.max(0.5, dto.props.strokeWidth) : 1.75,
         },
       };
     case 'input':
@@ -690,7 +955,12 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { label: dto.props.label, facingMode: dto.props.facingMode, captureLabel: dto.props.captureLabel },
+        props: {
+          label: dto.props.label,
+          facingMode: dto.props.facingMode,
+          captureLabel: dto.props.captureLabel,
+          ...(dto.props.captureMode ? { captureMode: dto.props.captureMode } : {}),
+        },
       };
     case 'file-input':
       return {
@@ -1042,11 +1312,12 @@ function collectLegacyFormMigrations(nodes: readonly ComponentNodeDTO[]): Legacy
 
 function mapNodeEditorToDto(
   node: ComponentNode,
-): Partial<Pick<ComponentNodeDTO, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive' | 'bindings'>> {
+): Partial<Pick<ComponentNodeDTO, 'name' | 'isHidden' | 'isLocked' | 'styleId' | 'appearance' | 'responsive' | 'bindings'>> {
   return compactEditorMetadata(
     node.name,
     node.isHidden,
     node.isLocked,
+    node.styleId,
     node.appearance,
     normalizeResponsiveOverrides(node.responsive),
     node.bindings,
@@ -1055,11 +1326,12 @@ function mapNodeEditorToDto(
 
 function mapNodeEditorFromDto(
   dto: ComponentNodeDTO,
-): Partial<Pick<ComponentNode, 'name' | 'isHidden' | 'isLocked' | 'appearance' | 'responsive' | 'bindings'>> {
+): Partial<Pick<ComponentNode, 'name' | 'isHidden' | 'isLocked' | 'styleId' | 'appearance' | 'responsive' | 'bindings'>> {
   return compactEditorMetadata(
     dto.name,
     dto.isHidden,
     dto.isLocked,
+    dto.styleId,
     dto.appearance,
     normalizeResponsiveOverrides(dto.responsive),
     dto.bindings,
@@ -1089,6 +1361,12 @@ function normalizeResponsiveOverrides(value: unknown): ResponsiveGeometry | unde
     const override: ResponsiveNodeOverrides = {
       ...geometry,
       ...(typeof raw.isHidden === 'boolean' ? { isHidden: raw.isHidden } : {}),
+      ...(raw.appearance && typeof raw.appearance === 'object'
+        ? { appearance: structuredClone(raw.appearance as ResponsiveNodeOverrides['appearance']) }
+        : {}),
+      ...(raw.textStyle && typeof raw.textStyle === 'object'
+        ? { textStyle: structuredClone(raw.textStyle as ResponsiveNodeOverrides['textStyle']) }
+        : {}),
     };
     if (Object.keys(override).length > 0) normalized[breakpoint] = override;
   }
@@ -1099,14 +1377,16 @@ function compactEditorMetadata(
   name: string | undefined,
   isHidden: boolean | undefined,
   isLocked: boolean | undefined,
+  styleId: string | undefined,
   appearance: ComponentNode['appearance'],
   responsive: ComponentNode['responsive'],
   bindings: ComponentNode['bindings'],
-): { name?: string; isHidden?: boolean; isLocked?: boolean; appearance?: ComponentNode['appearance']; responsive?: ComponentNode['responsive']; bindings?: ComponentNode['bindings'] } {
+): { name?: string; isHidden?: boolean; isLocked?: boolean; styleId?: string; appearance?: ComponentNode['appearance']; responsive?: ComponentNode['responsive']; bindings?: ComponentNode['bindings'] } {
   return {
     ...(name !== undefined ? { name } : {}),
     ...(isHidden !== undefined ? { isHidden } : {}),
     ...(isLocked !== undefined ? { isLocked } : {}),
+    ...(styleId !== undefined ? { styleId } : {}),
     ...(appearance !== undefined ? { appearance: structuredClone(appearance) } : {}),
     ...(responsive !== undefined ? { responsive: structuredClone(responsive) } : {}),
     ...(bindings !== undefined ? { bindings: structuredClone(bindings) } : {}),

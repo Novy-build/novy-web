@@ -1,6 +1,7 @@
 import type { ComponentNode, NodeGeometry, ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import type { TriggerEvent } from '@domain/entities/logic';
 import type { DataCollection, DataRecord, ListItemContext, LocalListItemAddition } from '@domain/entities/appData';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
 
 /** Rendering contexts for the shared project-document renderer. */
 export type RendererMode = 'canvas' | 'preview' | 'thumbnail';
@@ -10,6 +11,8 @@ export interface RendererDataContext {
   recordsByCollection: ReadonlyMap<string, readonly DataRecord[]>;
   /** Preview/generated-runtime items keyed by ListView or Chat component ID. */
   localItemsByListView?: ReadonlyMap<string, readonly LocalListItemAddition[]>;
+  /** Chat components currently waiting for an asynchronous workflow response. */
+  pendingChatNodeIds?: ReadonlySet<string>;
 }
 
 export interface RendererEventContext {
@@ -34,6 +37,7 @@ export interface ComponentRendererProps {
   onNodeMediaChange?: (nodeId: string, media: File | null) => void;
   componentValues?: ReadonlyMap<string, string>;
   dataContext?: RendererDataContext;
+  designSystem?: AppDesignSystem;
   /** Internal recursive override produced by a Column, Row, or ListView parent. */
   geometryOverride?: NodeGeometry;
   /** Current repeated ListView record for item-field bindings. */

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ButtonNode, CameraNode, ChatNode, ColumnNode, ComponentNode, ContainerNode, FileInputNode, GestureDetectorNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
+import type { ButtonNode, CameraNode, ChatNode, ColumnNode, ComponentNode, ContainerNode, DropdownNode, FileInputNode, GestureDetectorNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
 import { createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
@@ -121,6 +121,45 @@ describe('ComponentRenderer', () => {
     expect(onNodeValueChange).toHaveBeenCalledWith(node.id, 'What is the answer?');
   });
 
+  it('shows an accessible thinking bubble and locks the Chat composer while pending', () => {
+    const node: ChatNode = {
+      id: 'chat_pending',
+      type: 'chat',
+      x: 10,
+      y: 20,
+      w: 340,
+      h: 500,
+      props: {
+        title: 'Ask your document',
+        placeholder: 'Ask a question',
+        sendLabel: 'Send',
+        emptyText: 'Ask your first question.',
+        showCitations: true,
+      },
+    };
+    render(
+      <ComponentRenderer
+        dataContext={{
+          collections: [],
+          recordsByCollection: new Map(),
+          localItemsByListView: new Map([[node.id, [{
+            itemId: 'message_user',
+            placement: 'append',
+            values: { role: 'user', text: 'What is this about?', citations: '' },
+          }]]]),
+          pendingChatNodeIds: new Set([node.id]),
+        }}
+        mode="preview"
+        node={node}
+        selected={false}
+      />,
+    );
+
+    expect(screen.getByRole('status', { name: 'Assistant is thinking' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Ask a question')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  });
+
   it('centers an icon while keeping the button label accessible', () => {
     const node: ButtonNode = {
       ...BUTTON,
@@ -172,6 +211,47 @@ describe('ComponentRenderer', () => {
     const frame = container.querySelector('[data-node-id="node_save"]');
     expect(frame).not.toBeNull();
     expect(frame).toHaveStyle({ left: '10px', top: '20px', width: '120px', height: '44px' });
+  });
+
+  it('renders standalone decorative and labelled icons accessibly', () => {
+    const decorative: ComponentNode = {
+      id: 'icon_decorative', type: 'icon', x: 0, y: 0, w: 32, h: 32,
+      props: { icon: 'graduation-cap', label: '', strokeWidth: 1.5 },
+    };
+    const { container, rerender } = render(<ComponentRenderer mode="canvas" node={decorative} selected={false} />);
+
+    expect(container.querySelector('[data-app-icon="graduation-cap"] svg')).toHaveAttribute('aria-hidden', 'true');
+
+    rerender(<ComponentRenderer mode="canvas" node={{ ...decorative, props: { ...decorative.props, label: 'Learning' } }} selected={false} />);
+    expect(screen.getByRole('img', { name: 'Learning' })).toBeInTheDocument();
+  });
+
+  it('cascades responsive appearance and typography after base values', () => {
+    const node = makeText('responsive_text', {
+      appearance: { textColor: '#111111', backgroundColor: '#ffffff' },
+      responsive: {
+        tablet: {
+          appearance: { backgroundColor: '#eeeeee' },
+          textStyle: { fontSize: 22, textAlign: 'center' },
+        },
+        desktop: {
+          appearance: { textColor: '#663399' },
+          textStyle: { fontSize: 30, letterSpacing: 1.5 },
+        },
+      },
+      props: { text: 'Responsive type', level: 'title', fontSize: 18 },
+    });
+    const { container } = render(<ComponentRenderer breakpoint="desktop" mode="preview" node={node} selected={false} />);
+
+    expect(container.querySelector('[data-node-id="responsive_text"]')).toHaveStyle({
+      backgroundColor: '#eeeeee',
+      color: '#663399',
+    });
+    expect(screen.getByText('Responsive type')).toHaveStyle({
+      fontSize: '30px',
+      textAlign: 'center',
+      letterSpacing: '1.5px',
+    });
   });
 
   it('renders typed appearance and active responsive geometry', () => {
@@ -348,6 +428,58 @@ describe('ComponentRenderer', () => {
 
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } });
     expect(onNodeEvent).toHaveBeenCalledWith('node_email', 'change', 'ada@example.com');
+  });
+
+  it('prefills a date input from the current route record binding', () => {
+    const input: InputNode = {
+      id: 'node_purchase_date',
+      type: 'input',
+      x: 0,
+      y: 0,
+      w: 180,
+      h: 60,
+      props: { label: 'Purchase date', placeholder: '', inputType: 'date', multiline: false },
+      bindings: [
+        { target: 'input.value', value: { source: 'list-item', fieldId: 'purchase_date' } },
+      ],
+    };
+    render(
+      <ComponentRenderer
+        itemContext={{
+          listViewId: 'route-record',
+          itemId: 'asset-1',
+          values: { purchase_date: '2026-11-18' },
+        }}
+        mode="preview"
+        node={input}
+        selected={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('Purchase date')).toHaveAttribute('type', 'date');
+    expect(screen.getByLabelText('Purchase date')).toHaveValue('2026-11-18');
+  });
+
+  it('preserves an unbound dropdown default selection on the canvas', () => {
+    const dropdown: DropdownNode = {
+      id: 'node_category',
+      type: 'dropdown',
+      x: 0,
+      y: 0,
+      w: 180,
+      h: 60,
+      props: {
+        label: 'Category',
+        options: ['Laptop', 'Camera'],
+        placeholder: 'Choose a category',
+        selectedIndex: 1,
+        presentation: 'select',
+      },
+    };
+
+    render(<ComponentRenderer mode="canvas" node={dropdown} selected={false} />);
+
+    expect(screen.getByLabelText('Category')).toHaveDisplayValue('Camera');
   });
 
   it('hides a Text field label without losing its accessible name and styles its actual border', () => {

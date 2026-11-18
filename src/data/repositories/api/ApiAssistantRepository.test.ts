@@ -32,6 +32,23 @@ const PREVIEW_SCREEN = {
   logicGraphs: [],
 };
 
+const VERIFICATION = {
+  passed: true,
+  repairAttempts: 1,
+  stages: [
+    { id: 'contract', label: 'Project contract', passed: true },
+    { id: 'responsive', label: 'Responsive layout', passed: true },
+    { id: 'navigation', label: 'Routes and navigation', passed: true },
+    { id: 'workflows', label: 'Workflow simulation', passed: true },
+  ],
+  viewports: [
+    { id: 'mobile', width: 390, height: 780, passed: true },
+    { id: 'tablet', width: 768, height: 1024, passed: true },
+    { id: 'desktop', width: 1200, height: 800, passed: true },
+  ],
+  issues: [],
+};
+
 const ROUTE_BOUND_BLUEPRINT = {
   version: 1,
   summary: 'A notes app.',
@@ -138,6 +155,7 @@ describe('ApiAssistantRepository', () => {
             },
           ],
         },
+        verification: VERIFICATION,
       },
     });
     const repository = new ApiAssistantRepository(client(post), vi.fn());
@@ -153,9 +171,10 @@ describe('ApiAssistantRepository', () => {
       providerId: null,
       modelId: null,
       images: [],
-    });
+    }, { timeout: 300_000 });
     expect(proposal.preview.document.screens[0]).toMatchObject({ id: 'screen_1', path: '/' });
     expect(proposal.preview.collections[0]?.fields[0]).toMatchObject({ id: 'field_1', key: 'title' });
+    expect(proposal.verification).toMatchObject({ passed: true, repairAttempts: 1 });
   });
 
   it('maps a build-mode greeting without creating a proposal preview', async () => {
@@ -198,7 +217,7 @@ describe('ApiAssistantRepository', () => {
       providerId: null,
       modelId: null,
       images: [],
-    });
+    }, { timeout: 300_000 });
     expect(answer.sources[0]).toMatchObject({ reference: 'S1', heading: 'Persistence' });
   });
 
@@ -214,6 +233,7 @@ describe('ApiAssistantRepository', () => {
           id: 'proposal_1', projectId: 'project_1', baseRevision: 4, message: 'A task app.',
           blueprint: BLUEPRINT,
           preview: { schemaVersion: 13, screens: [PREVIEW_SCREEN], collections: [] },
+          verification: VERIFICATION,
         },
       })),
       vi.fn(),
@@ -242,6 +262,7 @@ describe('ApiAssistantRepository', () => {
           message: 'A notes app.',
           blueprint: ROUTE_BOUND_BLUEPRINT,
           preview: { schemaVersion: 13, screens: [PREVIEW_SCREEN], collections: [] },
+          verification: VERIFICATION,
         },
       })
       .mockResolvedValueOnce({ status: 200, data: responseProject });
@@ -297,6 +318,23 @@ describe('ApiAssistantRepository', () => {
 
     expect(error.code).toBe('quota-exceeded');
     expect(error.details).toEqual({ retryAfterSeconds: 60 });
+  });
+
+  it('maps a backend model deadline separately from connectivity failures', () => {
+    const error = mapAssistantError({
+      isAxiosError: true,
+      response: {
+        data: {
+          error: {
+            code: 'assistant_provider_timeout',
+            message: 'The selected AI assistant model took too long to finish.',
+            details: null,
+          },
+        },
+      },
+    });
+
+    expect(error.code).toBe('timeout');
   });
 
   it('maps proposal-integrity rejection separately from model validation', () => {

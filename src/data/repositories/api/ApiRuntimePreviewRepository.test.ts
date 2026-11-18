@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import type { ApiHttpClient } from '@data/api/http';
 import { ApiRuntimePreviewRepository } from './ApiRuntimePreviewRepository';
@@ -54,6 +55,46 @@ describe('ApiRuntimePreviewRepository', () => {
     expect(runtimePost.mock.calls[0]?.[1]).toBeInstanceOf(FormData);
   });
 
+  it('explains how to recover when the selected local RAG provider is unavailable', async () => {
+    const error = new AxiosError('Request failed');
+    error.response = {
+      data: {
+        error: {
+          code: 'rag_provider_unavailable',
+          message: 'The selected RAG provider is temporarily unavailable.',
+          details: null,
+        },
+      },
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: {},
+      config: {},
+    } as unknown as AxiosResponse;
+    const runtimePost = vi.fn<ApiHttpClient['post']>().mockRejectedValue(error);
+    const repository = new ApiRuntimePreviewRepository(client(vi.fn()), client(runtimePost));
+
+    await expect(repository.execute(
+      'app_preview',
+      'action_store',
+      {
+        type: 'vector-store',
+        operation: 'upsert',
+        connectionProfileId: 'postgres-vector',
+        indexName: 'documents',
+        namespace: '',
+        documentInputMode: 'document-loader',
+        conflictMode: 'replace',
+        documentId: '',
+        topK: 5,
+        minimumScore: 0,
+      },
+      {},
+    )).rejects.toMatchObject({
+      code: 'rag_provider_unavailable',
+      message: expect.stringContaining('start Ollama and try again'),
+    });
+  });
+
   it('resets preview data through the authenticated builder API', async () => {
     const builderPost = vi.fn<ApiHttpClient['post']>().mockResolvedValue({
       status: 200,
@@ -93,7 +134,7 @@ describe('ApiRuntimePreviewRepository', () => {
       .mockResolvedValueOnce({
         status: 200,
         data: {
-          user: { id: 'runtime_user', email: 'owner@example.com' },
+          user: { id: 'runtime_user', email: 'owner@example.com', isAnonymous: false },
           csrfToken: 'runtime-csrf',
         },
       })
@@ -101,7 +142,7 @@ describe('ApiRuntimePreviewRepository', () => {
     const repository = new ApiRuntimePreviewRepository(client(vi.fn()), client(runtimePost));
 
     await expect(repository.verifyCode('app_preview', 'owner@example.com', '123456'))
-      .resolves.toEqual({ id: 'runtime_user', email: 'owner@example.com' });
+      .resolves.toEqual({ id: 'runtime_user', email: 'owner@example.com', isAnonymous: false });
     await repository.logout('app_preview');
 
     expect(runtimePost.mock.calls[1]?.[2]).toMatchObject({

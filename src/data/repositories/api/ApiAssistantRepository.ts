@@ -8,6 +8,7 @@ import type {
   AssistantHelpSource,
   AssistantPreviewCollection,
   AssistantProposalV1,
+  AssistantVerificationReport,
   AssistantImageAttachment,
   AssistantModelCapability,
   AssistantProviderCapability,
@@ -26,6 +27,8 @@ import type { AssistantRepository } from '@domain/repositories/assistant.reposit
 import { isRecord, readApiErrorEnvelope, type ApiHttpClient } from '../../api/http';
 import { mapScreenFromDto } from '../../mappers/project.mapper';
 import type { ScreenDTO } from '../../dto/project.dto';
+
+const ASSISTANT_REQUEST_TIMEOUT_MS = 300_000;
 
 export class ApiAssistantRepository implements AssistantRepository {
   readonly isAvailable = true;
@@ -71,6 +74,7 @@ export class ApiAssistantRepository implements AssistantRepository {
           modelId: context?.modelId ?? null,
           images: context?.images ?? [],
         },
+        { timeout: ASSISTANT_REQUEST_TIMEOUT_MS },
       );
       if (isRecord(response.data) && response.data.kind === 'message') {
         if (typeof response.data.message !== 'string') {
@@ -104,6 +108,7 @@ export class ApiAssistantRepository implements AssistantRepository {
           modelId: context.modelId ?? null,
           images: context.images ?? [],
         },
+        { timeout: ASSISTANT_REQUEST_TIMEOUT_MS },
       );
       return parseHelpAnswer(response.data);
     } catch (error) {
@@ -241,9 +246,10 @@ export function parseProposal(value: unknown): AssistantProposalV1 {
     typeof value.baseRevision !== 'number' ||
     typeof value.message !== 'string' ||
     !isRecord(value.preview) ||
-    value.preview.schemaVersion !== 13 ||
+    (value.preview.schemaVersion !== 13 && value.preview.schemaVersion !== 14) ||
     !Array.isArray(value.preview.screens) ||
-    !Array.isArray(value.preview.collections)
+    !Array.isArray(value.preview.collections) ||
+    !isRecord(value.verification)
   ) {
     throw new AssistantError('unexpected', 'The backend returned an invalid assistant proposal.');
   }
@@ -256,13 +262,81 @@ export function parseProposal(value: unknown): AssistantProposalV1 {
     message: value.message,
     blueprint,
     preview: {
-      schemaVersion: 13,
+      schemaVersion: value.preview.schemaVersion,
       document: {
         screens: value.preview.screens.map((screen, index) =>
           mapScreenFromDto(screen as ScreenDTO, index)),
       },
       collections,
     },
+    verification: parseVerification(value.verification),
+  };
+}
+
+function parseVerification(value: unknown): AssistantVerificationReport {
+  if (
+    !isRecord(value)
+    || typeof value.passed !== 'boolean'
+    || typeof value.repairAttempts !== 'number'
+    || !Array.isArray(value.stages)
+    || !Array.isArray(value.viewports)
+    || !Array.isArray(value.issues)
+  ) {
+    throw new AssistantError('unexpected', 'The backend returned an invalid assistant verification report.');
+  }
+  const stageIds = ['contract', 'responsive', 'navigation', 'workflows'] as const;
+  const viewportIds = ['mobile', 'tablet', 'desktop'] as const;
+  const isStageId = (candidate: unknown): candidate is typeof stageIds[number] =>
+    typeof candidate === 'string' && stageIds.includes(candidate as typeof stageIds[number]);
+  const isViewportId = (candidate: unknown): candidate is typeof viewportIds[number] =>
+    typeof candidate === 'string' && viewportIds.includes(candidate as typeof viewportIds[number]);
+  return {
+    passed: value.passed,
+    repairAttempts: value.repairAttempts,
+    stages: value.stages.map((stage) => {
+      if (!isRecord(stage) || !isStageId(stage.id) || typeof stage.label !== 'string' || typeof stage.passed !== 'boolean') {
+        throw new AssistantError('unexpected', 'The backend returned an invalid assistant verification stage.');
+      }
+      return { id: stage.id, label: stage.label, passed: stage.passed };
+    }),
+    viewports: value.viewports.map((viewport) => {
+      if (
+        !isRecord(viewport)
+        || !isViewportId(viewport.id)
+        || typeof viewport.width !== 'number'
+        || typeof viewport.height !== 'number'
+        || typeof viewport.passed !== 'boolean'
+      ) {
+        throw new AssistantError('unexpected', 'The backend returned an invalid assistant viewport result.');
+      }
+      return {
+        id: viewport.id,
+        width: viewport.width,
+        height: viewport.height,
+        passed: viewport.passed,
+      };
+    }),
+    issues: value.issues.map((issue) => {
+      if (
+        !isRecord(issue)
+        || typeof issue.code !== 'string'
+        || typeof issue.message !== 'string'
+        || !isStageId(issue.stage)
+        || (issue.viewport !== null && !isViewportId(issue.viewport))
+        || (issue.screenId !== null && typeof issue.screenId !== 'string')
+        || (issue.componentId !== null && typeof issue.componentId !== 'string')
+      ) {
+        throw new AssistantError('unexpected', 'The backend returned an invalid assistant verification issue.');
+      }
+      return {
+        code: issue.code,
+        message: issue.message,
+        stage: issue.stage,
+        viewport: issue.viewport,
+        screenId: issue.screenId,
+        componentId: issue.componentId,
+      };
+    }),
   };
 }
 
@@ -402,6 +476,7 @@ export function mapAssistantError(error: unknown): AssistantError {
   switch (envelope?.error.code) {
     case 'assistant_not_configured': return new AssistantError('not-configured', message);
     case 'assistant_provider_unavailable': return new AssistantError('unavailable', message);
+    case 'assistant_provider_timeout': return new AssistantError('timeout', message, envelope.error.details);
     case 'assistant_provider_quota_exceeded': return new AssistantError('quota-exceeded', message, envelope.error.details);
     case 'assistant_knowledge_unavailable': return new AssistantError('knowledge-unavailable', message);
     case 'invalid_assistant_response': return new AssistantError('validation', message, envelope.error.details);

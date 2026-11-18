@@ -1,6 +1,7 @@
 import type { Screen } from './screen';
 import type { ProjectType } from './project';
 import type { DataField, DataValue, RecordIdentifier } from './appData';
+import type { AppDesignSystem } from './designSystem';
 
 /** Collection definition bundled with a starter template before project IDs exist. */
 export interface TemplateCollectionBlueprint {
@@ -25,5 +26,6 @@ export interface Template {
   description: string;
   projectType: ProjectType;
   screens: Screen[];
+  designSystem?: AppDesignSystem;
   data?: TemplateDataBlueprint;
 }

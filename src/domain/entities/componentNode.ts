@@ -11,6 +11,7 @@ import type { DataFieldType, DataValue } from './appData';
 export type ComponentType =
   | 'button'
   | 'text'
+  | 'icon'
   | 'input'
   | 'image'
   | 'container'
@@ -81,6 +82,12 @@ export interface TextProps {
   fontSize?: number;
   /** Optional weight override; omitted uses the level preset. */
   fontWeight?: TextFontWeight;
+  lineHeight?: number;
+  letterSpacing?: number;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  fontStyle?: 'normal' | 'italic';
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+  lineClamp?: number;
 }
 
 export const TEXT_FONT_WEIGHTS = ['normal', 'medium', 'semibold', 'bold'] as const;
@@ -100,7 +107,7 @@ export interface InputProps {
   /** Omitted preserves the legacy behavior of showing the field label. */
   showLabel?: boolean;
   placeholder: string;
-  inputType: 'text' | 'email' | 'password' | 'number';
+  inputType: 'text' | 'email' | 'password' | 'number' | 'date';
   multiline: boolean;
 }
 
@@ -108,6 +115,40 @@ export interface ImageProps {
   src: string;
   alt: string;
   fit: 'cover' | 'contain';
+}
+
+export const APP_ICON_NAMES = [
+  ...BUTTON_ICON_NAMES,
+  'bell',
+  'book-open',
+  'box',
+  'circle-user',
+  'folder',
+  'graduation-cap',
+  'grid-2x2',
+  'image',
+  'layout-dashboard',
+  'log-out',
+  'menu',
+  'message-square',
+  'settings',
+  'users',
+  'video',
+  'volume-2',
+  'workflow',
+] as const;
+
+export type AppIconName = (typeof APP_ICON_NAMES)[number];
+
+export function isAppIconName(value: unknown): value is AppIconName {
+  return typeof value === 'string' && (APP_ICON_NAMES as readonly string[]).includes(value);
+}
+
+export interface IconProps {
+  icon: AppIconName;
+  /** Decorative icons use an empty label; meaningful icons require one. */
+  label: string;
+  strokeWidth: number;
 }
 
 export interface ContainerProps {
@@ -326,6 +367,8 @@ export interface CameraProps {
   label: string;
   facingMode: 'user' | 'environment';
   captureLabel: string;
+  /** Omitted legacy values preserve manual capture. */
+  captureMode?: 'manual' | 'guided-face';
 }
 
 export interface FileInputProps {
@@ -354,6 +397,33 @@ export type ResponsiveBreakpoint = 'mobile' | 'tablet' | 'desktop';
 /** Persisted outline style for layout frames. */
 export type ComponentBorderStyle = 'solid' | 'dashed' | 'none';
 
+export interface GradientStop {
+  color: string;
+  position: number;
+}
+
+export interface LinearGradientFill {
+  angle: number;
+  stops: GradientStop[];
+}
+
+export interface BoxShadowEffect {
+  x: number;
+  y: number;
+  blur: number;
+  spread: number;
+  color: string;
+  inset?: boolean;
+}
+
+export interface ThemeAppearanceOverride {
+  backgroundColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  gradient?: LinearGradientFill;
+  boxShadows?: BoxShadowEffect[];
+}
+
 /** Typed, provider-agnostic visual overrides persisted with a component. */
 export interface ComponentAppearance {
   backgroundColor?: string;
@@ -365,14 +435,25 @@ export interface ComponentAppearance {
   borderWidth?: number;
   borderRadius?: number;
   opacity?: number;
+  /** Typed gradient wins over backgroundColor when present. */
+  gradient?: LinearGradientFill;
+  /** Bounded visual effects; multiple entries enable elevation plus glow. */
+  boxShadows?: BoxShadowEffect[];
+  backdropBlur?: number;
+  /** Omitted retains the legacy behavior of clipping rounded components. */
+  clipContent?: boolean;
   /** Optional dark-theme color overrides; omitted colors inherit base appearance. */
-  dark?: { backgroundColor?: string; textColor?: string; borderColor?: string };
+  dark?: ThemeAppearanceOverride;
 }
 
 /** Mobile uses the base geometry; larger web breakpoints may override individual values. */
 export interface ResponsiveNodeOverrides extends Partial<NodeGeometry> {
   /** Optional breakpoint-specific visibility; omitted values inherit the previous breakpoint. */
   isHidden?: boolean;
+  /** Optional breakpoint-specific styling, cascading after base appearance. */
+  appearance?: ComponentAppearance;
+  /** Optional breakpoint-specific typography for Text nodes. */
+  textStyle?: Partial<Omit<TextProps, 'text' | 'level'>>;
 }
 
 export type ResponsiveGeometry = Partial<
@@ -384,6 +465,8 @@ export type ComponentBindingTarget =
   | 'image.source'
   | 'image.alt'
   | 'button.label'
+  | 'input.value'
+  | 'dropdown.value'
   | 'checkbox.checked'
   | 'switch.checked'
   | 'progress.value'
@@ -407,6 +490,8 @@ export interface NodeBase extends NodeGeometry {
   isHidden?: boolean;
   /** Locked layers remain selectable from Layers but ignore direct canvas manipulation. */
   isLocked?: boolean;
+  /** Optional reference to a reusable style in the project design system. */
+  styleId?: string;
   /** Optional visual overrides shared by editor, preview, thumbnails, and generated-app JSON. */
   appearance?: ComponentAppearance;
   /** Optional tablet/desktop geometry; omitted values inherit the mobile/base geometry. */
@@ -481,6 +566,11 @@ export interface ButtonNode extends NodeBase {
 export interface TextNode extends NodeBase {
   type: 'text';
   props: TextProps;
+}
+
+export interface IconNode extends NodeBase {
+  type: 'icon';
+  props: IconProps;
 }
 
 export interface InputNode extends NodeBase {
@@ -577,6 +667,7 @@ export interface ChatNode extends NodeBase {
 export type ComponentNode =
   | ButtonNode
   | TextNode
+  | IconNode
   | InputNode
   | ImageNode
   | ContainerNode
@@ -716,6 +807,7 @@ export function listViewItemExtentAtBreakpoint(node: ListViewNode, breakpoint: R
 export const CHILD_WIDGET_TYPES: readonly ComponentType[] = [
   'button',
   'text',
+  'icon',
   'input',
   'image',
   'container',

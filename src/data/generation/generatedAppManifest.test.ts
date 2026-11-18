@@ -3,6 +3,7 @@ import type { DataCollection, ProjectDatabase } from '@domain/entities/appData';
 import { createPadding } from '@domain/entities/componentNode';
 import type { Project } from '@domain/entities/project';
 import { buildGeneratedAppManifest, generatedAppManifestFilename } from './generatedAppManifest';
+import { DEFAULT_APP_DESIGN_SYSTEM } from '@domain/entities/designSystem';
 
 const database: ProjectDatabase = {
   id: 'database_notes',
@@ -72,7 +73,7 @@ describe('generated app manifest', () => {
     expect(manifest).toMatchObject({
       manifestVersion: 2,
       generatedAt: '2026-11-07T12:00:00.000Z',
-      project: { schemaVersion: 13, id: 'project_notes', projectType: 'app' },
+      project: { schemaVersion: 14, id: 'project_notes', projectType: 'app' },
       appData: {
         database: { id: 'database_notes' },
         recordsIncluded: false,
@@ -88,7 +89,6 @@ describe('generated app manifest', () => {
       },
     });
     expect(manifest.runtime.requirements.map((requirement) => requirement.capability)).toEqual([
-      'authentication',
       'camera',
       'computer-vision',
       'database',
@@ -104,6 +104,20 @@ describe('generated app manifest', () => {
   it('creates a stable, filesystem-safe export name', () => {
     expect(generatedAppManifestFilename(' Private Notes! ')).toBe('private-notes-handoff.json');
     expect(generatedAppManifestFilename('   ')).toBe('novy-project-handoff.json');
+  });
+
+  it('keeps design-system and screen-surface data identical in project and generated layout', () => {
+    const styledProject = structuredClone(project);
+    styledProject.document.designSystem = structuredClone(DEFAULT_APP_DESIGN_SYSTEM);
+    styledProject.document.screens[0]!.appearance = {
+      backgroundColor: 'var(--novy-app-canvas)',
+      dark: { backgroundColor: '#111111' },
+    };
+
+    const manifest = buildGeneratedAppManifest(styledProject, database, [collection]);
+
+    expect(manifest.layout.designSystem).toEqual(manifest.project.designSystem);
+    expect(manifest.layout.screens[0]?.appearance).toEqual(manifest.project.screens[0]?.appearance);
   });
 
   it('does not infer a database requirement for Add Local List Item', () => {

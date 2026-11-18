@@ -63,6 +63,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
   return {
     ...next,
     document: {
+      ...next.document,
       screens: next.document.screens.map(normalizeWebsiteScreen),
     },
   };
@@ -72,6 +73,12 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
   switch (action.type) {
     case 'document/set':
       return createEditorState(action.document, state.projectType);
+
+    case 'design/system':
+      return pushHistory(state, (document) => ({
+        ...state,
+        document: { ...document, designSystem: structuredClone(action.designSystem) },
+      }) as EditorState);
 
     case 'section/add': {
       if (state.projectType !== 'website' || state.designScope.kind !== 'screen') return state;
@@ -119,7 +126,7 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
         };
         return {
           ...state,
-          document: { screens: [...document.screens, screen] },
+          document: { ...document, screens: [...document.screens, screen] },
           activeScreenId: screen.id,
           selectedNodeId: null,
           designScope: { kind: 'screen' },
@@ -172,9 +179,9 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
       if (nextScreens.every((screen, index) => screen === state.document.screens[index])) {
         return state;
       }
-      return pushHistory(state, () => ({
+      return pushHistory(state, (document) => ({
         ...state,
-        document: { screens: nextScreens },
+        document: { ...document, screens: nextScreens },
       }) as EditorState);
     }
 
@@ -193,7 +200,7 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
         const activeScreen = remaining.find((screen) => screen.id === activeScreenId) ?? remaining[0];
         return {
           ...state,
-          document: { screens: remaining },
+          document: { ...document, screens: remaining },
           activeScreenId,
           selectedNodeId: null,
           designScope: { kind: 'screen' },
@@ -249,6 +256,17 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
         );
         return applyBreakpointGeometry(node, { ...current, x: next.x, y: next.y }, state.device);
       });
+
+    case 'screen/appearance':
+      return pushHistory(state, (document) => ({
+        ...state,
+        document: replaceScreen(document, action.screenId, (screen) => ({
+          ...screen,
+          appearance: action.appearance && Object.keys(action.appearance).length > 0
+            ? structuredClone(action.appearance)
+            : undefined,
+        })),
+      }) as EditorState);
 
     case 'node/layout-position': {
       if (isItemFrame(state, action.nodeId)) return state;
@@ -336,6 +354,11 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
     case 'node/props-text':
       return updateNodeWithHistory(state, action.nodeId, (node) =>
         node.type === 'text' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
+    case 'node/props-icon':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'icon' ? { ...node, props: { ...node.props, ...action.props } } : node,
       );
 
     case 'node/props-input':
@@ -488,10 +511,40 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
       }));
 
     case 'node/appearance':
+      return updateNodeWithHistory(state, action.nodeId, (node) => {
+        if (state.device === 'mobile') {
+          return {
+            ...node,
+            appearance: Object.keys(action.appearance).length > 0 ? { ...action.appearance } : undefined,
+          };
+        }
+        const responsive = { ...(node.responsive ?? {}) };
+        responsive[state.device] = {
+          ...(responsive[state.device] ?? {}),
+          appearance: Object.keys(action.appearance).length > 0 ? { ...action.appearance } : undefined,
+        };
+        return { ...node, responsive };
+      });
+
+    case 'node/style':
       return updateNodeWithHistory(state, action.nodeId, (node) => ({
         ...node,
-        appearance: Object.keys(action.appearance).length > 0 ? { ...action.appearance } : undefined,
+        styleId: action.styleId || undefined,
       }));
+
+    case 'node/responsive-text-style':
+      return updateNodeWithHistory(state, action.nodeId, (node) => {
+        if (node.type !== 'text') return node;
+        if (state.device === 'mobile') {
+          return { ...node, props: { ...node.props, ...action.textStyle } };
+        }
+        const responsive = { ...(node.responsive ?? {}) };
+        responsive[state.device] = {
+          ...(responsive[state.device] ?? {}),
+          textStyle: { ...(responsive[state.device]?.textStyle ?? {}), ...action.textStyle },
+        };
+        return { ...node, responsive };
+      });
 
     case 'node/bindings':
       return updateNodeWithHistory(state, action.nodeId, (node) => ({

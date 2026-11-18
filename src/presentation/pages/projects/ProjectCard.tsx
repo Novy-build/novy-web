@@ -30,7 +30,7 @@ export function ProjectCard({ project, onRename, onDuplicate, onDelete, onPreloa
         to={`/project/${project.id}/editor`}
       >
         <div className="flex h-40 justify-center overflow-hidden">
-          <ScreenFrame mode="thumbnail" scale={0.75} screen={project.previewScreen} />
+          <ScreenFrame designSystem={project.previewDesignSystem} mode="thumbnail" scale={0.75} screen={project.previewScreen} />
         </div>
       </Link>
       <div className="flex flex-1 flex-col gap-3 p-4">

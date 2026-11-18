@@ -65,6 +65,7 @@ export interface BlueprintWorkflow {
   triggerComponentKey: string;
   event: 'click' | 'change' | 'load';
   condition?: Record<string, unknown> | null;
+  conditions?: Array<Record<string, unknown>>;
   actions: Array<Record<string, unknown>>;
 }
 
@@ -102,6 +103,33 @@ export interface AssistantPreviewCollection {
   fields: Array<BlueprintField & { id: string }>;
 }
 
+export type AssistantVerificationStageId = 'contract' | 'responsive' | 'navigation' | 'workflows';
+export type AssistantVerificationViewportId = 'mobile' | 'tablet' | 'desktop';
+
+export interface AssistantVerificationReport {
+  passed: boolean;
+  repairAttempts: number;
+  stages: Array<{
+    id: AssistantVerificationStageId;
+    label: string;
+    passed: boolean;
+  }>;
+  viewports: Array<{
+    id: AssistantVerificationViewportId;
+    width: number;
+    height: number;
+    passed: boolean;
+  }>;
+  issues: Array<{
+    code: string;
+    message: string;
+    stage: AssistantVerificationStageId;
+    viewport: AssistantVerificationViewportId | null;
+    screenId: string | null;
+    componentId: string | null;
+  }>;
+}
+
 export interface AssistantProposalV1 {
   id: string;
   projectId: string;
@@ -109,10 +137,11 @@ export interface AssistantProposalV1 {
   message: string;
   blueprint: AppBlueprintV1;
   preview: {
-    schemaVersion: 13;
+    schemaVersion: 13 | 14;
     document: ProjectDocument;
     collections: AssistantPreviewCollection[];
   };
+  verification?: AssistantVerificationReport;
 }
 
 export interface AssistantBuildMessage {

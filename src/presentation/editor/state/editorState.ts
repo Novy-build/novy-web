@@ -13,6 +13,7 @@ import type {
   FileInputProps,
   DropdownProps,
   ImageProps,
+  IconProps,
   InputProps,
   ListViewProps,
   NodeGeometry,
@@ -35,6 +36,7 @@ import type {
 } from '@domain/entities/logic';
 import type { AssistantProposal } from '@domain/ai/assistant';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
 import type { ProjectType } from '@domain/entities/project';
 import type { EditorDevice } from './geometry';
 import { DEFAULT_EDITOR_DEVICE, ZOOM_LIMITS } from './geometry';
@@ -49,6 +51,8 @@ export type EditorScreenAction =
   | { type: 'screen/add' }
   | { type: 'screen/rename'; screenId: string; name: string }
   | { type: 'screen/path'; screenId: string; path: string }
+  | { type: 'screen/appearance'; screenId: string; appearance: ComponentAppearance | undefined }
+  | { type: 'design/system'; designSystem: AppDesignSystem }
   | { type: 'routes/record-identifier-sync'; collectionId: string; identifierKey: string }
   | { type: 'screen/delete'; screenId: string };
 
@@ -64,6 +68,7 @@ export type EditorNodeAction =
   | { type: 'node/resize'; nodeId: string; geometry: NodeGeometry }
   | { type: 'node/props-button'; nodeId: string; props: Partial<ButtonProps> }
   | { type: 'node/props-text'; nodeId: string; props: Partial<TextProps> }
+  | { type: 'node/props-icon'; nodeId: string; props: Partial<IconProps> }
   | { type: 'node/props-input'; nodeId: string; props: Partial<InputProps> }
   | { type: 'node/props-image'; nodeId: string; props: Partial<ImageProps> }
   | { type: 'node/props-gesture-detector'; nodeId: string; props: Partial<GestureDetectorProps> }
@@ -88,6 +93,8 @@ export type EditorNodeAction =
   | { type: 'node/layer-visibility'; nodeId: string }
   | { type: 'node/layer-lock'; nodeId: string }
   | { type: 'node/appearance'; nodeId: string; appearance: ComponentAppearance }
+  | { type: 'node/style'; nodeId: string; styleId: string | undefined }
+  | { type: 'node/responsive-text-style'; nodeId: string; textStyle: Partial<Omit<TextProps, 'text' | 'level'>> }
   | { type: 'node/bindings'; nodeId: string; bindings: ComponentPropertyBinding[] }
   | { type: 'node/responsive-reset'; nodeId: string }
   | {

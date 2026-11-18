@@ -3,7 +3,8 @@
  * and logic. Dates serialize as ISO-8601 strings over the wire.
  */
 
-import type { ButtonIconName, TextFontWeight } from '@domain/entities/componentNode';
+import type { AppIconName, ButtonIconName, ComponentAppearance, TextFontWeight, TextProps } from '@domain/entities/componentNode';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
 
 /** Schema v11 padding transport. Schema v10 and older used a single number. */
 export interface PaddingDTO {
@@ -20,23 +21,23 @@ export interface ComponentNodeDTOBase {
   name?: string;
   isHidden?: boolean;
   isLocked?: boolean;
+  styleId?: string;
   x: number;
   y: number;
   w: number;
   h: number;
-  appearance?: {
-    backgroundColor?: string;
-    textColor?: string;
-    borderColor?: string;
-    borderStyle?: 'solid' | 'dashed' | 'none';
-    borderWidth?: number;
-    borderRadius?: number;
-    opacity?: number;
-    dark?: { backgroundColor?: string; textColor?: string; borderColor?: string };
-  };
-  responsive?: Partial<Record<'tablet' | 'desktop', Partial<{ x: number; y: number; w: number; h: number; isHidden: boolean }>>>;
+  appearance?: ComponentAppearance;
+  responsive?: Partial<Record<'tablet' | 'desktop', Partial<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    isHidden: boolean;
+    appearance: ComponentAppearance;
+    textStyle: Partial<Omit<TextProps, 'text' | 'level'>>;
+  }>>>;
   bindings?: Array<{
-    target: 'text.content' | 'image.source' | 'image.alt' | 'button.label' | 'checkbox.checked' | 'switch.checked' | 'progress.value' | 'component.visible';
+    target: 'text.content' | 'image.source' | 'image.alt' | 'button.label' | 'input.value' | 'dropdown.value' | 'checkbox.checked' | 'switch.checked' | 'progress.value' | 'component.visible';
     value: { source: 'list-item'; fieldId: string };
   }>;
 }
@@ -62,13 +63,24 @@ export interface TextNodeDTO extends ComponentNodeDTOBase {
     /** Optional pixel size override; omitted uses the level preset. */
     fontSize?: number;
     fontWeight?: TextFontWeight;
+    lineHeight?: number;
+    letterSpacing?: number;
+    textAlign?: 'left' | 'center' | 'right' | 'justify';
+    fontStyle?: 'normal' | 'italic';
+    textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+    lineClamp?: number;
     dataBinding?: { source: 'list-item'; fieldId: string };
   };
 }
 
 export interface InputNodeDTO extends ComponentNodeDTOBase {
   type: 'input';
-  props: { label: string; showLabel?: boolean; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number'; multiline?: boolean };
+  props: { label: string; showLabel?: boolean; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number' | 'date'; multiline?: boolean };
+}
+
+export interface IconNodeDTO extends ComponentNodeDTOBase {
+  type: 'icon';
+  props: { icon: AppIconName; label: string; strokeWidth: number };
 }
 
 export interface ImageNodeDTO extends ComponentNodeDTOBase {
@@ -209,7 +221,12 @@ export interface DividerNodeDTO extends ComponentNodeDTOBase {
 
 export interface CameraNodeDTO extends ComponentNodeDTOBase {
   type: 'camera';
-  props: { label: string; facingMode: 'user' | 'environment'; captureLabel: string };
+  props: {
+    label: string;
+    facingMode: 'user' | 'environment';
+    captureLabel: string;
+    captureMode?: 'manual' | 'guided-face';
+  };
 }
 
 export interface FileInputNodeDTO extends ComponentNodeDTOBase {
@@ -225,6 +242,7 @@ export interface ChatNodeDTO extends ComponentNodeDTOBase {
 export type ComponentNodeDTO =
   | ButtonNodeDTO
   | TextNodeDTO
+  | IconNodeDTO
   | InputNodeDTO
   | ImageNodeDTO
   | ContainerNodeDTO
@@ -619,6 +637,7 @@ export interface ScreenDTO {
     name: string;
     source: { kind: 'record-id'; collectionId: string; identifierKey: string };
   }>;
+  appearance?: ComponentAppearance;
   nodes: ComponentNodeDTO[];
   behaviors: BehaviorDTO[];
   logicGraphs: LogicGraphDTO[];
@@ -632,6 +651,7 @@ export interface ProjectDTO {
   projectType?: 'app' | 'website';
   createdAt: string;
   updatedAt: string;
+  designSystem?: AppDesignSystem;
   screens: ScreenDTO[];
 }
 

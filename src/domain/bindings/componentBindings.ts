@@ -17,6 +17,8 @@ export const COMPONENT_BINDING_TARGETS: readonly ComponentBindingTargetDefinitio
   { target: 'image.source', componentTypes: ['image'], fieldTypes: ['text'] },
   { target: 'image.alt', componentTypes: ['image'], fieldTypes: ['text'] },
   { target: 'button.label', componentTypes: ['button'], fieldTypes: ['text', 'number'] },
+  { target: 'input.value', componentTypes: ['input'], fieldTypes: ['text', 'number', 'date'] },
+  { target: 'dropdown.value', componentTypes: ['dropdown'], fieldTypes: ['text', 'number', 'date'] },
   { target: 'checkbox.checked', componentTypes: ['checkbox'], fieldTypes: ['boolean'] },
   { target: 'switch.checked', componentTypes: ['switch'], fieldTypes: ['boolean'] },
   { target: 'progress.value', componentTypes: ['progress'], fieldTypes: ['number'] },
@@ -66,7 +68,7 @@ export function resolveBoundValue(
 
 export function resolveBoundText(
   node: ComponentNode,
-  target: Extract<ComponentBindingTarget, 'text.content' | 'image.source' | 'image.alt' | 'button.label'>,
+  target: Extract<ComponentBindingTarget, 'text.content' | 'image.source' | 'image.alt' | 'button.label' | 'input.value' | 'dropdown.value'>,
   item: ListItemContext | undefined,
   fallback: string,
 ): string {
@@ -105,6 +107,8 @@ function isRuntimeValueCompatible(target: ComponentBindingTarget, value: DataVal
     case 'image.alt':
       return typeof value === 'string';
     case 'button.label':
+    case 'input.value':
+    case 'dropdown.value':
       return typeof value === 'string' || typeof value === 'number';
     case 'text.content':
       return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';

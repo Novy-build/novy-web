@@ -38,6 +38,7 @@ function acceptsDirectChildren(node: ComponentNode): node is ChildBearingNode {
 const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
   button: '▭',
   text: 'T',
+  icon: '✦',
   input: '⌨',
   image: '◇',
   container: '#',

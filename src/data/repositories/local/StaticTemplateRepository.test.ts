@@ -18,6 +18,8 @@ describe('StaticTemplateRepository', () => {
       'template_notes',
       'template_cv_starter',
       'template_rag_chat',
+      'template_creative_workspace',
+      'template_learning_dashboard',
       'template_site_blank',
       'template_site_landing',
       'template_site_portfolio',

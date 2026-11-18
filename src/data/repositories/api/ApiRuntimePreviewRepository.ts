@@ -185,7 +185,11 @@ export class ApiRuntimePreviewRepository implements RuntimePreviewRepository {
       throw new Error('The backend returned an invalid app session.');
     }
     this.runtimeCsrfToken = value.csrfToken;
-    return { id: value.user.id, email: value.user.email };
+    return {
+      id: value.user.id,
+      email: value.user.email,
+      isAnonymous: value.user.isAnonymous === true,
+    };
   }
 }
 
@@ -200,6 +204,12 @@ function mapRuntimeError(error: unknown, fallback: string): Error {
   if (error instanceof Error && !axios.isAxiosError(error)) return error;
   if (!axios.isAxiosError(error)) return new Error(fallback);
   const envelope = readApiErrorEnvelope(error.response?.data);
+  if (envelope?.error.code === 'rag_provider_unavailable') {
+    return new RuntimePreviewError(
+      envelope.error.code,
+      'The selected RAG provider is unavailable. If this app uses local Ollama, start Ollama and try again.',
+    );
+  }
   return new RuntimePreviewError(
     envelope?.error.code ?? 'runtime_request_failed',
     envelope?.error.message ?? fallback,

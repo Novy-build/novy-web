@@ -172,7 +172,6 @@ function detectActionCapabilities(
     case 'cv-enroll':
     case 'cv-verify':
       requireCapability('computer-vision', source);
-      requireCapability('authentication', source);
       return;
     case 'add-local-list-item':
       // Local ListView state is provided by the generated client runtime and needs no backend binding.

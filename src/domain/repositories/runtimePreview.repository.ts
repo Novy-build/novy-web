@@ -7,6 +7,7 @@ export interface RuntimePreviewSession {
 export interface RuntimePreviewUser {
   id: string;
   email: string;
+  isAnonymous: boolean;
 }
 
 export interface RuntimePreviewRepository {

@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionNode } from '@domain/entities/logic';
-import { runClickBehavior } from '@domain/logic/runtime';
+import { runBehavior } from '@domain/logic/runtime';
 import { validateProject } from '@domain/validation/projectValidation';
 import { APP_TEMPLATES, TEMPLATE_CATALOG, WEBSITE_TEMPLATES } from './templateCatalog';
+import { geometryAtBreakpoint, isHiddenAtBreakpoint, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
 
 describe('templateCatalog', () => {
   it('contains app and website starter templates', () => {
-    expect(APP_TEMPLATES).toHaveLength(7);
+    expect(APP_TEMPLATES).toHaveLength(9);
     expect(WEBSITE_TEMPLATES).toHaveLength(5);
-    expect(TEMPLATE_CATALOG).toHaveLength(12);
+    expect(TEMPLATE_CATALOG).toHaveLength(14);
     expect(APP_TEMPLATES.every((template) => template.projectType === 'app')).toBe(true);
     expect(WEBSITE_TEMPLATES.every((template) => template.projectType === 'website')).toBe(true);
   });
@@ -75,6 +76,47 @@ describe('templateCatalog', () => {
     ) : false).toBe(true);
   });
 
+  it('provides validated design-system showcases within mobile, tablet, and desktop viewports', () => {
+    for (const id of ['template_notes', 'template_creative_workspace', 'template_learning_dashboard']) {
+      const template = APP_TEMPLATES.find((candidate) => candidate.id === id);
+      expect(template?.designSystem).toBeDefined();
+      expect(template?.screens.flatMap((screen) => screen.nodes).length).toBeGreaterThan(0);
+      expect(JSON.stringify(template?.screens)).toContain('"desktop"');
+      if (id !== 'template_notes') expect(JSON.stringify(template?.screens)).toContain('"icon"');
+      const collections = template?.data?.collections.map((collection) => ({
+        id: collection.referenceId,
+        projectId: 'template_project',
+        databaseId: 'template_database',
+        name: collection.name,
+        fields: collection.fields,
+        identifier: collection.identifier,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      })) ?? [];
+      expect(validateProject({
+        designSystem: template?.designSystem,
+        screens: template?.screens ?? [],
+      }, collections).issues.filter((issue) => issue.severity === 'error')).toEqual([]);
+
+      const viewportByBreakpoint: Record<ResponsiveBreakpoint, { width: number; height: number }> = {
+        mobile: { width: 390, height: 780 },
+        tablet: { width: 768, height: 1024 },
+        desktop: { width: 1200, height: 800 },
+      };
+      for (const breakpoint of ['mobile', 'tablet', 'desktop'] as const) {
+        const viewport = viewportByBreakpoint[breakpoint];
+        for (const node of template?.screens.flatMap((screen) => screen.nodes) ?? []) {
+          if (isHiddenAtBreakpoint(node, breakpoint)) continue;
+          const geometry = geometryAtBreakpoint(node, breakpoint);
+          expect(geometry.x, `${id}/${breakpoint}/${node.id} x`).toBeGreaterThanOrEqual(0);
+          expect(geometry.y, `${id}/${breakpoint}/${node.id} y`).toBeGreaterThanOrEqual(0);
+          expect(geometry.x + geometry.w, `${id}/${breakpoint}/${node.id} width`).toBeLessThanOrEqual(viewport.width);
+          expect(geometry.y + geometry.h, `${id}/${breakpoint}/${node.id} height`).toBeLessThanOrEqual(viewport.height);
+        }
+      }
+    }
+  });
+
   it('wires the Face verification starter to safe CV inputs', () => {
     const template = APP_TEMPLATES.find((candidate) => candidate.id === 'template_cv_starter');
     const registration = template?.screens[0];
@@ -101,10 +143,17 @@ describe('templateCatalog', () => {
       'camera', 'checkbox', 'button', 'text',
     ]));
     expect(recognitionTest?.nodes.map((node) => node.type)).toEqual(expect.arrayContaining([
-      'camera', 'input', 'button', 'text',
+      'camera', 'button', 'text',
     ]));
+    expect(recognitionTest?.nodes.some((node) => node.type === 'input')).toBe(false);
+    expect(recognitionTest?.nodes.some((node) => node.id === 'cv_test_verify')).toBe(false);
+    expect(template?.screens.flatMap((screen) => screen.nodes)
+      .filter((node) => node.type === 'camera')
+      .every((node) => node.type === 'camera' && node.props.captureMode === 'guided-face')).toBe(true);
     expect(registration?.behaviors).toHaveLength(2);
     expect(recognitionTest?.behaviors).toHaveLength(3);
+    expect(recognitionTest?.behaviors.find((behavior) => behavior.id === 'cv_test_behavior_verify'))
+      .toMatchObject({ event: 'change', targetNodeId: 'cv_test_camera' });
     expect(liveness?.inputMappings).toMatchObject({
       mediaReference: { source: 'component', nodeId: 'cv_test_camera', property: 'value' },
     });
@@ -114,8 +163,8 @@ describe('templateCatalog', () => {
     });
     expect(verify?.inputMappings).toMatchObject({
       mediaReference: { source: 'component', nodeId: 'cv_test_camera', property: 'value' },
-      userId: { source: 'component', nodeId: 'cv_test_email', property: 'value' },
     });
+    expect(verify?.inputMappings).not.toHaveProperty('userId');
     expect(verify?.payload).toEqual({ type: 'cv-verify', mediaReference: '' });
     expect(recognizedCondition).toMatchObject({
       kind: 'condition',
@@ -124,7 +173,7 @@ describe('templateCatalog', () => {
     });
     expect(actions.filter((node) => node.payload.type === 'change-text').map((node) =>
       node.payload.type === 'change-text' ? node.payload.text : '')).toEqual(expect.arrayContaining([
-      'Recognition result: Face recognized.',
+      'Recognition result: Face recognized. App unlocked.',
       'Recognition result: Face not recognized.',
     ]));
     expect(actions.filter((node) => node.payload.type === 'navigate').map((node) =>
@@ -172,19 +221,20 @@ describe('templateCatalog', () => {
     const recognitionTest = template.screens.find((screen) => screen.id === 'screen_cv_test')!;
     const componentValues = new Map([
       ['cv_test_camera', 'data:image/jpeg;base64,preview'],
-      ['cv_test_email', 'person@example.com'],
     ]);
 
-    const recognized = runClickBehavior(
+    const recognized = runBehavior(
       { screens: template.screens },
       recognitionTest,
-      'cv_test_verify',
+      'cv_test_camera',
+      'change',
       { componentValues },
     );
-    const notRecognized = runClickBehavior(
+    const notRecognized = runBehavior(
       { screens: template.screens },
       recognitionTest,
-      'cv_test_verify',
+      'cv_test_camera',
+      'change',
       {
         componentValues,
         data: {
@@ -201,7 +251,7 @@ describe('templateCatalog', () => {
     expect(recognized).toContainEqual({
       kind: 'change-text',
       nodeId: 'cv_test_status',
-      text: 'Recognition result: Face recognized.',
+      text: 'Recognition result: Face recognized. App unlocked.',
     });
     expect(notRecognized).toContainEqual({
       kind: 'change-text',

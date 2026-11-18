@@ -1,4 +1,5 @@
 import type { ProjectDocument } from './screen';
+import type { AppDesignSystem } from './designSystem';
 
 export type ProjectType = 'app' | 'website';
 
@@ -21,4 +22,5 @@ export interface ProjectSummary {
   screenCount: number;
   /** First screen of the document, for live thumbnails on the dashboard. */
   previewScreen: ProjectDocument['screens'][number] | null;
+  previewDesignSystem?: AppDesignSystem;
 }

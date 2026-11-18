@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import type { Screen } from '@domain/entities/screen';
 import type { ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import type { RendererDataContext, RendererEventContext, RendererMode } from './renderer';
@@ -7,6 +7,9 @@ import type { ListItemContext } from '@domain/entities/appData';
 import { ComponentRenderer } from './ComponentRenderer';
 import { AppThemeContext, type AppTheme } from './AppThemeContext';
 import { useDocumentAppTheme } from './useDocumentAppTheme';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
+import { designSystemCssVariables } from '@domain/entities/designSystem';
+import type { ComponentAppearance } from '@domain/entities/componentNode';
 
 /** Design-space dimensions rendered by ScreenFrame (MVP presets). */
 export interface ScreenFrameSize {
@@ -40,6 +43,7 @@ export interface ScreenFrameProps {
   itemContext?: ListItemContext;
   appTheme?: AppTheme;
   onAppThemeChange?: (theme: AppTheme) => void;
+  designSystem?: AppDesignSystem;
 }
 
 /**
@@ -64,6 +68,7 @@ export function ScreenFrame({
   itemContext,
   appTheme,
   onAppThemeChange,
+  designSystem,
 }: ScreenFrameProps) {
   const outerWidth = Math.round(size.width * scale);
   const outerHeight = Math.round(size.height * scale);
@@ -85,6 +90,8 @@ export function ScreenFrame({
       .filter((behavior) => behavior.event === 'click')
       .map((behavior) => behavior.targetNodeId) ?? [],
   );
+  const screenAppearance = resolveScreenAppearance(screen?.appearance, renderedTheme === 'dark');
+  const designVariables = designSystemCssVariables(designSystem, renderedTheme === 'dark') as CSSProperties;
 
   return (
     <div
@@ -100,6 +107,9 @@ export function ScreenFrame({
           width: size.width,
           transform: scale === 1 ? undefined : `scale(${scale})`,
           transformOrigin: 'top left',
+          ...designVariables,
+          ...screenAppearanceStyle(screenAppearance),
+          fontFamily: 'var(--novy-app-font-body, var(--font-sans))',
         }}
       >
         {screen?.nodes.map((node) => (
@@ -114,6 +124,7 @@ export function ScreenFrame({
             onNodeValueChange={onNodeValueChange}
             onNodeMediaChange={onNodeMediaChange}
             dataContext={dataContext}
+            designSystem={designSystem}
             itemContext={itemContext}
             interactiveNodeIds={interactiveNodeIds}
             onSelect={onSelectNode}
@@ -125,4 +136,20 @@ export function ScreenFrame({
       </AppThemeContext.Provider>
     </div>
   );
+}
+
+function resolveScreenAppearance(appearance: ComponentAppearance | undefined, dark: boolean): ComponentAppearance | undefined {
+  if (!appearance) return undefined;
+  const { dark: darkOverride, ...base } = appearance;
+  return dark && darkOverride ? { ...base, ...darkOverride } : base;
+}
+
+function screenAppearanceStyle(appearance: ComponentAppearance | undefined): CSSProperties {
+  if (!appearance) return { backgroundColor: 'var(--novy-app-canvas, var(--color-surface))' };
+  return {
+    backgroundColor: appearance.gradient ? undefined : appearance.backgroundColor || 'var(--novy-app-canvas, var(--color-surface))',
+    backgroundImage: appearance.gradient
+      ? `linear-gradient(${appearance.gradient.angle}deg, ${appearance.gradient.stops.map((stop) => `${stop.color} ${stop.position}%`).join(', ')})`
+      : undefined,
+  };
 }

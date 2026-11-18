@@ -129,7 +129,8 @@ export class ApiProjectRepository implements ProjectRepository {
       const response = await this.client.put(
         `${projectPath(projectId)}/document`,
         {
-          schemaVersion: 13,
+          schemaVersion: 14,
+          ...(document.designSystem ? { designSystem: structuredClone(document.designSystem) } : {}),
           screens: document.screens.map(mapScreenToDto),
         },
         { headers: { 'If-Match': `"${revision}"` } },

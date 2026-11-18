@@ -13,9 +13,7 @@ const REGISTRATION_STATUS_ID = 'cv_registration_status';
 const OPEN_TEST_BUTTON_ID = 'cv_registration_open_test';
 
 const TEST_CAMERA_ID = 'cv_test_camera';
-const EMAIL_ID = 'cv_test_email';
 const LIVENESS_BUTTON_ID = 'cv_test_liveness';
-const VERIFY_BUTTON_ID = 'cv_test_verify';
 const TEST_STATUS_ID = 'cv_test_status';
 const BACK_BUTTON_ID = 'cv_test_back';
 
@@ -27,7 +25,7 @@ const registrationScreen: Screen = {
     title('cv_registration_title', 'Register biometrics'),
     body(
       'cv_registration_intro',
-      'Capture a clear face image and grant consent to register the signed-in app user.',
+      'Capture a clear face image and grant consent. No account or email is required.',
       88,
     ),
     camera(REGISTRATION_CAMERA_ID, 144),
@@ -84,8 +82,8 @@ const registrationScreen: Screen = {
         },
       },
       REGISTRATION_STATUS_ID,
-      'Registration status: face registered for the signed-in app user.',
-      'Registration status: sign in, capture a face, and grant consent.',
+      'Registration status: face registered on this device.',
+      'Registration status: capture a face and grant consent.',
     ),
     navigationGraph(
       'cv_registration_graph_open_test',
@@ -104,34 +102,19 @@ const testScreen: Screen = {
     title('cv_test_title', 'Test face recognition'),
     body(
       'cv_test_intro',
-      'Capture a face and enter the account email used by the enrolled app user.',
+      'Capture the enrolled face to unlock this app on this device.',
       88,
     ),
     camera(TEST_CAMERA_ID, 144),
-    {
-      id: EMAIL_ID,
-      type: 'input',
-      x: 24,
-      y: 368,
-      w: 342,
-      h: 64,
-      props: {
-        label: 'Enrolled account email',
-        placeholder: 'you@example.com',
-        inputType: 'email',
-        multiline: false,
-      },
-    },
-    button(LIVENESS_BUTTON_ID, 'Check liveness', 448, 'outline'),
-    button(VERIFY_BUTTON_ID, 'Recognize face', 504, 'solid'),
+    button(LIVENESS_BUTTON_ID, 'Check liveness', 384, 'outline'),
     body(
       TEST_STATUS_ID,
-      'Recognition result: not tested yet. Editor preview uses simulation.',
-      568,
+      'Recognition starts automatically after a clear face is captured.',
+      448,
       56,
       'medium',
     ),
-    button(BACK_BUTTON_ID, 'Back to registration', 640, 'outline'),
+    button(BACK_BUTTON_ID, 'Back to registration', 520, 'outline'),
   ],
   behaviors: [
     behavior(
@@ -140,12 +123,13 @@ const testScreen: Screen = {
       LIVENESS_BUTTON_ID,
       'cv_test_graph_liveness',
     ),
-    behavior(
-      'cv_test_behavior_verify',
-      'Recognize face',
-      VERIFY_BUTTON_ID,
-      'cv_test_graph_verify',
-    ),
+    {
+      id: 'cv_test_behavior_verify',
+      name: 'Verify captured face',
+      event: 'change',
+      graphId: 'cv_test_graph_verify',
+      targetNodeId: TEST_CAMERA_ID,
+    },
     behavior(
       'cv_test_behavior_back',
       'Back to registration',
@@ -227,7 +211,12 @@ function camera(id: string, y: number): ComponentNode {
     y,
     w: 342,
     h: 208,
-    props: { label: 'Face camera', facingMode: 'user', captureLabel: 'Capture face' },
+    props: {
+      label: 'Face camera',
+      facingMode: 'user',
+      captureLabel: 'Capture now',
+      captureMode: 'guided-face',
+    },
   };
 }
 
@@ -292,10 +281,10 @@ function verificationGraph(): LogicGraph {
   const errorId = 'cv_test_status_verify_error';
   return {
     id: graphId,
-    name: 'Recognize face',
-    sourceNodeId: VERIFY_BUTTON_ID,
+    name: 'Recognize face automatically',
+    sourceNodeId: TEST_CAMERA_ID,
     nodes: [
-      { kind: 'trigger', id: triggerId, event: 'click', position: { x: 80, y: 160 } },
+      { kind: 'trigger', id: triggerId, event: 'change', position: { x: 80, y: 160 } },
       {
         kind: 'action',
         id: verifyId,
@@ -303,7 +292,6 @@ function verificationGraph(): LogicGraph {
         payload: { type: 'cv-verify', mediaReference: '' },
         inputMappings: {
           mediaReference: { source: 'component', nodeId: TEST_CAMERA_ID, property: 'value' },
-          userId: { source: 'component', nodeId: EMAIL_ID, property: 'value' },
         },
       },
       {
@@ -317,7 +305,7 @@ function verificationGraph(): LogicGraph {
       statusAction(
         recognizedId,
         TEST_STATUS_ID,
-        'Recognition result: Face recognized.',
+        'Recognition result: Face recognized. App unlocked.',
         { x: 776, y: 80 },
       ),
       statusAction(
@@ -329,7 +317,7 @@ function verificationGraph(): LogicGraph {
       statusAction(
         errorId,
         TEST_STATUS_ID,
-        'Recognition result: capture a face and enter the enrolled account email.',
+        'Recognition result: enroll on this device, then capture a face.',
         { x: 544, y: 320 },
       ),
     ],

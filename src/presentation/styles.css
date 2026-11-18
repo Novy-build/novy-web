@@ -79,6 +79,7 @@
   --color-ink: #0e1013;
   --color-ink-muted: #565b66;
   color: var(--color-ink);
+  font-family: var(--novy-app-font-body, var(--font-sans));
 }
 
 .novy-app-theme-dark {
@@ -90,6 +91,17 @@
   --color-ink: #eef0f4;
   --color-ink-muted: #aeb4c0;
   color: var(--color-ink);
+  font-family: var(--novy-app-font-body, var(--font-sans));
+}
+
+.novy-app-theme-light,
+.novy-app-theme-dark {
+  --color-canvas: var(--novy-app-canvas, #f5f6f8);
+  --color-surface: var(--novy-app-surface, #ffffff);
+  --color-surface-subtle: var(--novy-app-surface-elevated, #fafbfc);
+  --color-hairline: var(--novy-app-border, #e5e6ea);
+  --color-ink: var(--novy-app-text, #0e1013);
+  --color-ink-muted: var(--novy-app-text-muted, #565b66);
 }
 
 @layer base {

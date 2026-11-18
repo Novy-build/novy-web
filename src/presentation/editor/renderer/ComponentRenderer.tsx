@@ -22,6 +22,8 @@ import { SliderNodeView } from './nodes/SliderNodeView';
 import { SwitchNodeView } from './nodes/SwitchNodeView';
 import { TextNodeView } from './nodes/TextNodeView';
 import { GestureDetectorNodeView } from './nodes/GestureDetectorNodeView';
+import { IconNodeView } from './nodes/IconNodeView';
+import { findNamedStyle } from '@domain/entities/designSystem';
 
 interface NodeFrameProps {
   geometry: Pick<ComponentNode, 'id' | 'x' | 'y' | 'w' | 'h'>;
@@ -107,6 +109,7 @@ export function ComponentRenderer({
   onNodeMediaChange,
   componentValues,
   dataContext,
+  designSystem,
   geometryOverride,
   itemContext,
   interactiveNodeIds,
@@ -119,7 +122,12 @@ export function ComponentRenderer({
   const geometry = { id: node.id, ...(geometryOverride ?? geometryAtBreakpoint(node, breakpoint)) };
   const isSelected = selected || selectedNodeId === node.id;
   const renderStatic = mode === 'thumbnail';
-  const resolvedAppearance = resolveThemeAppearance(node.appearance, appTheme?.theme === 'dark');
+  const namedStyle = findNamedStyle(designSystem, node.styleId);
+  const responsiveAppearance = appearanceAtBreakpoint(node, breakpoint);
+  const resolvedAppearance = resolveThemeAppearance(
+    mergeAppearances(namedStyle?.appearance, node.appearance, responsiveAppearance),
+    appTheme?.theme === 'dark',
+  );
   // Runtime clicks only exist in the reactive preview; canvas delegates to
   // selection and thumbnails stay inert dashboard tiles.
   const runtimeClick = mode === 'preview' && onNodeAction ? onNodeAction : undefined;
@@ -157,15 +165,19 @@ export function ComponentRenderer({
       }} renderStatic={renderStatic} />);
     case 'text':
       return frame(<TextNodeView props={{
+        ...(namedStyle?.textStyle ?? {}),
         ...node.props,
+        ...(textStyleAtBreakpoint(node, breakpoint) ?? {}),
         text: resolveBoundText(node, 'text.content', itemContext, node.props.text),
       }} />);
+    case 'icon':
+      return frame(<IconNodeView props={node.props} size={Math.min(geometry.w, geometry.h)} />);
     case 'input':
       return frame(
         <InputNodeView
           appearance={resolvedAppearance}
           isPreview={mode === 'preview'}
-          value={componentValues?.get(node.id)}
+          value={componentValues?.get(node.id) ?? resolveBoundText(node, 'input.value', itemContext, '')}
           onValueChange={(value) => {
             onNodeValueChange?.(node.id, value);
             emitRuntimeEvent('change', value);
@@ -217,6 +229,11 @@ export function ComponentRenderer({
         <DropdownNodeView
           isPreview={mode === 'preview'}
           itemLabel={itemContext ? String(itemContext.values.value ?? '') : undefined}
+          value={componentValues?.get(node.id) ?? (
+            node.bindings?.some((binding) => binding.target === 'dropdown.value')
+              ? resolveBoundText(node, 'dropdown.value', itemContext, '')
+              : undefined
+          )}
           onValueChange={(value) => { onNodeValueChange?.(node.id, value); emitRuntimeEvent('change', value); }}
           props={node.props}
           renderStatic={renderStatic}
@@ -268,6 +285,7 @@ export function ComponentRenderer({
       return frame(
         <ChatNodeView
           isPreview={mode === 'preview'}
+          isThinking={dataContext?.pendingChatNodeIds?.has(node.id) ?? false}
           messages={dataContext?.localItemsByListView?.get(node.id) ?? []}
           onSubmit={(value) => {
             onNodeValueChange?.(node.id, value);
@@ -288,6 +306,7 @@ export function ComponentRenderer({
           componentValues={componentValues}
           breakpoint={breakpoint}
           dataContext={dataContext}
+          designSystem={designSystem}
           geometryOverride={childGeometries.get(child.id)}
           itemContext={itemContext}
           interactiveNodeIds={interactiveNodeIds}
@@ -330,6 +349,7 @@ export function ComponentRenderer({
               breakpoint={breakpoint}
               componentValues={componentValues}
               dataContext={dataContext}
+              designSystem={designSystem}
               geometryOverride={childGeometries.get(child.id)}
               itemContext={record}
               interactiveNodeIds={interactiveNodeIds}
@@ -368,14 +388,49 @@ function appearanceStyle(appearance: ComponentAppearance | undefined): CSSProper
     : appearance.borderStyle ?? (appearance.borderColor ? 'solid' : undefined);
   const hasVisibleBorder = borderStyle === 'solid' || borderStyle === 'dashed';
   return {
-    backgroundColor: appearance.backgroundColor || undefined,
+    backgroundColor: appearance.gradient ? undefined : appearance.backgroundColor || undefined,
+    backgroundImage: appearance.gradient ? linearGradientCss(appearance.gradient) : undefined,
     color: appearance.textColor || undefined,
     borderColor: hasVisibleBorder ? appearance.borderColor || 'var(--color-hairline)' : undefined,
     borderStyle,
     borderWidth: hasVisibleBorder ? appearance.borderWidth ?? 1 : appearance.borderStyle === 'none' ? 0 : undefined,
     borderRadius: appearance.borderRadius,
     opacity: appearance.opacity,
-    overflow: appearance.borderRadius ? 'hidden' : undefined,
+    boxShadow: appearance.boxShadows?.map((shadow) => `${shadow.inset ? 'inset ' : ''}${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${shadow.color}`).join(', ') || undefined,
+    backdropFilter: appearance.backdropBlur ? `blur(${appearance.backdropBlur}px)` : undefined,
+    overflow: appearance.clipContent === false ? 'visible' : appearance.clipContent || appearance.borderRadius ? 'hidden' : undefined,
   };
+}
+
+function mergeAppearances(
+  ...values: Array<ComponentAppearance | undefined>
+): ComponentAppearance | undefined {
+  const present = values.filter((value): value is ComponentAppearance => Boolean(value));
+  if (present.length === 0) return undefined;
+  return present.reduce<ComponentAppearance>((merged, value) => ({
+    ...merged,
+    ...value,
+    dark: merged.dark || value.dark ? { ...merged.dark, ...value.dark } : undefined,
+  }), {});
+}
+
+function appearanceAtBreakpoint(node: ComponentNode, breakpoint: 'mobile' | 'tablet' | 'desktop'): ComponentAppearance | undefined {
+  if (breakpoint === 'mobile') return undefined;
+  const tablet = node.responsive?.tablet?.appearance;
+  if (breakpoint === 'tablet') return tablet;
+  return mergeAppearances(tablet, node.responsive?.desktop?.appearance);
+}
+
+function textStyleAtBreakpoint(node: ComponentNode, breakpoint: 'mobile' | 'tablet' | 'desktop') {
+  if (node.type !== 'text' || breakpoint === 'mobile') return undefined;
+  const tablet = node.responsive?.tablet?.textStyle;
+  return breakpoint === 'tablet' ? tablet : { ...tablet, ...node.responsive?.desktop?.textStyle };
+}
+
+function linearGradientCss(gradient: NonNullable<ComponentAppearance['gradient']>): string {
+  const stops = gradient.stops
+    .map((stop) => `${stop.color} ${Math.max(0, Math.min(100, stop.position))}%`)
+    .join(', ');
+  return `linear-gradient(${gradient.angle}deg, ${stops})`;
 }
 

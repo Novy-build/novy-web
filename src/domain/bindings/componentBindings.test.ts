@@ -58,6 +58,12 @@ describe('component bindings', () => {
     ]);
     expect(isFieldTypeCompatible('progress.value', 'number')).toBe(true);
     expect(isFieldTypeCompatible('progress.value', 'text')).toBe(false);
+    expect(bindingTargetsForComponent('input').map(({ target }) => target)).toEqual([
+      'input.value',
+      'component.visible',
+    ]);
+    expect(isFieldTypeCompatible('input.value', 'date')).toBe(true);
+    expect(isFieldTypeCompatible('dropdown.value', 'boolean')).toBe(false);
   });
 
   it('resolves image, button, and progress targets with typed fallbacks', () => {

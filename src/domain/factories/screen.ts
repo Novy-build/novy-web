@@ -30,8 +30,8 @@ export function createScreen(input: CreateScreenInput): Screen {
   };
 }
 
-export function createProjectDocument(screens: Screen[]): ProjectDocument {
-  return { screens };
+export function createProjectDocument(screens: Screen[], designSystem?: ProjectDocument['designSystem']): ProjectDocument {
+  return { ...(designSystem ? { designSystem: structuredClone(designSystem) } : {}), screens };
 }
 
 /**
@@ -69,6 +69,6 @@ export function createProjectFromTemplate(template: Template, name: string, now:
     projectType: template.projectType,
     createdAt: now,
     updatedAt: now,
-    document: createProjectDocument(screens),
+    document: createProjectDocument(screens, template.designSystem),
   };
 }

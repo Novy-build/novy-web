@@ -1,5 +1,7 @@
 import type { ProjectDatabaseDTO, DataCollectionDTO } from './appData.dto';
 import type { PaddingDTO, ProjectDTO } from './project.dto';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
+import type { ComponentAppearance } from '@domain/entities/componentNode';
 
 export type RuntimeCapabilityId =
   | 'authentication'
@@ -84,6 +86,7 @@ export interface GeneratedLayoutNodeDTO {
   name?: string;
   isHidden?: boolean;
   isLocked?: boolean;
+  styleId?: string;
   x: number;
   y: number;
   w: number;
@@ -98,10 +101,12 @@ export interface GeneratedLayoutNodeDTO {
 
 export interface GeneratedLayoutDTO {
   layoutVersion: 2;
+  designSystem?: AppDesignSystem;
   screens: readonly {
     screenId: string;
     path: string;
     routeParameters?: readonly GeneratedRouteParameterDTO[];
+    appearance?: ComponentAppearance;
     nodes: readonly GeneratedLayoutNodeDTO[];
   }[];
 }

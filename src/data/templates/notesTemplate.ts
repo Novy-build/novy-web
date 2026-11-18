@@ -4,6 +4,7 @@ import { CURRENT_ITEM_ID_FIELD } from '@domain/entities/logic';
 import type { ActionNode, Behavior, LogicGraph } from '@domain/entities/logic';
 import type { Screen } from '@domain/entities/screen';
 import type { Template } from '@domain/entities/template';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
 
 export const NOTES_COLLECTION_REFERENCE = 'template-notes-collection';
 export const NOTE_TITLE_FIELD = 'note_title';
@@ -15,6 +16,32 @@ const ADD_NOTE_SCREEN_ID = 'screen_notes_add';
 const NOTE_DETAIL_SCREEN_ID = 'screen_notes_detail';
 const EDIT_NOTE_SCREEN_ID = 'screen_notes_edit';
 
+const NOTES_DESIGN_SYSTEM: AppDesignSystem = {
+  colors: {
+    primary: '#6f6ffb', accent: '#a78bfa', canvas: '#eef0f7', surface: '#f8f9fc',
+    surfaceElevated: '#ffffff', text: '#292735', textMuted: '#6b7280', border: '#e5e7eb',
+    success: '#0ea974', warning: '#d97706', danger: '#dc2626',
+  },
+  darkColors: {
+    primary: '#8a86ff', accent: '#c4b5fd', canvas: '#2a1621', surface: '#3a2530',
+    surfaceElevated: '#442c39', text: '#f8edf3', textMuted: '#c7b5be', border: '#553744',
+    success: '#34d399', warning: '#fbbf24', danger: '#f87171',
+  },
+  typography: {
+    bodyFontFamily: 'Inter Variable, Inter, system-ui, sans-serif',
+    headingFontFamily: 'Georgia, Cambria, Times New Roman, serif',
+  },
+  radii: { small: 8, medium: 12, large: 24, pill: 999 },
+  styles: [{
+    id: 'notes_card_style', name: 'Note card', componentType: 'gesture-detector',
+    appearance: {
+      backgroundColor: 'var(--novy-app-surface)', borderColor: 'var(--novy-app-border)',
+      borderStyle: 'solid', borderWidth: 1, borderRadius: 12,
+      boxShadows: [{ x: 0, y: 8, blur: 22, spread: -14, color: 'rgba(31, 41, 55, 0.35)' }],
+    },
+  }],
+};
+
 const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
   appBackground('notes_background'),
   {
@@ -24,7 +51,11 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
     y: 56,
     w: 260,
     h: 48,
-    props: { text: 'Notes', level: 'display', fontSize: 40, fontWeight: 'bold' },
+    responsive: {
+      tablet: { x: 128, w: 512 },
+      desktop: { x: 344, w: 512 },
+    },
+    props: { text: 'Notes', level: 'display', fontFamily: 'var(--novy-app-font-heading)', fontSize: 40, fontWeight: 'bold', lineHeight: 1.1 },
   },
   {
     id: 'notes_list',
@@ -33,6 +64,10 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
     y: 128,
     w: 342,
     h: 520,
+    responsive: {
+      tablet: { x: 128, w: 512, h: 720 },
+      desktop: { x: 344, w: 512, h: 520 },
+    },
     props: {
       emptyText: 'No notes yet. Add your first note.',
       showDividers: false,
@@ -52,16 +87,18 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
       {
         id: 'note_card',
         type: 'gesture-detector',
+        styleId: 'notes_card_style',
         x: 0,
         y: 0,
         w: 342,
         h: 72,
+        responsive: { tablet: { w: 512 }, desktop: { w: 512 } },
         appearance: {
           backgroundColor: '#f8f9fc',
           borderColor: '#e5e7eb',
           borderStyle: 'solid',
           borderRadius: 12,
-          dark: { backgroundColor: '#1f2937', borderColor: '#374151' },
+          dark: { backgroundColor: 'var(--novy-app-surface)', borderColor: 'var(--novy-app-border)' },
         },
         props: { semanticLabel: 'Open note' },
         children: [
@@ -72,6 +109,7 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
             y: 13,
             w: 258,
             h: 24,
+            responsive: { tablet: { w: 428 }, desktop: { w: 428 } },
             props: { text: 'Note title', level: 'title', fontSize: 16, fontWeight: 'semibold' },
             bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: NOTE_TITLE_FIELD } }],
           },
@@ -82,6 +120,7 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
             y: 39,
             w: 258,
             h: 20,
+            responsive: { tablet: { w: 428 }, desktop: { w: 428 } },
             appearance: { textColor: '#6b7280', dark: { textColor: '#9ca3af' } },
             props: { text: 'Note content', level: 'body', fontSize: 13 },
             bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: NOTE_CONTENT_FIELD } }],
@@ -95,6 +134,7 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
         y: 14,
         w: 44,
         h: 44,
+        responsive: { tablet: { x: 456 }, desktop: { x: 456 } },
         props: {
           label: 'Note actions',
           placeholder: '',
@@ -112,7 +152,14 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
     y: 684,
     w: 80,
     h: 52,
-    appearance: { borderRadius: 26 },
+    responsive: {
+      tablet: { x: 560, y: 916 },
+      desktop: { x: 776, y: 684 },
+    },
+    appearance: {
+      borderRadius: 26,
+      boxShadows: [{ x: 0, y: 12, blur: 28, spread: -12, color: 'rgba(85, 81, 242, 0.7)' }],
+    },
     props: { label: 'Add', variant: 'solid', icon: 'plus' },
   },
 ]);
@@ -135,6 +182,7 @@ const noteDetailScreen = makeScreen(NOTE_DETAIL_SCREEN_ID, 'Note Detail', '/note
     y: 36,
     w: 92,
     h: 44,
+    responsive: { tablet: { x: 120 }, desktop: { x: 336 } },
     props: { label: 'Back', variant: 'text', icon: 'arrow-left' },
   },
   {
@@ -144,6 +192,7 @@ const noteDetailScreen = makeScreen(NOTE_DETAIL_SCREEN_ID, 'Note Detail', '/note
     y: 112,
     w: 342,
     h: 56,
+    responsive: { tablet: { x: 128, w: 512 }, desktop: { x: 344, w: 512 } },
     props: { text: 'Note title', level: 'display', fontSize: 32, fontWeight: 'bold' },
     bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: NOTE_TITLE_FIELD } }],
   },
@@ -154,6 +203,7 @@ const noteDetailScreen = makeScreen(NOTE_DETAIL_SCREEN_ID, 'Note Detail', '/note
     y: 184,
     w: 342,
     h: 360,
+    responsive: { tablet: { x: 128, w: 512 }, desktop: { x: 344, w: 512 } },
     appearance: { textColor: '#4b5563', dark: { textColor: '#d1d5db' } },
     props: { text: 'Note content', level: 'body', fontSize: 17 },
     bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: NOTE_CONTENT_FIELD } }],
@@ -308,6 +358,7 @@ export const NOTES_TEMPLATE: Template = {
   name: 'Notes CRUD app',
   description: 'A basic notes app demonstrating create, read, update, and delete workflows.',
   projectType: 'app',
+  designSystem: NOTES_DESIGN_SYSTEM,
   screens: [notesScreen, addNoteScreen, noteDetailScreen, editNoteScreen],
   data: {
     databaseName: 'Notes Database',
@@ -345,6 +396,7 @@ function heading(id: string, text: string): ComponentNode {
     y: 48,
     w: 342,
     h: 48,
+    responsive: { tablet: { x: 128, w: 512 }, desktop: { x: 344, w: 512 } },
     props: { text, level: 'display', fontSize: 36, fontWeight: 'bold' },
   };
 }
@@ -357,6 +409,10 @@ function appBackground(id: string): ComponentNode {
     y: 0,
     w: 390,
     h: 780,
+    responsive: {
+      tablet: { w: 768, h: 1024 },
+      desktop: { w: 1200, h: 800 },
+    },
     isLocked: true,
     appearance: {
       backgroundColor: '#eef0f7',
@@ -375,6 +431,7 @@ function input(id: string, label: string, placeholder: string, y: number, multil
     y,
     w: 342,
     h: multiline ? 246 : 56,
+    responsive: { tablet: { x: 128, w: 512 }, desktop: { x: 344, w: 512 } },
     props: { label, placeholder, inputType: 'text', multiline },
   };
 }
@@ -393,6 +450,7 @@ function button(
     y,
     w: 342,
     h: 48,
+    responsive: { tablet: { x: 128, w: 512 }, desktop: { x: 344, w: 512 } },
     props: { label, variant, ...(icon ? { icon } : {}) },
   };
 }

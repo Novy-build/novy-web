@@ -112,7 +112,7 @@ describe('ApiProjectRepository', () => {
 
     expect(put).toHaveBeenCalledWith(
       '/projects/project_1/document',
-      { schemaVersion: 13, screens: [] },
+      { schemaVersion: 14, screens: [] },
       { headers: { 'If-Match': '"2"' } },
     );
   });
@@ -136,7 +136,7 @@ describe('ApiProjectRepository', () => {
 
     expect(put).toHaveBeenLastCalledWith(
       '/projects/project_1/document',
-      { schemaVersion: 13, screens: [] },
+      { schemaVersion: 14, screens: [] },
       { headers: { 'If-Match': '"4"' } },
     );
   });

@@ -129,7 +129,7 @@ describe('ApiProjectImportRepository', () => {
     };
     expect(post.mock.calls[0]![0]).toBe('/projects/import');
     expect(body.project.id).toBe(project.id);
-    expect(body.project.schemaVersion).toBe(13);
+    expect(body.project.schemaVersion).toBe(14);
     expect(body.appData.databases.map((entry) => entry.id)).toEqual([database.id]);
     expect(body.appData.collections.map((entry) => entry.id)).toEqual([collection.id]);
     expect(body.appData.records.map((entry) => entry.values)).toEqual([

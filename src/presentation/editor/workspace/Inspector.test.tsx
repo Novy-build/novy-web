@@ -299,9 +299,9 @@ describe('Inspector', () => {
     });
   });
 
-  it('hides the border style control for non-layout nodes', () => {
+  it('offers border styling for every component type', () => {
     renderInspector(makeText('text_1'));
-    expect(screen.queryByRole('group', { name: 'Border style' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Border style' })).toBeInTheDocument();
   });
 
   it('shows effective desktop geometry and resets responsive overrides', () => {
@@ -343,44 +343,44 @@ describe('Inspector', () => {
 
     fireEvent.change(screen.getByLabelText('Font family'), { target: { value: 'Georgia, serif' } });
     expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-text',
+      type: 'node/responsive-text-style',
       nodeId: 'node_1',
-      props: { fontFamily: 'Georgia, serif' },
+      textStyle: { fontFamily: 'Georgia, serif' },
     });
 
     fireEvent.change(screen.getByLabelText('Font size (px)'), { target: { value: '32' } });
     expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-text',
+      type: 'node/responsive-text-style',
       nodeId: 'node_1',
-      props: { fontSize: 32 },
+      textStyle: { fontSize: 32 },
     });
 
     fireEvent.change(screen.getByLabelText('Font weight'), { target: { value: 'semibold' } });
     expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-text',
+      type: 'node/responsive-text-style',
       nodeId: 'node_1',
-      props: { fontWeight: 'semibold' },
+      textStyle: { fontWeight: 'semibold' },
     });
 
     fireEvent.change(screen.getByLabelText('Font size (px)'), { target: { value: '' } });
     expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-text',
+      type: 'node/responsive-text-style',
       nodeId: 'node_1',
-      props: { fontSize: undefined },
+      textStyle: { fontSize: undefined },
     });
 
     fireEvent.change(screen.getByLabelText('Font weight'), { target: { value: '' } });
     expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-text',
+      type: 'node/responsive-text-style',
       nodeId: 'node_1',
-      props: { fontWeight: undefined },
+      textStyle: { fontWeight: undefined },
     });
 
     fireEvent.change(screen.getByLabelText('Font family'), { target: { value: '   ' } });
     expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-text',
+      type: 'node/responsive-text-style',
       nodeId: 'node_1',
-      props: { fontFamily: undefined },
+      textStyle: { fontFamily: undefined },
     });
   });
 
@@ -659,7 +659,7 @@ describe('Inspector', () => {
     const { onAction, onOpenLogic } = renderInspector(makeContainer('node_1'));
 
     expect(screen.getByText('Containers keep free-form child positioning.')).toBeInTheDocument();
-    expect(screen.getByText('Fixed for the MVP.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Background')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Wrap with Gesture Detector' })).not.toBeInTheDocument();
     expect(onAction).not.toHaveBeenCalled();
 

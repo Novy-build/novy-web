@@ -7,6 +7,7 @@ import { CV_STARTER_TEMPLATE } from './cvStarterTemplate';
 import { NOTES_TEMPLATE } from './notesTemplate';
 import { RAG_CHAT_TEMPLATE } from './ragChatTemplate';
 import { WEBSITE_TEMPLATES } from './websiteTemplates';
+import { DESIGN_SHOWCASE_TEMPLATES } from './designShowcaseTemplates';
 
 /*
  * Starter templates for the New Project gallery.
@@ -226,6 +227,7 @@ export const APP_TEMPLATES: readonly Template[] = [
   NOTES_TEMPLATE,
   CV_STARTER_TEMPLATE,
   RAG_CHAT_TEMPLATE,
+  ...DESIGN_SHOWCASE_TEMPLATES,
 ];
 export { WEBSITE_TEMPLATES };
 export const TEMPLATE_CATALOG: readonly Template[] = [...APP_TEMPLATES, ...WEBSITE_TEMPLATES];

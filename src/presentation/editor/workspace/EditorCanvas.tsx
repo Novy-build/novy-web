@@ -12,6 +12,7 @@ import { findFrameAtPoint, getComponentTreeLocation, type FrameHit } from '@doma
 import { ScreenFrame, type ScreenFrameSize } from '../renderer/ScreenFrame';
 import type { RendererDataContext } from '../renderer/renderer';
 import type { ListItemContext } from '@domain/entities/appData';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
 import { SNAP_GRID, ZOOM_LIMITS, computeFitWidthZoom, computeFitZoom, deviceViewport, snapOrRaw, type EditorDevice } from '../state/geometry';
 import { websitePageHeight } from '@domain/sections/sectionLayout';
 import { AddSectionButton } from '../sections/AddSectionButton';
@@ -38,6 +39,7 @@ const DRAG_THRESHOLD_PX = 4;
 const COMPONENT_TYPES: readonly ComponentType[] = [
   'button',
   'text',
+  'icon',
   'input',
   'image',
   'container',
@@ -103,6 +105,7 @@ interface EditorCanvasProps {
   onDeviceChange: (device: EditorDevice) => void;
   dataContext?: RendererDataContext;
   itemContext?: ListItemContext;
+  designSystem?: AppDesignSystem;
 }
 
 interface InteractionTarget {
@@ -208,6 +211,7 @@ export function EditorCanvas({
   onToggleSnap,
   onDeviceChange,
   dataContext,
+  designSystem,
   itemContext,
   itemFramePreview,
   isWebsite = false,
@@ -618,6 +622,7 @@ export function EditorCanvas({
               breakpoint={device}
               mode="canvas"
               dataContext={dataContext}
+              designSystem={designSystem}
               itemContext={itemContext}
               scale={zoom}
               screen={screen}

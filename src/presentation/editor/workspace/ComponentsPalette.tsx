@@ -18,6 +18,7 @@ import {
   SquareDashed,
   TextCursorInput,
   ToggleRight,
+  Shapes,
   Type as TypeIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -40,6 +41,7 @@ export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
   { type: 'container', label: 'Container', description: 'Free-form frame for children', category: 'Layout', icon: SquareDashed },
   { type: 'gesture-detector', label: 'Gesture Detector', description: 'Make a visual group tappable', category: 'Interaction', icon: MousePointerClick },
   { type: 'text', label: 'Text', description: 'Heading or body copy', category: 'Basic', icon: TypeIcon },
+  { type: 'icon', label: 'Icon', description: 'Decorative or labelled symbol', category: 'Basic', icon: Shapes },
   { type: 'button', label: 'Button', description: 'Tap target with a label', category: 'Basic', icon: RectangleEllipsis },
   { type: 'image', label: 'Image', description: 'Picture with alt text', category: 'Basic', icon: ImageIcon },
   { type: 'camera', label: 'Camera', description: 'Capture a live image', category: 'Basic', icon: Camera },

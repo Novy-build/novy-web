@@ -23,6 +23,7 @@ import type { AppTheme } from '../renderer/AppThemeContext';
 import { readDocumentAppTheme } from '../renderer/useDocumentAppTheme';
 import { findNodeInScreen } from '../state/editorState';
 import type { ProjectType } from '@domain/entities/project';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
 import { websitePageHeight } from '@domain/sections/sectionLayout';
 import type { ActionPayload } from '@domain/entities/logic';
 import type { RuntimePreviewRepository } from '@domain/repositories/runtimePreview.repository';
@@ -50,6 +51,7 @@ interface PreviewOverlayProps {
   /** Current generated-app manifest used to start a real immutable runtime version. */
   runtimeManifest?: unknown;
   runtimePreview?: RuntimePreviewRepository;
+  designSystem?: AppDesignSystem;
 }
 
 export interface PreviewPersistenceActions {
@@ -81,6 +83,7 @@ export function PreviewOverlay({
   persistence,
   runtimeManifest,
   runtimePreview,
+  designSystem,
 }: PreviewOverlayProps) {
   const [previewDevice, setPreviewDevice] = useState<EditorDevice>(initialDevice);
   const viewportBounds = CANVAS_PRESETS[previewDevice];
@@ -112,6 +115,10 @@ export function PreviewOverlay({
   const [localItemsByListView, setLocalItemsByListView] = useState<
     ReadonlyMap<string, readonly LocalListItemAddition[]>
   >(() => new Map());
+  const optimisticChatMessagesRef = useRef(new Map<string, string>());
+  const [pendingChatNodeIds, setPendingChatNodeIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const knowledgeRef = useRef<Map<string, Record<string, unknown>>>(new Map());
   const memoryRef = useRef<Map<string, unknown[]>>(new Map());
   const mediaRef = useRef<Map<string, File>>(new Map());
@@ -364,11 +371,28 @@ export function PreviewOverlay({
       const clickKey = `${screen.id}:${nodeId}:${eventContext?.listItem?.itemId ?? ''}`;
       const sourceNode = findNodeInScreen(screen, nodeId);
       const isMenuChoice = event === 'change' && sourceNode?.type === 'dropdown' && sourceNode.props.presentation === 'menu';
-      const lockEvent = event === 'click' || isMenuChoice;
+      const isChatSubmit = event === 'change' && sourceNode?.type === 'chat' && Boolean(value?.trim());
+      const lockEvent = event === 'click' || isMenuChoice || isChatSubmit;
       if (lockEvent && activeClicksRef.current.has(clickKey)) return;
       if (lockEvent) {
         activeClicksRef.current.add(clickKey);
         setPendingClicks((current) => current + 1);
+      }
+      if (isChatSubmit) {
+        const message = value!.trim();
+        optimisticChatMessagesRef.current.set(nodeId, message);
+        setLocalItemsByListView((previous) => {
+          const current = previous.get(nodeId) ?? [];
+          return new Map([
+            ...previous,
+            [nodeId, [...current, {
+              itemId: generateId('chat-message'),
+              placement: 'append' as const,
+              values: { role: 'user', text: message, citations: '' },
+            }]],
+          ]);
+        });
+        setPendingChatNodeIds((current) => new Set([...current, nodeId]));
       }
       const nextValues = value === undefined
         ? componentValues
@@ -390,19 +414,30 @@ export function PreviewOverlay({
             ? { executeServerAction: executeRealServerAction }
             : {}),
           session: runtimeStatus === 'live' || runtimeStatus === 'stale'
-            ? { user: runtimeUser ? { ...runtimeUser, name: runtimeUser.email.split('@')[0] } : undefined }
+            ? { user: runtimeUser ? {
+              ...runtimeUser,
+              name: runtimeUser.isAnonymous ? 'Face user' : runtimeUser.email.split('@')[0],
+            } : undefined }
             : { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
       ).then(applyPreviewEffects).catch((error: unknown) => {
         setToast({ id: Date.now(), message: error instanceof Error ? error.message : 'Workflow failed.', kind: 'error' });
       }).finally(() => {
+        if (isChatSubmit) {
+          optimisticChatMessagesRef.current.delete(nodeId);
+          setPendingChatNodeIds((current) => {
+            const next = new Set(current);
+            next.delete(nodeId);
+            return next;
+          });
+        }
         if (lockEvent) {
           activeClicksRef.current.delete(clickKey);
           setPendingClicks((current) => Math.max(0, current - 1));
         }
       });
     },
-    [componentValues, persistDataChanges, persistence, runtimeAppId, runtimeStatus, screens, screen, variables],
+    [componentValues, persistDataChanges, persistence, runtimeAppId, runtimeStatus, runtimeUser, screens, screen, variables],
   );
 
   function applyPreviewEffects(effects: readonly AsyncPreviewEffect[]): void {
@@ -479,6 +514,11 @@ export function PreviewOverlay({
             setToast({ id: Date.now(), message: effect.answer || 'No answer was generated.' });
             break;
           case 'chat-message':
+            if (effect.role === 'user'
+              && optimisticChatMessagesRef.current.get(effect.chatId) === effect.text) {
+              optimisticChatMessagesRef.current.delete(effect.chatId);
+              break;
+            }
             setLocalItemsByListView((previous) => {
               const current = previous.get(effect.chatId) ?? [];
               return new Map([
@@ -535,7 +575,10 @@ export function PreviewOverlay({
             ? { executeServerAction: executeRealServerAction }
             : {}),
           session: runtimeStatus === 'live' || runtimeStatus === 'stale'
-            ? { user: runtimeUser ? { ...runtimeUser, name: runtimeUser.email.split('@')[0] } : undefined }
+            ? { user: runtimeUser ? {
+              ...runtimeUser,
+              name: runtimeUser.isAnonymous ? 'Face user' : runtimeUser.email.split('@')[0],
+            } : undefined }
             : { user: { id: 'preview-user', name: 'Preview User', email: 'preview@novy.app' } },
         },
       ).then(applyPreviewEffects).catch((error: unknown) => {
@@ -765,13 +808,13 @@ export function PreviewOverlay({
                      Sandbox CRUD · Backend services
                    </span>
                    {runtimeUser ? (
-                     <span className="max-w-56 truncate rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-900" title={runtimeUser.email}>
-                       Signed in: {runtimeUser.email}
+                      <span className="max-w-56 truncate rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-900" title={runtimeUser.isAnonymous ? 'Unlocked with face' : runtimeUser.email}>
+                        {runtimeUser.isAnonymous ? 'Unlocked with face' : `Signed in: ${runtimeUser.email}`}
                      </span>
                    ) : (
                      <button
                        className="min-h-11 rounded-tile border border-hairline bg-surface px-3 text-xs font-semibold text-ink hover:bg-canvas"
-                       onClick={() => setAuthPrompt('Sign in to test user-scoped workflows and biometric enrollment.')}
+                        onClick={() => setAuthPrompt('Sign in to test user-scoped workflows.')}
                        type="button"
                      >
                        Sign in to app
@@ -869,7 +912,13 @@ export function PreviewOverlay({
             appTheme={appTheme}
             breakpoint={previewDevice}
             componentValues={componentValues}
-            dataContext={{ collections, localItemsByListView, recordsByCollection: previewRecords }}
+            dataContext={{
+              collections,
+              localItemsByListView,
+              pendingChatNodeIds,
+              recordsByCollection: previewRecords,
+            }}
+            designSystem={designSystem}
             itemContext={routeItemContext}
             mode="preview"
             onNodeEvent={handleNodeEvent}

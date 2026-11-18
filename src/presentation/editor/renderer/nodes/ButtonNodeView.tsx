@@ -1,4 +1,5 @@
 import type { ButtonProps } from '@domain/entities/componentNode';
+import type { CSSProperties } from 'react';
 import { ButtonIcon } from './buttonIcons';
 
 /**
@@ -14,6 +15,11 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
         ? 'bg-transparent text-brand-600'
         : 'bg-brand-600 text-white';
   const widgetClass = `flex h-full w-full items-center justify-center rounded-tile text-sm font-medium transition-colors ${variantClass}`;
+  const tokenStyle: CSSProperties = props.variant === 'solid'
+    ? { backgroundColor: 'var(--novy-app-primary, #5551f2)', color: '#ffffff' }
+    : props.variant === 'outline'
+      ? { borderColor: 'var(--novy-app-primary, #5551f2)', color: 'var(--novy-app-primary, #5551f2)' }
+      : { color: 'var(--novy-app-primary, #5551f2)' };
   const iconPosition = props.iconPosition ?? 'left';
   const isIconOnly = Boolean(props.icon && iconPosition === 'center');
   const content = (
@@ -26,7 +32,7 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
   );
 
   if (renderStatic) {
-    return <div className={widgetClass}>{content}</div>;
+    return <div className={widgetClass} style={tokenStyle}>{content}</div>;
   }
 
   return (
@@ -34,6 +40,7 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
       aria-label={props.label.trim() || 'Button'}
       type="button"
       className={widgetClass}
+      style={tokenStyle}
     >
       {content}
     </button>

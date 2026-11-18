@@ -371,6 +371,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
             <EditorCanvas
               boundsOverride={templateCanvasBounds}
               dataContext={{ collections: projectData.collections, recordsByCollection: projectData.recordsByCollection }}
+              designSystem={state.document.designSystem}
               itemFramePreview={activeTemplate ? {
                 nodeId: activeTemplate.id,
                 itemExtent: templateItemExtent,
@@ -478,11 +479,13 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                     behaviors={activeScreen.behaviors}
                     collections={projectData.collections}
                     device={state.device}
+                    designSystem={state.document.designSystem}
                     itemFrame={activeTemplate}
                     itemCollection={activeTemplateCollection}
                     listItemFields={listItemFields}
                     listItemSourceName={listItemSourceName}
                     node={selectedNode ?? null}
+                    screen={activeScreen}
                     onAction={(action: EditorAction) => dispatch(action)}
                     onOpenLogic={() => setMode('logic')}
                     onRecordIdentifierChange={async (collectionId, key) => {
@@ -558,6 +561,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       {isPreviewOpen ? (
         <PreviewOverlay
           collections={projectData.collections}
+          designSystem={state.document.designSystem}
           initialDevice={state.device}
           initialScreenId={state.activeScreenId}
           onClose={() => setIsPreviewOpen(false)}

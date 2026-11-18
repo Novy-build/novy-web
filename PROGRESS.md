@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-17
+**Last reviewed:** 2026-11-18
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -108,12 +108,23 @@ accepted, and submitted passwords are ignored. Production still requires Supabas
 - [x] Login form.
 - [x] Student list.
 - [x] Notes CRUD app with list cards, add/detail/edit screens, detail and overflow-menu deletion,
-  seeded example records, and fully wired current-record workflows.
+  seeded example records, fully wired current-record workflows, semantic tokens, serif display
+  typography, reusable elevated cards, and a glowing floating action.
+- [x] Creative media workspace and learning dashboard proof templates with standalone icons,
+  reusable styles, semantic themes, typed effects, and mobile/desktop responsive layouts.
 - [x] Two-screen Face verification starter: Biometric Registration provides Camera capture, explicit
-  enrollment consent, and CV Enroll; Recognition Test provides a separate Camera, verification email,
-  CV Liveness/Verify, and a condition-driven **Face recognized / Face not recognized** text result.
-  Enrollment remains bound to the authenticated generated-app user; verification credentials and
-  thresholds stay backend-controlled.
+  enrollment consent, and account-free CV Enroll; Recognition Test provides a separate Camera, CV
+  Liveness, and a condition-driven recognized/not-recognized result. Guided or fallback manual
+  capture emits Camera `change` and starts CV Verify automatically; its If/Else checks the `verified`
+  output rather than treating request success as a biometric match. A durable same-browser/device
+  binding identifies the opaque enrolled user without email; verification credentials and thresholds
+  stay backend-controlled.
+- [x] Existing Project v13 documents cloned from the previous Face verification starter are safely
+  normalized by known IDs and unchanged defaults to remove the legacy email field/mapping and update
+  account-free copy/layout without overwriting customized content. Its known Camera IDs also adopt
+  guided automatic face capture when the legacy document omitted a capture mode. Untouched external
+  verify buttons/click graphs migrate to automatic Camera-change verification; customized flows stay
+  unchanged.
 - [x] Template gallery with previews.
 - [x] Viewport-safe, internally scrollable template modal with a responsive one/two/three-column
   gallery.
@@ -140,7 +151,9 @@ The serialized project model currently contains:
 
 - Project identity and timestamps.
 - Project type (`app` or `website`) as backward-compatible project metadata; legacy payloads
-  default to `app` and Project schema remains v13.
+  default to `app`. Current output is Project schema v14; strict v13 documents remain compatible.
+- Project-level light/dark semantic colors, typography/radius tokens, reusable named component
+  styles, and per-screen surfaces.
 - Responsive DTO mapping compacts legacy/backend `null` override members back to omitted inherited
   fields, preventing false geometry and visibility validation errors.
 - Screens.
@@ -163,7 +176,7 @@ event binding, and its referenced logic graph:
 
 ```json
 {
-  "schemaVersion": 13,
+  "schemaVersion": 14,
   "id": "project_notes",
   "name": "Notes App",
   "projectType": "app",
@@ -517,9 +530,9 @@ event binding, and its referenced logic graph:
   only the properties they specify. Tablet inherits omitted values from mobile; Desktop inherits
   omitted values from the resolved Tablet layout. Breakpoint overrides may also set `isHidden`.
 - Optional typed `appearance` values are shared by editor, preview, thumbnails, and generated JSON.
-  Schema-v10 adds optional `appearance.dark` background/text/border overrides. Blank dark colors
-  inherit their base appearance. Optional `borderWidth` values set a non-negative pixel width;
-  older documents without these fields keep their previous colors and component border defaults.
+  Dark overrides inherit omitted base fields. Schema v14 adds typed linear gradients, multiple
+  shadows/glow, backdrop blur, content clipping, and breakpoint-specific appearance. Optional
+  `borderWidth` values set a non-negative pixel width; older documents keep previous defaults.
 - Every appearance color field pairs its labeled hex input with a native color picker. The picker
   normalizes shorthand hex for the swatch, while the text input continues to accept free-form CSS
   color strings; appearance values and DTO shapes are unchanged.
@@ -528,8 +541,9 @@ event binding, and its referenced logic graph:
 - A Switch with `props.controlsTheme: true` controls the previewed app's light/dark theme, without
   changing the Novy editor theme. This is preview-session state, not a production theme service.
 - `type` selects the renderer/generator component and `props` stores its typed configuration.
-- Camera components serialize only labels and `facingMode`; captured media is transient runtime
-  state and is never embedded in the project document.
+- Camera components serialize labels, `facingMode`, and an optional `captureMode` of `manual` or
+  `guided-face`; captured media remains transient runtime state and is never embedded in the project
+  document. Omitted legacy capture mode behaves manually except for known Face starter migration.
 - Optional `name`, `isHidden`, and `isLocked` fields preserve editor-facing layer metadata.
 - Container, Gesture Detector, Column, Row, and ListView widgets store nested components in
   `children`.
@@ -537,6 +551,8 @@ event binding, and its referenced logic graph:
   label. It can be added from the palette; Enter and Space activate it in Preview.
 - Schema v13 adds explicit `routeParameters`. A record-aware detail route maps its named URL segment
   to one collection's backend-generated record identity instead of relying on matching conventions.
+- Schema v14 adds the project design system, screen surfaces, reusable `styleId` references,
+  standalone Icon nodes, expanded typography, and responsive appearance/text styles.
 - Container keeps free-form child coordinates. Column and Row resolve child placement from their
   main-axis alignment, cross-axis alignment, gap, padding, and child order.
 - Column, Row, and the ListView repeated-item frame persist padding as a schema-v11 `PaddingValue`
@@ -551,11 +567,12 @@ event binding, and its referenced logic graph:
   or `right`). Center placement creates an icon-only visual while retaining the label as accessible
   screen-reader text. The icon is decorative (`aria-hidden`), inherits the button text color, and
   is omitted from older saved buttons; unknown persisted icon names are ignored by the DTO mapper.
+- Standalone Icon nodes provide decorative or labelled symbols from a curated Lucide vocabulary,
+  inherit appearance colors, and preserve accessible names only when the authored label is nonempty.
 - Text nodes expose optional `props.fontFamily` (a non-empty CSS font-family value),
-  `props.fontSize` (positive pixels), and `props.fontWeight` (`normal`, `medium`, `semibold`, or
-  `bold`) overrides. Omitted values fall back to the app font and selected `level` preset; custom
-  sizes render with a proportional line height. Invalid persisted values are ignored by the DTO
-  mapper.
+  `props.fontSize`, weight, line height, letter spacing, alignment, italic style, transform, and line
+  clamp. Typography can vary at tablet/desktop breakpoints and reusable Text styles; omitted values
+  fall back to the design-system font and selected level preset.
 - Text fields retain their serialized `label` and may set optional `props.showLabel: false` to hide
   it visually without losing the accessible name. Omitted `showLabel` values preserve the legacy
   visible-label behavior. Border color, style, width, radius, and dark border color are applied to
@@ -591,8 +608,9 @@ event binding, and its referenced logic graph:
   state until real items exist. The outer dashed border is the sole item boundary; padding appears
   as shaded per-side inset gutters rather than a second nested outline.
 - Optional typed `bindings` resolve current-item fields into Text content, Image source/alt, Button
-  labels, Checkbox/Switch state, Progress values, and component visibility while preserving static
-  property fallbacks.
+  labels, Input/Dropdown values, Checkbox/Switch state, Progress values, and component visibility
+  while preserving static property fallbacks. Route-record detail forms therefore prefill editable
+  controls without duplicating read-only field components.
 - The Inspector derives binding controls from the selected component and current item schema.
   Options show field labels with types, incompatible targets explain which field type to add, and
   the section names the active collection or static source instead of assuming text records.
@@ -655,6 +673,8 @@ permissions, and deployment. The manifest deliberately excludes app records, sec
 captures, and biometric templates. The JSON remains a diagnostics contract. When the backend is
 configured, a separate action sends the same manifest to the authenticated static React generator
 and downloads the returned source ZIP.
+Schema-v14 design tokens, reusable styles, screen surfaces, icons, effects, and responsive typography
+are carried compatibly in these v2 envelopes and render identically in generated React.
 
 Record identity and routing are explicit in that handoff:
 
@@ -717,7 +737,9 @@ Record identity and routing are explicit in that handoff:
 Implemented component types:
 
 - [x] Button with an optional curated icon and left/center/right icon placement.
-- [x] Text with display/title/body presets plus optional font-family, font-size, and font-weight overrides.
+- [x] Text with display/title/body presets plus font family, size, weight, line height, letter spacing,
+  alignment, italic, transform, line clamp, and responsive typography.
+- [x] Standalone accessible Icon with a curated symbol vocabulary and configurable stroke width.
 - [x] Text field, including text, email, password, number, multiline, optional visible labels, and
   full border color/style/width/radius controls.
 - [x] Image.
@@ -747,10 +769,17 @@ Implemented component types:
 - [x] Slider.
 - [x] Progress indicator.
 - [x] Divider.
-- [x] Camera Capture with explicit permission, capture/retake states, and no Project JSON image persistence.
+- [x] Camera Capture with explicit permission, capture/retake states, and no Project JSON image
+  persistence. Optional guided-face mode uses browser-local MediaPipe landmarks plus face-region
+  lighting, contrast, sharpness, position, angle, and stability checks to capture automatically;
+  manual capture remains available as a keyboard-accessible fallback.
 - [x] File input for transient published-app document selection; file bytes never enter Project JSON
   or persistent browser storage.
 - [x] Chat transcript/composer with user and assistant message roles plus optional citations.
+  Submissions render optimistically, show an accessible reduced-motion-aware assistant-thinking
+  bubble during asynchronous workflows, prevent duplicate authored user messages, auto-scroll, and
+  retain the submitted message if execution fails. The behavior is shared by isolated Preview, Run
+  App, and generated/published applications.
 
 ### Layout and direct manipulation
 
@@ -766,16 +795,17 @@ Implemented component types:
   math, canvas outlines, item-frame guides, and schema-v10 numeric-padding migration. Newly created
   Row, Column, and ListView widgets default to zero padding; existing explicit project and template
   values remain unchanged.
-- [x] Solid, dashed, and none border styles for Container, Column, and Row layout nodes, persisted
+- [x] Solid, dashed, and none border styles for every component type, persisted
   through optional `appearance.borderStyle` and rendered consistently in canvas, preview,
   thumbnails, and generated-layout appearance data.
 - [x] Text field borders apply color, solid/dashed/none style, non-negative pixel width, and corner
   radius directly to the input/textarea without adding a second outer frame border.
 - [x] Optional curated Button icons with left/center/right placement, decorative accessibility behavior,
   persisted `props.icon`/`props.iconPosition`, and backward-compatible label-only defaults.
-- [x] Optional Text font-family, font-size, and font-weight overrides with app-font/level-preset
-  fallbacks, proportional custom line height, persisted typography values, and invalid-value
-  rejection at the DTO boundary.
+- [x] Project-wide semantic light/dark colors, body/heading fonts, radius presets, screen surfaces,
+  and reusable component styles with create/apply/update/detach Inspector actions.
+- [x] Typed gradients, layered shadow/glow, backdrop blur, clipping, opacity, and mobile-first
+  responsive appearance and typography controls with editor/Preview/thumbnail/export parity.
 - [x] Duplicate and delete selected components.
 - [x] Bring components forward or send them backward.
 - [x] Nest components directly inside Container, Column, and Row widgets; edit ListView template
@@ -1089,10 +1119,16 @@ remains blocked until a production provider is explicitly selected and implement
   URLs remain backend-only, and provider failures never fall back automatically.
 - [x] Capability-aware image attachment for PNG/JPEG/GIF/WebP with provider locality, availability,
   image support, and potential-cost disclosure in the composer.
-- [x] Session-only OpenCode model selection between backend-allowlisted Nemotron 3.5 Super VL and
-  GPT-6.1 Terra, with explicit OpenAI plan/API usage disclosure and quota-specific errors.
+- [x] Session-only OpenCode model selection between backend-allowlisted Nemotron 3.5 Super VL,
+  GPT-6.1 Terra, and GPT-6.1 Terra Fast, with explicit plan/API usage disclosure and quota-specific
+  errors.
 - [x] Conversational Build-mode greetings without proposal cards, plus synchronous duplicate-request
   suppression and clearer validation recovery guidance.
+- [x] Assistant generation/help requests use a dedicated five-minute browser timeout rather than the
+  shared 30-second API limit, allowing remote structured generation and repair to finish while
+  retaining provider-neutral timeout feedback.
+- [x] Backend model deadlines map to that timeout feedback, while final invalid proposals display the
+  first sanitized responsive/contract validation issue returned after the bounded repair loop.
 - [x] Route-bound proposal blueprints preserve dynamic route parameters and record fields through
   preview and explicit Apply, with proposal-integrity errors distinct from model validation errors.
 - [x] Versioned `AppBlueprintV1` proposals for screens, components, event-condition-action workflows,
@@ -1103,11 +1139,20 @@ remains blocked until a production provider is explicitly selected and implement
 - [x] Deterministic backend completion and request-aware quality gates supply commonly omitted create
   flows, form feedback, hero hierarchy, navigation reachability, required mappings, and valid route
   record context before the proposal reaches preview.
+- [x] Build app automatically compiles, checks, repairs, and retests each responsive proposal across
+  390x780 mobile, 768x1024 tablet, and 1200x800 desktop before returning it. Contract, overflow,
+  breakpoint, route, behavior, and workflow failures stay inside the bounded Build repair loop.
+- [x] Complete CRUD proposals support route-record-prefilled Input/Dropdown controls, native date
+  inputs, and chained required-field conditions. Duplicate read-only detail fields are removed so a
+  six-field inventory edit screen remains inside the responsive verification viewport.
+- [x] The proposal card displays the passing verification stages, viewport badges, and repair count;
+  failed reports expose their issues and cannot be applied. Preview-before-Apply remains explicit,
+  and no separate Test/Fix assistant mode was introduced.
 - [x] Structured preview of every proposed screen, route, component/workflow count, and collection
   before persistence, with explicit **Apply app** and **Reject** controls.
 - [x] Pending autosave blocks proposal generation/acceptance so backend project revision remains
   authoritative; stale acceptance is reported without changing project or app data.
-- [x] Accepted proposals adopt the backend Project v13 response as clean editor state and refresh the
+- [x] Accepted proposals adopt the backend Project v14 response as clean editor state and refresh the
   project data snapshot. Project document and declared collection schemas are committed atomically by
   the backend.
 - [x] Validation, bindings, routes, and item-template previews consume that refreshed project-data
@@ -1155,8 +1200,7 @@ provider. Ollama remains the local generation/testing and embedding runtime.
 - [x] Action target validation for components, screens, records, and collections.
 - [x] Screen route, dynamic mapping source, async output-port, Send Email, and Refresh Collection
   validation.
-- [x] RAG document/query validation plus Computer Vision media, user, and biometric-consent
-  validation.
+- [x] RAG document/query validation plus Computer Vision media and biometric-consent validation.
 - [x] Validation badge and issue panel in the editor, with a vertically resizable split pane that
   collapses from its header or by dragging the splitter below the minimum height.
 - [x] Preview and deployment blocking when project validation contains errors.
@@ -1200,12 +1244,18 @@ provider. Ollama remains the local generation/testing and embedding runtime.
   isolated simulator.
 - [x] Real Run App document selection stays transient, uses the bounded multipart runtime upload,
   and supports upload → real indexing → navigation → grounded answer/citations in the shared
-  Preview renderer.
+  Preview renderer. The exact **Chat with a document** template chain has regression coverage after
+  project-template ID remapping, and local provider failures explain that Ollama must be started
+  before retrying.
 - [x] A running immutable preview is marked **Changes pending** when the editor manifest changes;
   **Apply changes** prepares the updated version. Backend-assigned `novy-preview-*` vector namespaces
   keep preview embeddings separate from published-app indexes.
+- [x] RAG chat messages appear immediately before the awaited backend response. The composer locks
+  for one in-flight submission, exposes an accessible assistant-thinking status, reconciles the
+  authored user-message action without duplication, and recovers cleanly on provider failure.
 - [x] Camera capture remains in isolated preview component state and is never written into Project
-  JSON or project collections implicitly.
+  JSON or project collections implicitly. Guided face analysis runs locally against live frames and
+  retains only the final accepted transient JPEG.
 - [x] Composed inputs and buttons create isolated preview records through normal logic workflows.
 - [x] Default Preview state remains isolated. Opt-in saved changes write through the configured
   project-data repository (the backend when configured, browser storage otherwise). External RAG
@@ -1257,6 +1307,22 @@ not been verified in this workspace because platform credentials are not configu
 
 ## 14. Automated test coverage
 
+Verified on 2026-11-18 for the full project design system:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 114 test files and 960 tests passed.
+- `npm run build` — passed.
+- Coordinated backend verification: 336 passed, 5 optional integration skips; Ruff check/format,
+  application mypy, and schema-v14 generated React/Vite production-build coverage passed.
+
+Verified on 2026-11-18 for complete CRUD assistant detail forms:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 114 test files and 954 tests passed.
+- `npm run build` — passed.
+- Coordinated backend verification: 333 passed, 5 optional integration skips; Ruff formatting/checks,
+  strict mypy, `alembic check`, and generated React/Vite runtime test/typecheck/build coverage passed.
+
 The repository includes automated coverage for:
 
 - [x] Domain factories, component-tree operations, graph rules, runtime behavior, validation, AI
@@ -1266,11 +1332,19 @@ The repository includes automated coverage for:
   canvas interactions, alignment, layers, inspector, logic, data, preview, deployment, and shared
   UI components.
 
-Verification completed on 2026-11-15:
+Verification completed on 2026-11-17:
 
 - `npm run typecheck` — passed.
-- `npm test -- --run` — 107 test files and 906 tests passed.
+- `npm test -- --run` — 114 test files and 950 tests passed.
 - `npm run build` — passed.
+- Guided face capture verification covers pure framing/pose/clarity decisions, stable automatic
+  capture, manual fallback, Face starter migration, manifest generation, and lazy MediaPipe bundle
+  splitting. Camera-change verification coverage confirms capture automatically runs CV Verify while
+  preserving distinct match/non-match/error branches. The vision SDK is not part of the initial
+  editor chunk.
+- Backend account-free biometric verification: 327 passed, 5 optional integration skips; Ruff,
+  formatting, strict mypy, `alembic check`, cookie security assertions, and generated React/Vite
+  typecheck/build coverage passed.
 - Backend deployment verification: 151 passed, 2 skipped; provider REST adapters use mocked
   transports because live Vercel/Netlify credentials are not configured in this workspace.
 - Backend generated-app verification also ran the exported runtime's Vitest suite, TypeScript
@@ -1283,18 +1357,27 @@ Verification completed on 2026-11-15:
   PostgreSQL-only assistant ordering/rollback and profile tests require `TEST_DATABASE_URL`. Ollama
   live model/structured-output, Project v13 compilation, 5-source/92-chunk index, and citation tests
   passed.
+- Unified responsive Build app verification: strict frontend typecheck, 114 test files / 950 tests,
+  and production build passed; coordinated backend verification passed 329 tests with 5 optional
+  integration skips plus Ruff, formatting, strict mypy, and `alembic check`.
 
 ## 15. Current frontend boundaries and remaining integrations
 
 The following are **not yet implemented** and should not be reported as completed frontend
 features:
 
+- Per-proposal execution of an exported React/Vite project in a browser test sandbox. Build app
+  currently verifies the compiled Project contract, responsive geometry, navigation, behavior
+  wiring, and workflow reachability; representative generated projects remain covered by the
+  repository-wide generated-source typecheck/test/build suite.
+
 - Live Supabase project verification (the backend adapter and frontend repository are implemented,
   but no real Supabase credentials are configured in this workspace).
 - Live PostgreSQL verification of project/app-data persistence, immutable app versions, and runtime
   CRUD; automated SQLite-backed API/repository coverage passes, but no PostgreSQL test URL is set.
-- Live Resend delivery verification with a verified sender and API key; development delivery and
-  mocked provider tests pass.
+- Live Resend delivery remains unverified. Resend mode and an API key are configured locally, and
+  mocked provider tests pass; the default `onboarding@resend.dev` sender can deliver only to the
+  Resend account owner's email until a sender/domain is verified.
 - A production Computer Vision provider. Generated-app passwordless identity and challenged
   liveness/enrollment/verification contracts are implemented, but deterministic development
   simulation is rejected in production and never reuses builder identity.
@@ -1306,8 +1389,6 @@ features:
 - Real custom domains.
 - A sandboxed generated-app iframe, Preview runtime console, and automatic cleanup/TTL for immutable
   preview versions and preview vector data. The first Run App milestone uses the shared renderer.
-- Real Run App execution for email/CV and unified CRUD server-action execution. Preview email/CV
-  remain simulated, while CRUD retains the existing optional project-data persistence mode.
 - Production provider-side biometric template storage and Computer Vision processing.
 - Live collaboration, multi-user project access, or platform-administration screens.
 - Continuous flex sizing modes such as Fill, Hug, or percentage dimensions that automatically

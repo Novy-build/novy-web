@@ -115,6 +115,21 @@ describe('useAssistantConversation', () => {
     expect(controller.result.current.messages.at(-1)?.text).not.toMatch(/selected model/i);
   });
 
+  it('shows the final sanitized Novy validation issue', async () => {
+    const controller = setup();
+    controller.generateProposal.mockRejectedValueOnce(new AssistantError(
+      'validation',
+      'The AI assistant returned an invalid app proposal.',
+      { issues: [{ message: 'Component extends outside the mobile viewport (390x780).' }] },
+    ));
+
+    await act(() => controller.result.current.send('Build an inventory app'));
+
+    expect(controller.result.current.messages.at(-1)?.text).toBe(
+      "The model draft failed Novy's checks: Component extends outside the mobile viewport (390x780).",
+    );
+  });
+
   it('reports one accurate message when proposal persistence fails', async () => {
     const controller = setup();
     controller.acceptProposal.mockRejectedValueOnce(new AssistantError(

@@ -4,6 +4,7 @@ import type { ComponentNode } from '@domain/entities/componentNode';
 export const NODE_TYPE_LABELS: Record<ComponentNode['type'], string> = {
   button: 'Button',
   text: 'Text',
+  icon: 'Icon',
   input: 'Text field',
   image: 'Image',
   container: 'Container',
@@ -34,6 +35,8 @@ export function nodeDisplayLabel(node: ComponentNode): string {
       return node.props.label;
     case 'text':
       return node.props.text;
+    case 'icon':
+      return node.props.label || node.props.icon;
     case 'input':
       return node.props.label;
     case 'checkbox':

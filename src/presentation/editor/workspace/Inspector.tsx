@@ -11,8 +11,9 @@ import type {
   ListViewNode,
   ResponsiveBreakpoint,
   StaticListViewItem,
+  TextProps,
 } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isButtonIconName, isTextFontFamily, isTextFontWeight } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isAppIconName, isButtonIconName, isTextFontFamily, isTextFontWeight } from '@domain/entities/componentNode';
 import {
   RECORD_IDENTIFIER_KEY_PATTERN,
   recordIdentifierForCollection,
@@ -30,8 +31,13 @@ import { NODE_TYPE_LABELS } from './nodeLabels';
 import { PaddingField } from './PaddingField';
 import { ColorField } from './ColorField';
 import { BUTTON_ICON_OPTIONS } from '../renderer/nodes/buttonIcons';
+import { APP_ICON_OPTIONS } from '../renderer/nodes/appIcons';
 import { TEXT_FONT_WEIGHT_OPTIONS } from '../renderer/nodes/textTypography';
 import { TRIGGER_EVENT_LABELS } from '../logic/behaviorLabels';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
+import { colorTokenCssValue, normalizeDesignSystem } from '@domain/entities/designSystem';
+import type { Screen } from '@domain/entities/screen';
+import { DesignSystemInspector } from './DesignSystemInspector';
 
 interface InspectorProps {
   node: ComponentNode | null;
@@ -49,6 +55,8 @@ interface InspectorProps {
   recordRoutePaths?: readonly string[];
   onRecordIdentifierChange?: (collectionId: string, key: string) => Promise<void>;
   onEditItemTemplate?: (listViewId: string) => void;
+  designSystem?: AppDesignSystem;
+  screen?: Screen;
 }
 
 export interface ListItemBindingField {
@@ -131,6 +139,16 @@ const BINDING_CONTROL_COPY: Readonly<Record<ComponentBindingTarget, BindingContr
     label: 'Button label',
     unboundLabel: 'Fixed label',
     incompatibleHint: 'Add a Text or Number field to label buttons per item.',
+  },
+  'input.value': {
+    label: 'Input value',
+    unboundLabel: 'Empty input',
+    incompatibleHint: 'Add a Text, Number, or Date field to prefill this input per item.',
+  },
+  'dropdown.value': {
+    label: 'Selected option',
+    unboundLabel: 'No selection',
+    incompatibleHint: 'Add a Text, Number, or Date field to select an option per item.',
   },
   'checkbox.checked': {
     label: 'Checked state',
@@ -220,6 +238,8 @@ export function Inspector({
   recordRoutePaths = [],
   onRecordIdentifierChange,
   onEditItemTemplate,
+  designSystem,
+  screen,
 }: InspectorProps) {
   if (itemFrame && candidate?.id === itemFrame.id) {
     return (
@@ -239,6 +259,9 @@ export function Inspector({
   }
 
   if (candidate === null) {
+    if (screen) {
+      return <DesignSystemInspector designSystem={designSystem} onAction={onAction} screen={screen} />;
+    }
     return (
       <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
         <h2 className="text-sm font-semibold text-ink">Inspector</h2>
@@ -251,9 +274,14 @@ export function Inspector({
 
   const node: ComponentNode = candidate;
   const effectiveGeometry = geometryAtBreakpoint(node, device);
-  const isLayoutNode = node.type === 'container' || node.type === 'column' || node.type === 'row';
-  const hasBorderStyleControl = isLayoutNode || node.type === 'input';
-  const activeBorderStyle = node.appearance?.borderStyle
+  const appearance = device === 'mobile'
+    ? node.appearance
+    : { ...node.appearance, ...node.responsive?.[device]?.appearance };
+  const effectiveTextProps = node.type === 'text'
+    ? { ...node.props, ...(device === 'mobile' ? {} : node.responsive?.[device]?.textStyle) }
+    : null;
+  const hasBorderStyleControl = true;
+  const activeBorderStyle = appearance?.borderStyle
     ?? (node.type === 'column' || node.type === 'row' ? 'dashed' : 'solid');
   const listViewCollectionSource = node.type === 'listview' && node.props.dataSource.kind === 'collection'
     ? node.props.dataSource
@@ -300,6 +328,93 @@ export function Inspector({
   return (
     <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
       <h2 className="text-sm font-semibold text-ink">{NODE_TYPE_LABELS[node.type]}</h2>
+
+      <div className="mt-4 grid gap-2 rounded-tile border border-hairline p-3">
+        <label className="grid gap-1 text-xs font-medium text-ink-muted">
+          Reusable style
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            onChange={(event) => onAction({ type: 'node/style', nodeId: node.id, styleId: event.target.value || undefined })}
+            value={node.styleId ?? ''}
+          >
+            <option value="">No shared style</option>
+            {(designSystem?.styles ?? [])
+              .filter((style) => style.componentType === node.type)
+              .map((style) => <option key={style.id} value={style.id}>{style.name}</option>)}
+          </select>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="min-h-9 rounded-tile border border-hairline px-2 text-xs font-medium text-ink"
+            onClick={() => {
+              const current = normalizeDesignSystem(designSystem);
+              const style = {
+                id: generateId('style'),
+                name: `${NODE_TYPE_LABELS[node.type]} style ${current.styles.filter((item) => item.componentType === node.type).length + 1}`,
+                componentType: node.type,
+                ...(node.appearance ? { appearance: structuredClone(node.appearance) } : {}),
+                ...(node.type === 'text' ? {
+                  textStyle: {
+                    fontFamily: node.props.fontFamily,
+                    fontSize: node.props.fontSize,
+                    fontWeight: node.props.fontWeight,
+                    lineHeight: node.props.lineHeight,
+                    letterSpacing: node.props.letterSpacing,
+                    textAlign: node.props.textAlign,
+                    fontStyle: node.props.fontStyle,
+                    textTransform: node.props.textTransform,
+                    lineClamp: node.props.lineClamp,
+                  },
+                } : {}),
+              };
+              onAction({ type: 'design/system', designSystem: { ...current, styles: [...current.styles, style] } });
+              onAction({ type: 'node/style', nodeId: node.id, styleId: style.id });
+            }}
+            type="button"
+          >
+            Save as style
+          </button>
+          {node.styleId ? (
+            <>
+              <button
+                className="min-h-9 rounded-tile border border-hairline px-2 text-xs font-medium text-ink"
+                onClick={() => {
+                  const current = normalizeDesignSystem(designSystem);
+                  onAction({
+                    type: 'design/system',
+                    designSystem: {
+                      ...current,
+                      styles: current.styles.map((style) => style.id === node.styleId
+                        ? {
+                            ...style,
+                            appearance: node.appearance ? structuredClone(node.appearance) : undefined,
+                            ...(node.type === 'text' ? { textStyle: {
+                              fontFamily: node.props.fontFamily,
+                              fontSize: node.props.fontSize,
+                              fontWeight: node.props.fontWeight,
+                              lineHeight: node.props.lineHeight,
+                              letterSpacing: node.props.letterSpacing,
+                              textAlign: node.props.textAlign,
+                              fontStyle: node.props.fontStyle,
+                              textTransform: node.props.textTransform,
+                              lineClamp: node.props.lineClamp,
+                            } } : {}),
+                          }
+                        : style),
+                    },
+                  });
+                }}
+                type="button"
+              >
+                Update style
+              </button>
+              <button className="min-h-9 px-2 text-xs font-medium text-ink-muted" onClick={() => onAction({ type: 'node/style', nodeId: node.id, styleId: undefined })} type="button">
+                Detach
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
 
       {node.type === 'button' ? (
         <div className="mt-4 grid gap-3">
@@ -374,13 +489,13 @@ export function Inspector({
             onChange={(event) => {
               const value = event.target.value;
               onAction({
-                type: 'node/props-text',
+                type: 'node/responsive-text-style',
                 nodeId: node.id,
-                props: { fontFamily: isTextFontFamily(value) ? value : undefined },
+                textStyle: { fontFamily: isTextFontFamily(value) ? value : undefined },
               });
             }}
             placeholder="App default"
-            value={node.props.fontFamily ?? ''}
+            value={effectiveTextProps?.fontFamily ?? ''}
           />
           <div className="grid grid-cols-2 gap-2">
             <TextInput
@@ -391,18 +506,18 @@ export function Inspector({
               onChange={(event) => {
                 const raw = event.target.value;
                 if (raw.trim().length === 0) {
-                  onAction({ type: 'node/props-text', nodeId: node.id, props: { fontSize: undefined } });
+                  onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontSize: undefined } });
                   return;
                 }
                 const parsed = Number(raw);
                 if (Number.isFinite(parsed) && parsed > 0) {
-                  onAction({ type: 'node/props-text', nodeId: node.id, props: { fontSize: parsed } });
+                  onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontSize: parsed } });
                 }
               }}
               placeholder="Level preset"
               step={1}
               type="number"
-              value={node.props.fontSize ?? ''}
+              value={effectiveTextProps?.fontSize ?? ''}
             />
             <label className="grid gap-1 text-xs font-medium text-ink-muted">
               Font weight
@@ -411,14 +526,14 @@ export function Inspector({
                 onChange={(event) => {
                   const value = event.target.value;
                   if (!value) {
-                    onAction({ type: 'node/props-text', nodeId: node.id, props: { fontWeight: undefined } });
+                    onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontWeight: undefined } });
                     return;
                   }
                   if (isTextFontWeight(value)) {
-                    onAction({ type: 'node/props-text', nodeId: node.id, props: { fontWeight: value } });
+                    onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontWeight: value } });
                   }
                 }}
-                value={node.props.fontWeight ?? ''}
+                value={effectiveTextProps?.fontWeight ?? ''}
               >
                 <option value="">Level preset</option>
                 {TEXT_FONT_WEIGHT_OPTIONS.map((option) => (
@@ -427,7 +542,87 @@ export function Inspector({
               </select>
             </label>
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <TextInput
+              label="Line height"
+              min={0.8}
+              name="inspector-text-line-height"
+              onChange={(event) => {
+                const parsed = Number(event.target.value);
+                if (Number.isFinite(parsed) && parsed > 0) onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { lineHeight: parsed } });
+              }}
+              step={0.05}
+              type="number"
+              value={effectiveTextProps?.lineHeight ?? 1.25}
+            />
+            <TextInput
+              label="Letter spacing"
+              name="inspector-text-letter-spacing"
+              onChange={(event) => {
+                const parsed = Number(event.target.value);
+                if (Number.isFinite(parsed)) onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { letterSpacing: parsed } });
+              }}
+              step={0.1}
+              type="number"
+              value={effectiveTextProps?.letterSpacing ?? 0}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="grid gap-1 text-xs font-medium text-ink-muted">
+              Alignment
+              <select className="h-10 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { textAlign: event.target.value as TextProps['textAlign'] } })} value={effectiveTextProps?.textAlign ?? 'left'}>
+                <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-ink-muted">
+              Transform
+              <select className="h-10 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { textTransform: event.target.value as TextProps['textTransform'] } })} value={effectiveTextProps?.textTransform ?? 'none'}>
+                <option value="none">None</option><option value="uppercase">Uppercase</option><option value="lowercase">Lowercase</option><option value="capitalize">Capitalize</option>
+              </select>
+            </label>
+          </div>
+          <label className="flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
+            <input checked={effectiveTextProps?.fontStyle === 'italic'} onChange={(event) => onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontStyle: event.target.checked ? 'italic' : 'normal' } })} type="checkbox" />
+            Italic
+          </label>
           <p className="text-xs text-ink-muted">Blank values use the app font and selected text level preset.</p>
+        </div>
+      ) : null}
+
+      {node.type === 'icon' ? (
+        <div className="mt-4 grid gap-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Icon</p>
+          <label className="grid gap-1 text-xs font-medium text-ink-muted">
+            Symbol
+            <select
+              className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+              onChange={(event) => {
+                if (isAppIconName(event.target.value)) onAction({ type: 'node/props-icon', nodeId: node.id, props: { icon: event.target.value } });
+              }}
+              value={node.props.icon}
+            >
+              {APP_ICON_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <TextInput
+            label="Accessible label"
+            name="inspector-icon-label"
+            onChange={(event) => onAction({ type: 'node/props-icon', nodeId: node.id, props: { label: event.target.value } })}
+            placeholder="Blank when decorative"
+            value={node.props.label}
+          />
+          <TextInput
+            label="Stroke width"
+            min={0.5}
+            name="inspector-icon-stroke"
+            onChange={(event) => {
+              const parsed = Number(event.target.value);
+              if (Number.isFinite(parsed)) onAction({ type: 'node/props-icon', nodeId: node.id, props: { strokeWidth: Math.max(0.5, Math.min(4, parsed)) } });
+            }}
+            step={0.25}
+            type="number"
+            value={node.props.strokeWidth}
+          />
         </div>
       ) : null}
 
@@ -466,6 +661,7 @@ export function Inspector({
             <option value="email">Email</option>
             <option value="password">Password</option>
             <option value="number">Number</option>
+            <option value="date">Date</option>
           </select>
           <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
             <input
@@ -523,11 +719,25 @@ export function Inspector({
             value={node.props.label}
           />
           <TextInput
-            label="Capture button label"
+            label="Manual fallback label"
             name="inspector-camera-capture-label"
             onChange={(event) => onAction({ type: 'node/props-camera', nodeId: node.id, props: { captureLabel: event.target.value } })}
             value={node.props.captureLabel}
           />
+          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-camera-capture-mode">Capture mode</label>
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="inspector-camera-capture-mode"
+            onChange={(event) => onAction({
+              type: 'node/props-camera',
+              nodeId: node.id,
+              props: { captureMode: event.target.value as CameraProps['captureMode'] },
+            })}
+            value={node.props.captureMode ?? 'manual'}
+          >
+            <option value="manual">Manual photo</option>
+            <option value="guided-face">Guided face (automatic)</option>
+          </select>
           <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-camera-facing-mode">Facing camera</label>
           <select
             className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -542,7 +752,7 @@ export function Inspector({
             <option value="user">Front camera</option>
             <option value="environment">Rear camera</option>
           </select>
-          <p className="text-xs text-ink-muted">The camera activates only after an explicit action in Preview or the generated app.</p>
+          <p className="text-xs text-ink-muted">Guided face capture checks position, angle, lighting, and clarity locally before taking the photo. The camera still activates only after an explicit action.</p>
         </div>
       ) : null}
 
@@ -1100,52 +1310,86 @@ export function Inspector({
 
       <div className="mt-6">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Appearance</p>
+        <label className="mb-3 grid gap-1 text-xs font-medium text-ink-muted">
+          Quick background token
+          <select
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, backgroundColor: event.target.value || undefined, gradient: undefined } })}
+            value=""
+          >
+            <option value="">Choose a semantic token…</option>
+            {(['primary', 'accent', 'canvas', 'surface', 'surfaceElevated'] as const).map((token) => <option key={token} value={colorTokenCssValue(token)}>{token}</option>)}
+          </select>
+        </label>
         <div className="mb-3 grid grid-cols-2 gap-2">
           <ColorField
             label="Background"
             name="inspector-appearance-background"
-            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, backgroundColor: value || undefined } })}
+            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, backgroundColor: value || undefined } })}
             placeholder="#ffffff"
-            value={node.appearance?.backgroundColor ?? ''}
+            value={appearance?.backgroundColor ?? ''}
           />
           <ColorField
             label="Text color"
             name="inspector-appearance-text"
-            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, textColor: value || undefined } })}
+            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, textColor: value || undefined } })}
             placeholder="#111827"
-            value={node.appearance?.textColor ?? ''}
+            value={appearance?.textColor ?? ''}
           />
           <ColorField
             label="Border color"
             name="inspector-appearance-border"
-            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, borderColor: value || undefined } })}
+            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, borderColor: value || undefined } })}
             placeholder="#d1d5db"
-            value={node.appearance?.borderColor ?? ''}
+            value={appearance?.borderColor ?? ''}
           />
           <TextInput
             label="Corner radius"
             name="inspector-appearance-radius"
             onChange={(event) => {
               const value = numberFromEvent(event);
-              if (value !== null) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, borderRadius: Math.max(0, value) } });
+              if (value !== null) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, borderRadius: Math.max(0, value) } });
             }}
             type="number"
-            value={node.appearance?.borderRadius ?? (node.type === 'input' ? 6 : 0)}
+            value={appearance?.borderRadius ?? (node.type === 'input' ? 6 : 0)}
           />
-          {node.type === 'input' ? (
-            <TextInput
-              label="Border width"
-              min={0}
-              name="inspector-appearance-border-width"
-              onChange={(event) => {
-                const value = numberFromEvent(event);
-                if (value !== null) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, borderWidth: Math.max(0, value) } });
-              }}
-              step={1}
-              type="number"
-              value={node.appearance?.borderWidth ?? 1}
-            />
-          ) : null}
+          <TextInput
+            label="Border width"
+            min={0}
+            name="inspector-appearance-border-width"
+            onChange={(event) => {
+              const value = numberFromEvent(event);
+              if (value !== null) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, borderWidth: Math.max(0, value) } });
+            }}
+            step={1}
+            type="number"
+            value={appearance?.borderWidth ?? 1}
+          />
+          <TextInput
+            label="Opacity"
+            max={1}
+            min={0}
+            name="inspector-appearance-opacity"
+            onChange={(event) => {
+              const value = numberFromEvent(event);
+              if (value !== null) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, opacity: Math.max(0, Math.min(1, value)) } });
+            }}
+            step={0.05}
+            type="number"
+            value={appearance?.opacity ?? 1}
+          />
+          <TextInput
+            label="Backdrop blur"
+            max={40}
+            min={0}
+            name="inspector-appearance-blur"
+            onChange={(event) => {
+              const value = numberFromEvent(event);
+              if (value !== null) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, backdropBlur: Math.max(0, Math.min(40, value)) } });
+            }}
+            type="number"
+            value={appearance?.backdropBlur ?? 0}
+          />
         </div>
         {hasBorderStyleControl ? (
           <div className="mb-3">
@@ -1155,7 +1399,7 @@ export function Inspector({
               onChange={(borderStyle) => onAction({
                 type: 'node/appearance',
                 nodeId: node.id,
-                appearance: { ...node.appearance, borderStyle },
+                appearance: { ...appearance, borderStyle },
               })}
               options={[
                 { value: 'solid', label: 'Solid' },
@@ -1166,6 +1410,40 @@ export function Inspector({
             />
           </div>
         ) : null}
+        <div className="mb-3 grid gap-2">
+          <label className="grid gap-1 text-xs font-medium text-ink-muted">
+            Effect preset
+            <select
+              className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+              onChange={(event) => {
+                const value = event.target.value;
+                const boxShadows = value === 'soft'
+                  ? [{ x: 0, y: 8, blur: 24, spread: -8, color: 'rgba(15, 23, 42, 0.18)' }]
+                  : value === 'elevated'
+                    ? [{ x: 0, y: 16, blur: 40, spread: -12, color: 'rgba(15, 23, 42, 0.28)' }]
+                    : value === 'glow'
+                      ? [{ x: 0, y: 0, blur: 24, spread: 2, color: 'var(--novy-app-accent)' }]
+                      : undefined;
+                onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, boxShadows } });
+              }}
+              value={appearance?.boxShadows?.length ? 'custom' : 'none'}
+            >
+              <option value="none">None</option><option value="soft">Soft shadow</option><option value="elevated">Elevated</option><option value="glow">Accent glow</option>{appearance?.boxShadows?.length ? <option value="custom">Current effect</option> : null}
+            </select>
+          </label>
+          <label className="flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
+            <input checked={appearance?.clipContent !== false} onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, clipContent: event.target.checked } })} type="checkbox" />
+            Clip content to bounds
+          </label>
+        </div>
+        <details className="mb-3 rounded-tile border border-hairline p-2">
+          <summary className="cursor-pointer text-xs font-medium text-ink">Gradient fill</summary>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <ColorField label="Start" name="inspector-gradient-start" onChange={(color) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, gradient: color ? { angle: appearance?.gradient?.angle ?? 135, stops: [{ color, position: 0 }, { color: appearance?.gradient?.stops[1]?.color ?? '#ffffff', position: 100 }] } : undefined } })} value={appearance?.gradient?.stops[0]?.color ?? ''} />
+            <ColorField label="End" name="inspector-gradient-end" onChange={(color) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, gradient: color ? { angle: appearance?.gradient?.angle ?? 135, stops: [{ color: appearance?.gradient?.stops[0]?.color ?? '#5551f2', position: 0 }, { color, position: 100 }] } : undefined } })} value={appearance?.gradient?.stops[1]?.color ?? ''} />
+            <TextInput label="Angle" name="inspector-gradient-angle" onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value) && appearance?.gradient) onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, gradient: { ...appearance.gradient, angle: value } } }); }} type="number" value={appearance?.gradient?.angle ?? 135} />
+          </div>
+        </details>
         <details className="mb-3 rounded-tile border border-hairline p-2">
           <summary className="cursor-pointer text-xs font-medium text-ink">Dark theme colors</summary>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -1179,14 +1457,14 @@ export function Inspector({
                 label={label}
                 name={`inspector-dark-${key}`}
                 onChange={(value) => {
-                  const dark = { ...node.appearance?.dark };
+                  const dark = { ...appearance?.dark };
                   if (value) dark[key] = value;
                   else delete dark[key];
                   const hasColors = Object.keys(dark).length > 0;
-                  onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...node.appearance, dark: hasColors ? dark : undefined } });
+                  onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, dark: hasColors ? dark : undefined } });
                 }}
                 placeholder="Inherit"
-                value={node.appearance?.dark?.[key] ?? ''}
+                value={appearance?.dark?.[key] ?? ''}
               />
             ))}
           </div>
@@ -1226,9 +1504,6 @@ export function Inspector({
             ]}
             value={node.props.fit}
           />
-        ) : null}
-        {node.type === 'container' || node.type === 'column' || node.type === 'row' || node.type === 'listview' || node.type === 'checkbox' || node.type === 'radio' || node.type === 'switch' || node.type === 'dropdown' || node.type === 'slider' || node.type === 'progress' || node.type === 'divider' || node.type === 'camera' ? (
-          <p className="text-sm text-ink-muted">Fixed for the MVP.</p>
         ) : null}
       </div>
 

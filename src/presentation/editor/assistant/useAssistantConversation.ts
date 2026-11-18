@@ -263,12 +263,26 @@ function assistantErrorMessage(error: unknown): string {
     case 'network':
       return 'The Novy backend could not be reached. Your project was not changed.';
     case 'timeout':
-      return 'The local assistant took too long to respond. Try a smaller request.';
+      return 'The selected assistant model took too long to finish. Try again or choose another model.';
     case 'validation':
-      return 'The selected model could not produce a valid Novy app after repair. Rephrase the request or choose another model.';
+      return validationAssistantMessage(error.details);
     case 'knowledge-unavailable':
       return 'The Novy documentation index is unavailable. Index the approved documentation first.';
     default:
       return error.message || 'The assistant request failed. Try again.';
   }
+}
+
+function validationAssistantMessage(details: unknown): string {
+  const fallback = 'The selected model could not produce a valid Novy app after repair. Rephrase the request or choose another model.';
+  if (!details || typeof details !== 'object') return fallback;
+  const issues = (details as { issues?: unknown }).issues;
+  if (!Array.isArray(issues)) return fallback;
+  const first = issues.find((issue) =>
+    issue !== null
+    && typeof issue === 'object'
+    && typeof (issue as { message?: unknown }).message === 'string');
+  if (!first) return fallback;
+  const message = (first as { message: string }).message.trim();
+  return message ? `The model draft failed Novy's checks: ${message}` : fallback;
 }

@@ -4,6 +4,7 @@ import type { Project } from '@domain/entities/project';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import type { ComponentNodeDTO, ScreenDTO } from '../dto/project.dto';
 import { validateProject } from '@domain/validation/projectValidation';
+import { DEFAULT_APP_DESIGN_SYSTEM } from '@domain/entities/designSystem';
 import {
   mapProjectFromDto,
   mapProjectToDto,
@@ -125,7 +126,7 @@ describe('project mapper', () => {
 
     expect(dto.createdAt).toBe('2026-01-01T10:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-02T12:30:00.000Z');
-    expect(dto.schemaVersion).toBe(13);
+    expect(dto.schemaVersion).toBe(14);
     expect(dto.projectType).toBe('app');
   });
 
@@ -133,6 +134,59 @@ describe('project mapper', () => {
     const dto = mapProjectToDto(FIXTURE_PROJECT);
     delete dto.projectType;
     expect(mapProjectFromDto(dto).projectType).toBe('app');
+  });
+
+  it('loads strict schema-v13 documents and republishes them as schema v14', () => {
+    const dto = mapProjectToDto(FIXTURE_PROJECT);
+    dto.schemaVersion = 13;
+
+    const restored = mapProjectFromDto(dto);
+
+    expect(restored.document.screens).toEqual(FIXTURE_PROJECT.document.screens);
+    expect(mapProjectToDto(restored).schemaVersion).toBe(14);
+  });
+
+  it('round-trips design tokens, screen appearance, reusable styles, icons, and responsive styling', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.designSystem = {
+      ...structuredClone(DEFAULT_APP_DESIGN_SYSTEM),
+      typography: { bodyFontFamily: 'Inter, sans-serif', headingFontFamily: 'Georgia, serif' },
+      styles: [{
+        id: 'style_card',
+        name: 'Card',
+        componentType: 'container',
+        appearance: { backgroundColor: 'var(--novy-app-surface)', borderRadius: 20 },
+      }],
+    };
+    project.document.screens[0]!.appearance = {
+      backgroundColor: '#f5f6f8',
+      gradient: { angle: 135, stops: [{ color: '#ffffff', position: 0 }, { color: '#eeeeff', position: 100 }] },
+    };
+    project.document.screens[0]!.nodes.push({
+      id: 'node_icon',
+      type: 'icon',
+      x: 20,
+      y: 760,
+      w: 32,
+      h: 32,
+      appearance: {
+        textColor: 'var(--novy-app-primary)',
+        boxShadows: [{ x: 0, y: 0, blur: 18, spread: 1, color: 'rgba(85,81,242,.4)' }],
+        backdropBlur: 8,
+        clipContent: false,
+      },
+      responsive: {
+        desktop: {
+          x: 80,
+          appearance: { textColor: 'var(--novy-app-accent)' },
+        },
+      },
+      props: { icon: 'graduation-cap', label: 'Learning', strokeWidth: 1.5 },
+    });
+
+    const restored = mapProjectFromDto(roundTrip(mapProjectToDto(project)) as never);
+
+    expect(restored).toEqual(project);
   });
 
   it('adds safe dark appearances to legacy website sections', () => {

@@ -1,4 +1,6 @@
 import type { ComponentNode } from './componentNode';
+import type { ComponentAppearance } from './componentNode';
+import type { AppDesignSystem } from './designSystem';
 import type { Behavior, LogicGraph } from './logic';
 
 export interface RecordRouteParameter {
@@ -21,6 +23,8 @@ export interface Screen {
   path: string;
   /** Explicit generated-runtime mapping for dynamic route segments such as :noteId. */
   routeParameters?: RecordRouteParameter[];
+  /** Screen surface styling; components can still provide their own fills. */
+  appearance?: ComponentAppearance;
   nodes: ComponentNode[];
   behaviors: Behavior[];
   logicGraphs: LogicGraph[];
@@ -28,5 +32,7 @@ export interface Screen {
 
 /** Everything about a project that persists across editing sessions. */
 export interface ProjectDocument {
+  /** Project-wide semantic tokens and reusable component styles. */
+  designSystem?: AppDesignSystem;
   screens: Screen[];
 }

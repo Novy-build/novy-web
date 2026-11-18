@@ -33,6 +33,7 @@ function mapGeneratedLayoutNode(
     y: node.y,
     w: node.w,
     h: node.h,
+    styleId: node.styleId,
     appearance: node.appearance,
     responsive: node.responsive,
     bindings: node.bindings,
@@ -91,9 +92,11 @@ export function mapProjectToGeneratedLayout(
   const collectionById = new Map(collections.map((collection) => [collection.id, collection]));
   return {
     layoutVersion: 2,
+    ...(dto.designSystem ? { designSystem: structuredClone(dto.designSystem) } : {}),
     screens: dto.screens.map((screen) => ({
       screenId: screen.id,
       path: screen.path ?? '/',
+      ...(screen.appearance ? { appearance: structuredClone(screen.appearance) } : {}),
       ...(screen.routeParameters && screen.routeParameters.length > 0
         ? {
             routeParameters: screen.routeParameters.map((parameter) => ({

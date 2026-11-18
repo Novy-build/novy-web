@@ -12,6 +12,7 @@ import type {
   FileInputNode,
   DropdownNode,
   ImageNode,
+  IconNode,
   InputNode,
   ListViewNode,
   ProgressNode,
@@ -100,6 +101,18 @@ function createColumnNode(): ColumnNode {
     h: 240,
     props: { mainAxisAlignment: 'start', crossAxisAlignment: 'stretch', gap: 12, padding: createPadding(0) },
     children: [],
+  };
+}
+
+function createIconNode(): IconNode {
+  return {
+    id: generateId('node'),
+    type: 'icon',
+    x: 24,
+    y: 24,
+    w: 44,
+    h: 44,
+    props: { icon: 'box', label: '', strokeWidth: 1.75 },
   };
 }
 
@@ -293,6 +306,7 @@ interface NodeFactory {
 const factories: Record<ComponentType, NodeFactory> = {
   button: createButtonNode,
   text: createTextNode,
+  icon: createIconNode,
   input: createInputNode,
   image: createImageNode,
   container: createContainerNode,

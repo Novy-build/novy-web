@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DropdownProps } from '@domain/entities/componentNode';
 import { ActionMenuNodeView } from './ActionMenuNodeView';
 
@@ -8,28 +8,36 @@ export function DropdownNodeView({
   isPreview = false,
   onValueChange,
   itemLabel,
+  value,
 }: {
   props: DropdownProps;
   renderStatic?: boolean;
   isPreview?: boolean;
   onValueChange?: (value: string) => void;
   itemLabel?: string;
+  value?: string;
 }) {
   if (props.presentation === 'menu') {
     if (renderStatic || !isPreview) return <div aria-hidden="true" className="flex h-full w-full items-center justify-center text-xl text-ink">⋮</div>;
     return <ActionMenuNodeView isPreview={isPreview && !renderStatic} itemLabel={itemLabel} label={props.label} onSelect={onValueChange} options={props.options} />;
   }
-  return <SelectNodeView isPreview={isPreview} onValueChange={onValueChange} props={props} renderStatic={renderStatic} />;
+  return <SelectNodeView isPreview={isPreview} onValueChange={onValueChange} props={props} renderStatic={renderStatic} value={value} />;
 }
 
-function SelectNodeView({ props, renderStatic, isPreview, onValueChange }: {
+function SelectNodeView({ props, renderStatic, isPreview, onValueChange, value }: {
   props: DropdownProps;
   renderStatic: boolean;
   isPreview: boolean;
   onValueChange?: (value: string) => void;
+  value?: string;
 }) {
-  const [selectedIndex, setSelectedIndex] = useState(props.selectedIndex);
+  const boundIndex = value === undefined ? props.selectedIndex : props.options.indexOf(value);
+  const [selectedIndex, setSelectedIndex] = useState(boundIndex);
   const selected = selectedIndex >= 0 ? props.options[selectedIndex] : '';
+
+  useEffect(() => {
+    setSelectedIndex(boundIndex);
+  }, [boundIndex]);
 
   if (renderStatic) {
     return (

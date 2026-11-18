@@ -127,7 +127,7 @@ export function AssistantSheet({ conversation, onClose }: AssistantSheetProps) {
               <p className="font-medium text-ink">{mode === 'build' ? 'Describe the app you want' : 'Ask about Novy'}</p>
               <p className="mt-1">
                 {mode === 'build'
-                  ? 'Try “Build a task tracker with a list and add-task form”. Follow up to refine the pending preview.'
+                  ? 'Describe what to build or change. Novy checks and repairs every responsive web app before showing the preview.'
                   : 'Ask how a documented Novy feature, workflow, or configuration works.'}
               </p>
               <p className="mt-2">
@@ -139,7 +139,7 @@ export function AssistantSheet({ conversation, onClose }: AssistantSheetProps) {
           ) : visibleMessages.map((message) => (
             <MessageRow key={message.id} message={message} isWorking={isWorking} onAccept={accept} onReject={reject} />
           ))}
-          {isWorking ? <p className="text-sm text-ink-muted" role="status">{mode === 'build' ? 'Generating and validating the app proposal…' : 'Searching indexed documentation…'}</p> : null}
+          {isWorking ? <p className="text-sm text-ink-muted" role="status">{mode === 'build' ? 'Building, checking mobile, tablet, and desktop, and repairing errors…' : 'Searching indexed documentation…'}</p> : null}
         </div>
 
         <form aria-label="Assistant message form" className="border-t border-hairline p-3" onSubmit={handleSubmit}>
@@ -280,6 +280,36 @@ function MessageRow({
       {proposal ? (
         <section aria-label="App proposal preview" className="rounded-panel border border-hairline bg-surface p-3" data-testid="assistant-proposal">
           <h3 className="text-sm font-semibold text-ink">App preview</h3>
+          {proposal.verification ? (
+            <section
+              aria-label="Build verification"
+              className={`mt-2 rounded-tile border p-2.5 text-xs ${proposal.verification.passed ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-red-200 bg-red-50 text-red-950'}`}
+            >
+              <p className="font-semibold">
+                {proposal.verification.passed ? 'Built, checked, and ready to review' : 'Build checks found errors'}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Responsive viewport checks">
+                {proposal.verification.viewports.map((viewport) => (
+                  <span className="rounded-full bg-white/80 px-2 py-1 font-medium" key={viewport.id}>
+                    {viewport.id[0]!.toUpperCase() + viewport.id.slice(1)} {viewport.width}×{viewport.height} · {viewport.passed ? 'Passed' : 'Failed'}
+                  </span>
+                ))}
+              </div>
+              <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+                {proposal.verification.stages.map((stage) => (
+                  <li key={stage.id}>{stage.passed ? '✓' : '×'} {stage.label}</li>
+                ))}
+              </ul>
+              {proposal.verification.repairAttempts > 0 ? (
+                <p className="mt-2">Novy repaired the draft {proposal.verification.repairAttempts} {proposal.verification.repairAttempts === 1 ? 'time' : 'times'} before presenting it.</p>
+              ) : null}
+              {proposal.verification.issues.length > 0 ? (
+                <ul className="mt-2 list-disc space-y-1 pl-4">
+                  {proposal.verification.issues.map((issue) => <li key={`${issue.code}-${issue.screenId ?? ''}-${issue.viewport ?? ''}`}>{issue.message}</li>)}
+                </ul>
+              ) : null}
+            </section>
+          ) : null}
           <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
             <div><dt className="text-ink-muted">Screens</dt><dd className="font-semibold text-ink">{proposal.blueprint.screens.length}</dd></div>
             <div><dt className="text-ink-muted">Components</dt><dd className="font-semibold text-ink">{proposal.blueprint.screens.reduce((total, screen) => total + screen.components.length, 0)}</dd></div>
@@ -298,7 +328,7 @@ function MessageRow({
           ) : null}
           {message.status === 'pending' ? (
             <div className="mt-3 flex gap-2">
-              <button className="rounded-tile bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50" disabled={isWorking} onClick={() => void onAccept(message.id)} type="button">Apply app</button>
+              <button className="rounded-tile bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50" disabled={isWorking || proposal.verification?.passed === false} onClick={() => void onAccept(message.id)} type="button">Apply app</button>
               <button className="rounded-tile border border-hairline px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50" disabled={isWorking} onClick={() => onReject(message.id)} type="button">Reject</button>
             </div>
           ) : null}

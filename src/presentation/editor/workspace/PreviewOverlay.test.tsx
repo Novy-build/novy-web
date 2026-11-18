@@ -6,7 +6,9 @@ import { createActionNode, createBehaviorBundle } from '@domain/factories/logic'
 import { appendAction, appendCondition, connectLogicPorts, updateCondition } from '@domain/logic/graph';
 import { makeButton, makeColumn, makeListView, makeScreen, makeText } from '@test/editorFixtures';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
-import { createPadding } from '@domain/entities/componentNode';
+import { createPadding, type ChatNode } from '@domain/entities/componentNode';
+import { createProjectFromTemplate } from '@domain/factories/screen';
+import { RAG_CHAT_TEMPLATE } from '@data/templates/ragChatTemplate';
 import { PreviewOverlay } from './PreviewOverlay';
 import type { RuntimePreviewRepository } from '@domain/repositories/runtimePreview.repository';
 
@@ -50,6 +52,83 @@ function buildScreens(steps: PreviewEffect[]): Screen[] {
 function renderPreview(onClose = vi.fn(), screens: Screen[] = buildScreens([])) {
   render(<PreviewOverlay initialDevice="mobile" onClose={onClose} projectName="My App" screens={screens} />);
   return onClose;
+}
+
+function buildChatScreen(): Screen {
+  const chat: ChatNode = {
+    id: 'chat_document',
+    type: 'chat',
+    x: 20,
+    y: 20,
+    w: 350,
+    h: 600,
+    props: {
+      title: 'Ask your document',
+      placeholder: 'Ask a question',
+      sendLabel: 'Send',
+      emptyText: 'Ask your first question.',
+      showCitations: true,
+    },
+  };
+  const base = makeScreen('screen_chat', [chat]);
+  const bundle = createBehaviorBundle('On change — Ask document', chat.id, 'change');
+  let graph = appendAction(bundle.graph, {
+    type: 'chat-message',
+    targetNodeId: chat.id,
+    role: 'user',
+    text: '',
+  });
+  graph = appendAction(graph, {
+    type: 'ai-agent',
+    instructions: 'Answer from the indexed document.',
+    maxIterations: 2,
+    returnIntermediateSteps: false,
+  });
+  graph = appendAction(graph, {
+    type: 'chat-message',
+    targetNodeId: chat.id,
+    role: 'assistant',
+    text: '',
+  });
+  const actions = graph.nodes.filter((node) => node.kind === 'action');
+  const userMessage = actions[0]!;
+  const agent = actions[1]!;
+  const assistantMessage = actions[2]!;
+  graph = {
+    ...graph,
+    nodes: graph.nodes.map((node) => {
+      if (node.id === userMessage.id && node.kind === 'action') {
+        return {
+          ...node,
+          inputMappings: {
+            text: { source: 'component' as const, nodeId: chat.id, property: 'value' as const },
+          },
+        };
+      }
+      if (node.id === agent.id && node.kind === 'action') {
+        return {
+          ...node,
+          inputMappings: {
+            question: { source: 'component' as const, nodeId: chat.id, property: 'value' as const },
+          },
+        };
+      }
+      if (node.id === assistantMessage.id && node.kind === 'action') {
+        return {
+          ...node,
+          inputMappings: {
+            text: { source: 'node-output' as const, nodeId: agent.id, path: 'answer' },
+          },
+        };
+      }
+      return node;
+    }),
+  };
+  return {
+    ...base,
+    behaviors: [bundle.behavior],
+    logicGraphs: [graph],
+  };
 }
 
 describe('PreviewOverlay', () => {
@@ -97,6 +176,7 @@ describe('PreviewOverlay', () => {
     const verifyCode = vi.fn<RuntimePreviewRepository['verifyCode']>().mockResolvedValue({
       id: 'runtime_user',
       email: 'owner@example.com',
+      isAnonymous: false,
     });
     const runtimePreview: RuntimePreviewRepository = {
       isAvailable: true,
@@ -137,6 +217,172 @@ describe('PreviewOverlay', () => {
       '123456',
     ));
     expect(await screen.findByText('Signed in: owner@example.com')).toBeInTheDocument();
+  });
+
+  it('renders a submitted chat message and thinking bubble before the RAG response', async () => {
+    let resolveAgent!: (value: Record<string, unknown>) => void;
+    const agentResponse = new Promise<Record<string, unknown>>((resolve) => {
+      resolveAgent = resolve;
+    });
+    const execute = vi.fn<RuntimePreviewRepository['execute']>().mockReturnValue(agentResponse);
+    const runtimePreview: RuntimePreviewRepository = {
+      isAvailable: true,
+      prepare: vi.fn(async () => ({ appId: 'app_preview' })),
+      resetData: vi.fn(async () => 0),
+      execute,
+      uploadDocument: vi.fn(),
+      executeVision: vi.fn(),
+      requestCode: vi.fn(),
+      verifyCode: vi.fn(),
+      getSession: vi.fn(async () => null),
+      logout: vi.fn(),
+    };
+    render(
+      <PreviewOverlay
+        initialDevice="mobile"
+        onClose={vi.fn()}
+        projectName="Chat App"
+        runtimeManifest={{ manifestVersion: 2 }}
+        runtimePreview={runtimePreview}
+        screens={[buildChatScreen()]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Run App' }));
+    await screen.findByText('Real runtime');
+    fireEvent.change(screen.getByLabelText('Ask a question'), {
+      target: { value: 'What is the source about?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(screen.getByText('What is the source about?')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Assistant is thinking' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    expect(execute).toHaveBeenCalledWith(
+      'app_preview',
+      expect.any(String),
+      expect.objectContaining({ type: 'ai-agent' }),
+      expect.objectContaining({ question: 'What is the source about?' }),
+    );
+
+    await act(async () => {
+      resolveAgent({ answer: 'It is about memory management.', citations: [] });
+      await agentResponse;
+    });
+
+    expect(await screen.findByText('It is about memory management.')).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Assistant is thinking' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('What is the source about?')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+  });
+
+  it('keeps the submitted chat message and clears thinking when RAG fails', async () => {
+    let rejectAgent!: (reason: Error) => void;
+    const agentResponse = new Promise<Record<string, unknown>>((_resolve, reject) => {
+      rejectAgent = reject;
+    });
+    const runtimePreview: RuntimePreviewRepository = {
+      isAvailable: true,
+      prepare: vi.fn(async () => ({ appId: 'app_preview' })),
+      resetData: vi.fn(async () => 0),
+      execute: vi.fn(() => agentResponse),
+      uploadDocument: vi.fn(),
+      executeVision: vi.fn(),
+      requestCode: vi.fn(),
+      verifyCode: vi.fn(),
+      getSession: vi.fn(async () => null),
+      logout: vi.fn(),
+    };
+    render(
+      <PreviewOverlay
+        initialDevice="mobile"
+        onClose={vi.fn()}
+        projectName="Chat App"
+        runtimeManifest={{ manifestVersion: 2 }}
+        runtimePreview={runtimePreview}
+        screens={[buildChatScreen()]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Run App' }));
+    await screen.findByText('Real runtime');
+    fireEvent.change(screen.getByLabelText('Ask a question'), {
+      target: { value: 'Will this stay visible?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(screen.getByText('Will this stay visible?')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Assistant is thinking' })).toBeInTheDocument();
+
+    await act(async () => {
+      rejectAgent(new Error('The RAG provider is unavailable.'));
+      await agentResponse.catch(() => undefined);
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The RAG provider is unavailable.');
+    expect(screen.getAllByText('Will this stay visible?')).toHaveLength(1);
+    expect(screen.queryByRole('status', { name: 'Assistant is thinking' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+  });
+
+  it('runs the document template upload, indexing, and chat navigation chain', async () => {
+    const uploadDocument = vi.fn<RuntimePreviewRepository['uploadDocument']>().mockResolvedValue({
+      sourceId: 'source_document',
+      filename: 'handbook.txt',
+      mediaType: 'text/plain',
+    });
+    const execute = vi.fn<RuntimePreviewRepository['execute']>().mockResolvedValue({
+      insertedCount: 1,
+      updatedCount: 0,
+      chunkCount: 1,
+    });
+    const runtimePreview: RuntimePreviewRepository = {
+      isAvailable: true,
+      prepare: vi.fn(async () => ({ appId: 'app_preview' })),
+      resetData: vi.fn(async () => 0),
+      execute,
+      uploadDocument,
+      executeVision: vi.fn(),
+      requestCode: vi.fn(),
+      verifyCode: vi.fn(),
+      getSession: vi.fn(async () => null),
+      logout: vi.fn(),
+    };
+    const project = createProjectFromTemplate(
+      RAG_CHAT_TEMPLATE,
+      'Chat with a document',
+      new Date('2026-11-17T00:00:00Z'),
+    );
+    render(
+      <PreviewOverlay
+        initialDevice="mobile"
+        onClose={vi.fn()}
+        projectName={project.name}
+        runtimeManifest={{ manifestVersion: 2 }}
+        runtimePreview={runtimePreview}
+        screens={project.document.screens}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Run App' }));
+    await screen.findByText('Real runtime');
+
+    fireEvent.change(screen.getByLabelText('Choose a document'), {
+      target: { files: [new File(['Alpha handbook content'], 'handbook.txt', { type: 'text/plain' })] },
+    });
+
+    expect(await screen.findByText('Ask your document')).toBeInTheDocument();
+    expect(uploadDocument).toHaveBeenCalledWith(
+      'app_preview',
+      'rag_demo_action_upload',
+      expect.objectContaining({ mediaReference: 'media:handbook.txt' }),
+      expect.any(File),
+    );
+    expect(execute).toHaveBeenCalledWith(
+      'app_preview',
+      'rag_demo_action_store',
+      expect.objectContaining({ type: 'vector-store', operation: 'upsert' }),
+      expect.objectContaining({
+        $previous: expect.objectContaining({ sourceId: 'source_document' }),
+      }),
+    );
   });
 
   it('previews the first screen at full size', () => {

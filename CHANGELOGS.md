@@ -5,6 +5,171 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-18 — Full project design system and showcase templates
+
+#### Added
+- Project schema v14 now persists semantic light/dark color tokens, body/heading font stacks,
+  radius presets, reusable named component styles, and per-screen surfaces.
+- Components support typed gradients, multiple shadows and glow, backdrop blur, clipping, richer
+  typography, and responsive appearance/text overrides. A standalone accessible Icon component uses
+  a curated Lucide vocabulary throughout the palette, canvas, Preview, thumbnails, and export.
+- Creative media workspace and learning dashboard starters demonstrate responsive navigation,
+  dashboard cards, effects, tokens, and reusable styles. The Notes starter now demonstrates a serif
+  heading, themed cards, elevation, and floating-action glow.
+
+#### Changed
+- The App Styles Inspector edits project tokens and screen surfaces; selected components can create,
+  apply, update, and detach reusable styles. Appearance controls now apply to every component type.
+- Generated manifest/layout v2 compatibly carry schema-v14 design data while preserving strict
+  schema-v13 loading. Generated React now matches editor styling, including border width, font
+  family, hidden field labels, standalone icons, and responsive effects/typography.
+
+#### Fixed
+- Record-route identifier synchronization no longer leaks the browser `document` object into editor
+  history while preserving project-level design-system data.
+
+#### Verification
+- Strict TypeScript, all 114 test files / 960 tests, and the production build passed. Coordinated
+  backend verification passed 336 tests with 5 optional integration skips; Ruff check/format,
+  application mypy, and representative schema-v14 generated React/Vite production builds passed.
+
+### 2026-11-18 — Complete CRUD assistant detail forms
+
+#### Fixed
+- Assistant-built detail screens can prefill Input and Dropdown controls from the active route record.
+  Native date inputs are preserved through Project DTOs, the editor renderer, Inspector controls, and
+  generated-app contracts instead of being downgraded to generic text fields.
+- Bound dropdowns follow route-record changes while preserving user edits in preview. New binding
+  targets are available in the Inspector with schema-compatible field guidance.
+- Backend generation deadlines now map to the existing timeout state, and invalid repaired proposals
+  show the first sanitized Novy validation issue instead of only a generic failure message.
+
+#### Verification
+- Strict TypeScript, all 114 test files / 954 tests, and the production build passed. Coordinated
+  backend verification passed 333 tests with 5 optional integration skips plus Ruff, strict mypy,
+  `alembic check`, and generated React/Vite runtime test/typecheck/build coverage.
+
+### 2026-11-17 — Assistant build timeout alignment
+
+#### Fixed
+- Build app and Ask Novy requests now allow up to five minutes for remote structured generation,
+  instead of inheriting the shared 30-second API timeout while the backend continued processing.
+- Timeout feedback no longer incorrectly calls every selected provider a local assistant.
+
+#### Verification
+- Focused assistant repository and conversation tests, strict TypeScript, and the production build
+  pass.
+
+### 2026-11-17 — Verified responsive assistant builds
+
+#### Changed
+- The existing **Build app** flow now explains that Novy builds, checks, repairs, and retests
+  responsive web apps instead of presenting unchecked or mobile-only proposals. No separate test
+  mode was added; **Ask Novy** remains the only other assistant mode.
+- Proposal cards show the backend verification result, Project/route/workflow stages, mobile
+  390x780, tablet 768x1024, and desktop 1200x800 checks, plus any automatic repair count. Apply is
+  disabled for a failed report and the explicit preview-before-Apply interaction is preserved.
+- API proposal parsing now strictly validates the structured verification report before exposing it
+  to the editor.
+
+#### Verification
+- Strict TypeScript, all 114 test files / 950 tests, and the production build pass. Coordinated
+  backend verification passes with 329 tests and 5 optional integration skips; Ruff, mypy, and
+  `alembic check` also pass.
+
+### 2026-11-17 — Automatic face verification after capture
+
+#### Changed
+- Recognition Test no longer requires an external **Unlock with face** click. A completed guided or
+  manual Camera capture emits its normal `change` event, which now starts CV Verify automatically.
+- The verification If/Else remains mandatory: CV Verify `success` means the server request completed,
+  while the `verified` node output distinguishes a recognized face from a valid non-match response.
+  Separate recognized, not-recognized, and runtime-error text branches are preserved.
+- Known existing Face starter projects migrate from the untouched verify button/click graph to the
+  Camera change graph, remove the redundant button, and compact the status/back controls. Customized
+  verify buttons or graphs are left unchanged.
+
+#### Verification
+- Template behavior, simulation outcomes, and migration coverage pass. Strict TypeScript, all 114
+  test files / 950 tests, and the production build pass. Coordinated backend verification passes
+  with 328 tests and 5 optional integration skips; the generated vision project installs,
+  typechecks, tests, and builds.
+
+### 2026-11-17 — Guided automatic face capture
+
+#### Added
+- Camera components now support an optional **Guided face (automatic)** capture mode. MediaPipe Face
+  Landmarker runs in the browser to require one centered, suitably sized, frontal face and checks
+  face-region lighting, contrast, sharpness, and short-term stability before capturing automatically.
+- Guided cameras provide an oval positioning mask, plain-language live instructions, capture
+  progress, reduced-motion behavior, and a keyboard-accessible **Capture now** fallback when the
+  model is unavailable or automatic checks are unsuitable.
+
+#### Changed
+- Both cameras in the **Face verification** starter use guided capture. Known existing starter
+  camera IDs migrate from omitted legacy capture mode to guided capture without changing Project
+  schema v13; unrelated Camera components remain manual.
+- Camera DTO props may now include `captureMode: "manual" | "guided-face"`. Only the final accepted
+  JPEG enters the existing transient in-memory media path; analyzed video frames are not persisted
+  or sent to MediaPipe.
+
+#### Verification
+- Added pure face-quality, automatic-capture, template, mapper migration, and generated-source/build
+  coverage. Strict TypeScript, all 114 test files / 950 tests, and the production build pass. The
+  MediaPipe SDK is lazy-loaded into a separate chunk only after guided camera activation. Coordinated
+  backend verification passes with 328 tests and 5 optional integration skips; freshly generated
+  vision projects typecheck and build.
+
+### 2026-11-17 — Account-free same-device face unlock
+
+#### Changed
+- The **Face verification** starter no longer asks for an email or generated-app sign-in. Enrollment
+  explains the device-local binding and Recognition Test now offers **Unlock with face**.
+- CV actions infer Computer Vision only, not authentication. Successful face verification reconciles
+  the backend-issued runtime session and anonymous biometric users are labeled **Unlocked with
+  face** instead of exposing their synthetic identity.
+- The Project v13 mapper safely normalizes existing projects cloned from the old starter by matching
+  known screen/node/action IDs and unchanged legacy defaults. Customized content and inputs are
+  preserved; no Project schema bump is required.
+
+#### Verification
+- Added starter, manifest, API repository, Preview, and existing-project migration coverage. Strict
+  TypeScript, the focused 53-test compatibility suite, all 113 test files / 946 tests, and the
+  production build pass. Coordinated backend verification passes with 327 tests and 5 optional
+  integration skips; generated React/Vite biometric projects typecheck and build.
+
+### 2026-11-17 — RAG template upload recovery
+
+#### Fixed
+- The **Chat with a document** template now has end-to-end regression coverage for its real Run App
+  upload → vector indexing → Chat navigation chain, including fresh ID remapping when a project is
+  created from the template.
+- Run App now gives actionable feedback when a local RAG provider is unavailable, explicitly asking
+  the builder to start Ollama and retry instead of only reporting a generic provider failure.
+
+#### Verification
+- Strict TypeScript, all 113 test files / 944 tests, and the production build pass. The regression
+  suite executes the freshly cloned template workflow through upload, indexing, and navigation.
+  Coordinated backend verification passes with 325 tests and 5 optional integration skips.
+
+### 2026-11-17 — Immediate RAG chat feedback
+
+#### Changed
+- Chat submissions now append the user's message immediately in isolated Preview, Run App, and
+  generated/published applications instead of waiting for the RAG workflow to finish.
+- Chat composers show an accessible animated assistant-thinking bubble, scroll to the newest
+  transcript item, and remain disabled while a response is pending. Reduced-motion preferences are
+  respected.
+- Browser-owned optimistic messages are reconciled with authored `chat-message` actions without
+  duplicates. A failed workflow keeps the submitted message, clears the pending state, re-enables
+  the composer, and reports the error.
+
+#### Verification
+- Deferred success and failure tests verify immediate rendering, pending accessibility, transcript
+  deduplication, and recovery. Strict TypeScript, all 113 test files / 942 tests, and the production
+  build pass. Coordinated backend verification passes with 324 tests and 5 optional integration
+  skips; freshly generated React/Vite applications typecheck and build.
+
 ### 2026-11-17 — Full Run App server-action parity
 
 #### Added

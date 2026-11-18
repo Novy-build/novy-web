@@ -52,6 +52,22 @@ const PROPOSAL: AssistantProposalV1 = {
     document: { screens: [] },
     collections: [],
   },
+  verification: {
+    passed: true,
+    repairAttempts: 1,
+    stages: [
+      { id: 'contract', label: 'Project contract', passed: true },
+      { id: 'responsive', label: 'Responsive layout', passed: true },
+      { id: 'navigation', label: 'Routes and navigation', passed: true },
+      { id: 'workflows', label: 'Workflow simulation', passed: true },
+    ],
+    viewports: [
+      { id: 'mobile', width: 390, height: 780, passed: true },
+      { id: 'tablet', width: 768, height: 1024, passed: true },
+      { id: 'desktop', width: 1200, height: 800, passed: true },
+    ],
+    issues: [],
+  },
 };
 
 function conversation(overrides: Partial<AssistantConversation> = {}): AssistantConversation {
@@ -174,6 +190,9 @@ describe('AssistantSheet', () => {
     expect(within(preview).getByText('Tasks')).toBeInTheDocument();
     expect(within(preview).getByText('Create task')).toBeInTheDocument();
     expect(within(preview).getByText(/Tasks \(1 fields\)/)).toBeInTheDocument();
+    expect(within(preview).getByRole('region', { name: 'Build verification' })).toHaveTextContent('Built, checked, and ready to review');
+    expect(within(preview).getByText(/Mobile 390×780 · Passed/)).toBeInTheDocument();
+    expect(within(preview).getByText(/repaired the draft 1 time/)).toBeInTheDocument();
 
     fireEvent.click(within(preview).getByRole('button', { name: 'Apply app' }));
     expect(controller.accept).toHaveBeenCalledWith('assistant_1');

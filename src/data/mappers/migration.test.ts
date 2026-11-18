@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createPadding, geometryAtBreakpoint } from '@domain/entities/componentNode';
+import { CV_STARTER_TEMPLATE } from '@data/templates/cvStarterTemplate';
 import { mapProjectFromDto, mapProjectToDto } from './project.mapper';
 
 function legacyProjectDto() {
@@ -58,6 +59,168 @@ describe('project migration', () => {
     expect(reloaded).toEqual(restored);
   });
 
+  it('normalizes untouched Face verification starter projects to account-free device unlock', () => {
+    const dto = mapProjectToDto({
+      id: 'legacy_face_starter',
+      name: 'Face verification',
+      projectType: 'app',
+      createdAt: new Date('2026-11-16T00:00:00Z'),
+      updatedAt: new Date('2026-11-16T00:00:00Z'),
+      document: { screens: structuredClone(CV_STARTER_TEMPLATE.screens) },
+    });
+    const registration = dto.screens.find((screen) => screen.id === 'screen_cv_registration')!;
+    const test = dto.screens.find((screen) => screen.id === 'screen_cv_test')!;
+    const registrationIntro = registration.nodes.find((node) => node.id === 'cv_registration_intro')!;
+    if (registrationIntro.type !== 'text') throw new Error('Expected registration intro text.');
+    registrationIntro.props.text = 'Capture a clear face image and grant consent to register the signed-in app user.';
+    const registrationStatus = registration.nodes.find((node) => node.id === 'cv_registration_status')!;
+    if (registrationStatus.type !== 'text') throw new Error('Expected registration status text.');
+    registrationStatus.props.text = 'Registration status: sign in, capture a face, and grant consent.';
+    const registrationCamera = registration.nodes.find((node) => node.id === 'cv_registration_camera')!;
+    if (registrationCamera.type !== 'camera') throw new Error('Expected registration camera.');
+    delete registrationCamera.props.captureMode;
+    registrationCamera.props.captureLabel = 'Capture face';
+
+    const testIntro = test.nodes.find((node) => node.id === 'cv_test_intro')!;
+    if (testIntro.type !== 'text') throw new Error('Expected recognition intro text.');
+    testIntro.props.text = 'Capture a face and enter the account email used by the enrolled app user.';
+    const testCamera = test.nodes.find((node) => node.id === 'cv_test_camera')!;
+    if (testCamera.type !== 'camera') throw new Error('Expected recognition camera.');
+    delete testCamera.props.captureMode;
+    testCamera.props.captureLabel = 'Capture face';
+    test.nodes.push({
+      id: 'cv_test_email',
+      type: 'input',
+      x: 24,
+      y: 368,
+      w: 342,
+      h: 64,
+      props: {
+        label: 'Enrolled account email',
+        placeholder: 'you@example.com',
+        inputType: 'email',
+        multiline: false,
+      },
+    });
+    test.nodes.push({
+      id: 'cv_test_verify',
+      type: 'button',
+      x: 24,
+      y: 504,
+      w: 342,
+      h: 44,
+      props: { label: 'Recognize face', variant: 'solid' },
+    });
+    for (const [id, y] of [
+      ['cv_test_liveness', 448],
+      ['cv_test_verify', 504],
+      ['cv_test_status', 568],
+      ['cv_test_back', 640],
+    ] as const) {
+      const node = test.nodes.find((candidate) => candidate.id === id)!;
+      node.y = y;
+      if (id === 'cv_test_verify' && node.type === 'button') node.props.label = 'Recognize face';
+    }
+    const verifyGraph = test.logicGraphs.find((graph) => graph.id === 'cv_test_graph_verify')!;
+    verifyGraph.name = 'Recognize face';
+    verifyGraph.sourceNodeId = 'cv_test_verify';
+    const verifyTrigger = verifyGraph.nodes.find((node) => node.id === 'cv_test_verify_trigger')!;
+    if (verifyTrigger.kind !== 'trigger') throw new Error('Expected CV Verify trigger.');
+    verifyTrigger.event = 'click';
+    const verifyBehavior = test.behaviors.find((behavior) => behavior.id === 'cv_test_behavior_verify')!;
+    verifyBehavior.name = 'Recognize face';
+    verifyBehavior.event = 'click';
+    verifyBehavior.targetNodeId = 'cv_test_verify';
+    const verify = verifyGraph.nodes.find((node) => node.id === 'cv_test_action_verify')!;
+    if (verify.kind !== 'action' || verify.payload.type !== 'cv-verify') {
+      throw new Error('Expected CV Verify action.');
+    }
+    verify.inputMappings = {
+      ...verify.inputMappings,
+      userId: { source: 'component', nodeId: 'cv_test_email', property: 'value' },
+    };
+    const recognized = verifyGraph.nodes.find((node) => node.id === 'cv_test_status_recognized')!;
+    const verifyError = verifyGraph.nodes.find((node) => node.id === 'cv_test_status_verify_error')!;
+    if (recognized.kind !== 'action' || recognized.payload.type !== 'change-text'
+      || verifyError.kind !== 'action' || verifyError.payload.type !== 'change-text') {
+      throw new Error('Expected recognition status actions.');
+    }
+    recognized.payload.text = 'Recognition result: Face recognized.';
+    verifyError.payload.text = 'Recognition result: capture a face and enter the enrolled account email.';
+
+    const restored = mapProjectFromDto(dto);
+    const restoredRegistration = restored.document.screens.find((screen) => screen.id === registration.id)!;
+    const restoredTest = restored.document.screens.find((screen) => screen.id === test.id)!;
+    expect(restoredRegistration.nodes.find((node) => node.id === 'cv_registration_intro')).toMatchObject({
+      props: { text: 'Capture a clear face image and grant consent. No account or email is required.' },
+    });
+    expect(restoredTest.nodes.some((node) => node.id === 'cv_test_email')).toBe(false);
+    expect(restoredRegistration.nodes.find((node) => node.id === 'cv_registration_camera')).toMatchObject({
+      props: { captureMode: 'guided-face', captureLabel: 'Capture now' },
+    });
+    expect(restoredTest.nodes.find((node) => node.id === 'cv_test_camera')).toMatchObject({
+      props: { captureMode: 'guided-face', captureLabel: 'Capture now' },
+    });
+    expect(restoredTest.nodes.find((node) => node.id === 'cv_test_liveness')?.y).toBe(384);
+    expect(restoredTest.nodes.some((node) => node.id === 'cv_test_verify')).toBe(false);
+    expect(restoredTest.nodes.find((node) => node.id === 'cv_test_status')?.y).toBe(448);
+    expect(restoredTest.behaviors.find((behavior) => behavior.id === 'cv_test_behavior_verify')).toMatchObject({
+      name: 'Verify captured face',
+      event: 'change',
+      targetNodeId: 'cv_test_camera',
+    });
+    expect(restoredTest.logicGraphs.find((graph) => graph.id === 'cv_test_graph_verify')).toMatchObject({
+      name: 'Recognize face automatically',
+      sourceNodeId: 'cv_test_camera',
+      nodes: expect.arrayContaining([
+        expect.objectContaining({ id: 'cv_test_verify_trigger', kind: 'trigger', event: 'change' }),
+      ]),
+    });
+    const restoredVerify = restoredTest.logicGraphs
+      .flatMap((graph) => graph.nodes)
+      .find((node) => node.id === 'cv_test_action_verify');
+    expect(restoredVerify?.kind === 'action' ? restoredVerify.inputMappings : null).not.toHaveProperty('userId');
+    expect(restoredTest.logicGraphs
+      .flatMap((graph) => graph.nodes)
+      .find((node) => node.id === 'cv_test_status_recognized')).toMatchObject({
+      payload: { text: 'Recognition result: Face recognized. App unlocked.' },
+    });
+  });
+
+  it('preserves a customized input that reuses the legacy Face starter email ID', () => {
+    const dto = mapProjectToDto({
+      id: 'custom_face_starter',
+      name: 'Customized Face verification',
+      projectType: 'app',
+      createdAt: new Date('2026-11-16T00:00:00Z'),
+      updatedAt: new Date('2026-11-16T00:00:00Z'),
+      document: { screens: structuredClone(CV_STARTER_TEMPLATE.screens) },
+    });
+    const test = dto.screens.find((screen) => screen.id === 'screen_cv_test')!;
+    test.nodes.push({
+      id: 'cv_test_email',
+      type: 'input',
+      x: 24,
+      y: 368,
+      w: 342,
+      h: 64,
+      props: {
+        label: 'Optional contact email',
+        placeholder: 'you@example.com',
+        inputType: 'email',
+        multiline: false,
+      },
+    });
+
+    const restored = mapProjectFromDto(dto);
+
+    expect(restored.document.screens
+      .find((screen) => screen.id === 'screen_cv_test')?.nodes
+      .find((node) => node.id === 'cv_test_email')).toMatchObject({
+      props: { label: 'Optional contact email' },
+    });
+  });
+
   it('migrates schema-v6 ListView data and item layout to the current schema', () => {
     const restored = mapProjectFromDto({
       schemaVersion: 6,
@@ -97,7 +260,7 @@ describe('project migration', () => {
     }]);
     expect(list?.type === 'listview' ? list.props.itemSpacing : null).toBe(0);
     expect(list?.type === 'listview' ? list.props.itemBorderRadius : null).toBe(0);
-    expect(mapProjectToDto(restored).schemaVersion).toBe(13);
+    expect(mapProjectToDto(restored).schemaVersion).toBe(14);
   });
 
   it('materializes schema-v8 ListView flow layouts as free-form item geometry', () => {
@@ -202,7 +365,7 @@ describe('project migration', () => {
     expect(list?.type === 'listview' ? list.props.padding : null).toEqual(createPadding(12));
 
     const repersisted = mapProjectToDto(restored);
-    expect(repersisted.schemaVersion).toBe(13);
+    expect(repersisted.schemaVersion).toBe(14);
     expect(repersisted.screens[0]!.nodes[0]).toMatchObject({
       props: { padding: createPadding(16) },
     });
@@ -279,7 +442,7 @@ describe('project migration', () => {
     });
 
     const repersisted = mapProjectToDto(restored);
-    expect(repersisted.schemaVersion).toBe(13);
+    expect(repersisted.schemaVersion).toBe(14);
     expect(repersisted.screens[0]!.nodes.map((node) => node.type)).toEqual(['listview', 'listview', 'column']);
   });
 });

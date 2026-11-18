@@ -28,6 +28,8 @@ describe('useTemplates', () => {
       'Notes CRUD app',
       'Face verification',
       'Chat with a document',
+      'Creative media workspace',
+      'Learning dashboard',
       'Blank canvas',
       'Landing page',
       'Portfolio',

@@ -121,7 +121,7 @@ export function NewProjectDialog({ templates, onCancel, onCreate }: NewProjectDi
                     type="button"
                   >
                     <div className="flex h-28 shrink-0 justify-center overflow-hidden rounded-tile bg-surface">
-                      <ScreenFrame mode="thumbnail" scale={0.16} screen={template.screens[0] ?? null} />
+                      <ScreenFrame designSystem={template.designSystem} mode="thumbnail" scale={0.16} screen={template.screens[0] ?? null} />
                     </div>
                     <h3 className="mt-2 text-sm font-semibold text-ink">{template.name}</h3>
                     <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">{template.description}</p>
