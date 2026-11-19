@@ -65,6 +65,30 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(screen.getByRole('region', { name: 'Inspector' })).toBeInTheDocument();
   });
 
+  it('opens the assistant from the right rail and the collapsed inspector label', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    await screen.findByTestId('canvas-frame');
+
+    const assistantRail = screen.getByRole('button', { name: 'AI assistant' });
+    expect(assistantRail.closest('aside')).toHaveAttribute('aria-label', 'AI assistant panel');
+    expect(assistantRail).not.toHaveClass('fixed');
+    fireEvent.click(assistantRail);
+    expect(await screen.findByRole('dialog', { name: 'AI assistant' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close assistant' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse inspector panel' }));
+    const inspectorTab = screen.getByRole('button', { name: 'inspector panel' });
+    const rail = screen.getByRole('complementary', { name: 'inspector panel minimized' });
+    expect(rail).toContainElement(inspectorTab);
+    expect(rail).toContainElement(assistantRail);
+
+    fireEvent.click(inspectorTab);
+    expect(screen.getByRole('region', { name: 'Inspector' })).toBeInTheDocument();
+  });
+
   it('switches to the Logic workspace and back to design', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);
@@ -222,10 +246,12 @@ describe('EditorPage (integration over the real route tree)', () => {
     fireEvent.click(assistantChip);
     const reopened = await screen.findByRole('dialog', { name: 'AI assistant' });
     expect(within(reopened).getByRole('region', { name: 'App proposal preview' })).toBeInTheDocument();
-    fireEvent.click(within(reopened).getByRole('button', { name: 'Apply app' }));
+    fireEvent.click(within(reopened).getByRole('button', { name: 'Use this app' }));
+    expect(repositories.assistant.acceptProposal).not.toHaveBeenCalled();
+    fireEvent.click(within(reopened).getByRole('button', { name: 'Replace and use app' }));
 
     expect(await within(canvas).findByRole('button', { name: 'Sign up' })).toBeInTheDocument();
-    expect(within(reopened).getByText('Applied and saved to the project.')).toBeInTheDocument();
+    expect(within(reopened).getByText('Applied and saved to your project')).toBeInTheDocument();
 
     fireEvent.click(within(reopened).getByRole('button', { name: 'Close assistant' }));
     expect(assistantChip).toHaveFocus();
@@ -343,9 +369,10 @@ describe('EditorPage (integration over the real route tree)', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Send' }));
     await within(dialog).findByText('A notes app proposal.');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply app' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Use this app' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Replace and use app' }));
 
-    await within(dialog).findByText('Applied and saved to the project.');
+    await within(dialog).findByText('Applied and saved to your project');
     await waitFor(() => expect(screen.getByTestId('validation-badge')).toHaveTextContent('Valid'));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close assistant' }));
     const editorSidebar = screen.getByRole('complementary', { name: 'Editor sidebar' });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { DropdownProps } from '@domain/entities/componentNode';
 import { ActionMenuNodeView } from './ActionMenuNodeView';
 
@@ -9,6 +9,7 @@ export function DropdownNodeView({
   onValueChange,
   itemLabel,
   value,
+  menuStyle,
 }: {
   props: DropdownProps;
   renderStatic?: boolean;
@@ -16,10 +17,11 @@ export function DropdownNodeView({
   onValueChange?: (value: string) => void;
   itemLabel?: string;
   value?: string;
+  menuStyle?: CSSProperties;
 }) {
   if (props.presentation === 'menu') {
-    if (renderStatic || !isPreview) return <div aria-hidden="true" className="flex h-full w-full items-center justify-center text-xl text-ink">⋮</div>;
-    return <ActionMenuNodeView isPreview={isPreview && !renderStatic} itemLabel={itemLabel} label={props.label} onSelect={onValueChange} options={props.options} />;
+    if (renderStatic || !isPreview) return <div aria-hidden="true" className="novy-widget-text flex h-full w-full items-center justify-center text-xl">⋮</div>;
+    return <ActionMenuNodeView isPreview={isPreview && !renderStatic} itemLabel={itemLabel} label={props.label} onSelect={onValueChange} options={props.options} menuStyle={menuStyle} />;
   }
   return <SelectNodeView isPreview={isPreview} onValueChange={onValueChange} props={props} renderStatic={renderStatic} value={value} />;
 }
@@ -42,8 +44,8 @@ function SelectNodeView({ props, renderStatic, isPreview, onValueChange, value }
   if (renderStatic) {
     return (
       <div className="flex h-full w-full flex-col justify-center gap-1">
-        {props.label ? <span className="text-xs font-medium text-ink-muted">{props.label}</span> : null}
-        <div className="flex h-9 w-full items-center rounded-tile border border-hairline bg-surface px-3 text-sm text-ink">
+        {props.label ? <span className="novy-widget-text-muted text-xs font-medium">{props.label}</span> : null}
+        <div className="novy-widget-text flex h-9 w-full items-center rounded-tile border border-hairline bg-surface px-3 text-sm">
           {selected || props.placeholder}
         </div>
       </div>
@@ -52,10 +54,10 @@ function SelectNodeView({ props, renderStatic, isPreview, onValueChange, value }
 
   return (
     <div className="flex h-full w-full flex-col justify-center gap-1">
-      {props.label ? <label className="text-xs font-medium text-ink-muted">{props.label}</label> : null}
+      {props.label ? <label className="novy-widget-text-muted text-xs font-medium">{props.label}</label> : null}
       <select
         aria-label={props.label.trim() || props.placeholder.trim() || 'Dropdown'}
-        className="h-9 w-full rounded-tile border border-hairline bg-surface px-3 text-sm text-ink"
+        className="novy-widget-text h-9 w-full rounded-tile border border-hairline bg-surface px-3 text-sm"
         onChange={(event) => {
           const index = Number(event.target.value);
           setSelectedIndex(index);

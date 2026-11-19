@@ -31,18 +31,18 @@ export function ChatNodeView({
   }
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-md border border-hairline bg-surface">
-      <div className="border-b border-hairline px-4 py-3 text-sm font-semibold text-ink">
+      <div className="novy-widget-text border-b border-hairline px-4 py-3 text-sm font-semibold">
         {props.title}
       </div>
       <div aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
         {messages.length === 0 ? (
-          <p className="m-auto text-center text-xs text-ink-muted">{props.emptyText}</p>
+          <p className="novy-widget-text-muted m-auto text-center text-xs">{props.emptyText}</p>
         ) : null}
         {messages.map((message) => {
           const role = message.values.role === 'user' ? 'user' : 'assistant';
           return (
             <div
-              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${role === 'user' ? 'ml-auto bg-brand-600 text-white' : 'mr-auto bg-canvas text-ink'}`}
+              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${role === 'user' ? 'novy-widget-text-contrast ml-auto bg-brand-600' : 'novy-widget-text mr-auto bg-canvas'}`}
               key={message.itemId}
             >
               <p>{String(message.values.text ?? '')}</p>
@@ -55,7 +55,7 @@ export function ChatNodeView({
         {isThinking ? (
           <div
             aria-label="Assistant is thinking"
-            className="mr-auto flex max-w-[85%] items-center gap-1 rounded-lg bg-canvas px-3 py-3 text-ink"
+            className="novy-widget-text mr-auto flex max-w-[85%] items-center gap-1 rounded-lg bg-canvas px-3 py-3"
             role="status"
           >
             <span aria-hidden="true" className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-muted motion-reduce:animate-none" />
@@ -68,13 +68,13 @@ export function ChatNodeView({
       <form className="flex gap-2 border-t border-hairline p-3" onSubmit={submit}>
         <input
           aria-label={props.placeholder}
-          className="min-w-0 flex-1 rounded-md border border-hairline px-3 text-sm text-ink"
+          className="novy-widget-text min-w-0 flex-1 rounded-md border border-hairline px-3 text-sm placeholder:text-current placeholder:opacity-70"
           disabled={!isPreview || renderStatic || isThinking}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={props.placeholder}
           value={draft}
         />
-        <button className="rounded-md bg-brand-600 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={!isPreview || renderStatic || isThinking} type="submit">
+        <button className="novy-widget-text-contrast rounded-md bg-brand-600 px-3 text-sm font-medium disabled:opacity-60" disabled={!isPreview || renderStatic || isThinking} type="submit">
           {props.sendLabel}
         </button>
       </form>

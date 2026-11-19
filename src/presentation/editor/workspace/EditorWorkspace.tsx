@@ -24,7 +24,7 @@ import { ScreenRouteEditor } from './ScreenRouteEditor';
 import { PreviewOverlay } from './PreviewOverlay';
 import { Inspector } from './Inspector';
 import { LayersPanel } from './LayersPanel';
-import { AssistantChip } from '../assistant/AssistantChip';
+import { EditorRightRail } from '../EditorRightRail';
 import { AssistantSheet } from '../assistant/AssistantSheet';
 import { useAssistantConversation } from '../assistant/useAssistantConversation';
 import { LogicWorkspace } from '../logic/LogicWorkspace';
@@ -32,7 +32,7 @@ import { DataWorkspace } from '../data/DataWorkspace';
 import { useProjectData } from '../data/useProjectData';
 import { useProjectValidation } from '../validation/useProjectValidation';
 import { ValidationDock } from '../validation/ValidationDock';
-import { CollapsedPanelRail, PanelCollapseButton } from '../PanelCollapseControl';
+import { PanelCollapseButton } from '../PanelCollapseControl';
 import { ResizeHandle } from '../layout/ResizeHandle';
 import { useResizablePane } from '../layout/useResizablePane';
 import type { ListItemBindingField } from './Inspector';
@@ -279,8 +279,9 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
         validation={validation}
       />
 
-      {mode === 'design' ? (
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {mode === 'design' ? (
+          <div className="flex min-h-0 flex-1 overflow-hidden">
           <EditorLeftPanel
                  frame={activeTemplate}
                  nodes={designNodes}
@@ -439,14 +440,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
             />
           </div>
 
-          {isInspectorCollapsed ? (
-            <CollapsedPanelRail
-              controls="design-inspector-panel"
-              label="inspector panel"
-              onExpand={() => setIsInspectorCollapsed(false)}
-              side="right"
-            />
-          ) : (
+          {isInspectorCollapsed ? null : (
             <>
               <ResizeHandle
                 controls="design-inspector-panel"
@@ -556,7 +550,14 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
             })}
           />
         </div>
-      )}
+        )}
+        <EditorRightRail
+          isInspectorCollapsed={isInspectorCollapsed}
+          onInspectorToggle={() => setIsInspectorCollapsed((collapsed) => !collapsed)}
+          onOpenAssistant={() => setIsAssistantOpen(true)}
+          showInspectorTab={mode === 'design'}
+        />
+      </div>
 
       {isPreviewOpen ? (
         <PreviewOverlay
@@ -579,7 +580,6 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
         />
       ) : null}
 
-      <AssistantChip isHidden={isAssistantOpen} onOpen={() => setIsAssistantOpen(true)} />
       {isAssistantOpen ? (
         <AssistantSheet
           conversation={assistantConversation}

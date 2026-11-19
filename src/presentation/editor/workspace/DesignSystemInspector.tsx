@@ -8,6 +8,7 @@ import type { Screen } from '@domain/entities/screen';
 import type { EditorAction } from '../state/editorState';
 import { ColorField } from './ColorField';
 import { TextInput } from '@presentation/components/ui/TextInput';
+import { FontFamilyPicker } from './FontFamilyPicker';
 
 const TOKEN_LABELS: Record<DesignColorTokenName, string> = {
   primary: 'Primary',
@@ -104,16 +105,18 @@ export function DesignSystemInspector({
 
       <div className="mt-6 grid gap-3 border-t border-hairline pt-4">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Typography</p>
-        <TextInput
+        <FontFamilyPicker
+          appFonts={value.typography}
           label="Body font stack"
           name="design-body-font"
-          onChange={(event) => update({ ...value, typography: { ...value.typography, bodyFontFamily: event.target.value } })}
+          onChange={(bodyFontFamily) => update({ ...value, typography: { ...value.typography, bodyFontFamily } })}
           value={value.typography.bodyFontFamily}
         />
-        <TextInput
+        <FontFamilyPicker
+          appFonts={value.typography}
           label="Heading font stack"
           name="design-heading-font"
-          onChange={(event) => update({ ...value, typography: { ...value.typography, headingFontFamily: event.target.value } })}
+          onChange={(headingFontFamily) => update({ ...value, typography: { ...value.typography, headingFontFamily } })}
           value={value.typography.headingFontFamily}
         />
         <p className="text-xs text-ink-muted">Use local, system, or bundled font stacks. Export never depends on an external font CDN.</p>

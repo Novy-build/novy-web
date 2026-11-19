@@ -21,7 +21,9 @@ export function TextNodeView({ props }: { props: TextProps }) {
     textAlign: props.textAlign,
     fontStyle: props.fontStyle,
     textTransform: props.textTransform === 'none' ? undefined : props.textTransform,
-    color: props.level === 'body' ? 'var(--novy-app-text-muted, var(--color-ink-muted))' : 'var(--novy-app-text, var(--color-ink))',
+    color: props.level === 'body'
+      ? 'var(--novy-component-text, var(--novy-app-text-muted, var(--color-ink-muted)))'
+      : 'var(--novy-component-text, var(--novy-app-text, var(--color-ink)))',
     display: props.lineClamp ? '-webkit-box' : undefined,
     WebkitBoxOrient: props.lineClamp ? 'vertical' : undefined,
     WebkitLineClamp: props.lineClamp,

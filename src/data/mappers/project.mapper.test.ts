@@ -393,13 +393,17 @@ describe('project mapper', () => {
     if (column?.type !== 'column') throw new Error('Fixture column is missing');
     const text = column.children.find((node) => node.id === 'node_form_title');
     if (text?.type !== 'text') throw new Error('Fixture text is missing');
-    text.props = { ...text.props, fontFamily: 'Georgia, serif', fontSize: 32, fontWeight: 'bold' };
+    text.props = { ...text.props, fontFamily: 'Georgia, serif', fontSize: 32, fontWeight: 'bold', fontStyle: 'italic' };
+    text.responsive = {
+      tablet: { textStyle: { fontStyle: 'normal' } },
+      desktop: { textStyle: { fontStyle: 'italic' } },
+    };
 
     const dto = mapProjectToDto(project);
     const dtoColumn = dto.screens[0]!.nodes.find((node) => node.id === 'node_column');
     if (dtoColumn?.type !== 'column') throw new Error('DTO column is missing');
     expect(dtoColumn.children.find((node) => node.id === 'node_form_title')).toMatchObject({
-      props: { text: 'Contact us', level: 'title', fontFamily: 'Georgia, serif', fontSize: 32, fontWeight: 'bold' },
+      props: { text: 'Contact us', level: 'title', fontFamily: 'Georgia, serif', fontSize: 32, fontWeight: 'bold', fontStyle: 'italic' },
     });
     expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
   });
@@ -450,6 +454,20 @@ describe('project mapper', () => {
     const restored = mapProjectFromDto(roundTrip(mapProjectToDto(project)) as ReturnType<typeof mapProjectToDto>);
     const action = restored.document.screens[0]!.logicGraphs[0]!.nodes.find((node) => node.id === 'add_local_item');
     expect(action).toEqual(project.document.screens[0]!.logicGraphs[0]!.nodes.at(-1));
+  });
+
+  it.each(['light', 'dark', 'system', 'toggle'] as const)('round-trips Set Theme %s without changing the schema version', (theme) => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.screens[0]!.logicGraphs[0]!.nodes.push({
+      kind: 'action', id: 'set_app_theme', position: { x: 544, y: 160 },
+      payload: { type: 'set-theme', theme },
+    });
+    const dto = mapProjectToDto(project);
+    const restored = mapProjectFromDto(roundTrip(dto) as typeof dto);
+    expect(dto.schemaVersion).toBe(14);
+    expect(restored.document.screens[0]!.logicGraphs[0]!.nodes.at(-1)).toEqual(
+      project.document.screens[0]!.logicGraphs[0]!.nodes.at(-1),
+    );
   });
 
   it('assigns unique routes while loading legacy projects with repeated screen names', () => {

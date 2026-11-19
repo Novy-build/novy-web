@@ -35,7 +35,7 @@ export function CheckboxNodeView({
   return (
     <div className="flex h-full w-full items-center gap-2">
       {control}
-      {props.label ? <span className="text-sm text-ink">{props.label}</span> : null}
+      {props.label ? <span className="novy-widget-text text-sm">{props.label}</span> : null}
     </div>
   );
 }

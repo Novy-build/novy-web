@@ -61,12 +61,14 @@ export function CollapsedPanelRail({ controls, label, onExpand, side }: Collapse
         onToggle={onExpand}
         side={side}
       />
-      <span
-        aria-hidden="true"
-        className="mt-2 rotate-180 text-[10px] font-semibold uppercase tracking-widest text-ink-muted [writing-mode:vertical-rl]"
+      <button
+        className="mt-2 rotate-180 text-[10px] font-semibold uppercase tracking-widest text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500 [writing-mode:vertical-rl]"
+        onClick={onExpand}
+        title={`Expand ${label}`}
+        type="button"
       >
         {label}
-      </span>
+      </button>
     </aside>
   );
 }

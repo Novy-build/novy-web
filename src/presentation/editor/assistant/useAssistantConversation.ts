@@ -8,6 +8,7 @@ import type {
   AssistantProposalV1,
 } from '@domain/entities/assistant';
 import { AssistantError } from '@domain/errors/AssistantError';
+import type { ProjectType } from '@domain/entities/project';
 import { generateId } from '@domain/ids';
 import { useRepositories } from '@main/providers/RepositoriesProvider';
 import type { EditorAction, EditorState } from '../state/editorState';
@@ -30,6 +31,9 @@ export interface AssistantConversation {
   messages: AssistantMessage[];
   mode: AssistantMode;
   isWorking: boolean;
+  operation: 'build' | 'help' | 'apply' | null;
+  hasExistingContent: boolean;
+  projectType: ProjectType;
   isAvailable: boolean;
   providers: AssistantProviderCapability[];
   selectedProviderId: AssistantProviderId;
@@ -51,7 +55,8 @@ export function useAssistantConversation(
   const { assistant } = useRepositories();
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [mode, setMode] = useState<AssistantMode>('build');
-  const [isWorking, setIsWorking] = useState(false);
+  const [operation, setOperation] = useState<AssistantConversation['operation']>(null);
+  const isWorking = operation !== null;
   const workingRef = useRef(false);
   const [providers, setProviders] = useState<AssistantProviderCapability[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<AssistantProviderId>('opencode');
@@ -105,7 +110,7 @@ export function useAssistantConversation(
       return;
     }
     workingRef.current = true;
-    setIsWorking(true);
+    setOperation(mode);
     try {
       const conversation = conversationTurns(messages, mode);
       if (mode === 'help') {
@@ -158,13 +163,14 @@ export function useAssistantConversation(
       appendAssistantMessage(mode, assistantErrorMessage(error));
     } finally {
       workingRef.current = false;
-      setIsWorking(false);
+      setOperation(null);
     }
   }
 
   async function accept(messageId: string): Promise<void> {
     const message = messages.find((candidate) => candidate.id === messageId);
     if (!message?.proposal || message.status !== 'pending' || workingRef.current) return;
+    if (message.proposal.verification?.passed === false) return;
     if (state.hasUnsavedChanges || state.isSaving) {
       appendAssistantMessage(
         'build',
@@ -173,7 +179,7 @@ export function useAssistantConversation(
       return;
     }
     workingRef.current = true;
-    setIsWorking(true);
+    setOperation('apply');
     try {
       const project = await assistant.acceptProposal(projectId, message.proposal);
       dispatch({ type: 'document/set', document: project.document });
@@ -184,11 +190,12 @@ export function useAssistantConversation(
       appendAssistantMessage('build', assistantErrorMessage(error));
     } finally {
       workingRef.current = false;
-      setIsWorking(false);
+      setOperation(null);
     }
   }
 
   function reject(messageId: string): void {
+    if (workingRef.current) return;
     setMessages((previous) => previous.map((candidate) =>
       candidate.id === messageId && candidate.status === 'pending'
         ? { ...candidate, status: 'rejected' }
@@ -206,6 +213,10 @@ export function useAssistantConversation(
     messages,
     mode,
     isWorking,
+    operation,
+    hasExistingContent: state.document.screens.length > 1 || state.document.screens.some((screen) =>
+      screen.nodes.length > 0 || screen.behaviors.length > 0 || screen.logicGraphs.length > 0),
+    projectType: state.projectType,
     isAvailable: assistant.isAvailable,
     providers,
     selectedProviderId,
@@ -278,11 +289,35 @@ function validationAssistantMessage(details: unknown): string {
   if (!details || typeof details !== 'object') return fallback;
   const issues = (details as { issues?: unknown }).issues;
   if (!Array.isArray(issues)) return fallback;
-  const first = issues.find((issue) =>
-    issue !== null
-    && typeof issue === 'object'
-    && typeof (issue as { message?: unknown }).message === 'string');
-  if (!first) return fallback;
-  const message = (first as { message: string }).message.trim();
+  const messages = issues.flatMap((issue) => {
+    if (issue === null || typeof issue !== 'object') return [];
+    const message = (issue as { message?: unknown }).message;
+    return typeof message === 'string' && message.trim() ? [message] : [];
+  });
+  if (messages.length === 0) return fallback;
+  if (messages.some(isResponsiveOverflowMessage)) {
+    return "Novy couldn't fit all requested content within the supported screen sizes after automatic repair. Try splitting the form across screens or simplifying the layout.";
+  }
+  const message = conciseValidationIssue(messages[0]!);
   return message ? `The model draft failed Novy's checks: ${message}` : fallback;
+}
+
+function isResponsiveOverflowMessage(message: string): boolean {
+  return /\bcomponents?\b[^.]{0,200}\boutside the (?:mobile|tablet|desktop) viewport\b/i.test(message);
+}
+
+function conciseValidationIssue(message: string): string {
+  const normalized = message.replace(/\s+/g, ' ').trim();
+  const sentences = normalized.match(/[^.!?]+[.!?]?/g) ?? [normalized];
+  const seen = new Set<string>();
+  const unique = sentences.filter((sentence) => {
+    const key = sentence.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((sentence) => sentence.trim()).join(' ');
+  if (unique.length <= 240) return unique;
+  const clipped = unique.slice(0, 239);
+  const lastSpace = clipped.lastIndexOf(' ');
+  return `${clipped.slice(0, lastSpace > 180 ? lastSpace : 239).trimEnd()}…`;
 }

@@ -5,7 +5,7 @@ import type { RendererDataContext, RendererEventContext, RendererMode } from './
 import type { TriggerEvent } from '@domain/entities/logic';
 import type { ListItemContext } from '@domain/entities/appData';
 import { ComponentRenderer } from './ComponentRenderer';
-import { AppThemeContext, type AppTheme } from './AppThemeContext';
+import { AppThemeContext, type AppTheme, type AppThemePreference } from './AppThemeContext';
 import { useDocumentAppTheme } from './useDocumentAppTheme';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
 import { designSystemCssVariables } from '@domain/entities/designSystem';
@@ -42,7 +42,7 @@ export interface ScreenFrameProps {
   componentValues?: ReadonlyMap<string, string>;
   itemContext?: ListItemContext;
   appTheme?: AppTheme;
-  onAppThemeChange?: (theme: AppTheme) => void;
+  onAppThemeChange?: (theme: AppThemePreference) => void;
   designSystem?: AppDesignSystem;
 }
 

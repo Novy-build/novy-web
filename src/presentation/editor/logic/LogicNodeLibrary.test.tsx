@@ -30,6 +30,7 @@ describe('LogicNodeLibrary', () => {
     }
     expect(screen.getByRole('button', { name: 'If / Else' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change Text' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set Theme' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add Local List Item' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Insert to DB' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete from DB' })).toBeInTheDocument();
@@ -83,6 +84,18 @@ describe('LogicNodeLibrary', () => {
     expect(onAdd).toHaveBeenCalledWith({
       kind: 'action',
       payload: { type: 'add-local-list-item', targetNodeId: '', placement: 'append', values: {} },
+    });
+  });
+
+  it('creates a browser-only theme action', () => {
+    const onAdd = vi.fn();
+    render(<LogicNodeLibrary onAdd={onAdd} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set Theme' }));
+
+    expect(onAdd).toHaveBeenCalledWith({
+      kind: 'action',
+      payload: { type: 'set-theme', theme: 'toggle' },
     });
   });
 

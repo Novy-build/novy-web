@@ -3,7 +3,7 @@ import type { ImageProps } from '@domain/entities/componentNode';
 export function ImageNodeView({ props }: { props: ImageProps }) {
   if (!props.src) {
     return (
-      <div className="flex h-full w-full items-center justify-center rounded-tile border border-dashed border-hairline bg-surface text-sm text-ink-muted">
+      <div className="novy-widget-text-muted flex h-full w-full items-center justify-center rounded-tile border border-dashed border-hairline bg-surface text-sm">
         Add an image
       </div>
     );

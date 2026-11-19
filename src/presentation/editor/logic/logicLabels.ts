@@ -32,6 +32,7 @@ const ACTION_TYPE_LABELS: Record<ActionPayload['type'], string> = {
   'send-email': 'Send email',
   'refresh-collection': 'Refresh collection',
   'set-variable': 'Set variable',
+  'set-theme': 'Set theme',
   'set-component-value': 'Set component value',
   'add-local-list-item': 'Add local list item',
   'document-load': 'Document loader',

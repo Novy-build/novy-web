@@ -566,6 +566,7 @@ function detailFor(
     case 'send-email': return node.payload.to ? `Email ${node.payload.to}` : 'Recipient not set';
     case 'refresh-collection': return node.payload.collectionId ? `Refresh ${node.payload.collectionId}` : 'Collection not set';
     case 'set-variable': return node.payload.name ? `Set ${node.payload.name}` : 'Variable not set';
+    case 'set-theme': return node.payload.theme === 'toggle' ? 'Toggle light and dark' : `Use ${node.payload.theme} theme`;
     case 'set-component-value': return node.payload.targetNodeId ? `Set ${node.payload.targetNodeId}` : 'Component not set';
     case 'add-local-list-item': return node.payload.targetNodeId
       ? `${node.payload.placement === 'prepend' ? 'Prepend to' : 'Append to'} ${targetLabelFor(node.payload.targetNodeId) ?? node.payload.targetNodeId}`

@@ -37,6 +37,21 @@ const SCREEN: Screen = {
 
 const DOCUMENT: ProjectDocument = { screens: [SCREEN] };
 
+describe('responsive italic styling', () => {
+  it.each(['mobile', 'tablet', 'desktop'] as const)('stores italic at the %s breakpoint and preserves undo', (device) => {
+    const initial = { ...createEditorState(DOCUMENT), device };
+    const next = editorReducer(initial, {
+      type: 'node/responsive-text-style', nodeId: 'node_text', textStyle: { fontStyle: 'italic' },
+    });
+    const node = findNodeInScreen(getActiveScreen(next), 'node_text');
+    expect(node?.type).toBe('text');
+    if (node?.type !== 'text') throw new Error('Expected Text node');
+    expect(device === 'mobile' ? node.props.fontStyle : node.responsive?.[device]?.textStyle?.fontStyle).toBe('italic');
+    expect(next.past).toHaveLength(1);
+    expect(editorReducer(next, { type: 'history/undo' }).document).toEqual(initial.document);
+  });
+});
+
 /** Convenience: build state fresh per reducer step (no cross-test leakage). */
 function stateAt(pastCount = 0): ReturnType<typeof createEditorState> {
   return {

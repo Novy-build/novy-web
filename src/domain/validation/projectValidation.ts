@@ -590,6 +590,8 @@ function validateActionPayload(
     case 'set-variable':
       if (!payload.name.trim()) issues.push(issue('logic-empty-variable', 'warning', 'logic', 'Variable name is empty.', base));
       break;
+    case 'set-theme':
+      break;
     case 'set-component-value':
       if (!payload.targetNodeId) issues.push(issue('logic-empty-target', 'warning', 'logic', 'Component target is not set.', base));
       else if (!screen.nodes.flatMap(flattenNodeIds).includes(payload.targetNodeId)) issues.push(issue('logic-missing-target', 'error', 'logic', 'Component target is missing.', base));

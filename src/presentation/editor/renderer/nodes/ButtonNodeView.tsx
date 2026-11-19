@@ -10,16 +10,16 @@ import { ButtonIcon } from './buttonIcons';
 export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonProps; renderStatic?: boolean }) {
   const variantClass =
     props.variant === 'outline'
-      ? 'border border-brand-600 bg-transparent text-brand-600'
+      ? 'border border-brand-600 bg-transparent'
       : props.variant === 'text'
-        ? 'bg-transparent text-brand-600'
-        : 'bg-brand-600 text-white';
+        ? 'bg-transparent'
+        : 'bg-brand-600';
   const widgetClass = `flex h-full w-full items-center justify-center rounded-tile text-sm font-medium transition-colors ${variantClass}`;
   const tokenStyle: CSSProperties = props.variant === 'solid'
-    ? { backgroundColor: 'var(--novy-app-primary, #5551f2)', color: '#ffffff' }
+    ? { backgroundColor: 'var(--novy-app-primary, #5551f2)', color: 'var(--novy-component-text, #ffffff)' }
     : props.variant === 'outline'
-      ? { borderColor: 'var(--novy-app-primary, #5551f2)', color: 'var(--novy-app-primary, #5551f2)' }
-      : { color: 'var(--novy-app-primary, #5551f2)' };
+      ? { borderColor: 'var(--novy-app-primary, #5551f2)', color: 'var(--novy-component-text, var(--novy-app-primary, #5551f2))' }
+      : { color: 'var(--novy-component-text, var(--novy-app-primary, #5551f2))' };
   const iconPosition = props.iconPosition ?? 'left';
   const isIconOnly = Boolean(props.icon && iconPosition === 'center');
   const content = (

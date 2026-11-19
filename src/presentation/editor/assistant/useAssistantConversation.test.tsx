@@ -115,7 +115,42 @@ describe('useAssistantConversation', () => {
     expect(controller.result.current.messages.at(-1)?.text).not.toMatch(/selected model/i);
   });
 
-  it('shows the final sanitized Novy validation issue', async () => {
+  it('distinguishes applying from building and rejects conflicting actions synchronously', async () => {
+    const controller = setup();
+    await act(() => controller.result.current.send('Build an app'));
+    const messageId = controller.result.current.messages.at(-1)!.id;
+    let finish: (project: Project) => void = () => { throw new Error('Acceptance has not started'); };
+    controller.acceptProposal.mockImplementationOnce(() => new Promise<Project>((resolve) => { finish = resolve; }));
+    let pending: Promise<void> | undefined;
+    act(() => { pending = controller.result.current.accept(messageId); });
+    expect(controller.result.current.operation).toBe('apply');
+    expect(controller.result.current.isWorking).toBe(true);
+    act(() => controller.result.current.reject(messageId));
+    await act(async () => {
+      await controller.result.current.accept(messageId);
+      await controller.result.current.send('Conflicting request');
+    });
+    expect(controller.acceptProposal).toHaveBeenCalledTimes(1);
+    expect(controller.generateProposal).toHaveBeenCalledTimes(1);
+    expect(controller.result.current.messages.at(-1)?.status).toBe('pending');
+    await act(async () => { finish(ACCEPTED_PROJECT); await pending; });
+    expect(controller.result.current.operation).toBeNull();
+    expect(controller.result.current.messages.at(-1)?.status).toBe('applied');
+  });
+
+  it('does not accept a failed verification report even when invoked without the UI', async () => {
+    const controller = setup();
+    controller.generateProposal.mockResolvedValueOnce({ ...PROPOSAL, verification: {
+      passed: false, repairAttempts: 0, viewports: [], stages: [], issues: [],
+    } });
+    await act(() => controller.result.current.send('Build an app'));
+    const messageId = controller.result.current.messages.at(-1)!.id;
+    await act(() => controller.result.current.accept(messageId));
+    expect(controller.acceptProposal).not.toHaveBeenCalled();
+    expect(controller.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('shows concise recovery guidance for responsive validation failures', async () => {
     const controller = setup();
     controller.generateProposal.mockRejectedValueOnce(new AssistantError(
       'validation',
@@ -126,8 +161,24 @@ describe('useAssistantConversation', () => {
     await act(() => controller.result.current.send('Build an inventory app'));
 
     expect(controller.result.current.messages.at(-1)?.text).toBe(
-      "The model draft failed Novy's checks: Component extends outside the mobile viewport (390x780).",
+      "Novy couldn't fit all requested content within the supported screen sizes after automatic repair. Try splitting the form across screens or simplifying the layout.",
     );
+  });
+
+  it('deduplicates and bounds other model validation feedback', async () => {
+    const controller = setup();
+    controller.generateProposal.mockRejectedValueOnce(new AssistantError(
+      'validation',
+      'The AI assistant returned an invalid app proposal.',
+      { issues: [{ message: `${'A required route is missing. '.repeat(30)}A workflow target is invalid.` }] },
+    ));
+
+    await act(() => controller.result.current.send('Build an inventory app'));
+
+    const message = controller.result.current.messages.at(-1)?.text ?? '';
+    expect(message.match(/A required route is missing/g)).toHaveLength(1);
+    expect(message).toContain('A workflow target is invalid.');
+    expect(message.length).toBeLessThanOrEqual(280);
   });
 
   it('reports one accurate message when proposal persistence fails', async () => {

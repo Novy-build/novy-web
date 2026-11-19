@@ -176,7 +176,7 @@ export function CameraNodeView({
 
   if (renderStatic || !isPreview) {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-tile border border-dashed border-hairline bg-canvas text-sm text-ink-muted">
+      <div className="novy-widget-text-muted flex h-full w-full flex-col items-center justify-center gap-2 rounded-tile border border-dashed border-hairline bg-canvas text-sm">
         <span aria-hidden="true" className="text-2xl">◉</span>
         <span>{props.label || 'Camera'}</span>
         <span className="text-xs">Camera activates only in Preview.</span>
@@ -210,29 +210,29 @@ export function CameraNodeView({
         </div>
       ) : null}
       {status === 'ready' && props.captureMode === 'guided-face' ? (
-        <p className="absolute inset-x-2 top-2 z-20 rounded bg-ink/80 px-2 py-1.5 text-center text-xs font-medium text-white" aria-live="polite" role="status">
+        <p className="novy-widget-text-contrast absolute inset-x-2 top-2 z-20 rounded bg-ink/80 px-2 py-1.5 text-center text-xs font-medium" aria-live="polite" role="status">
           {guidance}
         </p>
       ) : null}
       <div className="relative z-10 mt-auto flex w-full items-center justify-center gap-2 bg-ink/70 p-2">
         {status === 'idle' || status === 'error' ? (
-          <button className="min-h-11 rounded-tile bg-brand-600 px-3 py-1.5 text-xs font-medium text-white" onClick={() => void enableCamera()} type="button">
+          <button className="novy-widget-text-contrast min-h-11 rounded-tile bg-brand-600 px-3 py-1.5 text-xs font-medium" onClick={() => void enableCamera()} type="button">
             Enable camera
           </button>
         ) : null}
         {status === 'requesting' ? <span className="text-xs" role="status">Requesting camera…</span> : null}
         {status === 'ready' ? (
-          <button className="min-h-11 rounded-tile border border-white/70 bg-ink/70 px-3 py-1.5 text-xs font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" onClick={() => void capture()} type="button">
+          <button className="novy-widget-text-contrast min-h-11 rounded-tile border border-white/70 bg-ink/70 px-3 py-1.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" onClick={() => void capture()} type="button">
             {props.captureLabel || 'Capture'}
           </button>
         ) : null}
         {status === 'captured' ? (
-          <button className="min-h-11 rounded-tile bg-surface px-3 py-1.5 text-xs font-medium text-ink" onClick={retake} type="button">
+          <button className="novy-widget-text min-h-11 rounded-tile bg-surface px-3 py-1.5 text-xs font-medium" onClick={retake} type="button">
             Retake
           </button>
         ) : null}
       </div>
-      {error ? <p className="absolute inset-x-2 top-2 rounded bg-signal-invalid/90 p-2 text-xs text-white" role="alert">{error}</p> : null}
+      {error ? <p className="novy-widget-text-contrast absolute inset-x-2 top-2 rounded bg-signal-invalid/90 p-2 text-xs" role="alert">{error}</p> : null}
     </div>
   );
 }

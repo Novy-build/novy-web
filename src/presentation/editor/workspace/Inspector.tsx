@@ -13,7 +13,7 @@ import type {
   StaticListViewItem,
   TextProps,
 } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isAppIconName, isButtonIconName, isTextFontFamily, isTextFontWeight } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isAppIconName, isButtonIconName, isTextFontWeight } from '@domain/entities/componentNode';
 import {
   RECORD_IDENTIFIER_KEY_PATTERN,
   recordIdentifierForCollection,
@@ -38,6 +38,7 @@ import type { AppDesignSystem } from '@domain/entities/designSystem';
 import { colorTokenCssValue, normalizeDesignSystem } from '@domain/entities/designSystem';
 import type { Screen } from '@domain/entities/screen';
 import { DesignSystemInspector } from './DesignSystemInspector';
+import { FontFamilyPicker } from './FontFamilyPicker';
 
 interface InspectorProps {
   node: ComponentNode | null;
@@ -483,18 +484,18 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-text', nodeId: node.id, props: { text: event.target.value } })}
             value={node.props.text}
           />
-          <TextInput
+          <FontFamilyPicker
+            allowAppFonts
+            appFonts={normalizeDesignSystem(designSystem).typography}
             label="Font family"
             name="inspector-text-font-family"
-            onChange={(event) => {
-              const value = event.target.value;
+            onChange={(fontFamily) => {
               onAction({
                 type: 'node/responsive-text-style',
                 nodeId: node.id,
-                textStyle: { fontFamily: isTextFontFamily(value) ? value : undefined },
+                textStyle: { fontFamily: fontFamily || undefined },
               });
             }}
-            placeholder="App default"
             value={effectiveTextProps?.fontFamily ?? ''}
           />
           <div className="grid grid-cols-2 gap-2">
@@ -1085,23 +1086,23 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-switch', nodeId: node.id, props: { label: event.target.value } })}
             value={node.props.label}
           />
-          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+          {!node.props.controlsTheme ? <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
             <input
               checked={node.props.checked}
               onChange={(event) => onAction({ type: 'node/props-switch', nodeId: node.id, props: { checked: event.target.checked } })}
               type="checkbox"
             />
             On by default
-          </label>
+          </label> : null}
           <label className="flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
             <input
               checked={node.props.controlsTheme === true}
               onChange={(event) => onAction({ type: 'node/props-switch', nodeId: node.id, props: { controlsTheme: event.target.checked } })}
               type="checkbox"
             />
-            Control app light/dark theme
+            Use as dark mode switch
           </label>
-          {node.props.controlsTheme ? <p className="text-xs text-ink-muted">This affects the previewed app, not the Novy editor.</p> : null}
+          {node.props.controlsTheme ? <p className="text-xs text-ink-muted">Off uses Light and on uses Dark. This affects the app, not the Novy editor.</p> : null}
         </div>
       ) : null}
 

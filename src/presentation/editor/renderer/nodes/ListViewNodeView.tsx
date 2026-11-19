@@ -60,7 +60,7 @@ export function ListViewNodeView({
 
   if (visibleRecords.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center rounded-tile border border-dashed border-hairline bg-surface text-sm text-ink-muted">
+      <div className="novy-widget-text-muted flex h-full w-full items-center justify-center rounded-tile border border-dashed border-hairline bg-surface text-sm">
         {props.emptyText || 'No items yet'}
       </div>
     );
@@ -210,11 +210,11 @@ function FallbackListItem({ index, props, record }: { index: number; props: List
   return (
     <div className="flex h-full min-h-11 flex-col justify-center gap-1 px-3 py-2 text-left">
       {fieldIds.length > 0 ? fieldIds.map((fieldId) => (
-        <span className="block text-sm text-ink" key={fieldId}>
+        <span className="novy-widget-text block text-sm" key={fieldId}>
           {String(record.values[fieldId] ?? '')}
         </span>
       )) : (
-        <span className="block text-sm text-ink">Item {index + 1}</span>
+        <span className="novy-widget-text block text-sm">Item {index + 1}</span>
       )}
     </div>
   );

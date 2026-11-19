@@ -60,12 +60,14 @@
 /* Typed component appearance is applied at the shared renderer frame so it
    consistently overrides component-library utility colors in every mode. */
 .novy-node-appearance * {
-  color: inherit !important;
   border-color: inherit !important;
 }
 
-.novy-node-appearance > * {
+.novy-node-background > * {
   background-color: transparent !important;
+}
+
+.novy-node-radius > * {
   border-radius: inherit !important;
 }
 
@@ -102,6 +104,19 @@
   --color-hairline: var(--novy-app-border, #e5e6ea);
   --color-ink: var(--novy-app-text, #0e1013);
   --color-ink-muted: var(--novy-app-text-muted, #565b66);
+}
+
+/* An authored component Text color overrides widget-internal semantic colors. */
+.novy-widget-text {
+  color: var(--novy-component-text, var(--novy-app-text, var(--color-ink)));
+}
+
+.novy-widget-text-muted {
+  color: var(--novy-component-text, var(--novy-app-text-muted, var(--color-ink-muted)));
+}
+
+.novy-widget-text-contrast {
+  color: var(--novy-component-text, #ffffff);
 }
 
 @layer base {

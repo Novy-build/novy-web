@@ -268,6 +268,19 @@ describe('runClickBehavior', () => {
     ]);
   });
 
+  it.each(['light', 'dark', 'system', 'toggle'] as const)('returns a local theme effect for Set Theme %s', (theme) => {
+    const { screen, graphId } = buildScreen();
+    const graph = appendAction(screen.logicGraphs[0]!, { type: 'set-theme', theme });
+    const screenWithGraph: Screen = {
+      ...screen,
+      logicGraphs: screen.logicGraphs.map((candidate) => candidate.id === graphId ? graph : candidate),
+    };
+
+    expect(runClickBehavior({ screens: [screenWithGraph] }, screenWithGraph, 'node_button')).toEqual([
+      { kind: 'set-theme', theme },
+    ] satisfies PreviewEffect[]);
+  });
+
   it('adds a typed local ListView item and exposes it to later node mappings', () => {
     const { screen, graphId } = buildScreen();
     const list = makeListView('local_list');

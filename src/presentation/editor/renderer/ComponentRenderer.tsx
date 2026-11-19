@@ -23,7 +23,7 @@ import { SwitchNodeView } from './nodes/SwitchNodeView';
 import { TextNodeView } from './nodes/TextNodeView';
 import { GestureDetectorNodeView } from './nodes/GestureDetectorNodeView';
 import { IconNodeView } from './nodes/IconNodeView';
-import { findNamedStyle } from '@domain/entities/designSystem';
+import { designSystemCssVariables, findNamedStyle } from '@domain/entities/designSystem';
 
 interface NodeFrameProps {
   geometry: Pick<ComponentNode, 'id' | 'x' | 'y' | 'w' | 'h'>;
@@ -35,6 +35,7 @@ interface NodeFrameProps {
   onNodeEvent?: (nodeId: string, event: 'click' | 'change', value?: string, context?: RendererEventContext) => void;
   eventContext?: RendererEventContext;
   appearance?: ComponentAppearance;
+  textColor?: string;
   semanticLabel?: string;
   stopClickPropagation?: boolean;
 }
@@ -44,8 +45,11 @@ interface NodeFrameProps {
  * it also owns hit-testing: the selection click reaches the deepest node
  * first (inner frames stop propagation).
  */
-function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, onNodeEvent, eventContext, appearance, semanticLabel, stopClickPropagation = false, children }: PropsWithChildren<NodeFrameProps>) {
+function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, onNodeEvent, eventContext, appearance, textColor, semanticLabel, stopClickPropagation = false, children }: PropsWithChildren<NodeFrameProps>) {
   const selectionClass = interactive && selected ? ' ring-2 ring-brand-600' : '';
+  const appearanceClass = appearance
+    ? ` novy-node-appearance${appearance.backgroundColor || appearance.gradient ? ' novy-node-background' : ''}${appearance.borderRadius !== undefined ? ' novy-node-radius' : ''}`
+    : '';
   const runClick = (): void => {
     if (onNodeEvent && eventContext) onNodeEvent(geometry.id, 'click', undefined, eventContext);
     else if (onNodeEvent) onNodeEvent(geometry.id, 'click');
@@ -54,7 +58,7 @@ function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, on
   return (
     <div
       aria-label={semanticLabel}
-      className={`absolute${appearance ? ' novy-node-appearance' : ''}${selectionClass}`}
+      className={`absolute${appearanceClass}${selectionClass}`}
       data-node-id={geometry.id}
       data-selected={selected ? 'true' : 'false'}
       onClick={
@@ -83,6 +87,7 @@ function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, on
         width: geometry.w,
         height: geometry.h,
         ...appearanceStyle(appearance),
+        ...(textColor ? { '--novy-component-text': textColor } as CSSProperties : {}),
       }}
       tabIndex={semanticLabel && (onNodeEvent || onNodeAction) ? 0 : undefined}
     >
@@ -144,6 +149,7 @@ export function ComponentRenderer({
     <NodeFrame
       geometry={geometry}
       appearance={node.type === 'input' ? undefined : resolvedAppearance}
+      textColor={resolvedAppearance?.textColor}
       interactive={interactive}
       selected={isSelected}
       onSelect={onSelect}
@@ -227,6 +233,10 @@ export function ComponentRenderer({
     case 'dropdown':
       return frame(
         <DropdownNodeView
+          menuStyle={{
+            ...designSystemCssVariables(designSystem, appTheme?.theme === 'dark'),
+            ...(resolvedAppearance?.textColor ? { '--novy-component-text': resolvedAppearance.textColor } : {}),
+          } as CSSProperties}
           isPreview={mode === 'preview'}
           itemLabel={itemContext ? String(itemContext.values.value ?? '') : undefined}
           value={componentValues?.get(node.id) ?? (

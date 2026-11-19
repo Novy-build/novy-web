@@ -251,6 +251,11 @@ export interface SetVariablePayload {
   value: string;
 }
 
+export interface SetThemePayload {
+  type: 'set-theme';
+  theme: 'light' | 'dark' | 'system' | 'toggle';
+}
+
 export interface SetComponentValuePayload {
   type: 'set-component-value';
   targetNodeId: string;
@@ -279,6 +284,7 @@ export type ActionPayload =
   | DocumentUploadPayload
   | ChatMessagePayload
   | SetVariablePayload
+  | SetThemePayload
   | SetComponentValuePayload
   | AddLocalListItemPayload
   | DocumentLoadPayload

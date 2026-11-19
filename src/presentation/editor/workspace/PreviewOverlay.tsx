@@ -19,8 +19,8 @@ import type { EditorDevice } from '../state/geometry';
 import { computeFitWidthZoom, computeFitZoom } from '../state/geometry';
 import { CANVAS_PRESETS } from '../renderer/ScreenFrame';
 import type { RendererEventContext } from '../renderer/renderer';
-import type { AppTheme } from '../renderer/AppThemeContext';
-import { readDocumentAppTheme } from '../renderer/useDocumentAppTheme';
+import type { AppThemePreference } from '../renderer/AppThemeContext';
+import { resolveAppTheme, useSystemAppTheme } from '../renderer/useAppThemePreference';
 import { findNodeInScreen } from '../state/editorState';
 import type { ProjectType } from '@domain/entities/project';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
@@ -52,6 +52,8 @@ interface PreviewOverlayProps {
   runtimeManifest?: unknown;
   runtimePreview?: RuntimePreviewRepository;
   designSystem?: AppDesignSystem;
+  /** Unapplied assistant drafts never receive persistence or protected runtime access. */
+  sandboxOnly?: boolean;
 }
 
 export interface PreviewPersistenceActions {
@@ -80,11 +82,15 @@ export function PreviewOverlay({
   onClose,
   collections = [],
   recordsByCollection = new Map(),
-  persistence,
-  runtimeManifest,
-  runtimePreview,
+  persistence: suppliedPersistence,
+  runtimeManifest: suppliedRuntimeManifest,
+  runtimePreview: suppliedRuntimePreview,
   designSystem,
+  sandboxOnly = false,
 }: PreviewOverlayProps) {
+  const persistence = sandboxOnly ? undefined : suppliedPersistence;
+  const runtimeManifest = sandboxOnly ? undefined : suppliedRuntimeManifest;
+  const runtimePreview = sandboxOnly ? undefined : suppliedRuntimePreview;
   const [previewDevice, setPreviewDevice] = useState<EditorDevice>(initialDevice);
   const viewportBounds = CANVAS_PRESETS[previewDevice];
   const headerRef = useRef<HTMLDivElement>(null);
@@ -111,7 +117,9 @@ export function PreviewOverlay({
   const [pendingClicks, setPendingClicks] = useState(0);
   const activeOperationsRef = useRef(0);
   const [pendingOperations, setPendingOperations] = useState(0);
-  const [appTheme, setAppTheme] = useState<AppTheme>(readDocumentAppTheme);
+  const [appThemePreference, setAppThemePreference] = useState<AppThemePreference>('system');
+  const systemTheme = useSystemAppTheme();
+  const appTheme = resolveAppTheme(appThemePreference, systemTheme);
   const [localItemsByListView, setLocalItemsByListView] = useState<
     ReadonlyMap<string, readonly LocalListItemAddition[]>
   >(() => new Map());
@@ -437,7 +445,7 @@ export function PreviewOverlay({
         }
       });
     },
-    [componentValues, persistDataChanges, persistence, runtimeAppId, runtimeStatus, runtimeUser, screens, screen, variables],
+    [componentValues, persistDataChanges, persistence, runtimeAppId, runtimeStatus, runtimeUser, screens, screen, systemTheme, variables],
   );
 
   function applyPreviewEffects(effects: readonly AsyncPreviewEffect[]): void {
@@ -480,6 +488,11 @@ export function PreviewOverlay({
             break;
           case 'set-variable':
             setVariables((previous) => new Map([...previous, [effect.name, effect.value]]));
+            break;
+          case 'set-theme':
+            setAppThemePreference((current) => effect.theme === 'toggle'
+              ? (resolveAppTheme(current, systemTheme) === 'dark' ? 'light' : 'dark')
+              : effect.theme);
             break;
           case 'set-component-value':
             setComponentValues((previous) => new Map([...previous, [effect.nodeId, effect.value]]));
@@ -797,6 +810,24 @@ export function PreviewOverlay({
             testId="preview-device-toggle"
             value={previewDevice}
           />
+          {sandboxOnly && screens.length > 1 ? (
+            <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+              Screen
+              <select
+                className="min-h-11 max-w-56 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+                onChange={(event) => {
+                  setScreenId(event.target.value);
+                  setTextOverrides(new Map());
+                  setComponentValues(new Map());
+                  setRouteRecordContext(null);
+                  setVariables((previous) => new Map([...previous].filter(([name]) => !name.startsWith('route.'))));
+                }}
+                value={screenId}
+              >
+                {screens.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+              </select>
+            </label>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             {runtimePreview?.isAvailable && runtimeManifest ? (
               runtimeStatus === 'live' || runtimeStatus === 'stale' ? (
@@ -877,7 +908,7 @@ export function PreviewOverlay({
                 </button>
               )
             ) : null}
-            {runtimeStatus !== 'live' && runtimeStatus !== 'stale' ? (
+            {!sandboxOnly && runtimeStatus !== 'live' && runtimeStatus !== 'stale' ? (
             <label className="flex min-h-11 items-center gap-2 rounded-tile border border-hairline bg-surface px-3 text-xs font-medium text-ink">
               <input
                 checked={persistDataChanges}
@@ -889,6 +920,19 @@ export function PreviewOverlay({
               Save data changes
             </label>
             ) : null}
+            <label className="flex min-h-11 items-center gap-2 rounded-tile border border-hairline bg-surface px-3 text-xs font-medium text-ink">
+              App theme
+              <select
+                aria-label="App theme"
+                className="min-h-11 bg-transparent text-xs font-semibold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                onChange={(event) => setAppThemePreference(event.target.value as AppThemePreference)}
+                value={appThemePreference}
+              >
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
             <PreviewZoomControls
               max={PREVIEW_ZOOM_LIMITS.max}
               min={PREVIEW_ZOOM_LIMITS.min}
@@ -926,7 +970,7 @@ export function PreviewOverlay({
               if (!media) return;
               mediaRef.current.set(`media:${media.name}`, media);
             }}
-            onAppThemeChange={setAppTheme}
+            onAppThemeChange={setAppThemePreference}
             screen={effectiveScreen}
             size={bounds}
             scale={zoom}
@@ -934,7 +978,9 @@ export function PreviewOverlay({
         </div>
       </div>
       <p aria-live="polite" className="mt-2 shrink-0 text-center text-xs text-ink-muted" id="preview-data-mode-hint" ref={footerRef}>
-         {runtimeStatus === 'live' || runtimeStatus === 'stale'
+         {sandboxOnly
+           ? 'Draft preview only. Workflows and data changes are simulated in memory; nothing is saved, sent, or published.'
+           : runtimeStatus === 'live' || runtimeStatus === 'stale'
           ? `Run App mode: CRUD uses a resettable preview-data sandbox; email, Computer Vision, RAG, and AI execute through the configured backend providers.${runtimeStatus === 'stale' ? ' Apply changes to run the latest editor state.' : ''}`
           : persistDataChanges
           ? 'Database actions create, update, and delete this project’s records. Other preview state remains isolated.'

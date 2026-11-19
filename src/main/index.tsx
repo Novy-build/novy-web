@@ -9,7 +9,9 @@ import { AppRoutes } from '@main/routes';
 import { LoadingScreen } from '@presentation/components/system/LoadingScreen';
 import { SkipLink } from '@presentation/components/system/SkipLink';import { AppErrorBoundary } from '@presentation/components/system/AppErrorBoundary';
 import '@fontsource-variable/inter';
+import '@fontsource-variable/inter/wght-italic.css';
 import '@fontsource-variable/jetbrains-mono';
+import '@fontsource-variable/jetbrains-mono/wght-italic.css';
 import '@presentation/styles.css';
 
 const rootElement = document.getElementById('root');

@@ -132,6 +132,47 @@ function buildChatScreen(): Screen {
 }
 
 describe('PreviewOverlay', () => {
+  it('keeps assistant drafts sandbox-only even if persistence and backend services are supplied', async () => {
+    const runtimePreview: RuntimePreviewRepository = {
+      isAvailable: true, prepare: vi.fn(), resetData: vi.fn(), execute: vi.fn(),
+      uploadDocument: vi.fn(), executeVision: vi.fn(), requestCode: vi.fn(), verifyCode: vi.fn(),
+      getSession: vi.fn(), logout: vi.fn(),
+    };
+    const persistence = { createRecord: vi.fn(), updateRecord: vi.fn(), deleteRecord: vi.fn() };
+    const screens = buildScreens([{ kind: 'show-message', message: 'Local workflow works' }]);
+    render(<PreviewOverlay
+      onClose={vi.fn()}
+      persistence={persistence}
+      projectName="Draft"
+      runtimeManifest={{ manifestVersion: 2, project: { id: 'project' } }}
+      runtimePreview={runtimePreview}
+      sandboxOnly
+      screens={screens}
+    />);
+    expect(screen.queryByRole('button', { name: 'Run App' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Save data changes')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
+    expect(await screen.findByTestId('preview-toast')).toHaveTextContent('Local workflow works');
+    expect(runtimePreview.prepare).not.toHaveBeenCalled();
+    expect(runtimePreview.execute).not.toHaveBeenCalled();
+    expect(persistence.createRecord).not.toHaveBeenCalled();
+  });
+
+  it('offers a simple theme selector and applies Set Theme logic locally', async () => {
+    const button = makeButton('theme_button');
+    const home = makeScreen('theme_home', [button]);
+    const bundle = createBehaviorBundle('On click — Theme', button.id, 'click');
+    const graph = appendAction(bundle.graph, { type: 'set-theme', theme: 'dark' });
+    renderPreview(vi.fn(), [{ ...home, behaviors: [bundle.behavior], logicGraphs: [graph] }]);
+
+    const selector = screen.getByRole('combobox', { name: 'App theme' });
+    expect(selector).toHaveValue('system');
+    fireEvent.click(screen.getByRole('button', { name: 'Click me' }));
+
+    await waitFor(() => expect(selector).toHaveValue('dark'));
+    expect(document.querySelector('.novy-app-theme-dark')).not.toBeNull();
+  });
+
   it('starts and stops a real runtime preview explicitly', async () => {
     const prepare = vi.fn<RuntimePreviewRepository['prepare']>().mockResolvedValue({ appId: 'app_preview' });
     const resetData = vi.fn<RuntimePreviewRepository['resetData']>().mockResolvedValue(2);

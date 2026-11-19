@@ -538,6 +538,11 @@ export interface SetComponentValuePayloadDTO {
   value: string;
 }
 
+export interface SetThemePayloadDTO {
+  type: 'set-theme';
+  theme: 'light' | 'dark' | 'system' | 'toggle';
+}
+
 export interface AddLocalListItemPayloadDTO {
   type: 'add-local-list-item';
   targetNodeId: string;
@@ -559,6 +564,7 @@ export type ActionPayloadDTO =
   | DocumentUploadPayloadDTO
   | ChatMessagePayloadDTO
   | SetVariablePayloadDTO
+  | SetThemePayloadDTO
   | SetComponentValuePayloadDTO
   | AddLocalListItemPayloadDTO
   | LegacyRagIndexPayloadDTO

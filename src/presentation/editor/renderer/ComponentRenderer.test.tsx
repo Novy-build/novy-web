@@ -8,6 +8,7 @@ import { ComponentRenderer } from './ComponentRenderer';
 import { CANVAS_PRESETS, ScreenFrame } from './ScreenFrame';
 import { makeColumn, makeContainer, makeListView, makeText } from '@test/editorFixtures';
 import { buildSectionPreset } from '@domain/sections/sectionPresets';
+import { createComponentNode } from '@domain/factories/componentNode';
 
 const BUTTON: ButtonNode = {
   id: 'node_save',
@@ -20,6 +21,17 @@ const BUTTON: ButtonNode = {
 };
 
 describe('ComponentRenderer', () => {
+  it.each(['canvas', 'preview', 'thumbnail'] as const)('exposes authored Text color across all text-bearing widgets in %s', (mode) => {
+    const types = ['button', 'text', 'input', 'checkbox', 'radio', 'switch', 'dropdown', 'slider', 'progress', 'file-input', 'chat', 'camera', 'image', 'listview'] as const;
+    const nodes = types.map((type) => ({ ...createComponentNode(type), appearance: { textColor: '#7c3aed' } }));
+    const { container } = render(<>{nodes.map((node) => <ComponentRenderer key={node.id} mode={mode} node={node} selected={false} />)}</>);
+
+    for (const node of nodes) {
+      expect(container.querySelector(`[data-node-id="${node.id}"]`)).toHaveStyle({ '--novy-component-text': '#7c3aed' });
+    }
+    expect(container.querySelector('.text-ink, .text-ink-muted')).toBeNull();
+  });
+
   it('renders a button with its label in canvas mode', () => {
     render(<ComponentRenderer mode="canvas" node={BUTTON} selected={false} />);
 
@@ -211,6 +223,41 @@ describe('ComponentRenderer', () => {
     const frame = container.querySelector('[data-node-id="node_save"]');
     expect(frame).not.toBeNull();
     expect(frame).toHaveStyle({ left: '10px', top: '20px', width: '120px', height: '44px' });
+  });
+
+  it('renders authored italic text and exposes one text-color override to widget internals', () => {
+    const text = makeText('styled_text', {
+      appearance: { textColor: '#7c3aed' },
+      props: { text: 'Italic text', level: 'body', fontStyle: 'italic' },
+    });
+    const { container, rerender } = render(<ComponentRenderer mode="canvas" node={text} selected={false} />);
+
+    expect(screen.getByText('Italic text')).toHaveStyle({ fontStyle: 'italic' });
+    expect(container.querySelector('[data-node-id="styled_text"]')).toHaveStyle({
+      '--novy-component-text': '#7c3aed',
+    });
+
+    const button: ButtonNode = { ...BUTTON, appearance: { textColor: '#facc15' } };
+    rerender(<ComponentRenderer mode="canvas" node={button} selected={false} />);
+    expect(container.querySelector('[data-node-id="node_save"]')).not.toHaveClass('novy-node-background');
+    expect(container.querySelector('[data-node-id="node_save"]')).not.toHaveClass('novy-node-radius');
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveStyle({
+      color: 'var(--novy-component-text, #ffffff)',
+    });
+  });
+
+  it('keeps authored text color on action menus rendered outside the component frame', () => {
+    const dropdown: DropdownNode = {
+      id: 'colored_menu', type: 'dropdown', x: 0, y: 0, w: 44, h: 44,
+      appearance: { textColor: '#7c3aed' },
+      props: { label: 'Actions', placeholder: '', presentation: 'menu', selectedIndex: 0, options: ['Edit', 'Delete'] },
+    };
+    render(<ComponentRenderer mode="preview" node={dropdown} selected={false} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+
+    expect(screen.getByRole('menu', { name: 'Actions' })).toHaveStyle({ '--novy-component-text': '#7c3aed' });
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toHaveClass('novy-widget-text');
   });
 
   it('renders standalone decorative and labelled icons accessibly', () => {

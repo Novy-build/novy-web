@@ -350,6 +350,29 @@ export function LogicNodeConfig({
         </>
       ) : null}
 
+      {node.payload.type === 'set-theme' ? (
+        <>
+          <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-theme">
+            Theme
+          </label>
+          <select
+            className="mt-1 h-11 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="logic-theme"
+            onChange={(event) => configure({
+              type: 'set-theme',
+              theme: event.target.value as Extract<ActionPayload, { type: 'set-theme' }>['theme'],
+            })}
+            value={node.payload.theme}
+          >
+            <option value="toggle">Toggle light and dark</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">Follow system</option>
+          </select>
+          <p className="mt-2 text-xs text-ink-muted">System follows the visitor’s operating-system preference.</p>
+        </>
+      ) : null}
+
       {node.payload.type === 'navigate' ? (
         <>
           <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-screen">

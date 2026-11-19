@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import type { AssistantImageAttachment, AssistantProviderId } from '@domain/entities/assistant';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { ArrowUp, Bot, ChevronDown, Image as ImageIcon, MessageCircle, Plus, Shield, X } from 'lucide-react';
+import type { AssistantImageAttachment } from '@domain/entities/assistant';
 import { useDialogFocus } from '@presentation/hooks/useDialogFocus';
-import type { AssistantConversation, AssistantMessage } from './useAssistantConversation';
+import type { AssistantConversation, AssistantMessage, AssistantMode } from './useAssistantConversation';
+import { AssistantActivityIndicator } from './AssistantActivityIndicator';
+import { assistantProviderLabel } from './assistantProviderLabel';
+import { AssistantModeMenu } from './AssistantModeMenu';
+import { AssistantModelSettingsPopover } from './AssistantModelSettingsPopover';
+import { AssistantProposalCard } from './AssistantProposalCard';
+import { AssistantProposalActions } from './AssistantProposalActions';
+import { assistantPreviewCollections, assistantProposalTitle } from './assistantProposalPreview';
+import { PreviewOverlay } from '../workspace/PreviewOverlay';
 
 interface AssistantSheetProps {
   conversation: AssistantConversation;
@@ -10,32 +19,107 @@ interface AssistantSheetProps {
 
 export function AssistantSheet({ conversation, onClose }: AssistantSheetProps) {
   const {
-    messages, mode, isWorking, isAvailable, providers, selectedProviderId,
+    messages, mode, isWorking, operation, isAvailable, providers, selectedProviderId,
     setSelectedProviderId, selectedModelId, setSelectedModelId,
     setMode, send, accept, reject,
   } = conversation;
-  const visibleMessages = messages.filter((message) => message.mode === mode);
+  const visibleMessages = useMemo(() => messages.filter((message) => message.mode === mode), [messages, mode]);
+  const pendingMessage = [...visibleMessages].reverse().find((message) => message.status === 'pending' && message.proposal);
+  const [previewMessageId, setPreviewMessageId] = useState<string | null>(null);
+  const previewMessage = messages.find((message) => message.id === previewMessageId);
+  const previewProposal = previewMessage?.proposal;
+  const previewCollections = useMemo(() => previewProposal ? assistantPreviewCollections(previewProposal) : [], [previewProposal]);
+  const [isRefining, setIsRefining] = useState(false);
   const [draft, setDraft] = useState('');
   const [image, setImage] = useState<AssistantImageAttachment | null>(null);
   const [imageError, setImageError] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const focusTargetRef = useRef<HTMLElement | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  useDialogFocus({ containerRef: panelRef, initialFocusRef: inputRef, onClose });
+  const modeChipRef = useRef<HTMLButtonElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  useDialogFocus({ containerRef: panelRef, initialFocusRef: focusTargetRef, onClose, enabled: !previewProposal });
 
   useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+    if (isWorking) {
+      setIsModeMenuOpen(false);
+      setIsSettingsOpen(false);
+    }
+  }, [isWorking]);
+
+  function closeModeMenu(): void {
+    setIsModeMenuOpen(false);
+  }
+
+  function closeModeMenuAndFocusChip(): void {
+    setIsModeMenuOpen(false);
+    modeChipRef.current?.focus();
+  }
+
+  function selectMode(nextMode: AssistantMode): void {
+    setMode(nextMode);
+    closeModeMenuAndFocusChip();
+  }
+
+  function openModelSettings(): void {
+    setIsModeMenuOpen(false);
+    setIsSettingsOpen(true);
+  }
+
+  function closeModelSettings(): void {
+    setIsSettingsOpen(false);
+    settingsButtonRef.current?.focus();
+  }
+
+  useEffect(() => {
+    const log = logRef.current;
+    if (!log) return;
+    const lastMessage = visibleMessages.at(-1);
+    const draftCard = lastMessage?.proposal ? document.getElementById(`assistant-message-${lastMessage.id}`) : null;
+    log.scrollTop = draftCard ? Math.max(0, draftCard.offsetTop - log.offsetTop) : log.scrollHeight;
   }, [visibleMessages, isWorking]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
+  function submitDraft(): void {
     if (!draft.trim() || isWorking) return;
     const message = draft;
     setDraft('');
+    setIsRefining(false);
     const images = image ? [image] : [];
     setImage(null);
     setImageError('');
     void send(message, images);
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    submitDraft();
+  }
+
+  function handleMessageKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      submitDraft();
+    }
+  }
+
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+  }, [draft]);
+
+  function openPreview(messageId: string, opener: HTMLButtonElement): void {
+    focusTargetRef.current = opener;
+    setPreviewMessageId(messageId);
+  }
+
+  function refineDraft(): void {
+    setIsRefining(true);
+    inputRef.current?.focus();
   }
 
   async function handleImage(event: ChangeEvent<HTMLInputElement>): Promise<void> {
@@ -82,44 +166,25 @@ export function AssistantSheet({ conversation, onClose }: AssistantSheetProps) {
       <div aria-hidden="true" className="absolute inset-0 bg-ink/30" data-testid="assistant-scrim" onClick={onClose} />
       <aside
         aria-labelledby="assistant-title"
-        aria-modal="true"
-        className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-hairline bg-surface shadow-xl"
+        aria-modal={previewProposal ? undefined : true}
+        aria-hidden={previewProposal ? true : undefined}
+        inert={Boolean(previewProposal)}
+        className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto border-l border-hairline bg-surface shadow-xl"
         ref={panelRef}
         role="dialog"
         tabIndex={-1}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-hairline px-4 py-3">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-hairline px-4 py-3 [@media(max-height:500px)]:py-2">
           <div>
             <h2 className="text-base font-semibold text-ink" id="assistant-title">AI assistant</h2>
             <p className="mt-1 inline-block rounded-full bg-canvas px-2 py-0.5 text-[11px] font-medium text-ink-muted">
               {isAvailable && selectedProvider
-                ? `${selectedModel?.name ?? providerLabel(selectedProvider.id)} · ${selectedCapability?.location === 'local' ? 'local' : 'remote processing'}`
+                ? `${selectedModel?.name ?? assistantProviderLabel(selectedProvider.id)} · ${selectedCapability?.location === 'local' ? 'local' : 'remote processing'}`
                 : isAvailable ? 'Loading assistant providers…' : 'Backend connection required'}
             </p>
           </div>
-          <button aria-label="Close assistant" className="rounded-tile px-2 py-1 text-lg leading-none text-ink-muted transition-colors hover:bg-canvas hover:text-ink" onClick={onClose} type="button">×</button>
+          <button aria-label="Close assistant" className="flex min-h-11 min-w-11 items-center justify-center rounded-tile text-lg leading-none text-ink-muted transition-colors hover:bg-canvas hover:text-ink" onClick={onClose} type="button">×</button>
         </header>
-
-        <div aria-label="Assistant mode" className="grid grid-cols-2 gap-1 border-b border-hairline bg-canvas p-1" role="tablist">
-          <button
-            aria-selected={mode === 'build'}
-            className={`rounded-tile px-3 py-2 text-sm font-medium ${mode === 'build' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink'}`}
-            onClick={() => setMode('build')}
-            role="tab"
-            type="button"
-          >
-            Build app
-          </button>
-          <button
-            aria-selected={mode === 'help'}
-            className={`rounded-tile px-3 py-2 text-sm font-medium ${mode === 'help' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink'}`}
-            onClick={() => setMode('help')}
-            role="tab"
-            type="button"
-          >
-            Ask Novy
-          </button>
-        </div>
 
         <div aria-busy={isWorking} aria-live="polite" aria-relevant="additions text" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" data-testid="assistant-log" ref={logRef} role="log">
           {visibleMessages.length === 0 ? (
@@ -132,106 +197,161 @@ export function AssistantSheet({ conversation, onClose }: AssistantSheetProps) {
               </p>
               <p className="mt-2">
                 {mode === 'build'
-                  ? 'Nothing is saved until you choose Apply app.'
+                  ? 'Nothing is saved until you choose Use this app.'
                   : 'Answers are limited to indexed Novy documentation and include their sources.'}
               </p>
             </div>
           ) : visibleMessages.map((message) => (
-            <MessageRow key={message.id} message={message} isWorking={isWorking} onAccept={accept} onReject={reject} />
+            <MessageRow key={message.id} message={message} onPreview={(opener) => openPreview(message.id, opener)} onContinue={onClose} />
           ))}
-          {isWorking ? <p className="text-sm text-ink-muted" role="status">{mode === 'build' ? 'Building, checking mobile, tablet, and desktop, and repairing errors…' : 'Searching indexed documentation…'}</p> : null}
+          <AssistantActivityIndicator hasPendingDraft={Boolean(pendingMessage)} operation={operation} />
         </div>
 
-        <form aria-label="Assistant message form" className="border-t border-hairline p-3" onSubmit={handleSubmit}>
-          <div className="mb-2 flex items-center gap-2">
-            <label className="text-xs font-medium text-ink-muted" htmlFor="assistant-provider">Provider</label>
-            <select
-              aria-label="Assistant provider"
-              className="min-w-0 flex-1 rounded-tile border border-hairline bg-surface px-2 py-1.5 text-xs text-ink"
-              disabled={isWorking || providers.length === 0}
-              id="assistant-provider"
-              onChange={(event) => setSelectedProviderId(event.target.value as AssistantProviderId)}
-              value={selectedProviderId}
-            >
-              {providers.length === 0 ? <option value="opencode">Loading providers…</option> : null}
-              {providers.map((provider) => (
-                <option disabled={!provider.available} key={provider.id} value={provider.id}>
-                  {providerLabel(provider.id)} · {provider.location === 'local' ? 'Local' : 'Remote'}
-                  {provider.costWarning ? ' · May cost' : ''}{!provider.available ? ' · Unavailable' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          {selectedProvider && selectedProvider.models.length > 0 ? (
-            <div className="mb-2 flex items-center gap-2">
-              <label className="text-xs font-medium text-ink-muted" htmlFor="assistant-model">Model</label>
-              <select
-                aria-label="Assistant model"
-                className="min-w-0 flex-1 rounded-tile border border-hairline bg-surface px-2 py-1.5 text-xs text-ink"
-                disabled={isWorking}
-                id="assistant-model"
-                onChange={(event) => setSelectedModelId(event.target.value)}
-                value={selectedModelId ?? selectedProvider.defaultModelId ?? ''}
-              >
-                {selectedProvider.models.map((model) => (
-                  <option disabled={!model.available} key={model.id} value={model.id}>
-                    {model.name} · {model.location === 'local' ? 'Local' : 'Remote'}
-                    {model.costWarning ? ' · Uses account' : ''}
-                    {!model.available ? ' · Unavailable' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
+        {pendingMessage?.proposal ? (
+          <AssistantProposalActions
+            canApply={pendingMessage.proposal.verification?.passed !== false}
+            hasExistingContent={conversation.hasExistingContent}
+            isApplying={operation === 'apply'}
+            isWorking={isWorking}
+            key={pendingMessage.id}
+            onAccept={() => accept(pendingMessage.id)}
+            onDiscard={() => reject(pendingMessage.id)}
+            onRefine={refineDraft}
+          />
+        ) : null}
+
+        <form aria-label="Assistant message form" className="shrink-0 border-t border-hairline p-3" onSubmit={handleSubmit}>
           {selectedCapability?.costWarning ? (
             <p className="mb-2 text-xs text-amber-700">
               {selectedModel?.usageNote || 'This remote provider may incur usage charges.'}
             </p>
           ) : null}
-          {image ? (
-            <div className="mb-2 flex items-center justify-between gap-2 rounded-tile bg-canvas px-2.5 py-2 text-xs">
-              <span className="truncate text-ink">Image: {image.name}</span>
-              <button className="font-medium text-ink-muted hover:text-ink" onClick={() => setImage(null)} type="button">Remove</button>
-            </div>
-          ) : null}
-          {imageError ? <p className="mb-2 text-xs text-red-600" role="alert">{imageError}</p> : null}
-          {imageUnsupported ? <p className="mb-2 text-xs text-red-600" role="alert">The selected model does not support images.</p> : null}
-          <label className="sr-only" htmlFor="assistant-message">Message</label>
-          <div className="flex items-center gap-2">
-            <label className="flex h-10 cursor-pointer items-center rounded-tile border border-hairline px-3 text-sm font-medium text-ink hover:bg-canvas">
-              <span aria-hidden="true">＋</span><span className="sr-only">Attach image</span>
-              <input
-                accept="image/png,image/jpeg,image/gif,image/webp"
-                aria-label="Attach image"
-                className="sr-only"
-                disabled={isWorking}
-                onChange={(event) => void handleImage(event)}
-                type="file"
-              />
-            </label>
-            <input
+          {isRefining && pendingMessage ? <p className="mb-2 text-xs text-ink-muted">Describe what you’d like to change. Your current draft stays until a new one is ready.</p> : null}
+          <div className="relative rounded-panel border border-hairline bg-surface p-2 transition-colors focus-within:border-brand-600">
+            {image ? (
+              <div className="mb-2 flex items-center gap-2 rounded-tile bg-canvas px-2 py-1.5 text-xs">
+                <ImageIcon aria-hidden="true" className="shrink-0 text-ink-muted" size={14} />
+                <span className="min-w-0 flex-1 truncate text-ink">Image: {image.name}</span>
+                <button
+                  aria-label="Remove image"
+                  className="rounded-tile p-0.5 text-ink-muted transition-colors hover:text-ink"
+                  onClick={() => setImage(null)}
+                  type="button"
+                >
+                  <X aria-hidden="true" size={14} />
+                </button>
+              </div>
+            ) : null}
+            {imageError ? <p className="mb-2 text-xs text-red-600" role="alert">{imageError}</p> : null}
+            {imageUnsupported ? <p className="mb-2 text-xs text-red-600" role="alert">The selected model does not support images.</p> : null}
+            <label className="sr-only" htmlFor="assistant-message">Message</label>
+            <textarea
               aria-label="Message"
               autoComplete="off"
-              className="h-10 min-w-0 flex-1 rounded-tile border border-hairline bg-surface px-3 text-sm text-ink outline-none focus:border-brand-600 disabled:bg-canvas"
+              className="block max-h-[200px] w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-relaxed text-ink outline-none placeholder:text-ink-muted disabled:bg-transparent"
               disabled={isWorking}
               id="assistant-message"
               onChange={(event) => setDraft(event.target.value)}
-              placeholder={mode === 'build' ? 'Describe or refine an app…' : 'Ask a Novy question…'}
-              ref={inputRef}
+              onKeyDown={handleMessageKeyDown}
+              placeholder={mode === 'help' ? 'Ask Novy…' : isRefining && pendingMessage ? 'What would you like to change?' : 'Chat with Novy'}
+              ref={(element) => { inputRef.current = element; if (!focusTargetRef.current) focusTargetRef.current = element; }}
+              rows={1}
               value={draft}
             />
-            <button className="h-10 shrink-0 rounded-tile bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50" disabled={draft.trim().length === 0 || isWorking || imageUnsupported || providerUnavailable} type="submit">Send</button>
+            <div className="mt-1 flex items-center gap-1.5">
+              <label className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-tile text-ink-muted transition-colors hover:bg-canvas hover:text-ink">
+                <Plus aria-hidden="true" size={18} />
+                <span className="sr-only">Attach image</span>
+                <input
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  aria-label="Attach image"
+                  className="sr-only"
+                  disabled={isWorking}
+                  onChange={(event) => void handleImage(event)}
+                  type="file"
+                />
+              </label>
+              <div className="relative shrink-0">
+                <button
+                  aria-controls={isModeMenuOpen ? 'assistant-mode-menu' : undefined}
+                  aria-expanded={isModeMenuOpen}
+                  aria-haspopup="menu"
+                  className="flex h-8 items-center gap-1.5 rounded-tile px-2 text-sm font-medium text-ink transition-colors hover:bg-canvas focus-visible:outline-2 focus-visible:outline-brand-600 disabled:opacity-50"
+                  data-assistant-mode-trigger
+                  disabled={isWorking}
+                  onClick={() => setIsModeMenuOpen((open) => !open)}
+                  ref={modeChipRef}
+                  type="button"
+                >
+                  {mode === 'build'
+                    ? <Bot aria-hidden="true" size={16} />
+                    : <MessageCircle aria-hidden="true" size={16} />}
+                  <span>{mode === 'build' ? 'Agent' : 'Ask'}</span>
+                  <ChevronDown aria-hidden="true" className="text-ink-muted" size={14} />
+                </button>
+                {isModeMenuOpen ? (
+                  <AssistantModeMenu
+                    mode={mode}
+                    onClose={closeModeMenu}
+                    onConfigure={openModelSettings}
+                    onEscape={closeModeMenuAndFocusChip}
+                    onSelect={selectMode}
+                  />
+                ) : null}
+              </div>
+              <div className="relative shrink-0">
+                <button
+                  aria-controls={isSettingsOpen ? 'assistant-model-settings' : undefined}
+                  aria-expanded={isSettingsOpen}
+                  aria-haspopup="dialog"
+                  aria-label="Model settings"
+                  className="flex h-8 w-8 items-center justify-center rounded-tile text-ink-muted transition-colors hover:bg-canvas hover:text-ink focus-visible:outline-2 focus-visible:outline-brand-600"
+                  data-assistant-settings-trigger
+                  onClick={() => setIsSettingsOpen((open) => !open)}
+                  ref={settingsButtonRef}
+                  title="Model settings"
+                  type="button"
+                >
+                  <Shield aria-hidden="true" size={17} />
+                </button>
+              </div>
+              <span className="flex-1" />
+              <button
+                aria-label="Send"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={draft.trim().length === 0 || isWorking || imageUnsupported || providerUnavailable}
+                type="submit"
+              >
+                <ArrowUp aria-hidden="true" size={18} />
+              </button>
+            </div>
+            {isSettingsOpen ? (
+              <AssistantModelSettingsPopover
+                isWorking={isWorking}
+                onClose={closeModelSettings}
+                providers={providers}
+                selectedModelId={selectedModelId}
+                selectedProviderId={selectedProviderId}
+                setSelectedModelId={setSelectedModelId}
+                setSelectedProviderId={setSelectedProviderId}
+              />
+            ) : null}
           </div>
         </form>
       </aside>
+      {previewProposal ? (
+        <PreviewOverlay
+          collections={previewCollections}
+          designSystem={previewProposal.preview.document.designSystem}
+          onClose={() => setPreviewMessageId(null)}
+          projectName={assistantProposalTitle(previewProposal)}
+          projectType={conversation.projectType}
+          sandboxOnly
+          screens={previewProposal.preview.document.screens}
+        />
+      ) : null}
     </div>
   );
-}
-
-function providerLabel(provider: AssistantProviderId): string {
-  if (provider === 'opencode') return 'OpenCode';
-  if (provider === 'openrouter') return 'OpenRouter';
-  return 'Ollama';
 }
 
 function readAsDataUrl(file: File): Promise<string> {
@@ -245,14 +365,12 @@ function readAsDataUrl(file: File): Promise<string> {
 
 function MessageRow({
   message,
-  isWorking,
-  onAccept,
-  onReject,
+  onPreview,
+  onContinue,
 }: {
   message: AssistantMessage;
-  isWorking: boolean;
-  onAccept: (messageId: string) => Promise<void>;
-  onReject: (messageId: string) => void;
+  onPreview: (opener: HTMLButtonElement) => void;
+  onContinue: () => void;
 }) {
   if (message.role === 'user') {
     return <div className="flex justify-end"><p className="max-w-[85%] rounded-panel rounded-br-sm bg-brand-600 px-3 py-2 text-sm text-white">{message.text}</p></div>;
@@ -260,8 +378,8 @@ function MessageRow({
   const proposal = message.proposal;
   const help = message.help;
   return (
-    <div className="max-w-[98%] space-y-2">
-      <p className="rounded-panel rounded-bl-sm bg-canvas px-3 py-2 text-sm text-ink">{message.text}</p>
+    <div className="space-y-2" id={`assistant-message-${message.id}`}>
+      {!proposal ? <p className="rounded-panel rounded-bl-sm bg-canvas px-3 py-2 text-sm text-ink">{message.text}</p> : null}
       {help?.sources.length ? (
         <section aria-label="Answer sources" className="rounded-panel border border-hairline bg-surface p-3 text-xs">
           <h3 className="font-semibold text-ink">Sources</h3>
@@ -277,66 +395,7 @@ function MessageRow({
           </ul>
         </section>
       ) : null}
-      {proposal ? (
-        <section aria-label="App proposal preview" className="rounded-panel border border-hairline bg-surface p-3" data-testid="assistant-proposal">
-          <h3 className="text-sm font-semibold text-ink">App preview</h3>
-          {proposal.verification ? (
-            <section
-              aria-label="Build verification"
-              className={`mt-2 rounded-tile border p-2.5 text-xs ${proposal.verification.passed ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-red-200 bg-red-50 text-red-950'}`}
-            >
-              <p className="font-semibold">
-                {proposal.verification.passed ? 'Built, checked, and ready to review' : 'Build checks found errors'}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Responsive viewport checks">
-                {proposal.verification.viewports.map((viewport) => (
-                  <span className="rounded-full bg-white/80 px-2 py-1 font-medium" key={viewport.id}>
-                    {viewport.id[0]!.toUpperCase() + viewport.id.slice(1)} {viewport.width}×{viewport.height} · {viewport.passed ? 'Passed' : 'Failed'}
-                  </span>
-                ))}
-              </div>
-              <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-                {proposal.verification.stages.map((stage) => (
-                  <li key={stage.id}>{stage.passed ? '✓' : '×'} {stage.label}</li>
-                ))}
-              </ul>
-              {proposal.verification.repairAttempts > 0 ? (
-                <p className="mt-2">Novy repaired the draft {proposal.verification.repairAttempts} {proposal.verification.repairAttempts === 1 ? 'time' : 'times'} before presenting it.</p>
-              ) : null}
-              {proposal.verification.issues.length > 0 ? (
-                <ul className="mt-2 list-disc space-y-1 pl-4">
-                  {proposal.verification.issues.map((issue) => <li key={`${issue.code}-${issue.screenId ?? ''}-${issue.viewport ?? ''}`}>{issue.message}</li>)}
-                </ul>
-              ) : null}
-            </section>
-          ) : null}
-          <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
-            <div><dt className="text-ink-muted">Screens</dt><dd className="font-semibold text-ink">{proposal.blueprint.screens.length}</dd></div>
-            <div><dt className="text-ink-muted">Components</dt><dd className="font-semibold text-ink">{proposal.blueprint.screens.reduce((total, screen) => total + screen.components.length, 0)}</dd></div>
-            <div><dt className="text-ink-muted">Collections</dt><dd className="font-semibold text-ink">{proposal.blueprint.collections.length}</dd></div>
-          </dl>
-          <div className="mt-3 space-y-2">
-            {proposal.blueprint.screens.map((screen) => (
-              <div className="rounded-tile bg-canvas px-2.5 py-2 text-xs" key={screen.key}>
-                <p className="font-medium text-ink">{screen.name} <span className="font-normal text-ink-muted">{screen.path}</span></p>
-                <p className="mt-0.5 text-ink-muted">{screen.components.length} components · {screen.workflows.length} workflows</p>
-              </div>
-            ))}
-          </div>
-          {proposal.blueprint.collections.length > 0 ? (
-            <p className="mt-3 text-xs text-ink-muted">Data: {proposal.blueprint.collections.map((collection) => `${collection.name} (${collection.fields.length} fields)`).join(', ')}</p>
-          ) : null}
-          {message.status === 'pending' ? (
-            <div className="mt-3 flex gap-2">
-              <button className="rounded-tile bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50" disabled={isWorking || proposal.verification?.passed === false} onClick={() => void onAccept(message.id)} type="button">Apply app</button>
-              <button className="rounded-tile border border-hairline px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50" disabled={isWorking} onClick={() => onReject(message.id)} type="button">Reject</button>
-            </div>
-          ) : null}
-          {message.status === 'applied' ? <p className="mt-3 text-xs font-medium text-brand-700">Applied and saved to the project.</p> : null}
-          {message.status === 'rejected' ? <p className="mt-3 text-xs text-ink-muted">Rejected. The project was not changed.</p> : null}
-          {message.status === 'superseded' ? <p className="mt-3 text-xs text-ink-muted">Superseded by a newer refinement.</p> : null}
-        </section>
-      ) : null}
+      {proposal ? <AssistantProposalCard onContinue={onContinue} onPreview={onPreview} proposal={proposal} status={message.status} /> : null}
     </div>
   );
 }

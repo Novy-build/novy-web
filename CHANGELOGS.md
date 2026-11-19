@@ -5,6 +5,95 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-19 — Compact assistant activity and VS Code-style mode selector
+
+#### Changed
+- The assistant no longer shows long sentence-length working status. A small spinner and short verb
+  (**Thinking…**, **Refining…**, **Searching docs…**) indicate what the agent is doing; **Applying…**
+  remains on the draft action bar so only one live status is announced at a time.
+- The **Build app / Ask Novy** tab bar was replaced by a VS Code-style **Agent / Ask** chip in the
+  composer with an anchored popover menu. It supports arrow-key navigation, Enter/Space selection,
+  Escape that closes only the menu, click-outside dismissal, and focus return. **Model settings…**
+  expands the existing provider/model settings without adding a new capability. The persistent
+  **Model settings** row was removed as redundant; provider/model controls now open as a compact
+  popover from the mode menu item or the shield control in the composer, with Escape and outside
+  dismissal that leave the assistant open. Switching modes is disabled while a request is in flight.
+- The composer is now a single VS Code-style bordered box with an auto-growing multiline textarea
+  and a compact bottom row (attach, mode chip, model settings, circular Send). Enter sends; Shift+Enter
+  inserts a newline. Attached images appear as a chip inside the box, and the header badge, cost note,
+  and refine hint stay outside it.
+- The floating bottom-right AI assistant button was removed. One right-edge rail now holds the
+  **Inspector** tab above the **AI Assistant** tab in design mode (assistant only in logic/data); both
+  icons and vertical labels open their respective panel. Clicking the collapsed Inspector label expands
+  the inspector.
+
+#### Fixed
+- The model settings popover was anchored to the mid-row shield control and overflowed the assistant
+  sheet's left edge. It is now anchored to the full composer box, so its heading and provider/model
+  selects stay fully visible inside the sheet.
+- Responsive generation failures no longer render a large bubble containing the same viewport error
+  for every component. Coordinated backend diagnostics are grouped by screen/viewport, while the
+  frontend presents one concise recovery message suggesting a split form or simpler layout. Legacy
+  and other provider validation text is deduplicated and capped defensively.
+
+#### Verification
+- Strict TypeScript, the assistant/editor suites, the full suite with
+  `npm test -- --maxWorkers=2` (122 files / 1012 tests), and the production build passed.
+
+### 2026-11-18 — Visual assistant drafts and safer review actions
+
+#### Added
+- Completed app drafts lead with their screen title, plain-language summary, and a rendered thumbnail.
+  Preview opens the existing interactive renderer with local, in-memory workflow simulation and a
+  screen selector, without accepting the draft, requesting another generation, or loading saved data.
+- Persistent **Use this app**, **Make changes**, and **Discard draft** actions remain outside the
+  conversation scroller. Existing projects require explicit screen/workflow replacement confirmation;
+  Cancel receives focus and Escape returns to the original action without closing the assistant.
+- Applied drafts offer **Continue editing**; discarded and superseded drafts use compact summaries.
+
+#### Changed
+- Screen routes, component/workflow counts, individual checks, and repair attempts are collapsed
+  under **What’s included** and **Check details**. Actionable issues remain visible, and failed
+  verification blocks acceptance in both the UI and conversation controller.
+- Build, documentation-search, and apply operations have distinct feedback and synchronous busy
+  guards. Refinement focuses the composer without submitting or changing the saved project.
+- Draft Preview actively ignores persistence and protected runtime services. The assistant becomes
+  inert while Preview owns focus; returning restores the preview opener and modal scroll lock.
+- Model settings collapse during draft review while provider cost disclosure remains visible. Short
+  viewports use a compact action row; shared dialog focus excludes inert and collapsed controls.
+
+#### Verification
+- Strict TypeScript, all 122 test files / 1003 tests (`--maxWorkers=2`, normal test timeouts), and the
+  production build passed. Browser checks used a temporary external fixture with Microsoft Edge at
+  1440×900, 768×1024, 390×844, 320×568, and 844×390, plus dark applied/failed/error states.
+- Browser checks covered local preview navigation, persistent actions, replacement cancellation,
+  refinement focus, nested Escape/focus restoration, and scroll unlocking. These were simulated
+  draft interactions, not live deployment or provider tests. Backend contracts were unchanged.
+
+### 2026-11-18 — Reliable fonts, app themes, and widget text colors
+
+#### Added
+- Font-family fields now use an accessible curated picker whose options preview Inter, JetBrains
+  Mono, and system font stacks. Keyboard navigation, type-ahead, Escape, focus return, and outside
+  dismissal are supported; existing custom saved stacks remain intact until replaced.
+- Logic mode includes a browser-only Set Theme node with Light, Dark, System, and Toggle modes;
+  Preview also exposes a direct app-theme selector.
+
+#### Fixed
+- Inter and JetBrains Mono italic faces are bundled explicitly, so the existing italic Text setting
+  now renders in the editor, Preview, and exported React applications.
+- Authored Text color now reaches widget labels, values, helper text, buttons, menus, controls, chat,
+  file, camera, and empty states instead of being overridden by inner semantic-color classes.
+- Portal-rendered action menus retain project theme tokens and authored text colors. Text-only
+  appearance changes no longer clear a solid widget background or override its default radius.
+- Theme-control Switches now use clear off=Light/on=Dark semantics without exposing a conflicting
+  default-on setting.
+
+#### Verification
+- Strict TypeScript, all 118 test files / 986 tests (`--maxWorkers=2` with the normal timeout), and
+  the production build passed. Backend verification passed 342 tests with 5 optional skips plus
+  Ruff, application mypy, Alembic check, generated-runtime tests, and generated production builds.
+
 ### 2026-11-18 — Full project design system and showcase templates
 
 #### Added

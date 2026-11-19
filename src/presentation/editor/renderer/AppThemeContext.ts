@@ -1,10 +1,11 @@
 import { createContext, useContext } from 'react';
 
 export type AppTheme = 'light' | 'dark';
+export type AppThemePreference = AppTheme | 'system';
 
 export interface AppThemeController {
   theme: AppTheme;
-  setTheme: (theme: AppTheme) => void;
+  setTheme: (theme: AppThemePreference) => void;
 }
 
 export const AppThemeContext = createContext<AppThemeController | null>(null);

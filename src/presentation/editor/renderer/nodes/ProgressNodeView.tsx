@@ -4,7 +4,7 @@ export function ProgressNodeView({ props }: { props: ProgressProps }) {
   const value = Math.min(100, Math.max(0, props.value));
   return (
     <div className="flex h-full w-full flex-col justify-center gap-1">
-      {props.label ? <span className="text-xs font-medium text-ink-muted">{props.label}</span> : null}
+      {props.label ? <span className="novy-widget-text-muted text-xs font-medium">{props.label}</span> : null}
       {props.indeterminate ? (
         <div className="h-2 w-full overflow-hidden rounded-full bg-hairline">
           <div className="h-2 w-1/3 animate-pulse rounded-full bg-brand-600" />

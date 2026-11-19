@@ -57,7 +57,7 @@ describe('Inspector', () => {
   it('can configure a switch to control the previewed app theme', () => {
     const node = createComponentNode('switch');
     const { onAction } = renderInspector(node);
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Control app light/dark theme' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Use as dark mode switch' }));
     expect(onAction).toHaveBeenCalledWith({ type: 'node/props-switch', nodeId: node.id, props: { controlsTheme: true } });
   });
 
@@ -341,11 +341,12 @@ describe('Inspector', () => {
       props: { text: 'Hello, World!', level: 'body', fontFamily: 'Inter', fontSize: 20, fontWeight: 'bold' },
     }));
 
-    fireEvent.change(screen.getByLabelText('Font family'), { target: { value: 'Georgia, serif' } });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Font family' }));
+    fireEvent.click(screen.getByRole('option', { name: /System Serif/ }));
     expect(onAction).toHaveBeenLastCalledWith({
       type: 'node/responsive-text-style',
       nodeId: 'node_1',
-      textStyle: { fontFamily: 'Georgia, serif' },
+      textStyle: { fontFamily: "ui-serif, Georgia, Cambria, 'Times New Roman', serif" },
     });
 
     fireEvent.change(screen.getByLabelText('Font size (px)'), { target: { value: '32' } });
@@ -376,11 +377,24 @@ describe('Inspector', () => {
       textStyle: { fontWeight: undefined },
     });
 
-    fireEvent.change(screen.getByLabelText('Font family'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Font family' }));
+    fireEvent.click(screen.getByRole('option', { name: /Default app font/ }));
     expect(onAction).toHaveBeenLastCalledWith({
       type: 'node/responsive-text-style',
       nodeId: 'node_1',
       textStyle: { fontFamily: undefined },
+    });
+  });
+
+  it('dispatches italic text styling for the active breakpoint', () => {
+    const { onAction } = renderInspector(makeText('node_italic'));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Italic' }));
+
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/responsive-text-style',
+      nodeId: 'node_italic',
+      textStyle: { fontStyle: 'italic' },
     });
   });
 

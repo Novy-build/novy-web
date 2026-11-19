@@ -36,6 +36,7 @@ export type PreviewEffect =
   | { kind: 'refresh-collection'; collectionId: string }
   | { kind: 'email-simulated'; to: string; subject: string }
   | { kind: 'set-variable'; name: string; value: string }
+  | { kind: 'set-theme'; theme: 'light' | 'dark' | 'system' | 'toggle' }
   | { kind: 'set-component-value'; nodeId: string; value: string }
   | {
       kind: 'add-local-list-item';
@@ -435,6 +436,7 @@ function applyActionInputMappings(
   switch (payload.type) {
     case 'change-text': return { ...payload, text: resolve('text', payload.text) };
     case 'show-message': return { ...payload, message: resolve('message', payload.message) };
+    case 'set-theme': return payload;
     case 'set-variable': return { ...payload, value: resolve('value', payload.value) };
     case 'set-component-value': return { ...payload, value: resolve('value', payload.value) };
     case 'add-local-list-item':
@@ -1128,6 +1130,8 @@ function effectFor(
     }
     case 'set-variable':
       return payload.name ? { kind: 'set-variable', name: payload.name, value: payload.value } : null;
+    case 'set-theme':
+      return { kind: 'set-theme', theme: payload.theme };
     case 'set-component-value':
       return payload.targetNodeId ? { kind: 'set-component-value', nodeId: payload.targetNodeId, value: payload.value } : null;
     case 'add-local-list-item': {

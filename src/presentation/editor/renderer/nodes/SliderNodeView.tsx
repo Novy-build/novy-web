@@ -17,7 +17,7 @@ export function SliderNodeView({
 
   return (
     <div className="flex h-full w-full flex-col justify-center gap-1">
-      {props.label ? <span className="text-xs font-medium text-ink-muted">{props.label}: {value}</span> : null}
+      {props.label ? <span className="novy-widget-text-muted text-xs font-medium">{props.label}: {value}</span> : null}
       {renderStatic ? (
         <div className="relative h-2 w-full rounded-full bg-hairline">
           <div className="absolute left-0 top-0 h-2 rounded-full bg-brand-600" style={{ width: `${percent}%` }} />

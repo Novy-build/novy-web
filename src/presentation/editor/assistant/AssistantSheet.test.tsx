@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AssistantProposalV1 } from '@domain/entities/assistant';
 import { AssistantSheet } from './AssistantSheet';
 import type { AssistantConversation } from './useAssistantConversation';
+import { makeButton, makeScreen, makeText } from '@test/editorFixtures';
+import { createBehaviorBundle } from '@domain/factories/logic';
+import { appendAction } from '@domain/logic/graph';
+
+const BUNDLE = createBehaviorBundle('Add task', 'button_add', 'click');
+const GRAPH = appendAction(BUNDLE.graph, { type: 'navigate', targetScreenId: 'screen_create' });
 
 const PROPOSAL: AssistantProposalV1 = {
   id: 'proposal_1',
@@ -49,7 +55,13 @@ const PROPOSAL: AssistantProposalV1 = {
   },
   preview: {
     schemaVersion: 13,
-    document: { screens: [] },
+    document: { screens: [
+      {
+        ...makeScreen('screen_tasks', [makeText('heading_tasks', { props: { text: 'Your tasks', level: 'title' } }), makeButton('button_add', { props: { label: 'Add task', variant: 'solid' } })], 'Tasks'),
+        behaviors: [BUNDLE.behavior], logicGraphs: [GRAPH],
+      },
+      { ...makeScreen('screen_create', [makeText('heading_create', { props: { text: 'Add a task', level: 'title' } })], 'Create task'), path: '/new' },
+    ] },
     collections: [],
   },
   verification: {
@@ -75,6 +87,9 @@ function conversation(overrides: Partial<AssistantConversation> = {}): Assistant
     messages: overrides.messages ?? [],
     mode: overrides.mode ?? 'build',
     isWorking: overrides.isWorking ?? false,
+    operation: overrides.operation ?? null,
+    hasExistingContent: overrides.hasExistingContent ?? false,
+    projectType: overrides.projectType ?? 'app',
     isAvailable: overrides.isAvailable ?? true,
     providers: overrides.providers ?? [{
       id: 'opencode', model: 'nemotron-free', available: true,
@@ -115,6 +130,43 @@ describe('AssistantSheet', () => {
     expect(screen.getByLabelText('Message')).toHaveFocus();
   });
 
+  it('uses a growing textarea that sends on Enter and keeps Shift+Enter for newlines', () => {
+    const controller = conversation();
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+    const message = screen.getByLabelText('Message');
+    expect(message.tagName).toBe('TEXTAREA');
+
+    fireEvent.change(message, { target: { value: 'First line' } });
+    fireEvent.keyDown(message, { key: 'Enter', shiftKey: true });
+    expect(controller.send).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(message, { key: 'Enter' });
+    expect(controller.send).toHaveBeenCalledWith('First line', []);
+  });
+
+  it('opens model settings as a popover instead of a persistent row', () => {
+    render(<AssistantSheet conversation={conversation()} onClose={vi.fn()} />);
+    expect(screen.queryByRole('dialog', { name: 'Model settings' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Assistant provider')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Model settings' }));
+    expect(screen.getByRole('dialog', { name: 'Model settings' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Assistant provider')).toBeInTheDocument();
+  });
+
+  it('closes the model settings popover with Escape without closing the sheet', () => {
+    const onClose = vi.fn();
+    render(<AssistantSheet conversation={conversation()} onClose={onClose} />);
+    const trigger = screen.getByRole('button', { name: 'Model settings' });
+    fireEvent.click(trigger);
+
+    fireEvent.keyDown(screen.getByLabelText('Assistant provider'), { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Model settings' })).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(trigger).toHaveFocus();
+  });
+
   it('sends a complete-app request through the conversation controller', () => {
     const controller = conversation();
     render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
@@ -136,6 +188,7 @@ describe('AssistantSheet', () => {
       setSelectedProviderId,
     })} onClose={vi.fn()} />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Model settings' }));
     fireEvent.change(screen.getByLabelText('Assistant provider'), { target: { value: 'ollama' } });
 
     expect(setSelectedProviderId).toHaveBeenCalledWith('ollama');
@@ -149,6 +202,7 @@ describe('AssistantSheet', () => {
       setSelectedModelId,
     })} onClose={vi.fn()} />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Model settings' }));
     expect(screen.getByLabelText('Assistant model')).toHaveValue('gpt-6.1-terra');
     expect(screen.getByText('Uses the OpenAI account connected to OpenCode.')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Assistant model'), {
@@ -177,7 +231,7 @@ describe('AssistantSheet', () => {
     );
   });
 
-  it('shows proposal details and requires explicit apply or reject', () => {
+  it('shows a visual draft with collapsed details and persistent explicit actions', () => {
     const controller = conversation({
       messages: [
         { id: 'user_1', mode: 'build', role: 'user', text: 'Build tasks' },
@@ -187,20 +241,136 @@ describe('AssistantSheet', () => {
     render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
     const preview = screen.getByRole('region', { name: 'App proposal preview' });
 
-    expect(within(preview).getByText('Tasks')).toBeInTheDocument();
-    expect(within(preview).getByText('Create task')).toBeInTheDocument();
-    expect(within(preview).getByText(/Tasks \(1 fields\)/)).toBeInTheDocument();
-    expect(within(preview).getByRole('region', { name: 'Build verification' })).toHaveTextContent('Built, checked, and ready to review');
-    expect(within(preview).getByText(/Mobile 390×780 · Passed/)).toBeInTheDocument();
-    expect(within(preview).getByText(/repaired the draft 1 time/)).toBeInTheDocument();
+    expect(within(preview).getByRole('heading', { name: 'Tasks' })).toBeInTheDocument();
+    expect(within(preview).getByRole('img', { name: 'Visual preview of Tasks' })).toBeInTheDocument();
+    expect(within(preview).getByRole('region', { name: 'Build verification' })).toHaveTextContent('Automated checks passed');
+    expect(within(preview).getByText('Create task')).not.toBeVisible();
+    fireEvent.click(within(preview).getByText('What’s included'));
+    expect(within(preview).getByText('Create task')).toBeVisible();
+    expect(within(preview).getByText('Tasks data · 1 field')).toBeVisible();
+    expect(within(preview).getByText(/Mobile 390×780 · Passed/)).not.toBeVisible();
+    fireEvent.click(within(preview).getByText('Check details'));
+    expect(within(preview).getByText(/Mobile 390×780 · Passed/)).toBeVisible();
 
-    fireEvent.click(within(preview).getByRole('button', { name: 'Apply app' }));
+    const actions = screen.getByRole('region', { name: 'Draft actions' });
+    expect(screen.getByRole('log')).not.toContainElement(actions);
+    fireEvent.click(within(actions).getByRole('button', { name: 'Use this app' }));
     expect(controller.accept).toHaveBeenCalledWith('assistant_1');
-    fireEvent.click(within(preview).getByRole('button', { name: 'Reject' }));
+    fireEvent.click(within(actions).getByRole('button', { name: 'Discard draft' }));
     expect(controller.reject).toHaveBeenCalledWith('assistant_1');
   });
 
-  it('shows grounded help citations in Ask Novy mode', () => {
+  it('opens a local interactive preview without accepting, and returns focus on Escape', async () => {
+    const controller = conversation({ messages: [{ id: 'assistant_1', mode: 'build', role: 'assistant', text: PROPOSAL.message, proposal: PROPOSAL, status: 'pending' }] });
+    const onClose = vi.fn();
+    render(<AssistantSheet conversation={controller} onClose={onClose} />);
+    const opener = screen.getByRole('button', { name: 'Preview app' });
+    fireEvent.click(opener);
+    const dialog = screen.getByRole('dialog', { name: 'Previewing Tasks' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(within(dialog).queryByLabelText('Save data changes')).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/Draft preview only/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add task' }));
+    await waitFor(() => expect(within(dialog).getByText('Add a task')).toBeInTheDocument());
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Screen' }), { target: { value: 'screen_tasks' } });
+    expect(within(dialog).getByText('Your tasks')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Previewing Tasks' })).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(controller.accept).not.toHaveBeenCalled();
+    expect(opener).toHaveFocus();
+  });
+
+  it('focuses refinement without generating or discarding and preserves typed changes', () => {
+    const controller = conversation({ messages: [{ id: 'assistant_1', mode: 'build', role: 'assistant', text: PROPOSAL.message, proposal: PROPOSAL, status: 'pending' }] });
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Keep this request' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Make changes' }));
+    expect(screen.getByLabelText('Message')).toHaveFocus();
+    expect(screen.getByLabelText('Message')).toHaveValue('Keep this request');
+    expect(screen.getByPlaceholderText('What would you like to change?')).toBeInTheDocument();
+    expect(controller.send).not.toHaveBeenCalled();
+    expect(controller.reject).not.toHaveBeenCalled();
+  });
+
+  it('labels acceptance as applying, not building', () => {
+    const controller = conversation({ isWorking: true, operation: 'apply', messages: [{ id: 'assistant_1', mode: 'build', role: 'assistant', text: PROPOSAL.message, proposal: PROPOSAL, status: 'pending' }] });
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Applying…' })).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('Applying your app');
+    expect(screen.queryByText(/Thinking…/)).not.toBeInTheDocument();
+  });
+
+  it('shows an activity indicator for the current operation', () => {
+    const { rerender } = render(<AssistantSheet conversation={conversation({ isWorking: true, operation: 'build' })} onClose={vi.fn()} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Thinking…');
+    expect(screen.queryByText(/automated checks/)).not.toBeInTheDocument();
+
+    rerender(<AssistantSheet conversation={conversation({
+      isWorking: true,
+      operation: 'build',
+      messages: [
+        { id: 'user_1', mode: 'build', role: 'user', text: 'Build tasks' },
+        { id: 'assistant_1', mode: 'build', role: 'assistant', text: PROPOSAL.message, proposal: PROPOSAL, status: 'pending' },
+      ],
+    })} onClose={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Refining…');
+
+    rerender(<AssistantSheet conversation={conversation({ isWorking: true, operation: 'help', mode: 'help' })} onClose={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Searching docs…');
+
+    rerender(<AssistantSheet conversation={conversation()} onClose={vi.fn()} />);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('switches modes through the selector menu', () => {
+    const setMode = vi.fn();
+    render(<AssistantSheet conversation={conversation({ setMode })} onClose={vi.fn()} />);
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Agent' }));
+    const menu = screen.getByRole('menu');
+    expect(within(menu).getByRole('menuitemradio', { name: 'Agent' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(menu).getByRole('menuitemradio', { name: 'Ask' })).toHaveAttribute('aria-checked', 'false');
+
+    fireEvent.keyDown(within(menu).getByRole('menuitemradio', { name: 'Agent' }), { key: 'ArrowDown' });
+    expect(within(menu).getByRole('menuitemradio', { name: 'Ask' })).toHaveFocus();
+    fireEvent.keyDown(within(menu).getByRole('menuitemradio', { name: 'Ask' }), { key: 'Enter' });
+
+    expect(setMode).toHaveBeenCalledWith('help');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Agent' })).toHaveFocus();
+  });
+
+  it('opens model settings from the selector without closing the sheet', () => {
+    const onClose = vi.fn();
+    render(<AssistantSheet conversation={conversation({
+      messages: [{ id: 'assistant_1', mode: 'build', role: 'assistant', text: PROPOSAL.message, proposal: PROPOSAL, status: 'pending' }],
+    })} onClose={onClose} />);
+    expect(screen.queryByRole('dialog', { name: 'Model settings' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Agent' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Model settings…' }));
+
+    expect(screen.getByRole('dialog', { name: 'Model settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('closes only the mode menu on Escape', () => {
+    const onClose = vi.fn();
+    render(<AssistantSheet conversation={conversation()} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Agent' }));
+
+    fireEvent.keyDown(within(screen.getByRole('menu')).getByRole('menuitemradio', { name: 'Ask' }), { key: 'Escape' });
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Agent' })).toHaveFocus();
+  });
+
+  it('shows grounded help citations in Ask mode', () => {
     render(<AssistantSheet conversation={conversation({
       mode: 'help',
       messages: [{
@@ -222,7 +392,8 @@ describe('AssistantSheet', () => {
       }],
     })} onClose={vi.fn()} />);
 
-    expect(screen.getByRole('tab', { name: 'Ask Novy' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
+    expect(within(screen.getByRole('menu')).getByRole('menuitemradio', { name: 'Ask' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('region', { name: 'Answer sources' })).toHaveTextContent('PD6 traceability');
   });
 

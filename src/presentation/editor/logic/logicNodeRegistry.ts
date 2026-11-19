@@ -168,6 +168,15 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
     create: () => ({ kind: 'action', payload: { type: 'set-variable', name: '', value: '' } }),
   },
   {
+    id: 'set-theme',
+    category: 'UI',
+    label: 'Set Theme',
+    description: 'Set or toggle the running app theme',
+    icon: '◐',
+    keywords: ['theme', 'dark', 'light', 'system', 'appearance', 'toggle'],
+    create: () => ({ kind: 'action', payload: { type: 'set-theme', theme: 'toggle' } }),
+  },
+  {
     id: 'send-email',
     category: 'Actions',
     label: 'Send Email',

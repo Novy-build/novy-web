@@ -37,16 +37,19 @@ export function InputNodeView({
     color: appearance?.textColor || undefined,
     opacity: appearance?.opacity,
   };
+  const textVariableStyle = appearance?.textColor
+    ? { '--novy-component-text': appearance.textColor } as CSSProperties
+    : undefined;
   const widgetClass =
-    'h-9 w-full rounded-tile border border-hairline bg-surface px-3 text-sm text-ink outline-none placeholder:text-ink-muted/70';
+    'novy-widget-text h-9 w-full rounded-tile border border-hairline bg-surface px-3 text-sm outline-none placeholder:text-current placeholder:opacity-70';
 
   return (
-    <div className="flex h-full w-full flex-col justify-center gap-1">
+    <div className="flex h-full w-full flex-col justify-center gap-1" style={textVariableStyle}>
       {hasVisibleLabel ? (
         renderStatic ? (
-          <span className="text-xs font-medium text-ink-muted">{props.label}</span>
+          <span className="novy-widget-text-muted text-xs font-medium">{props.label}</span>
         ) : (
-          <label className="text-xs font-medium text-ink-muted" htmlFor={inputId}>{props.label}</label>
+          <label className="novy-widget-text-muted text-xs font-medium" htmlFor={inputId}>{props.label}</label>
         )
       ) : null}
       {renderStatic ? (

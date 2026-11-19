@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppTheme } from '../AppThemeContext';
 
@@ -8,10 +8,11 @@ interface ActionMenuNodeViewProps {
   options: readonly string[];
   isPreview: boolean;
   onSelect?: (value: string) => void;
+  menuStyle?: CSSProperties;
 }
 
 /** A per-item actions menu; its change event retains the renderer's item context. */
-export function ActionMenuNodeView({ label, itemLabel, options, isPreview, onSelect }: ActionMenuNodeViewProps) {
+export function ActionMenuNodeView({ label, itemLabel, options, isPreview, onSelect, menuStyle }: ActionMenuNodeViewProps) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ left: 0, top: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -79,7 +80,7 @@ export function ActionMenuNodeView({ label, itemLabel, options, isPreview, onSel
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={itemLabel ? `${label || 'Actions'}: ${itemLabel}` : label || 'Actions'}
-        className="flex h-full min-h-11 w-full min-w-11 items-center justify-center rounded-tile text-xl text-ink hover:bg-canvas focus-visible:outline-2 focus-visible:outline-brand-600"
+        className="novy-widget-text flex h-full min-h-11 w-full min-w-11 items-center justify-center rounded-tile text-xl hover:bg-canvas focus-visible:outline-2 focus-visible:outline-brand-600"
         disabled={!isPreview || entries.length === 0}
         onClick={(event) => { event.stopPropagation(); toggle(); }}
         ref={triggerRef}
@@ -90,17 +91,17 @@ export function ActionMenuNodeView({ label, itemLabel, options, isPreview, onSel
       {open && createPortal(
         <div
           aria-label={label || 'Actions'}
-          className={`fixed z-[70] min-w-40 rounded-tile border border-hairline bg-surface p-1 text-ink shadow-lg ${appTheme ? `novy-app-theme-${appTheme.theme}` : ''}`}
+          className={`novy-widget-text fixed z-[70] min-w-40 rounded-tile border border-hairline bg-surface p-1 shadow-lg ${appTheme ? `novy-app-theme-${appTheme.theme}` : ''}`}
           id={menuId}
           onClick={(event) => event.stopPropagation()}
           onKeyDown={handleKeyDown}
           ref={menuRef}
           role="menu"
-          style={{ left: position.left, top: position.top }}
+          style={{ ...menuStyle, left: position.left, top: position.top }}
         >
           {entries.map((option, index) => (
             <button
-              className="block min-h-11 w-full rounded-tile px-3 text-left text-sm text-ink hover:bg-canvas focus-visible:outline-2 focus-visible:outline-brand-600"
+              className="novy-widget-text block min-h-11 w-full rounded-tile px-3 text-left text-sm hover:bg-canvas focus-visible:outline-2 focus-visible:outline-brand-600"
               key={`${option}-${index}`}
               onClick={() => { close(); onSelect?.(option); }}
               role="menuitem"

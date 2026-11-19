@@ -15,8 +15,8 @@ export function FileInputNodeView({
   const [filename, setFilename] = useState('');
   return (
     <label className="flex h-full w-full cursor-pointer flex-col justify-center rounded-md border border-dashed border-hairline bg-surface px-4 py-3 text-left">
-      <span className="text-sm font-medium text-ink">{props.label}</span>
-      <span className="mt-1 truncate text-xs text-ink-muted">
+      <span className="novy-widget-text text-sm font-medium">{props.label}</span>
+      <span className="novy-widget-text-muted mt-1 truncate text-xs">
         {filename || props.helperText}
       </span>
       {isPreview && !renderStatic ? (

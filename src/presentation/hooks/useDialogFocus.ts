@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react';
 
 const FOCUSABLE_SELECTOR = [
+  'summary',
   'a[href]',
   'button:not([disabled])',
   'input:not([disabled])',
@@ -13,6 +14,8 @@ interface DialogFocusOptions {
   containerRef: RefObject<HTMLElement | null>;
   initialFocusRef?: RefObject<HTMLElement | null>;
   onClose: () => void;
+  /** Suspend the underlying dialog while another modal owns focus. */
+  enabled?: boolean;
 }
 
 /**
@@ -23,6 +26,7 @@ export function useDialogFocus({
   containerRef,
   initialFocusRef,
   onClose,
+  enabled = true,
 }: DialogFocusOptions): void {
   const onCloseRef = useRef(onClose);
 
@@ -32,7 +36,7 @@ export function useDialogFocus({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) {
+    if (!enabled || !container) {
       return;
     }
     const dialog = container;
@@ -86,11 +90,13 @@ export function useDialogFocus({
         previouslyFocused.focus();
       }
     };
-  }, [containerRef, initialFocusRef]);
+  }, [containerRef, enabled, initialFocusRef]);
 }
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) => element.getAttribute('aria-hidden') !== 'true',
-  );
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
+    if (element.tabIndex < 0 || element.closest('[inert], [hidden], [aria-hidden="true"]')) return false;
+    const closedDetails = element.closest('details:not([open])');
+    return !closedDetails || closedDetails.querySelector('summary')?.contains(element) === true;
+  });
 }

@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-18
+**Last reviewed:** 2026-11-19
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -538,8 +538,9 @@ event binding, and its referenced logic graph:
   color strings; appearance values and DTO shapes are unchanged.
 - A Dropdown with `props.presentation: "menu"` renders as an accessible actions menu and emits a
   change event containing the chosen option. Omitted presentation retains the original select.
-- A Switch with `props.controlsTheme: true` controls the previewed app's light/dark theme, without
-  changing the Novy editor theme. This is preview-session state, not a production theme service.
+- A Switch with `props.controlsTheme: true` provides a simple off=Light/on=Dark app control without
+  changing the Novy editor theme. Preview also has a Light/Dark/System selector, and generated apps
+  persist their preference locally while System follows operating-system color-scheme changes.
 - `type` selects the renderer/generator component and `props` stores its typed configuration.
 - Camera components serialize labels, `facingMode`, and an optional `captureMode` of `manual` or
   `guided-face`; captured media remains transient runtime state and is never embedded in the project
@@ -553,6 +554,8 @@ event binding, and its referenced logic graph:
   to one collection's backend-generated record identity instead of relying on matching conventions.
 - Schema v14 adds the project design system, screen surfaces, reusable `styleId` references,
   standalone Icon nodes, expanded typography, and responsive appearance/text styles.
+- Set Theme logic serializes as `{ "type": "set-theme", "theme": "light" | "dark" | "system" |
+  "toggle" }` inside a normal action node; it is a browser-only effect in Preview and generated apps.
 - Container keeps free-form child coordinates. Column and Row resolve child placement from their
   main-axis alignment, cross-axis alignment, gap, padding, and child order.
 - Column, Row, and the ListView repeated-item frame persist padding as a schema-v11 `PaddingValue`
@@ -573,6 +576,11 @@ event binding, and its referenced logic graph:
   `props.fontSize`, weight, line height, letter spacing, alignment, italic style, transform, and line
   clamp. Typography can vary at tablet/desktop breakpoints and reusable Text styles; omitted values
   fall back to the design-system font and selected level preset.
+- Text and design-system font families use a keyboard-accessible curated picker with a live preview.
+  Bundled Inter and JetBrains Mono include normal and italic variable faces in both Novy and
+  generated apps; legacy custom stacks are preserved until the builder selects a curated option.
+- An authored appearance Text color consistently overrides readable text inside every widget while
+  unconfigured widgets retain semantic primary, muted, and contrast-safe defaults.
 - Text fields retain their serialized `label` and may set optional `props.showLabel: false` to hide
   it visually without losing the accessible name. Omitted `showLabel` values preserve the legacy
   visible-label behavior. Border color, style, width, radius, and dark border color are applied to
@@ -982,6 +990,8 @@ Production workflow execution remains a generated-app/backend responsibility.
 
 - [x] Change Text.
 - [x] Show Message.
+- [x] Set Theme with Light, Dark, System, and Toggle modes, executed entirely in Preview and the
+  generated browser runtime.
 - [x] Navigate to Screen.
 - [x] Navigate to a detail screen with current-record collection/ID context and preview route
   variables.
@@ -1113,7 +1123,9 @@ remains blocked until a production provider is explicitly selected and implement
 
 ## 9. Selectable AI assistant providers
 
-- [x] Floating assistant entry point and keyboard-accessible slide-over conversation UI.
+- [x] Single right-edge rail with the Inspector tab above the AI Assistant tab in design mode
+  (assistant only in logic/data) and keyboard-accessible slide-over conversation UI; the floating
+  bottom-right button was removed.
 - [x] API-backed complete-app proposals through FastAPI with an editor-session provider selector for
   restricted OpenCode, local Ollama testing, and optional direct OpenRouter. Credentials and model
   URLs remain backend-only, and provider failures never fall back automatically.
@@ -1145,11 +1157,39 @@ remains blocked until a production provider is explicitly selected and implement
 - [x] Complete CRUD proposals support route-record-prefilled Input/Dropdown controls, native date
   inputs, and chained required-field conditions. Duplicate read-only detail fields are removed so a
   six-field inventory edit screen remains inside the responsive verification viewport.
-- [x] The proposal card displays the passing verification stages, viewport badges, and repair count;
-  failed reports expose their issues and cannot be applied. Preview-before-Apply remains explicit,
-  and no separate Test/Fix assistant mode was introduced.
-- [x] Structured preview of every proposed screen, route, component/workflow count, and collection
-  before persistence, with explicit **Apply app** and **Reject** controls.
+- [x] Completed drafts lead with the compiled home-screen title, plain-language summary, and an
+  actual rendered thumbnail. **What’s included** collapses screen routes, component/workflow counts,
+  and collection schemas; **Check details** collapses individual verification stages and repair
+  attempts while clarifying that automated design/workflow checks are not live deployment tests.
+- [x] Failed reports keep actionable issues visible and block acceptance in the UI and conversation
+  controller. No separate Test/Fix assistant mode was introduced.
+- [x] Exhausted responsive repairs show one concise split/simplify recovery message instead of raw
+  per-component duplicates. Other validation feedback is whitespace-normalized, sentence-deduplicated,
+  and length-bounded; coordinated backend repair diagnostics remain grouped and fail-closed.
+- [x] **Preview app** opens the existing renderer with local navigation, a screen selector, and
+  simulated workflows/data changes using proposal-only schemas. Draft previews do not load saved
+  records, call another model, accept the proposal, or receive persistence/protected-runtime access.
+- [x] Persistent **Use this app**, **Make changes**, and quieter **Discard draft** actions sit outside
+  the conversation scroller. Refinement focuses the composer without submitting; existing projects
+  require explicit confirmation before replacing screens/workflows and adding proposal collections.
+  The confirmation explains that existing saved records are not deleted, focuses Cancel, and handles
+  Escape without closing the sheet. Short viewports use a compact action row.
+- [x] Applying, building/refining, and documentation search have distinct status feedback and busy
+  guards. Applied drafts offer **Continue editing**, and discarded/superseded drafts stay compact.
+- [x] A compact spinner plus short verb (**Thinking…**, **Refining…**, **Searching docs…**) replaces
+  long sentence-length working status; **Applying…** stays on the draft action bar as the single live
+  apply status.
+- [x] A VS Code-style **Agent / Ask** chip in the composer replaces the mode tab bar. Its popover
+  menu offers radio-checked mode items and **Model settings…**, with arrow-key navigation, Enter/Space
+  selection, Escape limited to the menu, click-outside dismissal, focus return, and a busy guard.
+  There is no persistent Model settings row; provider/model controls open as a popover from the menu
+  item or the composer shield control.
+- [x] The composer uses a single bordered container with an auto-growing multiline textarea and a
+  compact control row (attach, mode chip, model settings, circular Send). Enter sends and Shift+Enter
+  adds a newline; attached images render as a chip inside the container.
+- [x] Draft Preview suspends the assistant modal and makes its controls inert, then restores focus
+  to the preview opener on close. Shared dialog focus skips inert and collapsed-detail controls.
+  Model settings collapse during review without hiding provider cost disclosure.
 - [x] Pending autosave blocks proposal generation/acceptance so backend project revision remains
   authoritative; stale acceptance is reported without changing project or app data.
 - [x] Accepted proposals adopt the backend Project v14 response as clean editor state and refresh the
@@ -1306,6 +1346,40 @@ not been verified in this workspace because platform credentials are not configu
 - [x] Light and dark design tokens.
 
 ## 14. Automated test coverage
+
+Verified on 2026-11-19 for the assistant UI and concise validation feedback:
+
+- `npm run typecheck` — passed.
+- `npm test -- --maxWorkers=2` — 122 test files and 1012 tests passed with normal per-test timeouts.
+- `npm run build` — passed.
+- Coordinated backend grouping keeps responsive checks fail-closed while avoiding duplicate repair
+  diagnostics; the public endpoint and proposal contracts were unchanged.
+
+Previously verified on 2026-11-18 for visual assistant drafts and safer review actions:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run --maxWorkers=2` — 122 test files and 1003 tests passed with normal per-test
+  timeouts. The full run took about five minutes; a four-minute shell timeout was insufficient.
+- `npm run build` — passed.
+- Temporary external Playwright/Microsoft Edge fixture: 1440×900, 768×1024, 390×844, 320×568,
+  and 844×390 layouts passed checks for horizontal overflow, visible persistent actions, local
+  navigation, replacement cancellation, refinement focus, preview/sheet Escape and focus restoration,
+  and body scroll unlocking. Dark-mode applied, failed-check, and retryable-error states also passed.
+  Browser fixture uses simulated proposals/acceptance; no live model, deployment, or saved-data
+  execution is implied, and no browser-test dependency was added to the repository.
+- `git diff --check` — passed; Git only reported the workspace's existing LF/CRLF conversion warnings.
+- Frontend-only changes retain Project schema v14 and generated manifest/layout v2. Backend code
+  and API contracts were unchanged; prior coordinated backend results remain recorded below.
+
+Verified on 2026-11-18 for reliable fonts, app themes, and widget text colors:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run --maxWorkers=2` — 118 test files and 986 tests passed with the normal five-second
+  test timeout. Unrestricted parallel runs hit project/template-test timing limits; reducing workers
+  avoided contention without changing repository test assertions or configuration.
+- `npm run build` — passed and emitted normal/italic Inter and JetBrains Mono assets.
+- Coordinated backend verification: 342 passed, 5 optional integration skips; Ruff check/format,
+  application mypy, Alembic check, generated runtime tests, and React/Vite build coverage passed.
 
 Verified on 2026-11-18 for the full project design system:
 
