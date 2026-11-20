@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import { Html, Line } from '@react-three/drei';
+import { clampLabelToPanel } from './labelPosition';
 import { STATIONS, type StationId } from './stationCopy';
 
 interface StationAnnotationsProps {
@@ -27,7 +28,13 @@ export function StationAnnotations({ hovered, onHover, onRelease, portal }: Stat
               transparent
               opacity={0.8}
             />
-            <Html center position={station.label} portal={portal} zIndexRange={[1000, 900]}>
+            <Html
+              calculatePosition={clampLabelToPanel}
+              center
+              position={station.label}
+              portal={portal}
+              zIndexRange={[1000, 900]}
+            >
               <div
                 aria-describedby={`novy-stage-${station.id}-description`}
                 className="w-28 cursor-pointer select-none text-center outline-none focus-visible:rounded-tile focus-visible:ring-2 focus-visible:ring-brand-200"

@@ -46,6 +46,20 @@ const FLOW_MID_LEFT: Vec3 = [-1.2, -0.18, 0.15];
 const FLOW_MID_RIGHT: Vec3 = [1.2, -0.18, 0.15];
 const FLOW_RIGHT: Vec3 = [2.28, -0.18, 0.15];
 
+const FOCUS_SCALE = 1.14;
+const FOCUS_LIFT_Y = 0.34;
+const FOCUS_LIFT_Z = 0.18;
+
+export function getStationFocusTransform(emphasized: boolean): {
+  scale: number;
+  liftY: number;
+  liftZ: number;
+} {
+  return emphasized
+    ? { scale: FOCUS_SCALE, liftY: FOCUS_LIFT_Y, liftZ: FOCUS_LIFT_Z }
+    : { scale: 1, liftY: 0, liftZ: 0 };
+}
+
 function Platform({ position }: { position: Vec3 }) {
   return (
     <group position={position}>
@@ -97,18 +111,35 @@ function StationGroup({
   children,
 }: StationGroupProps) {
   const ref = useRef<Group>(null);
+  const focus = getStationFocusTransform(emphasized);
 
   useFrame((_, delta) => {
     if (!ref.current || reducedMotion) return;
-    const next = MathUtils.damp(ref.current.scale.x, emphasized ? 1.08 : 1, 6, delta);
-    ref.current.scale.setScalar(next);
+    const nextScale = MathUtils.damp(ref.current.scale.x, focus.scale, 6, delta);
+    ref.current.scale.setScalar(nextScale);
+    ref.current.position.y = MathUtils.damp(
+      ref.current.position.y,
+      position[1] + focus.liftY,
+      6,
+      delta,
+    );
+    ref.current.position.z = MathUtils.damp(
+      ref.current.position.z,
+      position[2] + focus.liftZ,
+      6,
+      delta,
+    );
   });
+
+  const renderedPosition: Vec3 = reducedMotion
+    ? [position[0], position[1] + focus.liftY, position[2] + focus.liftZ]
+    : position;
 
   return (
     <group
       ref={ref}
-      position={position}
-      scale={reducedMotion ? (emphasized ? 1.08 : 1) : undefined}
+      position={renderedPosition}
+      scale={reducedMotion ? focus.scale : undefined}
       onPointerOver={(event) => {
         event.stopPropagation();
         onHover(id);

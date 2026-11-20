@@ -46,6 +46,18 @@ describe('application routing', () => {
     expect(await screen.findByRole('heading', { name: 'Projects' })).toBeInTheDocument();
   });
 
+  it('renders the published screen for authenticated users', async () => {
+    renderRoutesAt('/published');
+
+    expect(await screen.findByRole('heading', { name: 'Published' })).toBeInTheDocument();
+  });
+
+  it('redirects anonymous users from the published route to login', async () => {
+    renderRoutesAt('/published', { authenticated: false });
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+  });
+
   it('redirects anonymous users from guarded routes to the login screen', async () => {
     renderRoutesAt('/projects', { authenticated: false });
 

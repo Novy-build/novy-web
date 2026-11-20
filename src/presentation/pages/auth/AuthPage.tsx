@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { ScenePoster } from '@presentation/components/illustrations/ScenePoster';
 import { Button } from '@presentation/components/ui/Button';
+import { TechCursor } from '@presentation/components/ui/TechCursor';
 import { ThemeToggle } from '@presentation/components/ui/ThemeToggle';
+import { WarpGrid } from '@presentation/components/ui/WarpGrid';
 import { useRepositories } from '@main/providers/RepositoriesProvider';
 import { useSession } from '@main/providers/SessionProvider';
 import { isDemoLoginVisible } from './demoAvailability';
@@ -45,10 +47,19 @@ function BrandPanel() {
   }, []);
 
   return (
-    <aside className="hidden w-[46%] flex-col bg-brand-700 p-12 text-white lg:flex">
-      <div className="text-xl font-bold tracking-tight">Novy</div>
-      <div className="relative mt-6 min-h-[320px] flex-1">
+    <aside className="auth-backdrop-brand relative hidden w-[46%] overflow-hidden bg-brand-700 text-white lg:flex">
+      {/*
+        The scene fills the entire brand panel. It used to live inside the
+        aside's padded flex box, which confined the WebGL canvas to a smaller
+        rectangle and clipped the outer stations/labels while the panel still
+        had empty space around it. The wordmark now floats above the canvas.
+      */}
+      <div className="absolute inset-0">
+        <WarpGrid tone="brand" />
         {Scene ? <Scene /> : <ScenePoster />}
+      </div>
+      <div className="pointer-events-none absolute left-12 top-12 z-10 text-xl font-bold tracking-tight">
+        Novy
       </div>
     </aside>
   );
@@ -64,7 +75,7 @@ function AuthCard({ mode, onModeChange, showDemo }: AuthCardProps) {
   const copy = MODE_COPY[mode];
   const { continueAsDemo } = useSession();
   return (
-    <div className="w-full max-w-sm rounded-panel border border-hairline bg-surface p-8">
+    <div className="relative z-10 w-full max-w-sm rounded-panel border border-hairline bg-surface p-8">
       <div
         aria-hidden="true"
         className="mb-6 flex h-11 w-11 items-center justify-center rounded-tile bg-brand-600 text-lg font-bold text-white lg:hidden"
@@ -142,10 +153,12 @@ export function AuthPage() {
   }
 
   return (
-    <main className="flex min-h-full bg-canvas" id="main-content">
+    <main className="auth-custom-cursor flex min-h-full bg-canvas" id="main-content">
+      <TechCursor />
       <BrandPanel />
-      <section className="relative flex flex-1 items-center justify-center p-6">
-        <div className="absolute right-4 top-4">
+      <section className="auth-backdrop-canvas relative flex flex-1 items-center justify-center bg-canvas p-6">
+        <WarpGrid tone="canvas" />
+        <div className="absolute right-4 top-4 z-10">
           <ThemeToggle />
         </div>
         <AuthCard mode={mode} onModeChange={setMode} showDemo={showDemo} />

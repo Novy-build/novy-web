@@ -50,12 +50,20 @@ export interface LocalRepositoriesOptions {
 /** Composes the frontend-only localStorage repositories. */
 export function createLocalRepositories(options?: LocalRepositoriesOptions): Repositories {
   const latencyMs = options?.latencyMs;
+  const projects = new LocalStorageProjectRepository(window.localStorage, { latencyMs });
   return {
     auth: new LocalAuthRepository(window.localStorage, { delayMs: latencyMs }),
     assistant: new UnavailableAssistantRepository(),
-    projects: new LocalStorageProjectRepository(window.localStorage, { latencyMs }),
+    projects,
     templates: new StaticTemplateRepository([...TEMPLATE_CATALOG], latencyMs ?? 120),
-    deployments: new LocalStorageDeploymentRepository(window.localStorage, { latencyMs }),
+    deployments: new LocalStorageDeploymentRepository(window.localStorage, {
+      latencyMs,
+      listProjectNames: async () =>
+        (await projects.listProjects()).map((project) => ({
+          id: project.id,
+          name: project.name,
+        })),
+    }),
     appData: new LocalStorageAppDataRepository(window.localStorage, { latencyMs }),
     reactExport: new UnavailableReactExportRepository(),
     rag: new LocalRagRepository(latencyMs ?? 0),

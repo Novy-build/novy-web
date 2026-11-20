@@ -1,5 +1,5 @@
-import type { DeploymentRecord } from '@domain/entities/deployment';
-import type { DeploymentRecordDTO } from '../dto/deployment.dto';
+import type { DeploymentRecord, PublishedApplication } from '@domain/entities/deployment';
+import type { DeploymentRecordDTO, PublishedApplicationDTO } from '../dto/deployment.dto';
 
 /**
  * Domain <-> DTO boundary for deployments. Dates become ISO-8601 strings on
@@ -37,5 +37,19 @@ export function mapDeploymentFromDto(dto: DeploymentRecordDTO): DeploymentRecord
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt ?? dto.createdAt),
     completedAt: dto.completedAt ? new Date(dto.completedAt) : null,
+  };
+}
+
+export function mapPublishedApplicationFromDto(dto: PublishedApplicationDTO): PublishedApplication {
+  return {
+    projectId: dto.projectId,
+    projectName: dto.projectName,
+    active: dto.active,
+    status: dto.status,
+    url: dto.url,
+    environment: dto.environment ?? null,
+    provider: dto.provider ?? null,
+    lastPublishedAt: new Date(dto.lastPublishedAt),
+    deploymentCount: dto.deploymentCount,
   };
 }

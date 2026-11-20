@@ -37,6 +37,18 @@ describe('AppSidebar', () => {
     expect(projectsLink).toHaveAttribute('aria-current', 'page');
   });
 
+  it('navigates to the Published section', async () => {
+    renderAt('/projects');
+    await screen.findByRole('heading', { name: 'Projects' });
+
+    const publishedLink = screen.getByRole('link', { name: 'Published' });
+    expect(publishedLink).toHaveAttribute('href', '/published');
+
+    fireEvent.click(publishedLink);
+    expect(await screen.findByRole('heading', { name: 'Published' })).toBeInTheDocument();
+    expect(publishedLink).toHaveAttribute('aria-current', 'page');
+  });
+
   it('reveals Editor and Deployments rows only inside a project', async () => {
     renderAt('/project/abc-123/deploy');
     await screen.findByRole('heading', { name: 'Project not found' });

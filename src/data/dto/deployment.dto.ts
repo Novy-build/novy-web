@@ -22,3 +22,20 @@ export interface DeploymentCollectionDTO {
 export interface DeploymentProvidersDTO {
   providers: Array<'development' | 'vercel' | 'netlify'>;
 }
+
+/** Builder-wide publishing summary returned by the backend. */
+export interface PublishedApplicationDTO {
+  projectId: string;
+  projectName: string;
+  active: boolean;
+  status: 'building' | 'live' | 'failed';
+  url: string | null;
+  environment?: 'preview' | 'production' | null;
+  provider?: 'development' | 'vercel' | 'netlify' | null;
+  lastPublishedAt: string;
+  deploymentCount: number;
+}
+
+export interface PublishedApplicationListDTO {
+  applications: PublishedApplicationDTO[];
+}

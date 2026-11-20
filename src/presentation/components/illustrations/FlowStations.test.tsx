@@ -20,7 +20,7 @@ vi.mock('@react-three/drei', () => ({
   },
 }));
 
-import { FlowStations } from './FlowStations';
+import { FlowStations, getStationFocusTransform } from './FlowStations';
 
 const baseProps = {
   emphasized: null,
@@ -39,6 +39,11 @@ afterEach(() => {
 });
 
 describe('FlowStations', () => {
+  it('lifts focused stations toward the viewer and scales them up', () => {
+    expect(getStationFocusTransform(false)).toEqual({ scale: 1, liftY: 0, liftZ: 0 });
+    expect(getStationFocusTransform(true)).toEqual({ scale: 1.14, liftY: 0.34, liftZ: 0.18 });
+  });
+
   it('uses gentle float and four pulse animations when motion is allowed', () => {
     render(<FlowStations reducedMotion={false} {...baseProps} />);
 

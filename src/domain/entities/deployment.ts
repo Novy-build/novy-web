@@ -31,3 +31,21 @@ export interface DeploymentRecord {
   updatedAt: Date;
   completedAt: Date | null;
 }
+
+/**
+ * One project's publishing summary. Active is derived from the existence of a
+ * live deployment rather than a mutable flag, so it always reflects history.
+ */
+export interface PublishedApplication {
+  projectId: string;
+  projectName: string;
+  active: boolean;
+  /** Status of the most recent deployment attempt. */
+  status: DeploymentStatus;
+  /** URL of the most recent live deployment, if any. */
+  url: string | null;
+  environment: DeploymentEnvironment | null;
+  provider: DeploymentProvider | null;
+  lastPublishedAt: Date;
+  deploymentCount: number;
+}

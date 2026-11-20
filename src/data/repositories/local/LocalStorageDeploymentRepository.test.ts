@@ -59,6 +59,52 @@ describe('LocalStorageDeploymentRepository', () => {
     expect(records[0].url).toBe('https://x.novy.app');
   });
 
+  it('derives published applications from deployment history', async () => {
+    const { repository, clock } = createRepository();
+    await repository.createDeployment({
+      projectId: 'project_1',
+      status: 'live',
+      url: 'https://live.novy.app',
+      now: clock(),
+    });
+    await repository.createDeployment({ projectId: 'project_1', status: 'failed', now: clock() });
+    await repository.createDeployment({ projectId: 'project_2', status: 'failed', now: clock() });
+
+    const withNames = new LocalStorageDeploymentRepository(window.localStorage, {
+      latencyMs: 0,
+      listProjectNames: async () => [
+        { id: 'project_1', name: 'Live App' },
+        { id: 'project_2', name: 'Stopped App' },
+      ],
+    });
+    const applications = await withNames.listPublishedApplications();
+
+    expect(applications.map((item) => [item.projectId, item.active])).toEqual([
+      ['project_2', false],
+      ['project_1', true],
+    ]);
+    const live = applications.find((item) => item.projectId === 'project_1');
+    expect(live).toMatchObject({
+      projectName: 'Live App',
+      url: 'https://live.novy.app',
+      status: 'failed',
+      deploymentCount: 2,
+      environment: 'preview',
+      provider: 'development',
+    });
+  });
+
+  it('falls back to the project id when a name is unavailable', async () => {
+    const { repository } = createRepository();
+    await repository.createDeployment({ projectId: 'project_9', status: 'live', url: 'https://x.novy.app' });
+
+    const applications = await repository.listPublishedApplications();
+
+    expect(applications).toHaveLength(1);
+    expect(applications[0]?.projectName).toBe('project_9');
+    expect(applications[0]?.active).toBe(true);
+  });
+
   it('simulates every publish stage before persisting the live result', async () => {
     const stages: string[] = [];
     const repository = new LocalStorageDeploymentRepository(window.localStorage, {

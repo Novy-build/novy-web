@@ -11,6 +11,11 @@ vi.mock('@presentation/components/illustrations/NovyFlowScene', () => ({
   NovyFlowScene: () => <div>3D Novy flow scene</div>,
 }));
 
+// jsdom has no 2D canvas implementation; the warp grid is covered in isolation.
+vi.mock('@presentation/components/ui/WarpGrid', () => ({
+  WarpGrid: () => <div data-testid="warp-grid" />,
+}));
+
 beforeEach(() => {
   window.localStorage.clear();
 });

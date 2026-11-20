@@ -30,7 +30,50 @@ function makeClient(): { client: ApiHttpClient; get: ReturnType<typeof vi.fn>; p
   return { client, get, post };
 }
 
+const PUBLISHED = {
+  projectId: 'project_1',
+  projectName: 'Live App',
+  active: true,
+  status: 'live' as const,
+  url: 'https://live.novy.app',
+  environment: 'production' as const,
+  provider: 'vercel' as const,
+  lastPublishedAt: '2026-11-14T10:00:00Z',
+  deploymentCount: 2,
+};
+
 describe('ApiDeploymentRepository', () => {
+  it('loads published applications and deduplicates concurrent reads', async () => {
+    const { client, get } = makeClient();
+    get.mockResolvedValue({ status: 200, data: { applications: [PUBLISHED] } });
+    const repository = new ApiDeploymentRepository(client);
+
+    const [first, second] = await Promise.all([
+      repository.listPublishedApplications(),
+      repository.listPublishedApplications(),
+    ]);
+
+    expect(get).toHaveBeenCalledOnce();
+    expect(get).toHaveBeenCalledWith('/deployments/published');
+    expect(first[0]).toMatchObject({
+      projectName: 'Live App',
+      active: true,
+      deploymentCount: 2,
+    });
+    expect(first[0]?.lastPublishedAt).toBeInstanceOf(Date);
+    expect(second).toEqual(first);
+  });
+
+  it('rejects an invalid published application payload', async () => {
+    const { client, get } = makeClient();
+    get.mockResolvedValue({ status: 200, data: { applications: [{ projectId: 1 }] } });
+    const repository = new ApiDeploymentRepository(client);
+
+    await expect(repository.listPublishedApplications()).rejects.toThrow(
+      'invalid published application',
+    );
+  });
+
   it('deduplicates concurrent provider discovery', async () => {
     const { client, get } = makeClient();
     get.mockResolvedValue({ status: 200, data: { providers: ['vercel'] } });

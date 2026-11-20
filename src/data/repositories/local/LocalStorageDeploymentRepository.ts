@@ -1,10 +1,18 @@
 import { DEPLOYMENT_STAGES, type DeploymentRecord } from '@domain/entities/deployment';
-import type { DeploymentProvider } from '@domain/entities/deployment';
+import type { DeploymentProvider, PublishedApplication } from '@domain/entities/deployment';
 import type { DeploymentRepository } from '@domain/repositories/deployment.repository';
 import type { PublishDeploymentInput } from '@domain/repositories/deployment.repository';
 import { generateId } from '@domain/ids';
-import { mapDeploymentFromDto, mapDeploymentToDto } from '../../mappers/deployment.mapper';
-import type { DeploymentCollectionDTO, DeploymentRecordDTO } from '../../dto/deployment.dto';
+import {
+  mapDeploymentFromDto,
+  mapDeploymentToDto,
+  mapPublishedApplicationFromDto,
+} from '../../mappers/deployment.mapper';
+import type {
+  DeploymentCollectionDTO,
+  DeploymentRecordDTO,
+  PublishedApplicationDTO,
+} from '../../dto/deployment.dto';
 import { readJson, sleep, writeJson, type StorageLike } from '../../storage/storage';
 
 const DEPLOYMENTS_KEY = 'novy.deployments.v1';
@@ -15,19 +23,63 @@ const DEFAULT_PIPELINE_STEP_MS = 650;
  * Local-only deployment history and simulated pipeline used when the backend
  * API is not configured. The presentation layer only knows the repository port.
  */
+export interface LocalDeploymentOptions {
+  latencyMs?: number;
+  pipelineStepMs?: number;
+  /** Supplies display names for the publishing summary without a second store read per project. */
+  listProjectNames?: () => Promise<Array<{ id: string; name: string }>>;
+}
+
 export class LocalStorageDeploymentRepository implements DeploymentRepository {
   private readonly storage: StorageLike;
   private readonly latencyMs: number;
   private readonly pipelineStepMs: number;
+  private readonly listProjectNames: LocalDeploymentOptions['listProjectNames'];
 
-  constructor(storage: StorageLike, options?: { latencyMs?: number; pipelineStepMs?: number }) {
+  constructor(storage: StorageLike, options?: LocalDeploymentOptions) {
     this.storage = storage;
     this.latencyMs = options?.latencyMs ?? DEFAULT_LATENCY_MS;
     this.pipelineStepMs = options?.pipelineStepMs ?? DEFAULT_PIPELINE_STEP_MS;
+    this.listProjectNames = options?.listProjectNames;
   }
 
   async listProviders(): Promise<DeploymentProvider[]> {
     return ['development'];
+  }
+
+  async listPublishedApplications(): Promise<PublishedApplication[]> {
+    await sleep(this.latencyMs);
+    const names = new Map(
+      (await this.listProjectNames?.() ?? []).map((project) => [project.id, project.name]),
+    );
+    const grouped = new Map<string, DeploymentRecordDTO[]>();
+    for (const record of this.readAll()) {
+      const group = grouped.get(record.projectId) ?? [];
+      group.push(record);
+      grouped.set(record.projectId, group);
+    }
+
+    const applications: PublishedApplicationDTO[] = [];
+    for (const [projectId, records] of grouped) {
+      records.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      const latest = records[0];
+      const live = records.find((record) => record.status === 'live' && record.url);
+      applications.push({
+        projectId,
+        projectName: names.get(projectId) ?? projectId,
+        active: Boolean(live),
+        status: latest.status,
+        url: live?.url ?? null,
+        environment: latest.environment ?? 'preview',
+        provider: latest.provider ?? 'development',
+        lastPublishedAt: latest.createdAt,
+        deploymentCount: records.length,
+      });
+    }
+    applications.sort(
+      (a, b) => Date.parse(b.lastPublishedAt) - Date.parse(a.lastPublishedAt),
+    );
+    return applications.map(mapPublishedApplicationFromDto);
   }
 
   async listDeployments(projectId: string): Promise<DeploymentRecord[]> {

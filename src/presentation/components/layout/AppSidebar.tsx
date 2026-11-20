@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import {
+  Globe2,
   Home,
   LayoutTemplate,
   MoreHorizontal,
@@ -119,6 +120,17 @@ export function AppSidebar({ collapsed, onToggleCollapsed, onOpenGallery }: AppS
         <NavLink aria-label="Projects" className={navLinkClass} end to="/projects" title={collapsed ? 'Projects' : undefined}>
           <Home aria-hidden="true" className="shrink-0" size={18} />
           {!collapsed ? <span className="truncate">Projects</span> : null}
+        </NavLink>
+
+        <NavLink
+          aria-label="Published"
+          className={navLinkClass}
+          end
+          title={collapsed ? 'Published' : undefined}
+          to="/published"
+        >
+          <Globe2 aria-hidden="true" className="shrink-0" size={18} />
+          {!collapsed ? <span className="truncate">Published</span> : null}
         </NavLink>
 
         {projectId ? (

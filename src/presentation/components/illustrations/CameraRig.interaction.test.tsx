@@ -149,10 +149,10 @@ describe('CameraRig interaction', () => {
     act(() => state.frame?.({ clock: { elapsedTime: 1 } }, 0.1));
     const partialZoom = state.camera?.zoom ?? 0;
     expect(partialZoom).toBeGreaterThan(startZoom);
-    expect(partialZoom).toBeLessThan(startZoom * 1.12);
+    expect(partialZoom).toBeLessThan(startZoom * 1.18);
 
     act(() => state.frame?.({ clock: { elapsedTime: 2 } }, 1));
-    expect(state.camera?.zoom).toBeCloseTo(startZoom * 1.12, 3);
+    expect(state.camera?.zoom).toBeCloseTo(startZoom * 1.18, 3);
   });
 
   it('releases focus when the pointer moves clearly away from the station', () => {

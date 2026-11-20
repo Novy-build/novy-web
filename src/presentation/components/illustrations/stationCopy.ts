@@ -73,7 +73,8 @@ export function getEmphasizedStation(
 export function getFocusPose(id: StationId): { target: Vec3; position: Vec3 } {
   const { center } = findStation(id);
   return {
-    target: [center[0], center[1] + 0.2, center[2]],
+    // The station lifts while focused, so aim above its resting centre.
+    target: [center[0], center[1] + 0.45, center[2] + 0.1],
     position: [center[0] + 5, center[1] + 4.5, center[2] + 7],
   };
 }

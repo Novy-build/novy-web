@@ -3,12 +3,14 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { MathUtils, OrthographicCamera, Vector3 } from 'three';
 import { getFocusPose, type StationId } from './stationCopy';
 
-const OVERVIEW_TARGET = new Vector3(0, -0.2, 0);
+// Raised slightly from the station centres because the anchored DOM labels
+// extend higher than the geometry; this keeps the top label inside the frame.
+const OVERVIEW_TARGET = new Vector3(0, 0.4, 0);
 const BASE_AZIMUTH = Math.atan2(9, 12);
 const BASE_POLAR = Math.acos(7.2 / Math.hypot(9, 7.2, 12));
 const ORBIT_RADIUS = 16;
 const FOCUS_RADIUS = 13;
-const FOCUS_ZOOM_FACTOR = 1.12;
+const FOCUS_ZOOM_FACTOR = 1.18;
 const DRAG_DAMPING = 4;
 const SWAY_DAMPING = 1.4;
 const FOCUS_DURATION = 0.9;
@@ -77,7 +79,20 @@ export function CameraRig({
   const gl = useThree((state) => state.gl);
   const width = useThree((state) => state.size.width);
   const height = useThree((state) => state.size.height);
-  const baseZoom = Math.min(width / 10.5, height / 5.2);
+  // Frame the stations AND their anchored labels, not just the platform
+  // geometry. The old 10.5 / 5.2 bounds zoomed in far enough on short panels
+  // that the outer stations and the top label were cropped at the edges.
+  // Padding reserves room for the label DOM boxes (see clampLabelToPanel).
+  const FRAME_WIDTH = 12.5;
+  const FRAME_HEIGHT = 7.4;
+  const FRAME_PADDING_PX = 16;
+  const baseZoom = Math.max(
+    1,
+    Math.min(
+      (width - 2 * FRAME_PADDING_PX) / FRAME_WIDTH,
+      (height - 2 * FRAME_PADDING_PX) / FRAME_HEIGHT,
+    ),
+  );
   const orbit = useRef<OrbitState>({
     azimuth: BASE_AZIMUTH,
     polar: BASE_POLAR,

@@ -20,11 +20,17 @@ const DeploymentPage = lazy(() =>
     default: module.DeploymentPage,
   })),
 );
+const PublishedPage = lazy(() =>
+  import('@presentation/pages/published/PublishedPage').then((module) => ({
+    default: module.PublishedPage,
+  })),
+);
 
 /**
  * Route tree per docs/frontend-plan.md:
  *   /login                      AuthPage
  *   /projects                   ProjectsPage (guarded, with app shell)
+ *   /published                  PublishedPage (guarded, with app shell)
  *   /project/:projectId         redirect -> editor
  *   /project/:projectId/editor  EditorPage (guarded, full canvas)
  *   /project/:projectId/deploy  DeploymentPage (guarded, with app shell)
@@ -36,6 +42,7 @@ export function AppRoutes() {
         <Route element={<RequireAuth />}>
           <Route element={<AppShell />}>
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/published" element={<PublishedPage />} />
             <Route path="/project/:projectId/deploy" element={<DeploymentPage />} />
           </Route>
           <Route path="/project/:projectId" element={<Navigate to="editor" replace />} />

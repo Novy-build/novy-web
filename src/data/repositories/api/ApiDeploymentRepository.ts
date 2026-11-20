@@ -1,13 +1,26 @@
 import axios from 'axios';
-import type { DeploymentProvider, DeploymentRecord, DeploymentStage } from '@domain/entities/deployment';
+import type {
+  DeploymentProvider,
+  DeploymentRecord,
+  DeploymentStage,
+  PublishedApplication,
+} from '@domain/entities/deployment';
 import type {
   DeploymentRepository,
   PublishDeploymentInput,
 } from '@domain/repositories/deployment.repository';
 import type { ApiHttpClient } from '../../api/http';
 import { isRecord, readApiErrorEnvelope } from '../../api/http';
-import type { DeploymentProvidersDTO, DeploymentRecordDTO } from '../../dto/deployment.dto';
-import { mapDeploymentFromDto } from '../../mappers/deployment.mapper';
+import type {
+  DeploymentProvidersDTO,
+  DeploymentRecordDTO,
+  PublishedApplicationDTO,
+  PublishedApplicationListDTO,
+} from '../../dto/deployment.dto';
+import {
+  mapDeploymentFromDto,
+  mapPublishedApplicationFromDto,
+} from '../../mappers/deployment.mapper';
 
 interface ApiDeploymentOptions {
   pollIntervalMs?: number;
@@ -19,6 +32,7 @@ export class ApiDeploymentRepository implements DeploymentRepository {
   private readonly pollIntervalMs: number;
   private readonly maxPollAttempts: number;
   private providersRequest: Promise<DeploymentProvider[]> | null = null;
+  private publishedRequest: Promise<PublishedApplication[]> | null = null;
   private readonly historyRequests = new Map<string, Promise<DeploymentRecord[]>>();
 
   constructor(client: ApiHttpClient, options: ApiDeploymentOptions = {}) {
@@ -52,6 +66,32 @@ export class ApiDeploymentRepository implements DeploymentRepository {
       return dto.providers;
     } catch (cause) {
       throw deploymentError(cause, 'Deployment providers could not be loaded.');
+    }
+  }
+
+  async listPublishedApplications(): Promise<PublishedApplication[]> {
+    if (this.publishedRequest) return this.publishedRequest;
+    const request = this.loadPublishedApplications();
+    this.publishedRequest = request;
+    try {
+      return await request;
+    } finally {
+      this.publishedRequest = null;
+    }
+  }
+
+  private async loadPublishedApplications(): Promise<PublishedApplication[]> {
+    try {
+      const response = await this.client.get('/deployments/published');
+      const dto = response.data as PublishedApplicationListDTO;
+      if (!isRecord(dto) || !Array.isArray(dto.applications)) {
+        throw new Error('Invalid published applications response.');
+      }
+      return dto.applications.map((item) =>
+        mapPublishedApplicationFromDto(parsePublishedApplicationDto(item)),
+      );
+    } catch (cause) {
+      throw deploymentError(cause, 'Published applications could not be loaded.');
     }
   }
 
@@ -161,6 +201,28 @@ function parseDeploymentDto(value: unknown): DeploymentRecordDTO {
     throw new Error('The backend returned an invalid deployment record.');
   }
   return value as unknown as DeploymentRecordDTO;
+}
+
+function parsePublishedApplicationDto(value: unknown): PublishedApplicationDTO {
+  if (
+    !isRecord(value)
+    || typeof value.projectId !== 'string'
+    || typeof value.projectName !== 'string'
+    || typeof value.active !== 'boolean'
+    || (value.status !== 'building' && value.status !== 'live' && value.status !== 'failed')
+    || (value.url !== null && typeof value.url !== 'string')
+    || typeof value.lastPublishedAt !== 'string'
+    || typeof value.deploymentCount !== 'number'
+    || !Number.isFinite(value.deploymentCount)
+    || (value.environment != null
+      && value.environment !== 'preview'
+      && value.environment !== 'production')
+    || (value.provider != null
+      && !isDeploymentProvider(value.provider))
+  ) {
+    throw new Error('The backend returned an invalid published application.');
+  }
+  return value as unknown as PublishedApplicationDTO;
 }
 
 function delay(milliseconds: number): Promise<void> {

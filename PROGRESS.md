@@ -48,6 +48,7 @@ completed production backend integrations.
 
 - [x] `/login` — authentication.
 - [x] `/projects` — protected projects dashboard.
+- [x] `/published` — protected owner-wide published applications overview.
 - [x] `/project/:projectId/editor` — protected visual editor.
 - [x] `/project/:projectId/deploy` — protected deployment screen.
 - [x] `/project/:projectId` — redirects to the project editor.
@@ -70,6 +71,7 @@ completed production backend integrations.
 - [x] Sign-out support.
 - [x] Responsive application shell.
 - [x] Collapsible sidebar with persisted collapsed state.
+- [x] **Published** sidebar entry linking to the owner-wide published applications overview.
 - [x] Project-aware links to the editor and deployment screen.
 - [x] Light and dark theme toggle with persisted preference and system-theme support.
 - [x] Desktop login brand panel with a code-split, interactive isometric Three.js illustration of
@@ -84,6 +86,19 @@ completed production backend integrations.
   `--font-hand`); hovering or focusing a stage focuses the camera on it and reveals its description
   under the title, with keyboard focus and reduced-motion support. A single `CameraRig` owns drag
   orbit, bounded idle sway and hover focus so motion never fights or snaps.
+- [x] Focused 3D stages zoom to 1.18x at the camera, scale to 1.14x, and ease upward/toward the
+  viewer while the shared connector stays in place, creating a deliberate detached focus state.
+- [x] Safe scene framing: the orthographic camera fits the stations and their anchored DOM labels
+  with pixel padding rather than the platform geometry alone, and a `calculatePosition` clamp keeps
+  every label box inside the canvas so no stage or description is cropped on short or narrow panels.
+  The scene canvas fills the whole brand panel (the wordmark floats above it) instead of being
+  confined to the panel's padded inner box.
+- [x] Token-based ambient login backdrops on both panels: a soft indigo CSS glow and a quiet
+  canvas-rendered 64px grid. Only the 180px area under the pointer brightens and bends, keeping the
+  rest of the composition calm. A `TechCursor` replaces the native pointer on the auth page with a
+  precise white dot and a high-layer outlined ring that follows with easing and enlarges over
+  controls. Both are decorative and pointer-event transparent; real mouse/pen events activate the
+  effect while direct touch input is ignored.
 
 Authentication uses the Novy backend when `VITE_API_BASE_URL` is set; otherwise it falls back to
 the local mock repository so frontend-only development keeps working. The backend owns Supabase
@@ -1345,6 +1360,8 @@ provider. Ollama remains the local generation/testing and embedding runtime.
 - [x] Real provider URLs in API mode and generated mock `novy.app` URLs in local-only mode.
 - [x] Publish success modal and URL copy action.
 - [x] Owner-scoped backend deployment history in API mode and persisted mock history locally.
+- [x] Published applications overview with Active/Inactive derived from live deployment URLs,
+  All/Active/Inactive filters, live-app and deployment-settings links, and loading/empty/error states.
 - [x] View and Redeploy actions.
 - [x] Failure feedback that states the previous successful deployment remains live.
 - [x] Loading, not-found, and retryable error states.
@@ -1473,6 +1490,61 @@ Verified on 2026-11-20 for the 3D login brand scene:
   `FlowStations.test.tsx`, plus an `AuthPage` regression case for the brand copy.
 - The scene loads from a module-level dynamic import consumed in an effect. `React.lazy` was
   removed because suspending during the post-redirect `/login` render dropped the route tree.
+
+Verified on 2026-11-20 for the scene/label clipping fix:
+
+- `npm run typecheck` — passed.
+- Focused illustration/auth suites — 44 tests passed, including new `labelPosition.test.ts` clamp
+  coverage.
+- `npm test` — 1,064 tests passed; three unrelated route/editor tests timed out in the concurrent
+  run and all passed when rerun in isolation.
+- `npm run build` — passed; the scene remains a separate `NovyFlowScene` chunk.
+
+Verified on 2026-11-20 for the full-bleed scene container:
+
+- `npm run typecheck` — passed.
+- Focused auth/illustration suites — 58 tests passed.
+- `npm run build` — passed; the scene remains a separate `NovyFlowScene` chunk.
+
+Verified on 2026-11-20 for ambient login backdrops and the pointer reticle:
+
+- `npm run typecheck` — passed.
+- Focused auth/UI/illustration suites — 63 tests passed, including five new `TechCursor` cases.
+- `npm test` — 1,059 tests passed; 13 unrelated route/editor tests timed out in the concurrent run
+  and all passed when rerun in isolation.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for the node-trail cursor upgrade:
+
+- `npm run typecheck` — passed.
+- Focused auth/UI/illustration suites — 64 tests passed, including trail, hover and ripple cases.
+- `npm test -- --maxWorkers=2 --testTimeout=20000` — 133 files / 1,073 tests passed.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for the warped grid and dot/ring cursor:
+
+- `npm run typecheck` — passed.
+- Focused auth/UI suites — 36 tests passed, including grid displacement and reduced-motion cases.
+- `npm test -- --maxWorkers=2 --testTimeout=20000` — 134 files / 1,076 tests passed.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for warp visibility:
+
+- `npm run typecheck` — passed; focused auth/UI suites — 36 tests passed.
+- `npm test -- --maxWorkers=2 --testTimeout=20000` — 134 files / 1,076 tests passed.
+- `npm run build` — passed; new `--novy-warp-*` tokens confirmed in the built CSS.
+
+Verified on 2026-11-20 for the subtle local warp and reliable custom cursor:
+
+- `npm run typecheck` — passed; focused auth/UI suites — 35 tests passed.
+- `npm test -- --maxWorkers=2 --testTimeout=20000` — 134 files / 1,075 tests passed.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for lifted 3D stage focus:
+
+- `npm run typecheck` — passed; focused illustration/auth suites — 59 tests passed.
+- `npm test -- --maxWorkers=2 --testTimeout=20000` — 134 files / 1,076 tests passed.
+- `npm run build` — passed.
 
 Verified on 2026-11-20 for per-field editor help:
 

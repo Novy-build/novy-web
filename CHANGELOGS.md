@@ -5,6 +5,137 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-20 — Published applications section
+
+#### Added
+- A **Published** sidebar entry and guarded `/published` page list every project with deployment
+  history. Each card shows Active or Inactive derived from live deployment URLs, the latest attempt
+  status, provider/environment, last-published time, publish count, and links to the live app and
+  deployment settings. All, Active, and Inactive filters plus loading, empty, and retryable error
+  states are included.
+- `listPublishedApplications()` on the deployment repository port with typed DTO/mapper boundaries.
+  The API implementation calls `GET /api/v1/deployments/published` with in-flight deduplication;
+  localStorage mode derives the same summary from local deployment history and project names.
+
+#### Verification
+- Strict TypeScript typecheck, full suite (137 files / 1,093 tests with `--maxWorkers=2
+  --testTimeout=20000`), and production build passed.
+
+### 2026-11-20 — Lift and isolate the focused 3D stage
+
+#### Changed
+- Increased hover camera zoom from 1.12x to 1.18x and station scale from 1.08x to 1.14x.
+- A focused Build, Wire or Ship platform now eases 0.34 world units upward and 0.18 units toward the
+  camera. The shared connector remains at rest, leaving a deliberate gap that makes the selected
+  stage feel detached and focused; it eases back into the flow when hover/focus ends.
+- Raised the camera focus target to follow the lifted platform instead of looking at its old resting
+  position.
+
+#### Verification
+- Strict TypeScript typecheck, focused illustration/auth suites (59 tests), production build and
+  the full suite (134 files / 1,076 tests with `--maxWorkers=2 --testTimeout=20000`) all passed.
+
+### 2026-11-20 — Subtle local warp and reliable custom cursor
+
+#### Fixed
+- Replaced the overpowering full-page grid with a 64px grid at 5.5% baseline opacity. Only the
+  180px region around the pointer brightens and bends, so the scene and auth card remain dominant.
+- Removed the unreliable `(pointer: fine)` and reduced-motion mount gates from the direct pointer
+  interaction. The dot/ring now activates from real mouse or pen events, ignores touch, sits above
+  all Three.js/DOM layers, and replaces the native cursor on the auth page.
+- The ring now initializes at the pointer on first movement instead of travelling from off-screen;
+  subsequent movements use the intended lag.
+
+#### Verification
+- Strict TypeScript typecheck, focused auth/UI suites (35 tests), production build and the full
+  suite (134 files / 1,075 tests with `--maxWorkers=2 --testTimeout=20000`) all passed.
+
+### 2026-11-20 — Make the warp actually visible
+
+#### Fixed
+- The grid was drawn with the old ambient tokens at roughly 5.5% / 9% alpha, so the distortion was
+  technically running but imperceptible. Added dedicated `--novy-warp-*` tokens at 14-22% alpha and
+  raised the displacement radius/strength (240px / 60px). A faint radial glow now marks the
+  displaced area so the interaction reads clearly.
+- The canvas now re-measures on the frame after mount as well as through `ResizeObserver`, covering
+  panels that have no dimensions when the effect first runs.
+
+#### Verification
+- Strict TypeScript typecheck, focused auth/UI suites (36 tests), production build and the full
+  suite (134 files / 1,076 tests) all passed.
+
+### 2026-11-20 — Pointer-reactive warped grid and dot/ring cursor
+
+#### Changed
+- Replaced the decorative crosshair/node-trail cursor with the requested effect: a precise dot at
+  the pointer and an outlined ring that follows with easing. Hovering an interactive control still
+  enlarges the ring.
+- Replaced the static CSS grid on both login panels with a canvas-rendered `WarpGrid` whose lines
+  bend away from the pointer within a 190px radius. It redraws only on pointer movement or resize,
+  uses the existing colour tokens, and draws an unwarped grid when reduced motion is requested.
+  The CSS backdrops now only supply the soft colour glow.
+
+#### Verification
+- Strict TypeScript typecheck, focused auth/UI suites (36 tests), production build and the full
+  suite (134 files / 1,076 tests with `--maxWorkers=2 --testTimeout=20000`) all passed.
+
+### 2026-11-20 — Node-trail cursor micro-interactions
+
+#### Changed
+- Upgraded the auth-page `TechCursor` from a lone reticle into a techy cursor system: six linked
+  nodes trail the pointer along a wire, with the reticle, hover and click feedback sharing one
+  animation loop. All animation uses transform/attribute writes, not per-frame React renders.
+- Hovering an interactive control brightens and widens the reticle, wire and nodes; pressing
+  anywhere emits a short expanding ripple.
+
+#### Verification
+- Strict TypeScript typecheck, focused auth/UI/illustration suites (64 tests) and production build
+  passed; full suite passed 1,073 tests with `--maxWorkers=2 --testTimeout=20000`.
+
+### 2026-11-20 — Ambient login backdrops and pointer reticle
+
+#### Added
+- Faint 48px grid plus a soft indigo glow on both login panels, driven by new `--color-auth-*`
+  tokens. The 3D scene and the auth card remain the only focal points.
+- Decorative `TechCursor` crosshair on the auth page that trails the pointer, pulses subtly and
+  brightens over interactive controls. It renders only for fine pointers without reduced motion and
+  never hides the native cursor.
+
+#### Verification
+- Strict TypeScript typecheck, focused auth/UI/illustration suites (63 tests, including five new
+  `TechCursor` tests) and production build passed. Full suite: 1,059 passed; 13 unrelated
+  route/editor tests timed out under concurrent load and all passed in isolation.
+
+### 2026-11-20 — Full-bleed login scene container
+
+#### Fixed
+- The 3D scene was mounted inside the brand panel's padded flex box, so the WebGL canvas was
+  confined to a smaller rectangle than the panel itself. The outer stations and labels were clipped
+  at that inner edge even though the rest of the panel was empty. The scene now fills the entire
+  panel (`absolute inset-0`, `overflow-hidden`) with the Novy wordmark floated above it, so the
+  camera framing uses all available space.
+
+#### Verification
+- Strict TypeScript typecheck, focused auth/illustration suites (58 tests) and production build
+  passed.
+
+### 2026-11-20 — Scene and label clipping fix
+
+#### Fixed
+- The login 3D scene framed only the platform geometry (`width / 10.5`, `height / 5.2`), so on short
+  or narrow brand panels the outer stations and the top "Build it" label were cropped at the canvas
+  edge. The orthographic camera now frames the stations together with their anchored DOM labels,
+  with explicit pixel padding, and the overview look-at target is raised slightly to centre the
+  vertical label spread.
+- drei `Html` stage labels could drift past the panel edge and be clipped at its boundary while the
+  camera swayed or when a description expanded. A `calculatePosition` clamp keeps each centred
+  label box fully inside the canvas.
+
+#### Verification
+- Strict TypeScript typecheck, focused illustration/auth suites (44 tests), full suite (1,064
+  passed; three unrelated route/editor tests timed out under concurrent load and all passed in
+  isolation) and production build passed. New `labelPosition.test.ts` covers the label clamp.
+
 ### 2026-11-20 — Smooth focus for outer stages and cursor-away release
 
 #### Fixed

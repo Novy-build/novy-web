@@ -3,6 +3,7 @@ import type {
   DeploymentProvider,
   DeploymentRecord,
   DeploymentStage,
+  PublishedApplication,
 } from '../entities/deployment';
 
 export interface PublishDeploymentInput {
@@ -20,6 +21,8 @@ export interface PublishDeploymentInput {
  */
 export interface DeploymentRepository {
   listProviders(): Promise<DeploymentProvider[]>;
+  /** One row per project with deployment history, newest activity first. */
+  listPublishedApplications(): Promise<PublishedApplication[]>;
   listDeployments(projectId: string): Promise<DeploymentRecord[]>;
   getDeployment(projectId: string, deploymentId: string): Promise<DeploymentRecord>;
   createDeployment(

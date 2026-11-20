@@ -24,7 +24,9 @@ describe('stationCopy', () => {
 
   it('focuses the camera on the selected station with a slight offset', () => {
     const pose = getFocusPose('publish');
-    expect(pose.target).toEqual([3.5, -0.3, 0]);
+    expect(pose.target[0]).toBe(3.5);
+    expect(pose.target[1]).toBeCloseTo(-0.05, 4);
+    expect(pose.target[2]).toBe(0.1);
     expect(pose.position[0]).toBeGreaterThan(pose.target[0]);
     expect(pose.position[1]).toBeGreaterThan(pose.target[1]);
   });

@@ -42,6 +42,11 @@
   /* Editor canvas dot grid */
   --color-grid-dot: rgba(14, 16, 19, 0.09);
 
+  /* Ambient login backdrops (decorative, deliberately low contrast) */
+  --color-auth-grid: rgba(238, 240, 255, 0.055);
+  --color-auth-glow: rgba(194, 200, 255, 0.14);
+  --color-auth-canvas-glow: rgba(111, 111, 251, 0.1);
+
   /* Smart alignment guides and component-distance measurements */
   --color-guide: #ec4899;
   --color-guide-ink: #0e1013;
@@ -126,6 +131,13 @@
     box-sizing: border-box;
   }
 
+  /* Pointer-reactive grid colour channels, read by WarpGrid. */
+  :root {
+    --novy-warp-brand-rgb: 238 240 255;
+    --novy-warp-canvas-rgb: 14 16 19;
+    --novy-warp-glow: rgba(138, 134, 255, 0.12);
+  }
+
   html,
   body,
   #root {
@@ -154,6 +166,7 @@
     --color-ink: #eef0f4;
     --color-ink-muted: #8a90a0;
     --color-grid-dot: rgba(238, 240, 244, 0.07);
+    --novy-warp-canvas-rgb: 238 240 244;
     --color-guide: #f472b6;
     --color-guide-ink: #0e1013;
 
@@ -164,4 +177,23 @@
     --color-sidebar-ink: #f2f3f7;
     --color-sidebar-ink-muted: #9aa0ad;
   }
+}
+
+/*
+ * Ambient login glows. The grid itself is drawn on a canvas by WarpGrid so it
+ * can bend around the pointer; these layers only add a soft colour wash and
+ * keep the 3D scene / auth card as the only focal points.
+ */
+.auth-backdrop-brand {
+  background-image: radial-gradient(circle at 52% 42%, var(--color-auth-glow), transparent 58%);
+}
+
+.auth-backdrop-canvas {
+  background-image: radial-gradient(circle at 76% 18%, var(--color-auth-canvas-glow), transparent 46%);
+}
+
+/* The dot/ring pair is the pointer on this one immersive page. */
+.auth-custom-cursor,
+.auth-custom-cursor * {
+  cursor: none !important;
 }
