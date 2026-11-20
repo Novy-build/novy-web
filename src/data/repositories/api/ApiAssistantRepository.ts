@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AppDesignSystem } from '@domain/entities/designSystem';
 import type {
   AppBlueprintV1,
   AssistantCapabilities,
@@ -264,6 +265,9 @@ export function parseProposal(value: unknown): AssistantProposalV1 {
     preview: {
       schemaVersion: value.preview.schemaVersion,
       document: {
+        ...(value.preview.designSystem
+          ? { designSystem: parsePreviewDesignSystem(value.preview.designSystem) }
+          : {}),
         screens: value.preview.screens.map((screen, index) =>
           mapScreenFromDto(screen as ScreenDTO, index)),
       },
@@ -271,6 +275,20 @@ export function parseProposal(value: unknown): AssistantProposalV1 {
     },
     verification: parseVerification(value.verification),
   };
+}
+
+function parsePreviewDesignSystem(value: unknown): AppDesignSystem {
+  if (
+    !isRecord(value)
+    || !isRecord(value.colors)
+    || !isRecord(value.darkColors)
+    || !isRecord(value.typography)
+    || !isRecord(value.radii)
+    || !Array.isArray(value.styles)
+  ) {
+    throw new AssistantError('unexpected', 'The backend returned an invalid preview design system.');
+  }
+  return value as unknown as AppDesignSystem;
 }
 
 function parseVerification(value: unknown): AssistantVerificationReport {
@@ -355,6 +373,35 @@ function parseBlueprint(value: unknown): AppBlueprintV1 {
     summary: value.summary,
     screens: value.screens.map(parseScreen),
     collections: value.collections.map(parseCollection),
+    design: parseDesign(value.design),
+  };
+}
+
+function parseDesign(value: unknown): AppBlueprintV1['design'] {
+  const styles = ['product', 'marketing', 'editorial', 'developer'] as const;
+  const palettes = ['indigo', 'ocean', 'emerald', 'amber', 'rose', 'violet', 'slate', 'monochrome'] as const;
+  const typographies = ['modern-sans', 'editorial-serif', 'technical-mono'] as const;
+  const radii = ['sharp', 'soft', 'rounded', 'pill'] as const;
+  const densities = ['compact', 'comfortable', 'spacious'] as const;
+  const fieldStyles = ['outline', 'underline', 'filled'] as const;
+  if (
+    !isRecord(value)
+    || !styles.includes(value.style as typeof styles[number])
+    || !palettes.includes(value.palette as typeof palettes[number])
+    || !typographies.includes(value.typography as typeof typographies[number])
+    || !radii.includes(value.radius as typeof radii[number])
+    || !densities.includes(value.density as typeof densities[number])
+    || !fieldStyles.includes(value.fieldStyle as typeof fieldStyles[number])
+  ) {
+    throw new AssistantError('unexpected', 'The backend returned an invalid blueprint design.');
+  }
+  return {
+    style: value.style as typeof styles[number],
+    palette: value.palette as typeof palettes[number],
+    typography: value.typography as typeof typographies[number],
+    radius: value.radius as typeof radii[number],
+    density: value.density as typeof densities[number],
+    fieldStyle: value.fieldStyle as typeof fieldStyles[number],
   };
 }
 

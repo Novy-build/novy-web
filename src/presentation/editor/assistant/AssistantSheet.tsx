@@ -15,9 +15,11 @@ import { PreviewOverlay } from '../workspace/PreviewOverlay';
 interface AssistantSheetProps {
   conversation: AssistantConversation;
   onClose: () => void;
+  /** Field help request: opens help mode with a prepared documentation question. */
+  helpRequest?: { query: string; token: number } | null;
 }
 
-export function AssistantSheet({ conversation, onClose }: AssistantSheetProps) {
+export function AssistantSheet({ conversation, onClose, helpRequest }: AssistantSheetProps) {
   const {
     messages, mode, isWorking, operation, isAvailable, providers, selectedProviderId,
     setSelectedProviderId, selectedModelId, setSelectedModelId,
@@ -35,6 +37,7 @@ export function AssistantSheet({ conversation, onClose }: AssistantSheetProps) {
   const [imageError, setImageError] = useState('');
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [appliedHelpToken, setAppliedHelpToken] = useState<number | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const focusTargetRef = useRef<HTMLElement | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -42,6 +45,15 @@ export function AssistantSheet({ conversation, onClose }: AssistantSheetProps) {
   const modeChipRef = useRef<HTMLButtonElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   useDialogFocus({ containerRef: panelRef, initialFocusRef: focusTargetRef, onClose, enabled: !previewProposal });
+
+  useEffect(() => {
+    if (!helpRequest || appliedHelpToken === helpRequest.token) return;
+    setAppliedHelpToken(helpRequest.token);
+    setIsRefining(false);
+    setDraft(helpRequest.query);
+    setMode('help');
+    inputRef.current?.focus();
+  }, [appliedHelpToken, helpRequest, setMode]);
 
   useEffect(() => {
     if (isWorking) {

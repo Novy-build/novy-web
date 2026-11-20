@@ -201,6 +201,7 @@ export function ComponentRenderer({
     case 'checkbox':
       return frame(
         <CheckboxNodeView
+          appearance={resolvedAppearance}
           isPreview={mode === 'preview'}
           onValueChange={(value) => { onNodeValueChange?.(node.id, value); emitRuntimeEvent('change', value); }}
           props={{ ...node.props, checked: resolveBoundBoolean(node, 'checkbox.checked', itemContext, node.props.checked) }}
@@ -219,6 +220,7 @@ export function ComponentRenderer({
     case 'switch':
       return frame(
         <SwitchNodeView
+          appearance={resolvedAppearance}
           isPreview={mode === 'preview'}
           checked={node.props.controlsTheme && appTheme ? appTheme.theme === 'dark' : undefined}
           onValueChange={(value) => {
@@ -233,6 +235,7 @@ export function ComponentRenderer({
     case 'dropdown':
       return frame(
         <DropdownNodeView
+          appearance={resolvedAppearance}
           menuStyle={{
             ...designSystemCssVariables(designSystem, appTheme?.theme === 'dark'),
             ...(resolvedAppearance?.textColor ? { '--novy-component-text': resolvedAppearance.textColor } : {}),
@@ -294,6 +297,7 @@ export function ComponentRenderer({
     case 'chat':
       return frame(
         <ChatNodeView
+          appearance={resolvedAppearance}
           isPreview={mode === 'preview'}
           isThinking={dataContext?.pendingChatNodeIds?.has(node.id) ?? false}
           messages={dataContext?.localItemsByListView?.get(node.id) ?? []}

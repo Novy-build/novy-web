@@ -21,6 +21,7 @@ const PROPOSAL: AssistantProposalV1 = {
   blueprint: {
     version: 1,
     summary: 'A generated app.',
+    design: { style: 'product', palette: 'indigo', typography: 'modern-sans', radius: 'soft', density: 'comfortable', fieldStyle: 'outline' },
     screens: [{
       key: 'home', name: 'Home', path: '/',
       components: [{ key: 'heading', type: 'text', text: 'Generated' }],
@@ -290,3 +291,4 @@ describe('useAssistantConversation', () => {
     expect(controller.generateProposal).not.toHaveBeenCalled();
   });
 });
+

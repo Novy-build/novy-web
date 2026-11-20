@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import type { CheckboxProps } from '@domain/entities/componentNode';
+import type { CheckboxProps, ComponentAppearance } from '@domain/entities/componentNode';
+import { fieldStyleClass, fieldStyleCss } from './fieldStyle';
 
 export function CheckboxNodeView({
   props,
+  appearance,
   renderStatic = false,
   isPreview = false,
   onValueChange,
 }: {
   props: CheckboxProps;
+  appearance?: ComponentAppearance;
   renderStatic?: boolean;
   isPreview?: boolean;
   onValueChange?: (value: string) => void;
@@ -33,7 +36,7 @@ export function CheckboxNodeView({
   );
 
   return (
-    <div className="flex h-full w-full items-center gap-2">
+    <div className={`flex h-full w-full items-center gap-2 ${fieldStyleClass(props.fieldStyle)}`} style={fieldStyleCss(appearance, props.fieldStyle)}>
       {control}
       {props.label ? <span className="novy-widget-text text-sm">{props.label}</span> : null}
     </div>

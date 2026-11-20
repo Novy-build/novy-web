@@ -1,3 +1,4 @@
+import { FieldHelpLabel } from '@presentation/components/ui/FieldHelp';
 import type { ComponentNode } from '@domain/entities/componentNode';
 import type { LogicNode, ValueExpression } from '@domain/entities/logic';
 import { CURRENT_ITEM_ID_FIELD } from '@domain/entities/logic';
@@ -63,9 +64,11 @@ export function InputMappingEditor({
 
   return (
     <fieldset className="rounded-tile border border-hairline p-2" data-input-key={inputKey}>
-      <legend className="px-1 text-xs font-medium text-ink-muted">{label}</legend>
+      <legend className="flex items-center gap-1.5 px-1 text-xs font-medium text-ink-muted">
+        <FieldHelpLabel label={label} />
+      </legend>
       <label className="text-[11px] font-medium text-ink-muted" htmlFor={`mapping-source-${currentNodeId}-${inputKey}`}>
-        Use value from
+        <FieldHelpLabel label="Use value from" />
       </label>
       <select
         aria-label="Value source"

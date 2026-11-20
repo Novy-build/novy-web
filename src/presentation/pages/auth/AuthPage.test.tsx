@@ -1,10 +1,15 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { RepositoriesProvider } from '@main/providers/RepositoriesProvider';
 import { SessionProvider } from '@main/providers/SessionProvider';
 import { AppRoutes } from '@main/routes';
 import { createStubRepositories } from '@test/stubRepositories';
+
+// jsdom has no WebGL; the illustration is covered by its own isolated suite.
+vi.mock('@presentation/components/illustrations/NovyFlowScene', () => ({
+  NovyFlowScene: () => <div>3D Novy flow scene</div>,
+}));
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -53,6 +58,19 @@ function fillRegisterForm(displayName: string, email: string, password: string, 
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: password } });
   fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: confirm } });
 }
+
+describe('brand panel', () => {
+  it('shows only the illustration, with no static copy or overlay controls', async () => {
+    renderRoutesAt('/login');
+
+    expect(await screen.findByText('3D Novy flow scene')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Build real web apps/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('A course project build.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Click a stage to see how Novy works.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Build' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close stage details' })).not.toBeInTheDocument();
+  });
+});
 
 describe('auth flows', () => {
   it('shows the login card with the demo shortcut', () => {

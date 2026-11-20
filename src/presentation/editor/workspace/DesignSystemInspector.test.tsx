@@ -1,8 +1,23 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_APP_DESIGN_SYSTEM } from '@domain/entities/designSystem';
+import { FieldHelpEnvironmentContext } from '@presentation/components/ui/FieldHelp';
 import { makeScreen } from '@test/editorFixtures';
 import { DesignSystemInspector } from './DesignSystemInspector';
+
+describe('DesignSystemInspector field help', () => {
+  it('offers curated help for the screen surface fields', () => {
+    render(
+      <FieldHelpEnvironmentContext.Provider value={{ editor: 'design', onAskNovy: vi.fn() }}>
+        <DesignSystemInspector onAction={vi.fn()} screen={makeScreen('home', [])} />
+      </FieldHelpEnvironmentContext.Provider>,
+    );
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'About Background' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('base fill of the screen');
+    expect(screen.getByRole('button', { name: 'About Dark background' })).toBeInTheDocument();
+  });
+});
 
 describe('DesignSystemInspector typography', () => {
   it('uses font previews for both project font fields without permitting self-referencing app fonts', () => {

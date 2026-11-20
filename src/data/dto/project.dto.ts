@@ -3,7 +3,7 @@
  * and logic. Dates serialize as ISO-8601 strings over the wire.
  */
 
-import type { AppIconName, ButtonIconName, ComponentAppearance, TextFontWeight, TextProps } from '@domain/entities/componentNode';
+import type { AppIconName, ButtonIconName, ComponentAppearance, FieldStyle, TextFontWeight, TextProps } from '@domain/entities/componentNode';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
 
 /** Schema v11 padding transport. Schema v10 and older used a single number. */
@@ -75,7 +75,7 @@ export interface TextNodeDTO extends ComponentNodeDTOBase {
 
 export interface InputNodeDTO extends ComponentNodeDTOBase {
   type: 'input';
-  props: { label: string; showLabel?: boolean; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number' | 'date'; multiline?: boolean };
+  props: { label: string; showLabel?: boolean; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number' | 'date'; multiline?: boolean; fieldStyle?: FieldStyle };
 }
 
 export interface IconNodeDTO extends ComponentNodeDTOBase {
@@ -186,7 +186,7 @@ export interface LegacyFormNodeDTO extends ComponentNodeDTOBase {
 
 export interface CheckboxNodeDTO extends ComponentNodeDTOBase {
   type: 'checkbox';
-  props: { label: string; checked: boolean };
+  props: { label: string; checked: boolean; fieldStyle?: FieldStyle };
 }
 
 export interface RadioNodeDTO extends ComponentNodeDTOBase {
@@ -196,12 +196,12 @@ export interface RadioNodeDTO extends ComponentNodeDTOBase {
 
 export interface SwitchNodeDTO extends ComponentNodeDTOBase {
   type: 'switch';
-  props: { label: string; checked: boolean; controlsTheme?: boolean };
+  props: { label: string; checked: boolean; controlsTheme?: boolean; fieldStyle?: FieldStyle };
 }
 
 export interface DropdownNodeDTO extends ComponentNodeDTOBase {
   type: 'dropdown';
-  props: { label: string; placeholder: string; options: string[]; selectedIndex: number; presentation?: 'select' | 'menu' };
+  props: { label: string; placeholder: string; options: string[]; selectedIndex: number; presentation?: 'select' | 'menu'; fieldStyle?: FieldStyle };
 }
 
 export interface SliderNodeDTO extends ComponentNodeDTOBase {
@@ -236,7 +236,7 @@ export interface FileInputNodeDTO extends ComponentNodeDTOBase {
 
 export interface ChatNodeDTO extends ComponentNodeDTOBase {
   type: 'chat';
-  props: { title: string; placeholder: string; sendLabel: string; emptyText: string; showCitations: boolean };
+  props: { title: string; placeholder: string; sendLabel: string; emptyText: string; showCitations: boolean; fieldStyle?: FieldStyle };
 }
 
 export type ComponentNodeDTO =

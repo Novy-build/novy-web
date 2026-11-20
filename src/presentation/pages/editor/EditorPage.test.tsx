@@ -341,6 +341,7 @@ describe('EditorPage (integration over the real route tree)', () => {
       blueprint: {
         version: 1,
         summary: 'A notes app proposal.',
+        design: { style: 'product', palette: 'indigo', typography: 'modern-sans', radius: 'soft', density: 'comfortable', fieldStyle: 'outline' },
         screens: [{
           key: 'home', name: 'Home', path: '/',
           components: [{ key: 'notes', type: 'list', collectionKey: 'notes' }],
@@ -414,3 +415,4 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(await screen.findByText('Loading editor…')).toBeInTheDocument();
   });
 });
+

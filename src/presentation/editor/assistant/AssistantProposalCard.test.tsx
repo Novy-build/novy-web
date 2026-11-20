@@ -6,7 +6,10 @@ import { AssistantProposalCard } from './AssistantProposalCard';
 
 const PROPOSAL: AssistantProposalV1 = {
   id: 'draft', projectId: 'project', baseRevision: 1, message: 'Built inventory',
-  blueprint: { version: 1, summary: 'Track your equipment.', screens: [], collections: [] },
+  blueprint: {
+    version: 1, summary: 'Track your equipment.', screens: [], collections: [],
+    design: { style: 'product', palette: 'indigo', typography: 'modern-sans', radius: 'soft', density: 'comfortable', fieldStyle: 'outline' },
+  },
   preview: { schemaVersion: 14, document: { screens: [makeScreen('home', [makeText('heading')], 'Equipment')] }, collections: [] },
   verification: { passed: true, repairAttempts: 2, stages: [], viewports: [], issues: [] },
 };
@@ -46,3 +49,4 @@ describe('AssistantProposalCard', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 });
+

@@ -1,3 +1,4 @@
+import { FieldHelpLabel } from '@presentation/components/ui/FieldHelp';
 import type { ComponentNode } from '@domain/entities/componentNode';
 import type { TriggerEvent } from '@domain/entities/logic';
 import { Modal } from '@presentation/components/system/Modal';
@@ -47,7 +48,7 @@ export function AddBehaviorDialog({ screenNodes, defaultTargetNodeId, onCreate, 
       ) : null}
       <form aria-label="New behavior form" id="add-behavior-form" onSubmit={handleSubmit}>
         <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="behavior-component">
-          Component
+          <FieldHelpLabel label="Component" />
         </label>
         <select
           className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -65,7 +66,7 @@ export function AddBehaviorDialog({ screenNodes, defaultTargetNodeId, onCreate, 
         </select>
 
         <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="behavior-event">
-          Trigger
+          <FieldHelpLabel label="Trigger" />
         </label>
         <select
           className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"

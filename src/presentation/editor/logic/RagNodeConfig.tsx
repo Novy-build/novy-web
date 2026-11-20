@@ -1,3 +1,4 @@
+import { FieldHelpLabel } from '@presentation/components/ui/FieldHelp';
 import type { ComponentNode } from '@domain/entities/componentNode';
 import type { ActionPayload } from '@domain/entities/logic';
 import type { DataCollection } from '@domain/entities/appData';
@@ -164,7 +165,7 @@ function switchOnPayload(payload: GranularRagPayload, context: SwitchContext) {
               onChange={(event) => context.onChange({ ...payload, returnIntermediateSteps: event.target.checked })}
               type="checkbox"
             />
-            Return intermediate tool steps
+            <FieldHelpLabel label="Return intermediate tool steps" />
           </label>
         </ConfigGrid>
       );
@@ -829,14 +830,14 @@ function ConfigGrid({ children }: { children: React.ReactNode }) {
 const fieldClass =
   'mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink';
 function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="text-xs font-medium text-ink-muted">{label}<input className={fieldClass} onChange={(event) => onChange(event.target.value)} value={value} /></label>;
+  return <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label={label} /><input className={fieldClass} onChange={(event) => onChange(event.target.value)} value={value} /></label>;
 }
 function TextAreaField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="text-xs font-medium text-ink-muted">{label}<textarea className={`${fieldClass} min-h-20 py-2`} onChange={(event) => onChange(event.target.value)} value={value} /></label>;
+  return <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label={label} /><textarea className={`${fieldClass} min-h-20 py-2`} onChange={(event) => onChange(event.target.value)} value={value} /></label>;
 }
 function NumberField({ label, value, onChange, step }: { label: string; value: number; onChange: (value: number) => void; step?: string }) {
-  return <label className="text-xs font-medium text-ink-muted">{label}<input className={fieldClass} onChange={(event) => onChange(Number(event.target.value) || 0)} step={step} type="number" value={value} /></label>;
+  return <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label={label} /><input className={fieldClass} onChange={(event) => onChange(Number(event.target.value) || 0)} step={step} type="number" value={value} /></label>;
 }
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: ReadonlyArray<readonly [string, string]>; onChange: (value: string) => void }) {
-  return <label className="text-xs font-medium text-ink-muted">{label}<select className={fieldClass} onChange={(event) => onChange(event.target.value)} value={value}><option value="">Choose…</option>{options.map(([optionValue, text]) => <option key={optionValue} value={optionValue}>{text}</option>)}</select></label>;
+  return <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label={label} /><select className={fieldClass} onChange={(event) => onChange(event.target.value)} value={value}><option value="">Choose…</option>{options.map(([optionValue, text]) => <option key={optionValue} value={optionValue}>{text}</option>)}</select></label>;
 }

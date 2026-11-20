@@ -90,11 +90,21 @@ export interface BlueprintScreen {
   recordFields?: BlueprintRecordField[];
 }
 
+export interface BlueprintDesign {
+  style: 'product' | 'marketing' | 'editorial' | 'developer';
+  palette: 'indigo' | 'ocean' | 'emerald' | 'amber' | 'rose' | 'violet' | 'slate' | 'monochrome';
+  typography: 'modern-sans' | 'editorial-serif' | 'technical-mono';
+  radius: 'sharp' | 'soft' | 'rounded' | 'pill';
+  density: 'compact' | 'comfortable' | 'spacious';
+  fieldStyle: 'outline' | 'underline' | 'filled';
+}
+
 export interface AppBlueprintV1 {
   version: 1;
   summary: string;
   screens: BlueprintScreen[];
   collections: BlueprintCollection[];
+  design: BlueprintDesign;
 }
 
 export interface AssistantPreviewCollection {

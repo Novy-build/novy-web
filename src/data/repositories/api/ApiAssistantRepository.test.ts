@@ -5,6 +5,9 @@ import { ApiAssistantRepository, mapAssistantError } from './ApiAssistantReposit
 const BLUEPRINT = {
   version: 1,
   summary: 'A task app.',
+  design: {
+    style: 'product', palette: 'indigo', typography: 'modern-sans', radius: 'soft', density: 'comfortable', fieldStyle: 'outline',
+  },
   screens: [
     {
       key: 'home',
@@ -32,6 +35,10 @@ const PREVIEW_SCREEN = {
   logicGraphs: [],
 };
 
+const PREVIEW_DESIGN_SYSTEM = {
+  colors: {}, darkColors: {}, typography: {}, radii: {}, styles: [],
+};
+
 const VERIFICATION = {
   passed: true,
   repairAttempts: 1,
@@ -52,6 +59,9 @@ const VERIFICATION = {
 const ROUTE_BOUND_BLUEPRINT = {
   version: 1,
   summary: 'A notes app.',
+  design: {
+    style: 'product', palette: 'slate', typography: 'modern-sans', radius: 'soft', density: 'compact', fieldStyle: 'outline',
+  },
   screens: [
     {
       key: 'home',
@@ -146,6 +156,7 @@ describe('ApiAssistantRepository', () => {
         blueprint: BLUEPRINT,
         preview: {
           schemaVersion: 13,
+          designSystem: PREVIEW_DESIGN_SYSTEM,
           screens: [PREVIEW_SCREEN],
           collections: [
             {
@@ -175,6 +186,8 @@ describe('ApiAssistantRepository', () => {
     expect(proposal.preview.document.screens[0]).toMatchObject({ id: 'screen_1', path: '/' });
     expect(proposal.preview.collections[0]?.fields[0]).toMatchObject({ id: 'field_1', key: 'title' });
     expect(proposal.verification).toMatchObject({ passed: true, repairAttempts: 1 });
+    expect(proposal.blueprint.design).toEqual(BLUEPRINT.design);
+    expect(proposal.preview.document.designSystem).toEqual(PREVIEW_DESIGN_SYSTEM);
   });
 
   it('maps a build-mode greeting without creating a proposal preview', async () => {
@@ -373,3 +386,4 @@ describe('ApiAssistantRepository', () => {
     expect(error.code).not.toBe('network');
   });
 });
+

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { ChatProps } from '@domain/entities/componentNode';
+import type { ChatProps, ComponentAppearance } from '@domain/entities/componentNode';
 import type { LocalListItemAddition } from '@domain/entities/appData';
+import { fieldStyleClass, fieldStyleCss } from './fieldStyle';
 
 export function ChatNodeView({
   props,
+  appearance,
   messages,
   isThinking = false,
   renderStatic,
@@ -11,6 +13,7 @@ export function ChatNodeView({
   onSubmit,
 }: {
   props: ChatProps;
+  appearance?: ComponentAppearance;
   messages: readonly LocalListItemAddition[];
   isThinking?: boolean;
   renderStatic: boolean;
@@ -68,7 +71,8 @@ export function ChatNodeView({
       <form className="flex gap-2 border-t border-hairline p-3" onSubmit={submit}>
         <input
           aria-label={props.placeholder}
-          className="novy-widget-text min-w-0 flex-1 rounded-md border border-hairline px-3 text-sm placeholder:text-current placeholder:opacity-70"
+          className={`novy-widget-text min-w-0 flex-1 rounded-md border border-hairline px-3 text-sm placeholder:text-current placeholder:opacity-70 ${fieldStyleClass(props.fieldStyle)}`}
+          style={fieldStyleCss(appearance, props.fieldStyle)}
           disabled={!isPreview || renderStatic || isThinking}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={props.placeholder}

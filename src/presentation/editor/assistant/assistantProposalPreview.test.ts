@@ -4,7 +4,19 @@ import { assistantPreviewCollections, assistantProposalTitle } from './assistant
 
 const PROPOSAL: AssistantProposalV1 = {
   id: 'draft', projectId: 'project', baseRevision: 1, message: 'Build inventory',
-  blueprint: { version: 1, summary: 'Track equipment', screens: [], collections: [] },
+  blueprint: {
+    version: 1,
+    summary: 'Track equipment',
+    screens: [],
+    collections: [],
+    design: {
+      style: 'product',
+      palette: 'indigo',
+      typography: 'modern-sans',
+      radius: 'soft',
+      density: 'comfortable', fieldStyle: 'outline',
+    },
+  },
   preview: {
     schemaVersion: 14,
     document: { screens: [{ id: 'home', name: 'Equipment', path: '/', nodes: [], behaviors: [], logicGraphs: [] }] },
@@ -28,3 +40,4 @@ describe('assistant proposal preview', () => {
     expect(collections[0]?.fields).not.toBe(PROPOSAL.preview.collections[0]?.fields);
   });
 });
+

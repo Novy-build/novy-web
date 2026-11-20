@@ -8,6 +8,7 @@ import {
 } from '@domain/entities/appData';
 import { generateId } from '@domain/ids';
 import { Button } from '@presentation/components/ui/Button';
+import { FieldHelpLabel } from '@presentation/components/ui/FieldHelp';
 import { TextInput } from '@presentation/components/ui/TextInput';
 
 export function CollectionSchemaEditor({
@@ -71,12 +72,12 @@ export function CollectionSchemaEditor({
             <div className="grid grid-cols-[1fr_1fr_140px_auto_auto_auto] items-end gap-2 rounded-tile border border-hairline p-3" key={field.id}>
               <TextInput label="Label" name={`field-label-${field.id}`} onChange={(event) => updateField(field.id, { label: event.target.value })} value={field.label} />
               <TextInput label="Key" name={`field-key-${field.id}`} onChange={(event) => updateField(field.id, { key: event.target.value })} value={field.key} />
-              <label className="text-xs font-medium text-ink-muted">Type
+              <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label="Type" />
                 <select className="mt-1 h-10 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => updateField(field.id, { type: event.target.value as DataFieldType })} value={field.type}>
                   <option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="date">Date</option>
                 </select>
               </label>
-              <label className="flex h-10 items-center gap-2 text-xs text-ink-muted"><input checked={field.required} onChange={(event) => updateField(field.id, { required: event.target.checked })} type="checkbox" />Required</label>
+              <label className="flex h-10 items-center gap-2 text-xs text-ink-muted"><input checked={field.required} onChange={(event) => updateField(field.id, { required: event.target.checked })} type="checkbox" /><FieldHelpLabel label="Required" /></label>
               <div className="flex h-10 items-center">
                 <button aria-label={`Move ${field.label} up`} disabled={index === 0} onClick={() => moveField(index, -1)} type="button">↑</button>
                 <button aria-label={`Move ${field.label} down`} disabled={index === fields.length - 1} onClick={() => moveField(index, 1)} type="button">↓</button>

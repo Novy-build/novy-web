@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-19
+**Last reviewed:** 2026-11-20
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -72,6 +72,18 @@ completed production backend integrations.
 - [x] Collapsible sidebar with persisted collapsed state.
 - [x] Project-aware links to the editor and deployment screen.
 - [x] Light and dark theme toggle with persisted preference and system-theme support.
+- [x] Desktop login brand panel with a code-split, interactive isometric Three.js illustration of
+  the build -> wire -> publish flow; Novy purple in both themes, decorative/aria-hidden, lazy
+  mounted behind a CSS poster, reduced-motion safe, with WebGL detection and error fallback.
+- [x] Clickable 3D stages with real DOM description cards, keyboard-accessible stage chips, and
+  idle ambient motion (auto-orbit + sequential stage spotlight) that pauses on interaction.
+- [x] Brand panel relies on the illustration only; the static headline, bullet steps, footer copy,
+  stage chips, floating card and hint were removed. WebGL is probed once per mount with context
+  release, and a failed context retries before falling back to the poster.
+- [x] 3D-anchored dashed leader lines and handwritten stage labels (self-hosted Caveat via
+  `--font-hand`); hovering or focusing a stage focuses the camera on it and reveals its description
+  under the title, with keyboard focus and reduced-motion support. A single `CameraRig` owns drag
+  orbit, bounded idle sway and hover focus so motion never fights or snaps.
 
 Authentication uses the Novy backend when `VITE_API_BASE_URL` is set; otherwise it falls back to
 the local mock repository so frontend-only development keeps working. The backend owns Supabase
@@ -1136,6 +1148,11 @@ remains blocked until a production provider is explicitly selected and implement
   errors.
 - [x] Conversational Build-mode greetings without proposal cards, plus synchronous duplicate-request
   suppression and clearer validation recovery guidance.
+- [x] Every field in the design, logic, and data editors has a compact `?` affordance. Hover or
+  keyboard focus reveals a portaled tooltip with a short explanation and an **Ask Novy about this**
+  action that opens the assistant in help mode with a prepared documentation question. A central
+  field-help registry supplies curated copy for common fields and generic fallback copy elsewhere;
+  the affordance is suppressed outside the editor.
 - [x] Assistant generation/help requests use a dedicated five-minute browser timeout rather than the
   shared 30-second API limit, allowing remote structured generation and repair to finish while
   retaining provider-neutral timeout feedback.
@@ -1145,6 +1162,16 @@ remains blocked until a production provider is explicitly selected and implement
   preview and explicit Apply, with proposal-integrity errors distinct from model validation errors.
 - [x] Versioned `AppBlueprintV1` proposals for screens, components, event-condition-action workflows,
   and collection schemas rather than model-authored Project JSON or manifests.
+- [x] Blueprint proposals preserve a strict allowlisted visual direction (style, palette, typography,
+  radius, and density) selected using the backend Design Skill Pack. The frontend validates and
+  round-trips it through refinement and Apply while the backend alone compiles real Project v14
+  light/dark tokens and reusable styles. Compiled tokens are parsed from proposal previews and
+  adopted from accepted project responses, so generated drafts render with their intended palette,
+  typography, radii, and reusable component styles.
+- [x] Interactive form controls expose an allowlisted Field style (Outline, Underline, Filled) in the
+  Inspector and preserve it through DTO mapping, proposal refinement, and Apply. Per-side border
+  overrides are available in the Appearance panel and render on the actual control element in both
+  editor previews and generated applications.
 - [x] Provider-neutral backend Builder Skill Pack selects compact collection, form, and landing-page
   recipes for the request. Approved examples are shared across selected providers without exposing
   source, records, credentials, or triggering fallback.
@@ -1346,6 +1373,125 @@ not been verified in this workspace because platform credentials are not configu
 - [x] Light and dark design tokens.
 
 ## 14. Automated test coverage
+
+Verified on 2026-11-20 for smooth off-centre focus and cursor-away release:
+
+- `npm run typecheck` — passed.
+- Focused suites — 39 tests passed, including cursor-away focus release coverage.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for the eased zoom curve:
+
+- `npm run typecheck` — passed.
+- Focused suites — 38 tests passed, including frame-by-frame zoom easing checks.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for the poster overlap fix:
+
+- `npm run typecheck` — passed.
+- Focused suites — 35 tests passed.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for latched hover and slower zoom:
+
+- `npm run typecheck` — passed.
+- Focused suites — 35 tests passed.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for smooth hover:
+
+- `npm run typecheck` — passed.
+- Focused suites — 35 tests passed, including a hover-flicker regression case.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for direct manipulation under reduced motion:
+
+- `npm run typecheck` — passed.
+- Focused suites — 38 tests passed, including new `CameraRig.interaction.test.tsx` drag checks.
+- `npm run build` — passed.
+
+Verified on 2026-11-20 for drag-to-orbit restoration:
+
+- `npm run typecheck` — passed.
+- Focused illustration/auth suites — 33 tests passed.
+
+Verified on 2026-11-20 for ambient motion and smooth hover focus:
+
+- `npm run typecheck` — passed.
+- Focused illustration/auth suites — 36 tests passed, including orbit math and rig interaction.
+- `npm run build` — passed; the scene chunk is slightly smaller after removing `OrbitControls`.
+
+Verified on 2026-11-20 for portal-mounted labels:
+
+- `npm run typecheck` — passed.
+- Focused illustration/auth suites — 30 tests passed.
+
+Verified on 2026-11-20 for stage labels above the canvas:
+
+- `npm run typecheck` — passed.
+- Focused illustration/auth suites — 30 tests passed, including a regression check that all labels
+  use the high z-index range.
+
+Verified on 2026-11-20 for the build-label visibility fix:
+
+- `npm run typecheck` — passed.
+- Focused illustration/auth suites — 30 tests passed.
+
+Verified on 2026-11-20 for annotated stages and hover focus:
+
+- `npm run typecheck` — passed.
+- Focused scene/auth suites — 37 tests passed, covering dashed labels, hover/focus reveal, camera
+  rig state, auto-orbit pause, reduced motion and the removed overlay controls.
+- `npm test -- --run --maxWorkers=2 --testTimeout=20000` — 126 files / 1,044 tests passed; nine
+  unrelated route-loading tests timed out under heavy concurrent load and all passed in isolation.
+- `npm run build` — passed; the scene remains a separate chunk and the handwriting font is bundled.
+
+Verified on 2026-11-20 for the canvas stability fix and copy removal:
+
+- `npm run typecheck` — passed.
+- Focused scene/auth suites — 31 tests passed, including single WebGL probe, probe-context release,
+  and canvas retry coverage.
+- `npm test -- --run --maxWorkers=2 --testTimeout=20000` — 126 files / 1,051 tests passed; three
+  unrelated route-loading tests timed out in the concurrent run and all passed in isolation.
+- `npm run build` — passed; the scene remains a separate chunk.
+
+Verified on 2026-11-20 for interactive stages and idle motion:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run --maxWorkers=2` — 129 test files and 1,053 tests passed.
+- `npm run build` — passed; the scene stays in its own `NovyFlowScene` chunk.
+- New tests: `useSceneIdle.test.ts`, `stationCopy.test.ts`, scene idle/selection cases, and
+  `AuthPage` cases for 3D-click descriptions, closing, and accessible chip selection.
+
+Verified on 2026-11-20 for the 3D login brand scene:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run --maxWorkers=2` — 127 test files and 1,041 tests passed.
+- `npm run build` — passed; the 3D scene is a separate `NovyFlowScene` chunk (945.51 kB raw,
+  250.20 kB gzip) and does not inflate the eager login entry chunk.
+- New tests: `usePrefersReducedMotion.test.ts`, `NovyFlowScene.test.tsx`,
+  `FlowStations.test.tsx`, plus an `AuthPage` regression case for the brand copy.
+- The scene loads from a module-level dynamic import consumed in an effect. `React.lazy` was
+  removed because suspending during the post-redirect `/login` render dropped the route tree.
+
+Verified on 2026-11-20 for per-field editor help:
+
+- `npm run typecheck` — passed.
+- `npm run build` — passed.
+- `npx vitest run --testTimeout=20000 --pool=forks --fileParallelism=false` — 124 test files and
+  1,028 tests; 1,025 passed in the full run and the three `EditorPage` route-loading timeouts all
+  passed when that file was run in isolation (12/12).
+- New tests: `FieldHelp.test.tsx` (hover, focus, Escape, assistant handoff, fallback copy),
+  `fieldHelpContent.test.ts` (registry lookups), an `AssistantSheet` help-request case, and a
+  `DesignSystemInspector` case covering the app-styles fields shown in the handoff screenshot.
+
+Verified on 2026-11-19 for the assistant visual-direction contract:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run --maxWorkers=4` — 122 test files and 1,012 tests passed.
+- `npm run build` — passed.
+- The seven unrelated loading/timeout failures seen under unrestricted worker concurrency passed
+  together in isolation (6 files / 41 tests).
 
 Verified on 2026-11-19 for the assistant UI and concise validation feedback:
 

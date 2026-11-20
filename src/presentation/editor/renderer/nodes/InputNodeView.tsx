@@ -1,5 +1,6 @@
 import { useId, type CSSProperties } from 'react';
 import type { ComponentAppearance, InputProps } from '@domain/entities/componentNode';
+import { fieldStyleClass, fieldStyleCss } from './fieldStyle';
 
 /**
  * Visual twin of the published input widget. `renderStatic` swaps the
@@ -27,21 +28,12 @@ export function InputNodeView({
     || props.placeholder.trim()
     || (props.multiline ? 'Text area' : `${props.inputType === 'text' ? 'Text' : props.inputType} field`);
   const hasVisibleLabel = showLabel && props.label.trim().length > 0;
-  const borderStyle = appearance?.borderStyle ?? 'solid';
-  const widgetStyle: CSSProperties = {
-    backgroundColor: appearance?.backgroundColor || undefined,
-    borderColor: borderStyle === 'none' ? undefined : appearance?.borderColor || undefined,
-    borderRadius: appearance?.borderRadius,
-    borderStyle,
-    borderWidth: borderStyle === 'none' ? 0 : appearance?.borderWidth,
-    color: appearance?.textColor || undefined,
-    opacity: appearance?.opacity,
-  };
+  const widgetStyle: CSSProperties = fieldStyleCss(appearance, props.fieldStyle);
   const textVariableStyle = appearance?.textColor
     ? { '--novy-component-text': appearance.textColor } as CSSProperties
     : undefined;
   const widgetClass =
-    'novy-widget-text h-9 w-full rounded-tile border border-hairline bg-surface px-3 text-sm outline-none placeholder:text-current placeholder:opacity-70';
+    `novy-widget-text h-9 w-full rounded-tile border border-hairline bg-surface px-3 text-sm outline-none placeholder:text-current placeholder:opacity-70 ${fieldStyleClass(props.fieldStyle)}`;
 
   return (
     <div className="flex h-full w-full flex-col justify-center gap-1" style={textVariableStyle}>

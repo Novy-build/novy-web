@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { Project } from '@domain/entities/project';
 import type { ComponentNode, ComponentType, ListViewNode } from '@domain/entities/componentNode';
 import { geometryAtBreakpoint, isChildBearingNode, listViewItemExtentAtBreakpoint, resolveEdgeInsets } from '@domain/entities/componentNode';
@@ -36,6 +36,7 @@ import { PanelCollapseButton } from '../PanelCollapseControl';
 import { ResizeHandle } from '../layout/ResizeHandle';
 import { useResizablePane } from '../layout/useResizablePane';
 import type { ListItemBindingField } from './Inspector';
+import { FieldHelpEnvironmentContext } from '@presentation/components/ui/FieldHelp';
 import { getComponentTreeLocation } from '@domain/componentTree';
 import { buildGeneratedAppManifest } from '@data/generation/generatedAppManifest';
 import { useRepositories } from '@main/providers/RepositoriesProvider';
@@ -53,6 +54,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
   const [mode, setMode] = useState<EditorMode>('design');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [helpRequest, setHelpRequest] = useState<{ query: string; token: number } | null>(null);
   const [isValidationOpen, setIsValidationOpen] = useState(false);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
   const { size: inspectorWidth, isDragging: isInspectorDragging, startResize: startInspectorResize, onKeyDown: inspectorKeyDown, reset: resetInspectorWidth } = useResizablePane({
@@ -88,6 +90,20 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     state,
     dispatch,
     projectData.reload,
+  );
+  const helpToken = useRef(0);
+  const openAssistantHelp = useCallback((query: string) => {
+    helpToken.current += 1;
+    setHelpRequest({ query, token: helpToken.current });
+    setIsAssistantOpen(true);
+  }, []);
+  const openAssistant = useCallback(() => {
+    setHelpRequest(null);
+    setIsAssistantOpen(true);
+  }, []);
+  const fieldHelpEnvironment = useMemo(
+    () => ({ editor: mode, onAskNovy: openAssistantHelp }),
+    [mode, openAssistantHelp],
   );
   const itemSource = state.selectedNodeId
     ? findNearestListView(activeScreen.nodes, state.selectedNodeId)
@@ -250,6 +266,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
   });
 
   return (
+    <FieldHelpEnvironmentContext.Provider value={fieldHelpEnvironment}>
     <main aria-label="Editor" className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink" id="main-content">
       <EditorTopBar
         canRedo={state.future.length > 0}
@@ -554,7 +571,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
         <EditorRightRail
           isInspectorCollapsed={isInspectorCollapsed}
           onInspectorToggle={() => setIsInspectorCollapsed((collapsed) => !collapsed)}
-          onOpenAssistant={() => setIsAssistantOpen(true)}
+          onOpenAssistant={openAssistant}
           showInspectorTab={mode === 'design'}
         />
       </div>
@@ -583,10 +600,12 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       {isAssistantOpen ? (
         <AssistantSheet
           conversation={assistantConversation}
+          helpRequest={helpRequest}
           onClose={() => setIsAssistantOpen(false)}
         />
       ) : null}
     </main>
+    </FieldHelpEnvironmentContext.Provider>
   );
 }
 

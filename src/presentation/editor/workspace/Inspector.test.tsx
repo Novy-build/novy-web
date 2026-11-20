@@ -398,6 +398,17 @@ describe('Inspector', () => {
     });
   });
 
+  it('changes the field style from the Inspector', () => {
+    const node = createComponentNode('input');
+    const { onAction } = renderInspector(node);
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Field style' })).getByRole('button', { name: 'Underline' }));
+
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-input', nodeId: node.id, props: { fieldStyle: 'underline' },
+    });
+  });
+
   it('toggles Text field labels and configures the full field border', () => {
     const node = createComponentNode('input');
     if (node.type !== 'input') throw new Error('Expected input node');

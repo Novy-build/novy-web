@@ -102,6 +102,11 @@ export function isTextFontFamily(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+/** Visual treatment shared by interactive form controls. */
+export type FieldStyle = 'outline' | 'underline' | 'filled';
+
+export const FIELD_STYLES: readonly FieldStyle[] = ['outline', 'underline', 'filled'];
+
 export interface InputProps {
   label: string;
   /** Omitted preserves the legacy behavior of showing the field label. */
@@ -109,6 +114,8 @@ export interface InputProps {
   placeholder: string;
   inputType: 'text' | 'email' | 'password' | 'number' | 'date';
   multiline: boolean;
+  /** Omitted inherits the project design system's field style. */
+  fieldStyle?: FieldStyle;
 }
 
 export interface ImageProps {
@@ -320,6 +327,7 @@ export interface ListViewProps {
 export interface CheckboxProps {
   label: string;
   checked: boolean;
+  fieldStyle?: FieldStyle;
 }
 
 export interface RadioProps {
@@ -333,6 +341,7 @@ export interface SwitchProps {
   checked: boolean;
   /** When enabled, this switch controls the previewed app's theme. */
   controlsTheme?: boolean;
+  fieldStyle?: FieldStyle;
 }
 
 export interface DropdownProps {
@@ -342,6 +351,7 @@ export interface DropdownProps {
   selectedIndex: number;
   /** Action menus emit the chosen option through the normal change event. */
   presentation?: 'select' | 'menu';
+  fieldStyle?: FieldStyle;
 }
 
 export interface SliderProps {
@@ -383,6 +393,7 @@ export interface ChatProps {
   sendLabel: string;
   emptyText: string;
   showCitations: boolean;
+  fieldStyle?: FieldStyle;
 }
 
 export interface NodeGeometry {
@@ -396,6 +407,20 @@ export type ResponsiveBreakpoint = 'mobile' | 'tablet' | 'desktop';
 
 /** Persisted outline style for layout frames. */
 export type ComponentBorderStyle = 'solid' | 'dashed' | 'none';
+
+/** One independently styled edge. Omitted values inherit the shared border settings. */
+export interface BorderSideAppearance {
+  width?: number;
+  style?: ComponentBorderStyle;
+  color?: string;
+}
+
+export interface BorderSides {
+  top?: BorderSideAppearance;
+  right?: BorderSideAppearance;
+  bottom?: BorderSideAppearance;
+  left?: BorderSideAppearance;
+}
 
 export interface GradientStop {
   color: string;
@@ -433,6 +458,8 @@ export interface ComponentAppearance {
   borderStyle?: ComponentBorderStyle;
   /** Optional border width in pixels; omitted keeps the component default. */
   borderWidth?: number;
+  /** Per-edge overrides applied after the shared border settings. */
+  borderSides?: BorderSides;
   borderRadius?: number;
   opacity?: number;
   /** Typed gradient wins over backgroundColor when present. */

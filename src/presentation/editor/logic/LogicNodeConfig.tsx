@@ -1,3 +1,4 @@
+import { FieldHelpLabel } from '@presentation/components/ui/FieldHelp';
 import type { ComponentNode, ListViewItemField, ListViewNode } from '@domain/entities/componentNode';
 import type { DataCollection, DataValue } from '@domain/entities/appData';
 import type {
@@ -89,7 +90,7 @@ export function LogicNodeConfig({
       <div>
         <h3 className="text-sm font-semibold text-ink">Trigger — {logicNodeTitle(node)}</h3>
         <p className="mt-2 text-sm text-ink-muted">Runs when {describeTriggerTarget(triggerTarget, behavior.event)}.</p>
-        <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="trigger-event">Event</label>
+        <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="trigger-event"><FieldHelpLabel label="Event" /></label>
         <select
           className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
           id="trigger-event"
@@ -100,7 +101,7 @@ export function LogicNodeConfig({
           <option value="change">On Change</option>
           <option value="load">On Load</option>
         </select>
-        <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="trigger-target">Target component</label>
+        <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="trigger-target"><FieldHelpLabel label="Target component" /></label>
         <select
           className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
           id="trigger-target"
@@ -131,7 +132,7 @@ export function LogicNodeConfig({
     return (
       <div>
         <h3 className="text-sm font-semibold text-ink">If / Else</h3>
-        <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="condition-source-type">Value source</label>
+        <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="condition-source-type"><FieldHelpLabel label="Value source" /></label>
         <select
           className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
           id="condition-source-type"
@@ -158,7 +159,7 @@ export function LogicNodeConfig({
         {node.left.source === 'component' ? (
           <>
         <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="condition-source">
-          Source component
+          <FieldHelpLabel label="Source component" />
         </label>
         <select
           className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -183,25 +184,25 @@ export function LogicNodeConfig({
           </>
         ) : null}
         {node.left.source === 'variable' ? (
-          <label className="mt-4 block text-xs font-medium text-ink-muted">Variable name
+          <label className="mt-4 block text-xs font-medium text-ink-muted"><FieldHelpLabel label="Variable name" />
             <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onConfigureCondition(node.id, { left: { source: 'variable', name: event.target.value } })} value={node.left.name} />
           </label>
         ) : null}
         {node.left.source === 'node-output' ? (
           <div className="mt-4 grid gap-2">
-            <label className="text-xs font-medium text-ink-muted">Source node
+            <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label="Source node" />
               <select className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onConfigureCondition(node.id, { left: { source: 'node-output', nodeId: event.target.value, path: node.left.source === 'node-output' ? node.left.path : '' } })} value={node.left.nodeId}>
                 <option value="">Choose node…</option>
                 {logicNodes.filter((candidate) => candidate.kind === 'action').map((candidate) => <option key={candidate.id} value={candidate.id}>{logicNodeTitle(candidate)}</option>)}
               </select>
             </label>
-            <label className="text-xs font-medium text-ink-muted">Output path
+            <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label="Output path" />
               <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onConfigureCondition(node.id, { left: { source: 'node-output', nodeId: node.left.source === 'node-output' ? node.left.nodeId : '', path: event.target.value } })} value={node.left.path} />
             </label>
           </div>
         ) : null}
         {node.left.source === 'list-item' ? (
-          <label className="mt-4 block text-xs font-medium text-ink-muted">Current item field
+          <label className="mt-4 block text-xs font-medium text-ink-muted"><FieldHelpLabel label="Current item field" />
             <select className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onConfigureCondition(node.id, { left: { source: 'list-item', fieldId: event.target.value } })} value={node.left.fieldId}>
               <option value={CURRENT_ITEM_ID_FIELD}>Current item ID</option>
               {listItemFields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
@@ -210,7 +211,7 @@ export function LogicNodeConfig({
         ) : null}
 
         <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="condition-operator">
-          Operator
+          <FieldHelpLabel label="Operator" />
         </label>
         <select
           className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -233,7 +234,7 @@ export function LogicNodeConfig({
         {needsValue ? (
           <>
             <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="condition-value">
-              Compare value
+              <FieldHelpLabel label="Compare value" />
             </label>
             <input
               className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -294,7 +295,7 @@ export function LogicNodeConfig({
       {node.payload.type === 'change-text' ? (
         <>
           <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-target">
-            Target component
+            <FieldHelpLabel label="Target component" />
           </label>
           <select
             className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -319,7 +320,7 @@ export function LogicNodeConfig({
           </select>
 
           <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-text">
-            New text
+            <FieldHelpLabel label="New text" />
           </label>
           <input
             className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -339,7 +340,7 @@ export function LogicNodeConfig({
       {node.payload.type === 'show-message' ? (
         <>
           <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-message">
-            Message
+            <FieldHelpLabel label="Message" />
           </label>
           <input
             className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -353,7 +354,7 @@ export function LogicNodeConfig({
       {node.payload.type === 'set-theme' ? (
         <>
           <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-theme">
-            Theme
+            <FieldHelpLabel label="Theme" />
           </label>
           <select
             className="mt-1 h-11 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -376,7 +377,7 @@ export function LogicNodeConfig({
       {node.payload.type === 'navigate' ? (
         <>
           <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-screen">
-            Target screen
+            <FieldHelpLabel label="Target screen" />
           </label>
           <select
             className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -423,7 +424,7 @@ export function LogicNodeConfig({
             Collections are configured in the Data workspace.
           </p>
            {!isAutomaticCurrentItem ? <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-collection">
-             Collection
+             <FieldHelpLabel label="Collection" />
            </label> : null}
            {!isAutomaticCurrentItem ? <select
             className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -437,7 +438,7 @@ export function LogicNodeConfig({
            {'recordId' in actionPayload && !isAutomaticCurrentItem ? (
             <>
               <label className="mt-4 block text-xs font-medium text-ink-muted" htmlFor="logic-record-id">
-                Record ID
+                <FieldHelpLabel label="Record ID" />
               </label>
               <input
                 className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -450,7 +451,7 @@ export function LogicNodeConfig({
           {actionPayload.type === 'delete-record' ? (
             <label className="mt-4 flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
               <input checked={actionPayload.confirm === true} onChange={(event) => configure({ ...actionPayload, confirm: event.target.checked })} type="checkbox" />
-              Confirm before deleting
+              <FieldHelpLabel label="Confirm before deleting" />
             </label>
           ) : null}
           {'values' in actionPayload && selectedDataCollection ? (
@@ -485,23 +486,23 @@ export function LogicNodeConfig({
 
       {actionPayload.type === 'set-variable' ? (
         <div className="mt-4 grid gap-3">
-          <label className="block text-xs font-medium text-ink-muted">Variable name
+          <label className="block text-xs font-medium text-ink-muted"><FieldHelpLabel label="Variable name" />
             <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, name: event.target.value })} value={actionPayload.name} />
           </label>
-          <label className="block text-xs font-medium text-ink-muted">Default value
+          <label className="block text-xs font-medium text-ink-muted"><FieldHelpLabel label="Default value" />
             <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, value: event.target.value })} value={actionPayload.value} />
           </label>
         </div>
       ) : null}
       {actionPayload.type === 'set-component-value' ? (
         <div className="mt-4 grid gap-3">
-          <label className="block text-xs font-medium text-ink-muted">Target component
+          <label className="block text-xs font-medium text-ink-muted"><FieldHelpLabel label="Target component" />
             <select className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, targetNodeId: event.target.value })} value={actionPayload.targetNodeId}>
               <option value="">Choose a component…</option>
               {screenNodes.filter((candidate) => candidate.type === 'input' || candidate.type === 'listview').map((candidate) => <option key={candidate.id} value={candidate.id}>{nodeLayerName(candidate)}</option>)}
             </select>
           </label>
-          <label className="block text-xs font-medium text-ink-muted">Default value
+          <label className="block text-xs font-medium text-ink-muted"><FieldHelpLabel label="Default value" />
             <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, value: event.target.value })} value={actionPayload.value} />
           </label>
         </div>
@@ -514,7 +515,7 @@ export function LogicNodeConfig({
             to a collection or modify Project JSON.
           </p>
           <label className="text-xs font-medium text-ink-muted" htmlFor="logic-local-listview">
-            Static ListView
+            <FieldHelpLabel label="Static ListView" />
           </label>
           <select
             className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -542,7 +543,7 @@ export function LogicNodeConfig({
             <p className="text-xs text-ink-muted">Add a static ListView to this screen first. Collection-bound ListViews use Insert Record.</p>
           ) : null}
           <label className="text-xs font-medium text-ink-muted" htmlFor="logic-local-list-placement">
-            Placement
+            <FieldHelpLabel label="Placement" />
           </label>
           <select
             className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -577,7 +578,7 @@ export function LogicNodeConfig({
 
       {actionPayload.type === 'cv-liveness' || actionPayload.type === 'cv-enroll' || actionPayload.type === 'cv-verify' ? (
         <div className="mt-4 grid gap-3">
-          <label className="text-xs font-medium text-ink-muted">Media reference
+          <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label="Media reference" />
             <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, mediaReference: event.target.value })} value={actionPayload.mediaReference} />
           </label>
           {actionPayload.type === 'cv-enroll' ? (
@@ -585,7 +586,7 @@ export function LogicNodeConfig({
           ) : null}
           {actionPayload.type === 'cv-verify' ? (
             <>
-              <label className="text-xs font-medium text-ink-muted">User ID
+              <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label="User ID" />
                 <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...actionPayload, userId: event.target.value })} value={actionPayload.userId ?? ''} />
               </label>
               <p className="text-xs text-ink-muted">The protected runtime resolves the enrolled credential and enforces its verification threshold. Client configuration cannot weaken either value.</p>
@@ -597,13 +598,13 @@ export function LogicNodeConfig({
 
       {emailPayload ? (
         <div className="mt-4 grid gap-3">
-          <label className="text-xs font-medium text-ink-muted">Recipient
+          <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label="Recipient" />
             <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...emailPayload, to: event.target.value })} value={emailPayload.to} />
           </label>
-          <label className="text-xs font-medium text-ink-muted">Subject
+          <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label="Subject" />
             <input className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => configure({ ...emailPayload, subject: event.target.value })} value={emailPayload.subject} />
           </label>
-          <label className="text-xs font-medium text-ink-muted">Body
+          <label className="text-xs font-medium text-ink-muted"><FieldHelpLabel label="Body" />
             <textarea className="mt-1 min-h-20 w-full rounded-tile border border-hairline bg-surface px-2 py-2 text-sm text-ink" onChange={(event) => configure({ ...emailPayload, body: event.target.value })} value={emailPayload.body} />
           </label>
           <p className="text-xs text-ink-muted">Preview simulates delivery; only the backend runtime may send email.</p>
@@ -772,7 +773,7 @@ function RecordFieldInput({
   if (field.type === 'boolean') {
     return (
       <label className="text-xs font-medium text-ink-muted">
-        {field.label}
+       <FieldHelpLabel label={field.label} />
         <select
           className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
           onChange={(event) => onChange(event.target.value)}
@@ -787,7 +788,7 @@ function RecordFieldInput({
   }
   return (
     <label className="text-xs font-medium text-ink-muted">
-      {field.label}
+     <FieldHelpLabel label={field.label} />
       <input
         className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
         onChange={(event) => onChange(event.target.value)}
@@ -817,13 +818,13 @@ function LocalListFieldInput({
     return (
       <label className="flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
         <input checked={value === true} onChange={(event) => onChange(event.target.checked)} type="checkbox" />
-        {field.label}
+       <FieldHelpLabel label={field.label} />
       </label>
     );
   }
   return (
     <label className="text-xs font-medium text-ink-muted">
-      {field.label}
+     <FieldHelpLabel label={field.label} />
       <input
         className="mt-1 h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
         onChange={(event) => onChange(

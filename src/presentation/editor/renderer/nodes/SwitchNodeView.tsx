@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import type { SwitchProps } from '@domain/entities/componentNode';
+import type { ComponentAppearance, SwitchProps } from '@domain/entities/componentNode';
+import { fieldStyleClass, fieldStyleCss } from './fieldStyle';
 
 export function SwitchNodeView({
   props,
+  appearance,
   renderStatic = false,
   isPreview = false,
   onValueChange,
   checked: controlledChecked,
 }: {
   props: SwitchProps;
+  appearance?: ComponentAppearance;
   renderStatic?: boolean;
   isPreview?: boolean;
   onValueChange?: (value: string) => void;
@@ -23,7 +26,7 @@ export function SwitchNodeView({
   };
 
   return (
-    <div className="flex h-full w-full items-center justify-between gap-3">
+    <div className={`flex h-full w-full items-center justify-between gap-3 ${fieldStyleClass(props.fieldStyle)}`} style={fieldStyleCss(appearance, props.fieldStyle)}>
       <span className="novy-widget-text text-sm">{props.label}</span>
       {renderStatic ? (
         <span className={`relative inline-flex h-6 w-11 items-center rounded-full ${effectiveChecked ? 'bg-brand-600' : 'bg-hairline'}`}>

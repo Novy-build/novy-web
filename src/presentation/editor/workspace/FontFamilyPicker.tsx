@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent } from 'react';
+import { FieldHelp } from '@presentation/components/ui/FieldHelp';
 
 export interface FontFamilyOption {
   label: string;
@@ -154,7 +155,10 @@ export function FontFamilyPicker({
       '--novy-app-font-body': appFonts.bodyFontFamily,
       '--novy-app-font-heading': appFonts.headingFontFamily,
     } as CSSProperties : undefined}>
-      <label className="text-xs font-medium text-ink-muted" htmlFor={buttonId} id={`${buttonId}-label`}>{label}</label>
+      <div className="flex items-center gap-1.5">
+        <label className="text-xs font-medium text-ink-muted" htmlFor={buttonId} id={`${buttonId}-label`}>{label}</label>
+        <FieldHelp helpKey={name} label={label} />
+      </div>
       <button
         aria-activedescendant={open ? `${listboxId}-option-${activeIndex}` : undefined}
         aria-controls={open ? listboxId : undefined}

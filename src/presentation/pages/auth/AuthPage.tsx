@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { Navigate, useLocation } from 'react-router';
+import { ScenePoster } from '@presentation/components/illustrations/ScenePoster';
 import { Button } from '@presentation/components/ui/Button';
 import { ThemeToggle } from '@presentation/components/ui/ThemeToggle';
 import { useRepositories } from '@main/providers/RepositoriesProvider';
@@ -7,6 +8,14 @@ import { useSession } from '@main/providers/SessionProvider';
 import { isDemoLoginVisible } from './demoAvailability';
 import { LoginForm } from './LoginForm';
 import { RegisterForm } from './RegisterForm';
+
+// WebGL is kept out of the eager login chunk. The import starts with the module
+// (not during a route render) and the poster covers the gap until it resolves.
+const sceneComponent: Promise<ComponentType | null> = import(
+  '@presentation/components/illustrations/NovyFlowScene'
+)
+  .then((module) => module.NovyFlowScene)
+  .catch(() => null);
 
 type AuthMode = 'login' | 'register';
 
@@ -24,22 +33,23 @@ const MODE_COPY: Record<AuthMode, { heading: string; caption: string; switchLabe
 };
 
 function BrandPanel() {
+  const [Scene, setScene] = useState<ComponentType | null>(null);
+  useEffect(() => {
+    let active = true;
+    void sceneComponent.then((component) => {
+      if (active) setScene(() => component);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
-    <aside className="hidden w-[46%] flex-col justify-between bg-brand-700 p-12 text-white lg:flex">
+    <aside className="hidden w-[46%] flex-col bg-brand-700 p-12 text-white lg:flex">
       <div className="text-xl font-bold tracking-tight">Novy</div>
-      <div>
-        <h2 className="text-3xl font-semibold leading-snug">
-          Build real web apps
-          <br />
-          without writing code.
-        </h2>
-        <ul className="mt-6 space-y-2 text-sm text-brand-100">
-          <li>Drag and drop your interface onto the canvas.</li>
-          <li>Wire up behavior with the visual logic builder.</li>
-          <li>Publish your app with one click.</li>
-        </ul>
+      <div className="relative mt-6 min-h-[320px] flex-1">
+        {Scene ? <Scene /> : <ScenePoster />}
       </div>
-      <p className="text-xs text-brand-200">A course project build.</p>
     </aside>
   );
 }

@@ -18,6 +18,7 @@ const PROPOSAL: AssistantProposalV1 = {
   blueprint: {
     version: 1,
     summary: 'A task app proposal.',
+    design: { style: 'product', palette: 'indigo', typography: 'modern-sans', radius: 'soft', density: 'comfortable', fieldStyle: 'outline' },
     screens: [
       {
         key: 'home',
@@ -128,6 +129,21 @@ describe('AssistantSheet', () => {
     expect(screen.getByText(/Nothing is saved until/)).toBeInTheDocument();
     expect(screen.getByRole('log')).toHaveAttribute('aria-live', 'polite');
     expect(screen.getByLabelText('Message')).toHaveFocus();
+  });
+
+  it('switches to help mode with a prepared question from a field help request', () => {
+    const controller = conversation();
+    render(
+      <AssistantSheet
+        conversation={controller}
+        helpRequest={{ query: 'What is Background used for?', token: 1 }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(controller.setMode).toHaveBeenCalledWith('help');
+    expect(screen.getByLabelText('Message')).toHaveValue('What is Background used for?');
+    expect(controller.send).not.toHaveBeenCalled();
   });
 
   it('uses a growing textarea that sends on Enter and keeps Shift+Enter for newlines', () => {
@@ -407,3 +423,4 @@ describe('AssistantSheet', () => {
     expect(onClose).toHaveBeenCalledTimes(3);
   });
 });
+

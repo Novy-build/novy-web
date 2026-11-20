@@ -5,6 +5,272 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-20 — Smooth focus for outer stages and cursor-away release
+
+#### Fixed
+- Hovering Build or Publish looked instantaneous because the camera's look-at target snapped to the
+  off-centre station while only position/zoom were tweened (Wire is centred, hiding the issue). The
+  look-at target is now interpolated alongside position and zoom through the same eased curve.
+- Hover stayed latched after the cursor moved away. The rig now projects the focused station to
+  screen space and releases focus once the pointer is more than 240 px away; leaving the scene
+  wrapper still releases immediately.
+
+#### Verification
+- Strict TypeScript typecheck, focused suites (39 tests) and production build passed. New tests
+  cover cursor-away release and gradual zoom.
+
+### 2026-11-20 — Eased zoom curve
+
+#### Changed
+- Replaced exponential per-frame damping for hover focus with a timed `easeInOutCubic` tween on
+  camera position and orthographic zoom (0.9 s in, 1.1 s out; 0.25 s when reduced motion is
+  requested). Drag and idle sway keep their own damping so interaction stays responsive.
+- Starting a drag cancels an in-flight focus tween so the two never fight.
+
+#### Verification
+- Strict TypeScript typecheck, focused suites (38 tests) and production build passed. New tests
+  cover the easing curve and assert the zoom changes gradually across frames instead of snapping.
+
+### 2026-11-20 — Removed the translucent box over the scene
+
+#### Fixed
+- The CSS poster was rendered permanently underneath the transparent WebGL canvas, so its decorative
+  tiles and divider showed through as a translucent box and obscured parts of the 3D scene. The
+  poster is now shown only while the scene chunk loads; once mounted, `NovyFlowScene` owns its own
+  WebGL-unavailable fallback.
+
+#### Verification
+- Strict TypeScript typecheck, focused suites (35 tests) and production build passed.
+
+### 2026-11-20 — Latched hover and medium-speed zoom
+
+#### Changed
+- Hover is now latched: raycast `pointerout` events from the moving camera are ignored entirely, and
+  focus releases only when the pointer leaves the scene wrapper or the label loses keyboard focus.
+  This removes the temporary zoom-in/zoom-out pulse on hover.
+- Camera damping slowed from 3.5 to 2 for a gentler, medium-speed zoom transition.
+
+#### Verification
+- Strict TypeScript typecheck, focused suites (35 tests) and production build passed.
+
+### 2026-11-20 — Smooth hover without twitching
+
+#### Fixed
+- Hovering a station could flicker rapidly: the camera zoom moved the mesh (and its anchored label)
+  out from under a stationary cursor, firing `pointerout`, which sent the camera back and repeated.
+  Hover now has a short release grace period so brief raycast losses are ignored.
+- Froze the ambient group sway while a stage is emphasized, and reduced the focus camera movement
+  (radius 13, zoom 1.12×) so geometry drifts far less during hover.
+
+#### Verification
+- Strict TypeScript typecheck, focused suites (35 tests) and production build passed. The hover test
+  now simulates repeated pointer-out/pointer-in events and asserts the focus survives them.
+
+### 2026-11-20 — Camera rig always responds to direct manipulation
+
+#### Fixed
+- A `prefers-reduced-motion` request disabled the camera rig entirely, which also killed drag and
+  hover focus. Direct manipulation is now always available; reduced motion only suppresses the
+  automatic sway, floating and wire pulses.
+- Removed the `camera instanceof OrthographicCamera` guard, which could silently disable the rig if
+  Vite resolved two copies of `three`.
+
+#### Verification
+- Strict TypeScript typecheck, focused suites (38 tests) and production build passed. New
+  `CameraRig.interaction.test.tsx` verifies that dragging moves the camera, including with reduced
+  motion enabled.
+
+### 2026-11-20 — Drag-to-orbit restoration
+
+#### Fixed
+- Dragging the 3D scene did nothing because starting a drag marked the scene active, which switched
+  the camera rig off before it could apply the new orbit angles. The rig now stays enabled whenever
+  motion is allowed; only the ambient sway is suppressed while dragging or returning from focus.
+
+#### Verification
+- Strict TypeScript typecheck and focused illustration/auth tests passed (33 tests).
+
+### 2026-11-20 — Continuous ambient motion and smooth hover focus
+
+#### Fixed
+- The scene could appear completely static: drei's `OrbitControls` calls `update()` every frame and
+  overwrote the camera position set by the animation rig, and its `autoRotate` stopped permanently
+  once it reached the clamped azimuth. `OrbitControls` was removed; `CameraRig` is now the single
+  owner of the camera and provides bounded idle sway, drag-to-orbit and hover focus through one
+  damped path, eliminating the snapping on hover.
+- Added a continuous ambient sway/bob to the whole flow group and sped up the travelling wire
+  pulses. Removed the duplicate CSS scale on labels so only the 3D station emphasis animates.
+
+#### Verification
+- Strict TypeScript typecheck and production Vite build passed.
+- Focused illustration/auth suites passed (36 tests), including new orbit-position math tests.
+
+### 2026-11-20 — Portal stage labels out of the canvas container
+
+#### Fixed
+- The Build label was still invisible because drei `Html` mounted into React Three Fiber's
+  `overflow: hidden` canvas container, so the outer label was clipped. Labels now render through a
+  portal into the unclipped brand-panel wrapper, with a mount-time re-render to make the portal ref
+  available on the first frame.
+
+#### Verification
+- Strict TypeScript typecheck and focused illustration/auth tests passed (30 tests).
+
+### 2026-11-20 — Stage labels raised above the WebGL canvas
+
+#### Fixed
+- "Build it" was still hidden where it overlapped the light 3D component block: drei's default
+  `Html` z-index range put labels at or below the canvas stacking level, so opaque WebGL pixels
+  painted over the text. Labels now use an explicitly high `zIndexRange` of `[1000, 900]` and the
+  Build anchor was moved further up and left for clearance.
+
+#### Verification
+- Strict TypeScript typecheck and focused illustration/auth tests passed (30 tests).
+
+### 2026-11-20 — Build label visibility fix
+
+#### Fixed
+- The handwritten "Build it" label was anchored over the white floating component block and was
+  effectively invisible. Its anchor and dashed leader now sit above and to the left of the block,
+  and all stage titles have a stronger dark drop shadow for contrast over light 3D geometry.
+
+#### Verification
+- Strict TypeScript typecheck and focused illustration/auth tests passed (30 tests).
+
+### 2026-11-20 — Annotated 3D stages with hover focus
+
+#### Added
+- Each 3D stage now has a 3D-anchored dashed leader line pointing to a handwritten feature name
+  (`Build it`, `Wire it`, `Ship it`), using a self-hosted Caveat font exposed as `--font-hand`.
+- Hovering or focusing a station (or its label) smoothly moves the camera toward it, raises its
+  zoom slightly, and reveals the feature description directly beneath the handwritten title.
+  Keyboard focus is an equivalent interaction; auto-orbit pauses while a stage is focused and
+  resumes after the camera glides back to the overview.
+- New `CameraRig` damps camera position, orbit target and zoom; it stays inactive while the user is
+  actively dragging so it never fights OrbitControls. Reduced motion skips the camera move.
+
+#### Removed
+- The Build/Wire/Publish chips, the floating description card, its close button, and the hint text.
+  The stage labels now live inside the scene itself.
+
+#### Verification
+- Strict TypeScript typecheck and production Vite build passed.
+- Focused scene/auth suites passed. The full concurrent suite had nine unrelated route-loading
+  timeout failures under heavy load; all affected files passed in isolation.
+
+### 2026-11-20 — Removed static brand copy and stabilized the 3D canvas
+
+#### Fixed
+- The WebGL capability probe ran on every scene render. Idle re-renders opened a new WebGL context
+  each time until browsers hit their context limit, leaving a blank/white canvas or forcing the
+  poster fallback. The probe now runs once per mount and explicitly releases its probe context.
+- A failed WebGL context no longer permanently strands the poster: the scene retries up to twice
+  with a fresh boundary and canvas before giving up.
+- The canvas is forced transparent (`alpha`, transparent clear color and CSS background) so a
+  stalled frame shows the purple panel instead of a white rectangle.
+
+#### Removed
+- The static brand-panel copy — headline, three bullet steps, and "A course project build." The
+  illustration and its interactive stage cards now carry the story alone.
+
+#### Verification
+- Strict TypeScript typecheck and production Vite build passed.
+- Focused scene/auth suites passed (31 tests). The full suite had three unrelated route-loading
+  timeout failures under heavy concurrent load; all three files passed when run in isolation.
+
+### 2026-11-20 — Clickable 3D stages and idle motion on the login scene
+
+#### Added
+- Each 3D stage (Build, Wire, Publish) is now clickable: selecting one smoothly emphasizes it and
+  opens a real DOM description card in the brand panel with its title, explanation, and a close
+  button. Clicking empty canvas clears the selection.
+- Three small stage chips above the card provide a keyboard-accessible equivalent of the 3D click.
+  The hint text invites exploration when nothing is selected.
+- Idle animation: after a short period without interaction the scene slowly resumes orbiting and
+  spotlights each stage in turn; dragging stops both immediately. Floating blocks and travelling
+  wire pulses continue to animate, and reduced motion still freezes all of it.
+
+#### Changed
+- Stage copy and emphasis priority live in a shared `stationCopy` module; the description is no
+  longer baked into WebGL, so it remains selectable and announced via `aria-live`.
+
+#### Verification
+- Strict TypeScript typecheck passed.
+- All 129 test files / 1,053 tests passed with two Vitest workers.
+- Production Vite build passed; the scene remains a separate chunk.
+
+### 2026-11-20 — 3D Novy flow illustration on the login brand panel
+
+#### Added
+- The desktop login brand panel now shows an interactive isometric 3D illustration of the Novy
+  workflow: a drag-and-drop canvas, a logic node graph with travelling light pulses, and a publish
+  node. Users can gently orbit the scene by dragging; the panel stays Novy purple in both themes.
+- Three.js / React Three Fiber / drei are loaded in their own `NovyFlowScene` chunk, separate from
+  the eager login bundle, and mounted behind a branded CSS poster so the credential form renders
+  immediately. WebGL capability detection, a Canvas fallback, and an error boundary keep the poster
+  in place when 3D is unavailable.
+- `prefers-reduced-motion` stops auto-rotation, floating, pulse animation, and live shadow updates.
+  The decorative canvas is `aria-hidden`; the headline and three bullet steps remain real text.
+- New tests cover the reduced-motion hook, scene fallback/error handling, motion state, station
+  animation, and the preserved brand-panel copy.
+
+#### Changed
+- The code-split scene is loaded via a module-level import promise consumed in an effect rather than
+  `React.lazy`. A lazy component suspended during the post-redirect `/login` render and could drop
+  the whole route tree in tests; the poster now covers the async gap without suspending React.
+
+#### Verification
+- Strict TypeScript typecheck passed.
+- All 127 test files / 1,041 tests passed with two Vitest workers.
+- Production Vite build passed; the 3D scene is emitted as a separate `NovyFlowScene` chunk
+  (945.51 kB raw / 250.20 kB gzip) and is absent from the main entry chunk.
+
+### 2026-11-20 — Per-field editor help tooltips
+
+#### Added
+- Every field in the design, logic, and data editors now has a small lucide `CircleHelp` icon beside
+  its label. Hovering or focusing it opens a tooltip explaining what the field controls, with an
+  **Ask Novy about this** action that opens the assistant in help mode with a prepared documentation
+  question. The tooltip is keyboard accessible (Escape to dismiss) and centered near the trigger.
+- A central field-help registry provides curated copy for common app-style, Inspector, logic, and data
+  fields and generates generic fallback copy for unmapped fields, so every editor field is covered.
+- `AssistantSheet` accepts a help request and pre-fills the assistant's help composer instead of
+  silently sending a remote request; ordinary assistant opening still starts with an empty composer.
+
+#### Verification
+- Strict TypeScript typecheck and production Vite build passed.
+- New component tests cover tooltip hover/focus/Escape behavior, curated and fallback help copy, and
+  the assistant help-request handoff. Existing editor integration suites continue to pass.
+
+### 2026-11-19 — Customizable form field styling
+
+#### Added
+- Text fields, dropdowns, checkboxes, switches, and chat inputs have a **Field style** control with
+  Outline, Underline, and Filled presets. AI-generated drafts inherit the style from the design
+  preset, while builders can override it per component in the Inspector.
+- Advanced per-side border widths let any component use an underline (bottom edge only) or other
+  asymmetric borders. Styles render identically in the editor and in exported applications.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- All 122 test files / 1,017 tests passed with four Vitest workers.
+
+### 2026-11-19 — Assistant visual-direction contract
+
+### 2026-11-19 — Assistant visual-direction contract
+
+#### Added
+- `AppBlueprintV1` now includes the backend-selected allowlisted design direction: style, palette,
+  typography, radius, and density. The API boundary validates every value and preserves the block
+  through draft refinement and explicit Apply, so proposal integrity hashes remain stable.
++- Assistant previews and accepted projects carry compiled light/dark design tokens, so draft previews
++  and the editor canvas render with the generated visual system instead of editor defaults.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- All 122 test files / 1,012 tests passed with four Vitest workers. The seven unrelated tests that
+  timed out under unrestricted worker concurrency also passed together in isolation (41/41).
+
 ### 2026-11-19 — Compact assistant activity and VS Code-style mode selector
 
 #### Changed

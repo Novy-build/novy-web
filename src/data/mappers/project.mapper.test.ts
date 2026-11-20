@@ -363,6 +363,25 @@ describe('project mapper', () => {
     expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
   });
 
+  it('round-trips field style and per-side borders', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    const column = project.document.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (column?.type !== 'column') throw new Error('Fixture column is missing');
+    const input = column.children.find((node) => node.id === 'node_form_email');
+    if (input?.type !== 'input') throw new Error('Fixture input is missing');
+    input.props = { ...input.props, fieldStyle: 'underline' };
+    input.appearance = { borderSides: { bottom: { width: 2 } } };
+
+    const dto = mapProjectToDto(project);
+    const dtoColumn = dto.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (dtoColumn?.type !== 'column') throw new Error('DTO column is missing');
+    expect(dtoColumn.children.find((node) => node.id === 'node_form_email')).toMatchObject({
+      appearance: { borderSides: { bottom: { width: 2 } } },
+      props: { fieldStyle: 'underline' },
+    });
+    expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
+  });
+
   it('round-trips curated button icons and center icon position', () => {
     const project = structuredClone(FIXTURE_PROJECT);
     const button = project.document.screens[0]!.nodes.find((node) => node.id === 'node_button');

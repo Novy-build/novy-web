@@ -1,4 +1,5 @@
 import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
+import { FieldHelp } from './FieldHelp';
 
 export interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -6,6 +7,11 @@ export interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
   /** Field-level validation message; renders with role="alert". */
   error?: string | null;
   isBlock?: boolean;
+  /** Stable key used to look up editor field help. Defaults to `name`. */
+  helpKey?: string;
+  helpLabel?: string;
+  /** Suppress the help affordance for non-editor forms. */
+  hideHelp?: boolean;
 }
 
 /**
@@ -17,7 +23,11 @@ export function TextInput({
   error,
   isBlock = true,
   className,
+  helpKey,
+  helpLabel,
+  hideHelp = false,
   id,
+  name,
   ...rest
 }: TextInputProps) {
   const generatedId = useId();
@@ -31,12 +41,16 @@ export function TextInput({
 
   return (
     <div className={isBlock ? 'w-full' : 'inline-flex'}>
-      <label className="mb-1 block text-xs font-medium text-ink-muted" htmlFor={inputId}>
-        {label}
-      </label>
+      <div className="mb-1 flex items-center gap-1.5">
+        <label className="text-xs font-medium text-ink-muted" htmlFor={inputId}>
+          {label}
+        </label>
+        {hideHelp ? null : <FieldHelp helpKey={helpKey ?? name} label={helpLabel ?? label} />}
+      </div>
       <input
         aria-describedby={error ? errorId : hint ? hintId : undefined}
         aria-invalid={error ? true : undefined}
+        name={name}
         className={`h-10 w-full rounded-tile bg-surface px-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-muted/70 ${borderClass} border ${className ?? ''}`}
         id={inputId}
         {...rest}

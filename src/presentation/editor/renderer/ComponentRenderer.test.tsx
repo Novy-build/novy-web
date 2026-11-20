@@ -544,6 +544,53 @@ describe('ComponentRenderer', () => {
     expect(container.querySelector('[data-node-id="node_email"]')).not.toHaveStyle({ borderStyle: 'dashed' });
   });
 
+  it('renders an underline field with a bottom edge only', () => {
+    const input: InputNode = {
+      id: 'node_underline', type: 'input', x: 0, y: 0, w: 240, h: 56,
+      props: {
+        label: 'Content', placeholder: 'Write your note', inputType: 'text',
+        multiline: true, fieldStyle: 'underline',
+      },
+    };
+    render(<ComponentRenderer mode="preview" node={input} selected={false} />);
+
+    const control = screen.getByRole('textbox', { name: 'Content' });
+    expect(control).toHaveClass('novy-field-underline');
+    expect(control).toHaveStyle({
+      borderStyle: 'none none solid',
+      borderWidth: '0px 0px 1px',
+      borderBottomStyle: 'solid',
+    });
+  });
+
+  it('renders a filled field without a border', () => {
+    const input: InputNode = {
+      id: 'node_filled', type: 'input', x: 0, y: 0, w: 240, h: 56,
+      props: {
+        label: 'Email', placeholder: 'you@example.com', inputType: 'email',
+        multiline: false, fieldStyle: 'filled',
+      },
+    };
+    render(<ComponentRenderer mode="preview" node={input} selected={false} />);
+
+    const control = screen.getByRole('textbox', { name: 'Email' });
+    expect(control).toHaveClass('novy-field-filled');
+    expect(control).toHaveStyle({ borderStyle: 'none', borderWidth: '0px' });
+  });
+
+  it('applies per-side border widths to the actual field', () => {
+    const input: InputNode = {
+      id: 'node_sides', type: 'input', x: 0, y: 0, w: 240, h: 56,
+      appearance: { borderColor: '#334155', borderSides: { bottom: { width: 3 }, top: { width: 0 } } },
+      props: { label: 'Title', placeholder: 'Title', inputType: 'text', multiline: false },
+    };
+    render(<ComponentRenderer mode="preview" node={input} selected={false} />);
+
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveStyle({
+      borderTopWidth: '0px', borderBottomWidth: '3px', borderBottomColor: '#334155',
+    });
+  });
+
   it('applies Text field border controls to multiline fields and falls back to an accessible name', () => {
     const input: InputNode = {
       id: 'node_message', type: 'input', x: 0, y: 0, w: 240, h: 100,

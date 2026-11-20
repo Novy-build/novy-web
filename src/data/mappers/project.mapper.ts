@@ -570,6 +570,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
           placeholder: node.props.placeholder,
           inputType: node.props.inputType,
           multiline: node.props.multiline,
+          ...(node.props.fieldStyle ? { fieldStyle: node.props.fieldStyle } : {}),
         },
       };
     case 'checkbox':
@@ -581,7 +582,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, checked: node.props.checked },
+        props: { label: node.props.label, checked: node.props.checked, ...(node.props.fieldStyle ? { fieldStyle: node.props.fieldStyle } : {}) },
       };
     case 'radio':
       return {
@@ -603,7 +604,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, checked: node.props.checked, ...(node.props.controlsTheme ? { controlsTheme: true } : {}) },
+        props: { label: node.props.label, checked: node.props.checked, ...(node.props.controlsTheme ? { controlsTheme: true } : {}), ...(node.props.fieldStyle ? { fieldStyle: node.props.fieldStyle } : {}) },
       };
     case 'dropdown':
       return {
@@ -614,7 +615,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, placeholder: node.props.placeholder, options: [...node.props.options], selectedIndex: node.props.selectedIndex, ...(node.props.presentation === 'menu' ? { presentation: 'menu' } : {}) },
+        props: { label: node.props.label, placeholder: node.props.placeholder, options: [...node.props.options], selectedIndex: node.props.selectedIndex, ...(node.props.presentation === 'menu' ? { presentation: 'menu' } : {}), ...(node.props.fieldStyle ? { fieldStyle: node.props.fieldStyle } : {}) },
       };
     case 'slider':
       return {
@@ -867,6 +868,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
           placeholder: dto.props.placeholder,
           inputType: dto.props.inputType ?? 'text',
           multiline: dto.props.multiline ?? false,
+          ...(dto.props.fieldStyle ? { fieldStyle: dto.props.fieldStyle } : {}),
         },
       };
     case 'checkbox':
@@ -878,7 +880,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { label: dto.props.label, checked: dto.props.checked },
+        props: { label: dto.props.label, checked: dto.props.checked, ...(dto.props.fieldStyle ? { fieldStyle: dto.props.fieldStyle } : {}) },
       };
     case 'radio':
       return {
@@ -900,7 +902,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { label: dto.props.label, checked: dto.props.checked, ...(dto.props.controlsTheme ? { controlsTheme: true } : {}) },
+        props: { label: dto.props.label, checked: dto.props.checked, ...(dto.props.controlsTheme ? { controlsTheme: true } : {}), ...(dto.props.fieldStyle ? { fieldStyle: dto.props.fieldStyle } : {}) },
       };
     case 'dropdown':
       return {
@@ -911,7 +913,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { label: dto.props.label, placeholder: dto.props.placeholder, options: [...dto.props.options], selectedIndex: dto.props.selectedIndex, ...(dto.props.presentation === 'menu' ? { presentation: 'menu' } : {}) },
+        props: { label: dto.props.label, placeholder: dto.props.placeholder, options: [...dto.props.options], selectedIndex: dto.props.selectedIndex, ...(dto.props.presentation === 'menu' ? { presentation: 'menu' } : {}), ...(dto.props.fieldStyle ? { fieldStyle: dto.props.fieldStyle } : {}) },
       };
     case 'slider':
       return {
