@@ -16,15 +16,12 @@ function renderTopBar(overrides: Record<string, unknown> = {}) {
   const props = {
     projectName: 'My App',
     onRenameProject: vi.fn().mockResolvedValue(undefined),
-    mode: 'design' as const,
-    onModeChange: vi.fn(),
     canUndo: false,
     canRedo: false,
     onUndo: vi.fn(),
     onRedo: vi.fn(),
     onPreview: vi.fn(),
     onDeploy: vi.fn(),
-    onBack: vi.fn(),
     saving: autosave(),
     validation: validateProject({ screens: [] }),
     ...overrides,
@@ -34,20 +31,25 @@ function renderTopBar(overrides: Record<string, unknown> = {}) {
 }
 
 describe('EditorTopBar', () => {
-  it('wires chrome actions: exit work, preview, deploy, undo, redo', () => {
+  it('wires chrome actions: preview, deploy, undo, redo', () => {
     const props = renderTopBar({ canUndo: true, canRedo: true });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Exit work' }));
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     fireEvent.click(screen.getByRole('button', { name: 'Deploy' }));
     fireEvent.click(screen.getByLabelText('Undo'));
     fireEvent.click(screen.getByLabelText('Redo'));
 
-    expect(props.onBack).toHaveBeenCalledTimes(1);
     expect(props.onPreview).toHaveBeenCalledTimes(1);
     expect(props.onDeploy).toHaveBeenCalledTimes(1);
     expect(props.onUndo).toHaveBeenCalledTimes(1);
     expect(props.onRedo).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the Novy logo instead of an Exit work button', () => {
+    renderTopBar();
+
+    expect(screen.getByRole('img', { name: 'Novy' })).toHaveAttribute('src', expect.stringContaining('novy-logo'));
+    expect(screen.queryByRole('button', { name: 'Exit work' })).not.toBeInTheDocument();
   });
 
   it('disables undo/redo when history is empty', () => {
@@ -57,16 +59,11 @@ describe('EditorTopBar', () => {
     expect(screen.getByLabelText('Redo')).toBeDisabled();
   });
 
-  it('switches editor modes with pressed states', () => {
-    const props = renderTopBar({ mode: 'design' });
+  it('does not duplicate workspace navigation from the activity rail', () => {
+    renderTopBar();
 
-    const group = screen.getByRole('group', { name: 'Editor mode' });
-    expect(group).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'design' })).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.click(screen.getByRole('button', { name: 'logic' }));
-
-    expect(props.onModeChange).toHaveBeenCalledWith('logic');
+    expect(screen.queryByRole('group', { name: 'Editor mode' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'design' })).not.toBeInTheDocument();
   });
 
   it('renames the project inline through the form', async () => {

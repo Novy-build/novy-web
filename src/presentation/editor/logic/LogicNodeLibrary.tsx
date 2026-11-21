@@ -10,6 +10,7 @@ import {
   type LogicNodeCategory,
 } from './logicNodeRegistry';
 import { PanelCollapseButton } from '../PanelCollapseControl';
+import { LogicNodeIcon, logicNodeIconKey } from './LogicNodeIcons';
 
 const CATEGORY_ORDER: readonly LogicNodeCategory[] = [
   'Components',
@@ -128,7 +129,7 @@ export function LogicNodeLibrary({
                        onDragStart={(event) => beginDrag(event, definition)}
                       type="button"
                     >
-                      <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-50 text-xs font-semibold text-brand-700">{definition.icon}</span>
+                      <LogicNodeIcon iconKey={logicNodeIconKey(definition.id)} />
                       <span className="min-w-0">
                         <span className="block text-xs font-semibold text-ink">{definition.label}</span>
                         <span className="mt-0.5 block text-[10px] leading-snug text-ink-muted">{definition.description}</span>

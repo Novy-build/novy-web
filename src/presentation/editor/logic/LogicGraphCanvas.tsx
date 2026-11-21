@@ -20,6 +20,7 @@ import {
   resourceOutputPortsFor,
 } from '@domain/logic/graph';
 import { logicNodeTitle } from './logicLabels';
+import { LogicNodeIcon, logicNodeIconKeyForGraphNode } from './LogicNodeIcons';
 import {
   LOGIC_NODE_MIME,
   logicNodeDefinition,
@@ -384,7 +385,7 @@ export function LogicGraphCanvas({
 
             <button
               aria-label={canvasNodeTitle(node, graph.sourceNodeId, targetLabelFor)}
-              className="h-full w-full rounded-panel p-3 text-left"
+              className="flex h-full w-full items-start gap-2 rounded-panel p-3 text-left"
               data-testid={`logic-node-${node.id}`}
               onClick={() => {
                 setSelectedEdgeId(null);
@@ -392,9 +393,12 @@ export function LogicGraphCanvas({
               }}
               type="button"
             >
-              <span className="block text-sm font-semibold text-ink">{canvasNodeTitle(node, graph.sourceNodeId, targetLabelFor)}</span>
-              <span className="mt-1 block truncate text-xs text-ink-muted">
-                {detailFor(node, targetLabelFor, screenNameFor, fieldLabelFor)}
+              <LogicNodeIcon iconKey={logicNodeIconKeyForGraphNode(node)} />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink">{canvasNodeTitle(node, graph.sourceNodeId, targetLabelFor)}</span>
+                <span className="mt-1 block truncate text-xs text-ink-muted">
+                  {detailFor(node, targetLabelFor, screenNameFor, fieldLabelFor)}
+                </span>
               </span>
             </button>
 

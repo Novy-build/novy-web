@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-20
+**Last reviewed:** 2026-11-21
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -50,7 +50,7 @@ completed production backend integrations.
 - [x] `/projects` — protected projects dashboard.
 - [x] `/published` — protected owner-wide published applications overview.
 - [x] `/project/:projectId/editor` — protected visual editor.
-- [x] `/project/:projectId/deploy` — protected deployment screen.
+- [x] `/project/:projectId/deploy` — protected, focused deployment screen without the global sidebar.
 - [x] `/project/:projectId` — redirects to the project editor.
 - [x] Unknown routes redirect to the projects dashboard.
 
@@ -72,7 +72,8 @@ completed production backend integrations.
 - [x] Responsive application shell.
 - [x] Collapsible sidebar with persisted collapsed state.
 - [x] **Published** sidebar entry linking to the owner-wide published applications overview.
-- [x] Project-aware links to the editor and deployment screen.
+- [x] Editor and deployment routes use focused project layouts outside the dashboard shell; each
+  provides explicit navigation back to the appropriate project or dashboard context.
 - [x] Light and dark theme toggle with persisted preference and system-theme support.
 - [x] Desktop login brand panel with a code-split, interactive isometric Three.js illustration of
   the build -> wire -> publish flow; Novy purple in both themes, decorative/aria-hidden, lazy
@@ -166,7 +167,12 @@ exist only in this browser.
 
 - [x] A project document can contain multiple screens.
 - [x] Add, select, rename, and delete screens.
-- [x] Screen tabs in the editor with reserved label spacing for each tab's options control.
+- [x] VS Code-style open-screen tabs with a non-destructive close action; closing a tab never deletes
+  its project screen, and selecting the screen from the sidebar reopens it.
+- [x] VS Code-inspired empty editor welcome surface when no tabs remain, with the Novy watermark and
+  actions for Screens, new-screen creation, and the assistant.
+- [x] A searchable Screens list in the editor sidebar with a three-dot management menu for Rename and
+  Delete, synced with open tabs for selection and reopening.
 - [x] Each screen owns its component tree, behaviors, and logic graphs.
 - [x] Each screen persists an explicit, editable, project-unique web route path.
 - [x] Screen navigation actions can reference another screen.
@@ -754,12 +760,20 @@ Record identity and routing are explicit in that handoff:
 ### Editor shell
 
 - [x] Design, Logic, and Data workspaces.
-- [x] Clearly labeled **Exit work** navigation from the editor back to the projects page.
+- [x] Novy logo in the editor header and a persistent **Home** action at the bottom of the activity
+  rail for returning to the Projects dashboard.
 - [x] Inline project renaming.
 - [x] Saving, saved, unsaved, and retryable save-failure status feedback.
 - [x] Project validation badge.
 - [x] Undo and redo controls.
 - [x] Preview and Deploy actions.
+- [x] Far-left activity rail as the single navigation for mutually exclusive Screens, Layers, and
+  Assets sidebar views plus Logic and Data modes; duplicate top mode controls, nested tabs, and the
+  Inspector's second Layers tree are removed.
+- [x] Design sidebar collapse from its header chevron or repeated active rail selection, with the rail
+  remaining as the only restore control and no extra minimized column.
+- [x] Compact, collapsible Figma-style Inspector sections (Style, Position, Layout, Appearance,
+  Behavior, and app-style sections) that keep every existing field, label, and action unchanged.
 
 ### Component palette and renderer
 
@@ -978,6 +992,8 @@ Production workflow execution remains a generated-app/backend responsibility.
 - [x] Independently scrollable Logic node catalog with a non-overlapping minimize control.
 - [x] Independently collapsible Logic node groups, including consolidated RAG Nodes and Computer
   Vision sections.
+- [x] Distinct Lucide icons for every Logic node, shown in both the library and the graph canvas,
+  using the same plain muted icon style as the component palette.
 - [x] Pannable and zoomable dotted graph canvas.
 - [x] Fit-view and zoom controls.
 - [x] Add nodes by clicking or dragging from the node library.
@@ -1167,7 +1183,10 @@ remains blocked until a production provider is explicitly selected and implement
   keyboard focus reveals a portaled tooltip with a short explanation and an **Ask Novy about this**
   action that opens the assistant in help mode with a prepared documentation question. A central
   field-help registry supplies curated copy for common fields and generic fallback copy elsewhere;
-  the affordance is suppressed outside the editor.
+  the affordance is suppressed outside the editor. Dropdown fields additionally list their live
+  choices with use cases in a scrollable **Choices** section; static option labels are curated in a
+  shared dictionary, dynamic pickers explain the category and show up to five current values, and
+  custom pickers such as the font selector supply explicit choices.
 - [x] Assistant generation/help requests use a dedicated five-minute browser timeout rather than the
   shared 30-second API limit, allowing remote structured generation and repair to finish while
   retaining provider-neutral timeout feedback.
@@ -1545,6 +1564,17 @@ Verified on 2026-11-20 for lifted 3D stage focus:
 - `npm run typecheck` — passed; focused illustration/auth suites — 59 tests passed.
 - `npm test -- --maxWorkers=2 --testTimeout=20000` — 134 files / 1,076 tests passed.
 - `npm run build` — passed.
+
+Verified on 2026-11-21 for dropdown choices in field help:
+
+- `npm run typecheck` — passed.
+- `npm run build` — passed.
+- `npm test -- --maxWorkers=2 --testTimeout=20000` — 137 test files / 1,102 tests passed.
+- Focused UI/editor suites: 42 test files / 317 tests passed.
+- New tests cover sibling-label, wrapping-label, and fieldset option discovery, curated and fallback
+  option copy, the five-value cap for dynamic pickers, explicit combobox choices, and the ListView
+  Data source case from the handoff screenshot. A source audit confirmed all 69 static option labels
+  have curated explanations.
 
 Verified on 2026-11-20 for per-field editor help:
 

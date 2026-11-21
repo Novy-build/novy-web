@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Screen } from '@domain/entities/screen';
 import { ScreenTabs } from './ScreenTabs';
@@ -14,8 +14,7 @@ function renderTabs(overrides: Record<string, unknown> = {}) {
     activeScreenId: 'screen_home',
     onSelectScreen: vi.fn(),
     onAddScreen: vi.fn(),
-    onRenameScreen: vi.fn(),
-    onDeleteScreen: vi.fn(),
+    onCloseScreen: vi.fn(),
     ...overrides,
   };
   render(<ScreenTabs {...props} />);
@@ -23,19 +22,19 @@ function renderTabs(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ScreenTabs', () => {
-  it('renders one tab per screen with the active one marked', () => {
+  it('renders one open tab per screen with the active one marked', () => {
     renderTabs();
 
-    const active = screen.getByRole('button', { name: 'Home' });
-    expect(active).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('button', { name: 'Home' })).toHaveAttribute('aria-current', 'true');
     expect(screen.getByRole('button', { name: 'About' })).not.toHaveAttribute('aria-current');
   });
 
-  it('reserves space between each screen name and its options control', () => {
+  it('reserves space for a close control instead of a management menu', () => {
     renderTabs();
 
-    expect(screen.getByRole('button', { name: 'Home' })).toHaveClass('pl-3', 'pr-12');
-    expect(screen.getByRole('button', { name: 'Screen options for Home' })).toHaveClass('right-1', 'w-8');
+    expect(screen.getByRole('button', { name: 'Home' })).toHaveClass('pl-3', 'pr-10');
+    expect(screen.getByRole('button', { name: 'Close tab Home' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Screen options for Home' })).not.toBeInTheDocument();
   });
 
   it('selects and adds screens', () => {
@@ -48,47 +47,12 @@ describe('ScreenTabs', () => {
     expect(props.onAddScreen).toHaveBeenCalledTimes(1);
   });
 
-  it('renames through the tab menu', () => {
+  it('closes an editor tab without exposing a delete action', () => {
     const props = renderTabs();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Screen options for Home' }));
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Menu for Home' })).getByRole('menuitem', { name: 'Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close tab About' }));
 
-    const input = screen.getByLabelText('Screen name');
-    expect(input).toHaveValue('Home');
-    fireEvent.change(input, { target: { value: 'Overview' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-
-    expect(props.onRenameScreen).toHaveBeenCalledWith('screen_home', 'Overview');
-  });
-
-  it('cancels rename on Escape without saving', () => {
-    const props = renderTabs();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Screen options for Home' }));
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Menu for Home' })).getByRole('menuitem', { name: 'Rename' }));
-    fireEvent.change(screen.getByLabelText('Screen name'), { target: { value: 'Overview' } });
-    fireEvent.keyDown(screen.getByLabelText('Screen name'), { key: 'Escape' });
-
-    expect(props.onRenameScreen).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText('Screen name')).not.toBeInTheDocument();
-  });
-
-  it('deletes a screen from its menu when others remain', () => {
-    const props = renderTabs();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Screen options for About' }));
-    const deleteItem = screen.getByRole('menuitem', { name: 'Delete screen' });
-    fireEvent.click(deleteItem);
-
-    expect(props.onDeleteScreen).toHaveBeenCalledWith('screen_about');
-  });
-
-  it('disables delete while a single screen remains', () => {
-    renderTabs({ screens: [SCREENS[0]] });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Screen options for Home' }));
-
-    expect(screen.getByRole('menuitem', { name: 'Delete screen' })).toBeDisabled();
+    expect(props.onCloseScreen).toHaveBeenCalledWith('screen_about');
+    expect(screen.queryByRole('menuitem', { name: 'Delete screen' })).not.toBeInTheDocument();
   });
 });

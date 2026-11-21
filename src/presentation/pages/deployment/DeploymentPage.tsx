@@ -80,7 +80,7 @@ export function DeploymentPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-col bg-canvas">
+    <div className="flex min-h-dvh flex-col bg-canvas">
       <header className="border-b border-hairline bg-surface px-6 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -103,7 +103,7 @@ export function DeploymentPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8" id="main-content">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-ink">Publish your app</h1>

@@ -157,7 +157,11 @@ export function FontFamilyPicker({
     } as CSSProperties : undefined}>
       <div className="flex items-center gap-1.5">
         <label className="text-xs font-medium text-ink-muted" htmlFor={buttonId} id={`${buttonId}-label`}>{label}</label>
-        <FieldHelp helpKey={name} label={label} />
+        <FieldHelp
+          helpKey={name}
+          helpOptions={options.map((option) => ({ label: option.label }))}
+          label={label}
+        />
       </div>
       <button
         aria-activedescendant={open ? `${listboxId}-option-${activeIndex}` : undefined}

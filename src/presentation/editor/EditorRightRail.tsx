@@ -19,22 +19,20 @@ export function EditorRightRail({
       aria-label={showInspectorTab && isInspectorCollapsed ? 'inspector panel minimized' : 'AI assistant panel'}
       className="flex w-11 shrink-0 flex-col items-center border-l border-hairline bg-surface"
     >
-      {showInspectorTab ? (
+      {showInspectorTab && isInspectorCollapsed ? (
         <>
-          {isInspectorCollapsed ? (
-            <PanelCollapseButton
-              controls="design-inspector-panel"
-              isCollapsed
-              label="inspector panel"
-              onToggle={onInspectorToggle}
-              side="right"
-            />
-          ) : null}
+          <PanelCollapseButton
+            controls="design-inspector-panel"
+            isCollapsed
+            label="inspector panel"
+            onToggle={onInspectorToggle}
+            side="right"
+          />
           <button
             aria-label="inspector panel"
             className="flex w-full flex-1 items-center justify-center py-3 text-ink-muted transition-colors hover:bg-canvas hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500"
             onClick={onInspectorToggle}
-            title={isInspectorCollapsed ? 'Expand inspector panel' : 'Collapse inspector panel'}
+            title="Expand inspector panel"
             type="button"
           >
             <span className="rotate-180 text-[10px] font-semibold uppercase tracking-widest [writing-mode:vertical-rl]">

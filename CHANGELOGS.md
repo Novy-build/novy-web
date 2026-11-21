@@ -5,6 +5,143 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-21 — Custom SVG icons for Logic nodes
+
+#### Added
+- Every Logic node now has a distinct Lucide icon instead of a plain text glyph. The same icon
+  component is used by the node library palette and by nodes on the Logic graph canvas.
+- Icons are rendered with the same plain, muted style as the component palette — no tinted or
+  gradient container — so the icon language stays consistent across the editor.
+- Dynamic contextual nodes (component triggers, current-item actions) resolve to the matching icon
+  with a neutral fallback for unknown ids.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- Full suite passed (141 files / 1,125 tests with `--maxWorkers=2 --testTimeout=20000`);
+  focused Logic node library and graph canvas suites passed (2 files / 21 tests).
+
+### 2026-11-21 — Editor Home navigation and brand header
+
+#### Changed
+- Replaced the editor top bar's **Exit work** button with the Novy logo, keeping the project name and
+  save status as the header's primary context.
+- Added a persistent **Home** action at the bottom of the editor activity rail. It is now the single
+  explicit way to leave the editor for the Projects dashboard, separated from Screens, Layers,
+  Assets, Logic, and Data workspace controls.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- Full suite passed (141 files / 1,123 tests with `--maxWorkers=2 --testTimeout=20000`);
+  focused top-bar, activity-rail, and editor route suites passed (3 files / 30 tests).
+
+### 2026-11-21 — Focused deployment screen
+
+#### Changed
+- Moved `/project/:projectId/deploy` out of the global application shell. Deployment now uses its own
+  full-width project header and no longer shows the Projects/Published/Templates sidebar, account
+  controls, or new-project shortcut while a user is publishing the current project.
+- Removed unreachable project-specific Editor/Deployments rows from the global sidebar. Deployment
+  retains both its back arrow and explicit **Return to editor** action.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- Full suite passed (141 files / 1,120 tests with `--maxWorkers=2 --testTimeout=20000`);
+  focused application-shell, sidebar, and deployment suites passed (3 files / 20 tests).
+
+### 2026-11-21 — Empty editor welcome surface and Novy logo
+
+#### Added
+- A VS Code-inspired empty editor surface appears after all screen tabs are closed. It uses a subtle
+  Novy logo watermark and provides direct actions to open the Screens sidebar, create a screen, or
+  open the Novy assistant; the route bar and canvas stay hidden until a screen is reopened.
+- The user-provided transparent Novy logo is now a source-controlled presentation asset, copied from
+  `dist/novy-logo/novy-logo-no-bg.png` so production builds cannot remove the source file.
+
+#### Changed
+- Replaced the letter `N` badge in the primary application sidebar with the supplied Novy logo while
+  preserving the existing compact and expanded sidebar layouts.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- Full suite passed (141 files / 1,121 tests with `--maxWorkers=2 --testTimeout=20000`);
+  focused empty-editor, editor integration, and application-sidebar suites passed (3 files / 27 tests).
+
+### 2026-11-21 — VS Code-style screen tabs
+
+#### Changed
+- Interchanged the screen-row and tab controls: canvas tabs now use an `×` close action, while sidebar
+  screen rows use a `⋮` management menu containing Rename and Delete.
+- Closing a canvas tab only removes it from the current editor tab strip. It does not mutate or delete
+  the project screen. Selecting that screen from the searchable sidebar reopens its tab and focuses it.
+- Closing the active tab focuses an adjacent open tab when available; newly created screens open
+  automatically. Actual deletion remains explicit and protected in the sidebar menu.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- Full suite passed (140 files / 1,118 tests with `--maxWorkers=2 --testTimeout=20000`);
+  focused screen-tab, screen-sidebar, and editor integration suites passed (3 files / 25 tests).
+
+### 2026-11-21 — Remove duplicate editor navigation and panels
+
+#### Changed
+- The left activity rail is now the single navigation for Screens, Layers, Assets, Logic, and Data;
+  the duplicate Design/Logic/Data top switch and nested Layers/Assets tabs were removed.
+- Screens, Layers, and Assets now render as mutually exclusive sidebar views instead of stacking the
+  Screens list above another selected view.
+- Removed the duplicate Layers tree from the bottom of the Inspector. Layers remain available in the
+  dedicated left-rail view, while Inspector properties and Validation retain the right panel.
+- Removed the design sidebar's collapse/restore column, which duplicated the persistent activity rail.
+  The right-edge Inspector label is also hidden while the Inspector is open and appears only as a
+  restore control when it is collapsed.
+- The selected design sidebar can now be collapsed with the chevron in its header or by clicking its
+  active Screens/Layers/Assets rail item again. Repeating the rail click restores the same view without
+  introducing a minimized-sidebar column.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- Full suite passed (140 files / 1,120 tests with `--maxWorkers=2 --testTimeout=20000`);
+  focused sidebar and editor integration suites passed (3 files / 24 tests).
+
+### 2026-11-21 — IDE × Figma editor layout refresh
+
+#### Added
+- A far-left activity rail with Screens, Layers, and Assets sections plus Logic and Data modes, using
+  existing editor actions only.
+- A searchable Screens section above the Layers/Assets views in the editor sidebar. It selects, adds,
+  renames, and deletes screens through the same actions as the canvas tab strip, which remains in place
+  and stays in sync.
+- Compact, collapsible Figma-style inspector sections (Style, Position, Layout, Appearance, Behavior,
+  and the app-style sections). Every existing field, label, name, and dispatch action is unchanged.
+
+#### Changed
+- Inspector labels now share the `inspector-section-label` token class; section spacing and dividers
+  come from existing hairline/ink tokens. The current visual theme is unchanged.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- Full suite passed (139 files / 1,118 tests with `--maxWorkers=2 --testTimeout=20000`).
+  New tests cover the activity rail, sidebar screen list, and inspector section behavior; the
+  EditorPage integration query was updated for the screen name appearing in both views.
+
+### 2026-11-21 — Dropdown choices in field help
+
+#### Added
+- The `?` tooltip for dropdown fields now lists every available choice with a plain-language use case,
+  in a scrollable **Choices** section. Native selects are read from their associated label (wrapping,
+  `htmlFor`, or `fieldset`), so new options appear automatically; custom font pickers pass their choices
+  explicitly.
+- A shared option-help dictionary covers all static dropdown labels used by the editors, with
+  category-level copy for dynamic values (collections, components, fields, fonts). Dynamic pickers show
+  up to five current values with a "+N more" hint.
+- Curated notes were added for ambiguous fields such as Data source, Input type, and action input
+  mappings, and label keys were normalized so multi-word field lookups resolve correctly.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- Full suite passed (137 files / 1,102 tests with `--maxWorkers=2 --testTimeout=20000`); focused
+  editor/UI suites (42 files / 317 tests) passed. New tests cover option discovery, curated and
+  fallback option copy, dynamic value capping, and the ListView Data source help case.
+
 ### 2026-11-20 — Published applications section
 
 #### Added

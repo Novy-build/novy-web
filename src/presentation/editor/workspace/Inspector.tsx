@@ -42,6 +42,7 @@ import { colorTokenCssValue, normalizeDesignSystem } from '@domain/entities/desi
 import type { Screen } from '@domain/entities/screen';
 import { DesignSystemInspector } from './DesignSystemInspector';
 import { FontFamilyPicker } from './FontFamilyPicker';
+import { InspectorSection } from './InspectorSection';
 
 interface InspectorProps {
   node: ComponentNode | null;
@@ -212,7 +213,7 @@ function PropertyBindingControls({
 }) {
   return (
     <div className="mt-4 grid gap-3 border-t border-hairline pt-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+      <p className="inspector-section-label">
         Item data{sourceName ? ` · ${sourceName}` : ''}
       </p>
       <p className="text-xs text-ink-muted">Choose a field from each item, or keep a fixed value.</p>
@@ -270,7 +271,7 @@ export function Inspector({
 }: InspectorProps) {
   if (itemFrame && candidate?.id === itemFrame.id) {
     return (
-      <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
+      <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline px-4 py-3">
         <ItemFrameSection
           collection={itemCollection}
           itemFrame={itemFrame}
@@ -290,7 +291,7 @@ export function Inspector({
       return <DesignSystemInspector designSystem={designSystem} onAction={onAction} screen={screen} />;
     }
     return (
-      <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
+      <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline px-4 py-3">
         <h2 className="text-sm font-semibold text-ink">Inspector</h2>
         <p className="mt-2 text-sm text-ink-muted">
           Select a component on the canvas to edit its content, layout, and appearance.
@@ -353,10 +354,10 @@ export function Inspector({
   }
 
   return (
-    <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
+    <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline px-4 py-3">
       <h2 className="text-sm font-semibold text-ink">{NODE_TYPE_LABELS[node.type]}</h2>
 
-      <div className="mt-4 grid gap-2 rounded-tile border border-hairline p-3">
+      <InspectorSection title="Style">
         <label className="grid gap-1 text-xs font-medium text-ink-muted">
           <FieldHelpLabel label="Reusable style" />
           <select
@@ -441,11 +442,11 @@ export function Inspector({
             </>
           ) : null}
         </div>
-      </div>
+      </InspectorSection>
 
       {node.type === 'button' ? (
         <div className="mt-4 grid gap-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <TextInput
             label="Button label"
             name="inspector-button-label"
@@ -503,7 +504,7 @@ export function Inspector({
 
       {node.type === 'text' ? (
         <div className="mt-4 grid gap-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <TextInput
             label="Text content"
             name="inspector-text-content"
@@ -618,7 +619,7 @@ export function Inspector({
 
       {node.type === 'icon' ? (
         <div className="mt-4 grid gap-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Icon</p>
+          <p className="inspector-section-label">Icon</p>
           <label className="grid gap-1 text-xs font-medium text-ink-muted">
             <FieldHelpLabel label="Symbol" />
             <select
@@ -655,7 +656,7 @@ export function Inspector({
 
       {node.type === 'input' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <TextInput
             disabled={node.props.showLabel === false}
             label="Field label"
@@ -707,7 +708,7 @@ export function Inspector({
 
       {node.type === 'image' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <TextInput
             label="Image URL"
             name="inspector-image-src"
@@ -725,7 +726,7 @@ export function Inspector({
 
       {node.type === 'gesture-detector' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Interaction</p>
+          <p className="inspector-section-label">Interaction</p>
           <TextInput
             label="Accessible action label"
             name="inspector-gesture-label"
@@ -742,7 +743,7 @@ export function Inspector({
 
       {node.type === 'camera' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Camera</p>
+          <p className="inspector-section-label">Camera</p>
           <TextInput
             label="Camera label"
             name="inspector-camera-label"
@@ -789,7 +790,7 @@ export function Inspector({
 
       {node.type === 'file-input' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">File input</p>
+          <p className="inspector-section-label">File input</p>
           <TextInput label="Label" name="inspector-file-label" onChange={(event) => onAction({ type: 'node/props-file-input', nodeId: node.id, props: { label: event.target.value } })} value={node.props.label} />
           <TextInput label="Helper text" name="inspector-file-helper" onChange={(event) => onAction({ type: 'node/props-file-input', nodeId: node.id, props: { helperText: event.target.value } })} value={node.props.helperText} />
           <p className="text-xs text-ink-muted">Text, Markdown, HTML, and PDF are extracted by the runtime; original bytes are discarded.</p>
@@ -798,7 +799,7 @@ export function Inspector({
 
       {node.type === 'chat' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Chat</p>
+          <p className="inspector-section-label">Chat</p>
           <TextInput label="Title" name="inspector-chat-title" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { title: event.target.value } })} value={node.props.title} />
           <TextInput label="Composer placeholder" name="inspector-chat-placeholder" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { placeholder: event.target.value } })} value={node.props.placeholder} />
           <TextInput label="Send button label" name="inspector-chat-send" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { sendLabel: event.target.value } })} value={node.props.sendLabel} />
@@ -812,7 +813,7 @@ export function Inspector({
 
       {node.type === 'column' || node.type === 'row' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Axis layout</p>
+          <p className="inspector-section-label">Axis layout</p>
           <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-main-axis"><FieldHelpLabel label="Main axis alignment" /></label>
           <select
             className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -879,7 +880,7 @@ export function Inspector({
 
       {node.type === 'listview' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">ListView</p>
+          <p className="inspector-section-label">ListView</p>
           <button
             className="min-h-11 rounded-tile bg-brand-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
             id={`edit-item-template-${node.id}`}
@@ -1064,7 +1065,7 @@ export function Inspector({
 
       {node.type === 'checkbox' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <TextInput
             label="Label"
             name="inspector-checkbox-label"
@@ -1088,7 +1089,7 @@ export function Inspector({
 
       {node.type === 'radio' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <TextInput
             label="Label"
             name="inspector-radio-label"
@@ -1117,7 +1118,7 @@ export function Inspector({
 
       {node.type === 'switch' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <TextInput
             label="Label"
             name="inspector-switch-label"
@@ -1150,7 +1151,7 @@ export function Inspector({
 
       {node.type === 'dropdown' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-dropdown-presentation"><FieldHelpLabel label="Presentation" /></label>
           <select
             className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -1200,7 +1201,7 @@ export function Inspector({
 
       {node.type === 'slider' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <TextInput
             label="Label"
             name="inspector-slider-label"
@@ -1252,7 +1253,7 @@ export function Inspector({
 
       {node.type === 'progress' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <TextInput
             label="Label"
             name="inspector-progress-label"
@@ -1282,7 +1283,7 @@ export function Inspector({
 
       {node.type === 'divider' ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-divider-orientation"><FieldHelpLabel label="Orientation" /></label>
           <select
             className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
@@ -1308,16 +1309,12 @@ export function Inspector({
 
       {node.type === 'container' ? (
         <div className="mt-4">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Content</p>
+          <p className="inspector-section-label">Content</p>
           <p className="text-sm text-ink-muted">Containers keep free-form child positioning.</p>
         </div>
       ) : null}
 
-      <div aria-label="Layout" className="mt-6">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Layout</p>
-        <p className="mb-2 text-xs text-ink-muted">
-          {device === 'mobile' ? 'Base mobile geometry' : `${device} override (inherits mobile until edited)`}
-        </p>
+      <InspectorSection title="Position">
         <div className="grid grid-cols-2 gap-2">
           <TextInput
             label="X"
@@ -1333,6 +1330,14 @@ export function Inspector({
             type="number"
             value={effectiveGeometry.y}
           />
+        </div>
+      </InspectorSection>
+
+      <InspectorSection title="Layout">
+        <p className="text-xs text-ink-muted">
+          {device === 'mobile' ? 'Base mobile geometry' : `${device} override (inherits mobile until edited)`}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
           <TextInput
             label="Width"
             name="inspector-geometry-w"
@@ -1353,10 +1358,9 @@ export function Inspector({
             Reset responsive overrides
           </button>
         ) : null}
-      </div>
+      </InspectorSection>
 
-      <div className="mt-6">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Appearance</p>
+      <InspectorSection title="Appearance">
         <label className="mb-3 grid gap-1 text-xs font-medium text-ink-muted">
           <FieldHelpLabel label="Quick background token" />
           <select
@@ -1576,10 +1580,9 @@ export function Inspector({
             value={node.props.fit}
           />
         ) : null}
-      </div>
+      </InspectorSection>
 
-      <div className="mt-6">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Behavior</p>
+      <InspectorSection title="Behavior">
         {behaviors.some((behavior) => behavior.targetNodeId === node.id) ? (
           <ul className="mb-2 grid gap-1" data-testid="bound-behaviors">
             {behaviors
@@ -1601,7 +1604,7 @@ export function Inspector({
         >
           Open Logic mode
         </button>
-      </div>
+      </InspectorSection>
     </section>
   );
 }
@@ -1753,7 +1756,7 @@ function ItemFrameSection({
 }) {
   return (
     <div className="mb-4 rounded-tile border border-hairline p-3">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Item frame</p>
+      <p className="inspector-section-label">Item frame</p>
       <p className="mb-2 text-xs text-ink-muted">Applies to every repeated item.</p>
       {collection ? (
         <RecordIdentifierField

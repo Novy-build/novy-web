@@ -34,6 +34,14 @@ function renderCanvas(graph: LogicGraph = graphWithOrphan()) {
 }
 
 describe('LogicGraphCanvas', () => {
+  it('renders the matching custom icon on each graph node', () => {
+    renderCanvas();
+
+    expect(screen.getByTestId('logic-node-icon-trigger-click')).toBeInTheDocument();
+    expect(screen.getByTestId('logic-node-icon-show-message')).toBeInTheDocument();
+    expect(screen.getByTestId('logic-node-icon-show-message').tagName.toLowerCase()).toBe('svg');
+  });
+
   it('connects ports through the keyboard-accessible output/input controls', () => {
     const graph = graphWithOrphan();
     const props = renderCanvas(graph);

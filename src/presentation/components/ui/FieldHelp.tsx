@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useId, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowUpRight, CircleHelp } from 'lucide-react';
-import { getFieldHelp } from './fieldHelpContent';
+import { describeOption, getFieldHelp, hasCuratedOptionHelp, type FieldHelpOption } from './fieldHelpContent';
 
 /** Supplied by the editor so field help can open the in-app documentation assistant. */
 export interface FieldHelpEnvironment {
@@ -18,6 +18,8 @@ export interface FieldHelpProps {
   helpKey?: string;
   editor?: string;
   onAskNovy?: (query: string) => void;
+  /** Choices for custom controls that do not expose native <option> elements. */
+  helpOptions?: readonly { label: string }[];
   className?: string;
 }
 
@@ -27,7 +29,7 @@ interface TooltipPosition {
   placement: 'top' | 'bottom';
 }
 
-const TOOLTIP_WIDTH = 272;
+const TOOLTIP_WIDTH = 300;
 const VIEWPORT_GAP = 8;
 
 /**
@@ -40,6 +42,7 @@ export function FieldHelp({
   helpKey,
   editor,
   onAskNovy,
+  helpOptions,
   className,
 }: FieldHelpProps) {
   const environment = useContext(FieldHelpEnvironmentContext);
@@ -48,10 +51,37 @@ export function FieldHelp({
   const tooltipId = useId();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [options, setOptions] = useState<readonly { label: string }[]>([]);
   const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0, placement: 'top' });
   const rootRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen || helpOptions) return;
+
+    function readNativeOptions(): readonly { label: string }[] {
+      const trigger = triggerRef.current;
+      if (!trigger) return [];
+      const label = trigger.closest('label');
+      let select: HTMLSelectElement | null = null;
+      if (label) {
+        const htmlFor = label.getAttribute('for');
+        const control = htmlFor ? document.getElementById(htmlFor) : label.querySelector('select');
+        if (control instanceof HTMLSelectElement) select = control;
+      }
+      if (!select) {
+        const control = trigger.closest('fieldset')?.querySelector('select');
+        if (control instanceof HTMLSelectElement) select = control;
+      }
+      if (!select) return [];
+      return Array.from(select.options).map((option) => ({
+        label: option.label.trim() || option.value,
+      }));
+    }
+
+    setOptions(readNativeOptions());
+  }, [helpOptions, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -81,7 +111,7 @@ export function FieldHelp({
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
-  }, [isOpen]);
+  }, [isOpen, options.length]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -103,6 +133,14 @@ export function FieldHelp({
   }
 
   const docsQuery = content.docsQuery ?? `What is “${label}” used for?`;
+  const resolvedOptions: FieldHelpOption[] = (helpOptions ?? options).map((option) => ({
+    label: option.label,
+    description: describeOption(option.label, content.dynamicOptionHint),
+  }));
+  const hasDynamicValues = Boolean(content.dynamicOptionHint)
+    && resolvedOptions.some((option) => !hasCuratedOptionHelp(option.label));
+  const visibleOptions = hasDynamicValues ? resolvedOptions.slice(0, 5) : resolvedOptions;
+  const hiddenOptionCount = resolvedOptions.length - visibleOptions.length;
 
   return (
     <span
@@ -153,6 +191,27 @@ export function FieldHelp({
             >
               <p className="text-xs font-semibold text-ink">{label}</p>
               <p className="mt-1 text-xs leading-relaxed text-ink-muted">{content.description}</p>
+              {content.note ? (
+                <p className="mt-1 text-xs leading-relaxed text-ink-muted">{content.note}</p>
+              ) : null}
+              {resolvedOptions.length > 0 ? (
+                <div className="mt-2 border-t border-hairline pt-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Choices</p>
+                  <div className="mt-1 max-h-48 overflow-y-auto pr-1">
+                    <ul className="grid gap-2">
+                      {visibleOptions.map((option) => (
+                        <li key={option.label}>
+                          <p className="text-xs font-medium text-ink">{option.label}</p>
+                          <p className="text-xs leading-relaxed text-ink-muted">{option.description}</p>
+                        </li>
+                      ))}
+                    </ul>
+                    {hiddenOptionCount > 0 ? (
+                      <p className="mt-1 text-xs text-ink-muted">+{hiddenOptionCount} more — Ask Novy for details.</p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
               <button
                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                 onClick={() => {

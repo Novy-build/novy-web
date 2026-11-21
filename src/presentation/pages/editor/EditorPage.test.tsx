@@ -45,6 +45,40 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(screen.getByRole('main', { name: 'Editor' })).toBeInTheDocument();
   });
 
+  it('returns to the projects dashboard from the bottom Home rail action', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    await screen.findByTestId('canvas-frame');
+
+    expect(screen.queryByRole('button', { name: 'Exit work' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Home navigation' }));
+
+    expect(await screen.findByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+  });
+
+  it('closes only the editor tab and reopens the persisted screen from the sidebar', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    await screen.findByTestId('canvas-frame');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close tab Home' }));
+    expect(screen.queryByRole('button', { name: 'Close tab Home' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Empty editor' })).toBeInTheDocument();
+    expect(screen.queryByTestId('canvas-frame')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Open a screen/ }));
+    const screensList = screen.getByRole('list', { name: 'Project screens' });
+    const homeScreen = within(screensList).getByRole('button', { name: 'Home' });
+    expect(homeScreen).toBeInTheDocument();
+
+    fireEvent.click(homeScreen);
+    expect(screen.getByRole('button', { name: 'Close tab Home' })).toBeInTheDocument();
+  });
+
   it('minimizes and restores the design Inspector panel without overlaying its content', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     await ensureDemoProject(repositories);
@@ -56,13 +90,36 @@ describe('EditorPage (integration over the real route tree)', () => {
     expect(collapse).not.toHaveClass('absolute');
     expect(collapse.parentElement).toHaveTextContent('Inspector');
     expect(screen.getByTestId('inspector-properties-region')).toHaveClass('min-h-40', 'overflow-hidden');
-    expect(screen.getByTestId('inspector-layers-region')).toHaveClass('min-h-28', 'overflow-hidden');
+    expect(screen.queryByTestId('inspector-layers-region')).not.toBeInTheDocument();
     fireEvent.click(collapse);
     expect(screen.queryByRole('region', { name: 'Inspector' })).not.toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'inspector panel minimized' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand inspector panel' }));
     expect(screen.getByRole('region', { name: 'Inspector' })).toBeInTheDocument();
+  });
+
+  it('collapses the design sidebar from its header or by repeating the active rail selection', async () => {
+    const repositories = createStubRepositories({ sessionUser: STUB_USER });
+    await ensureDemoProject(repositories);
+    const projects = await repositories.projects.listProjects();
+    renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
+    await screen.findByTestId('canvas-frame');
+
+    const layersButton = screen.getByRole('button', { name: 'Layers section' });
+    expect(screen.getByRole('complementary', { name: 'Editor sidebar' })).toBeInTheDocument();
+    expect(layersButton).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse editor sidebar' }));
+    expect(screen.queryByRole('complementary', { name: 'Editor sidebar' })).not.toBeInTheDocument();
+    expect(layersButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('complementary', { name: 'editor sidebar minimized' })).not.toBeInTheDocument();
+
+    fireEvent.click(layersButton);
+    expect(screen.getByRole('complementary', { name: 'Editor sidebar' })).toBeInTheDocument();
+
+    fireEvent.click(layersButton);
+    expect(screen.queryByRole('complementary', { name: 'Editor sidebar' })).not.toBeInTheDocument();
   });
 
   it('opens the assistant from the right rail and the collapsed inspector label', async () => {
@@ -98,13 +155,13 @@ describe('EditorPage (integration over the real route tree)', () => {
 
     // The demo project ships without workflows; Logic still opens the full
     // node library and dotted canvas instead of a blocking empty-state card.
-    fireEvent.click(screen.getByRole('button', { name: 'logic' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Logic mode' }));
     expect(await screen.findByRole('heading', { name: 'Nodes' })).toBeInTheDocument();
     expect(screen.getByTestId('logic-stage')).toBeInTheDocument();
     expect(screen.getByText(/Add a trigger node from Nodes/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New behavior' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'design' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Layers section' }));
     expect(await screen.findByRole('button', { name: 'Click me' })).toBeInTheDocument();
   });
 
@@ -135,7 +192,7 @@ describe('EditorPage (integration over the real route tree)', () => {
     renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
     await screen.findByTestId('canvas-frame');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'assets' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Assets section' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add ListView' }));
     expect(screen.getByText('Design how each item displayed in this ListView should look.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
@@ -292,9 +349,9 @@ describe('EditorPage (integration over the real route tree)', () => {
     };
     renderRoutesAt(`/project/${project.id}/editor`, repositories);
     await screen.findByTestId('canvas-frame');
-    fireEvent.click(screen.getByRole('button', { name: 'data' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Data mode' }));
     await screen.findByRole('heading', { name: 'Create your project database' });
-    fireEvent.click(screen.getByRole('button', { name: 'design' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Layers section' }));
 
     const database = await repositories.appData.createDatabase(project.id, { name: 'Assistant data' });
     const collection = await repositories.appData.createCollection(project.id, {

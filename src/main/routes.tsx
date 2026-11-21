@@ -33,7 +33,7 @@ const PublishedPage = lazy(() =>
  *   /published                  PublishedPage (guarded, with app shell)
  *   /project/:projectId         redirect -> editor
  *   /project/:projectId/editor  EditorPage (guarded, full canvas)
- *   /project/:projectId/deploy  DeploymentPage (guarded, with app shell)
+ *   /project/:projectId/deploy  DeploymentPage (guarded, focused project flow)
  */
 export function AppRoutes() {
   return (
@@ -43,10 +43,10 @@ export function AppRoutes() {
           <Route element={<AppShell />}>
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/published" element={<PublishedPage />} />
-            <Route path="/project/:projectId/deploy" element={<DeploymentPage />} />
           </Route>
           <Route path="/project/:projectId" element={<Navigate to="editor" replace />} />
           <Route path="/project/:projectId/editor" element={<EditorPage />} />
+          <Route path="/project/:projectId/deploy" element={<DeploymentPage />} />
         </Route>
         <Route path="/login" element={<AuthPage />} />
         <Route path="/" element={<Navigate to="/projects" replace />} />

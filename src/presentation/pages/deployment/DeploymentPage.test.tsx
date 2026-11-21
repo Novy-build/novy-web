@@ -53,6 +53,9 @@ describe('DeploymentPage', () => {
     renderDeployment(projectId, repositories);
 
     expect(await screen.findByRole('heading', { name: 'Publish your app' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Primary navigation')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create new project' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Return to editor' })).toBeInTheDocument();
     const previewEnvironment = screen.getByRole('button', { name: 'Preview environment' });
     expect(previewEnvironment).toHaveAttribute(
       'aria-pressed',

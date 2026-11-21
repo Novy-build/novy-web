@@ -31,11 +31,11 @@ describe('AppShell', () => {
     expect(screen.getByRole('navigation', { name: 'Workspace' })).toBeInTheDocument();
   });
 
-  it('renders the sidebar on the deployment screen', async () => {
+  it('does not render the sidebar on the focused deployment screen', async () => {
     renderAt('/project/abc-123/deploy');
-    // deployment for missing project shows not-found status, but shell still renders
     expect(await screen.findByRole('heading', { name: 'Project not found' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Primary navigation')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Primary navigation')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create new project' })).not.toBeInTheDocument();
   });
 
   it('does not render the sidebar on the editor screen', async () => {

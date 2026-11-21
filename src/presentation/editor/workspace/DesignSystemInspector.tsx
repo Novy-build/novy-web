@@ -9,6 +9,7 @@ import type { EditorAction } from '../state/editorState';
 import { ColorField } from './ColorField';
 import { TextInput } from '@presentation/components/ui/TextInput';
 import { FontFamilyPicker } from './FontFamilyPicker';
+import { InspectorSection } from './InspectorSection';
 
 const TOKEN_LABELS: Record<DesignColorTokenName, string> = {
   primary: 'Primary',
@@ -40,12 +41,11 @@ export function DesignSystemInspector({
   }
 
   return (
-    <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline p-4">
+    <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline px-4 py-3">
       <h2 className="text-sm font-semibold text-ink">App styles</h2>
       <p className="mt-2 text-xs text-ink-muted">Project-wide tokens keep every screen and reusable style consistent.</p>
 
-      <div className="mt-5 grid gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Screen surface</p>
+      <InspectorSection title="Screen surface">
         <ColorField
           label="Background"
           name="screen-background"
@@ -71,10 +71,9 @@ export function DesignSystemInspector({
           placeholder="Dark canvas token"
           value={screen.appearance?.dark?.backgroundColor ?? ''}
         />
-      </div>
+      </InspectorSection>
 
-      <div className="mt-6 grid gap-3 border-t border-hairline pt-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Light theme colors</p>
+      <InspectorSection title="Light theme colors">
         <div className="grid grid-cols-2 gap-2">
           {DESIGN_COLOR_TOKEN_NAMES.map((token) => (
             <ColorField
@@ -86,11 +85,10 @@ export function DesignSystemInspector({
             />
           ))}
         </div>
-      </div>
+      </InspectorSection>
 
-      <details className="mt-4 rounded-tile border border-hairline p-2">
-        <summary className="cursor-pointer text-xs font-medium text-ink">Dark theme colors</summary>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+      <InspectorSection title="Dark theme colors">
+        <div className="grid grid-cols-2 gap-2">
           {DESIGN_COLOR_TOKEN_NAMES.map((token) => (
             <ColorField
               key={token}
@@ -101,10 +99,9 @@ export function DesignSystemInspector({
             />
           ))}
         </div>
-      </details>
+      </InspectorSection>
 
-      <div className="mt-6 grid gap-3 border-t border-hairline pt-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Typography</p>
+      <InspectorSection title="Typography">
         <FontFamilyPicker
           appFonts={value.typography}
           label="Body font stack"
@@ -120,10 +117,9 @@ export function DesignSystemInspector({
           value={value.typography.headingFontFamily}
         />
         <p className="text-xs text-ink-muted">Use local, system, or bundled font stacks. Export never depends on an external font CDN.</p>
-      </div>
+      </InspectorSection>
 
-      <div className="mt-6 grid gap-3 border-t border-hairline pt-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Radius presets</p>
+      <InspectorSection title="Radius presets">
         <div className="grid grid-cols-2 gap-2">
           {(['small', 'medium', 'large', 'pill'] as const).map((token) => (
             <TextInput
@@ -140,12 +136,11 @@ export function DesignSystemInspector({
             />
           ))}
         </div>
-      </div>
+      </InspectorSection>
 
-      <div className="mt-6 border-t border-hairline pt-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Reusable styles</p>
-        <p className="mt-2 text-xs text-ink-muted">{value.styles.length} saved style{value.styles.length === 1 ? '' : 's'}. Select a component to create, apply, update, or detach styles.</p>
-      </div>
+      <InspectorSection title="Reusable styles">
+        <p className="text-xs text-ink-muted">{value.styles.length} saved style{value.styles.length === 1 ? '' : 's'}. Select a component to create, apply, update, or detach styles.</p>
+      </InspectorSection>
     </section>
   );
 }

@@ -17,13 +17,14 @@ import { editorReducer } from '../state/editorReducer';
 import { useProjectAutosave } from '../hooks/useProjectAutosave';
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts';
 import { EditorTopBar, type AutosaveStatus } from './EditorTopBar';
-import { EditorLeftPanel } from './EditorLeftPanel';
+import { EditorLeftPanel, type LeftPanelSection } from './EditorLeftPanel';
+import { EditorLeftRail } from './EditorLeftRail';
 import { EditorCanvas } from './EditorCanvas';
 import { ScreenTabs } from './ScreenTabs';
 import { ScreenRouteEditor } from './ScreenRouteEditor';
+import { EditorEmptyState } from './EditorEmptyState';
 import { PreviewOverlay } from './PreviewOverlay';
 import { Inspector } from './Inspector';
-import { LayersPanel } from './LayersPanel';
 import { EditorRightRail } from '../EditorRightRail';
 import { AssistantSheet } from '../assistant/AssistantSheet';
 import { useAssistantConversation } from '../assistant/useAssistantConversation';
@@ -52,6 +53,11 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
   const { runtimePreview } = useRepositories();
   const [state, dispatch] = useReducer(editorReducer, createEditorState(project.document, project.projectType));
   const [mode, setMode] = useState<EditorMode>('design');
+  const [leftSection, setLeftSection] = useState<LeftPanelSection>('layers');
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
+  const [openScreenIds, setOpenScreenIds] = useState<readonly string[]>(() =>
+    project.document.screens.map((screen) => screen.id));
+  const knownScreenIds = useRef(new Set(project.document.screens.map((screen) => screen.id)));
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [helpRequest, setHelpRequest] = useState<{ query: string; token: number } | null>(null);
@@ -67,6 +73,12 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
   });
 
   const activeScreen = getActiveScreen(state);
+  const openScreens = useMemo(
+    () => openScreenIds
+      .map((screenId) => state.document.screens.find((screen) => screen.id === screenId))
+      .filter((screen): screen is Screen => screen !== undefined),
+    [openScreenIds, state.document.screens],
+  );
   const selectedNode = state.selectedNodeId ? findNodeInScreen(activeScreen, state.selectedNodeId) : undefined;
   const selectedSectionIndex = project.projectType === 'website' && selectedNode?.type === 'column'
     ? activeScreen.nodes.findIndex((node) => node.id === selectedNode.id)
@@ -101,6 +113,15 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     setHelpRequest(null);
     setIsAssistantOpen(true);
   }, []);
+  const selectLeftSection = useCallback((section: LeftPanelSection) => {
+    setMode('design');
+    if (mode === 'design' && leftSection === section) {
+      setIsLeftPanelOpen((current) => !current);
+      return;
+    }
+    setLeftSection(section);
+    setIsLeftPanelOpen(true);
+  }, [leftSection, mode]);
   const fieldHelpEnvironment = useMemo(
     () => ({ editor: mode, onAskNovy: openAssistantHelp }),
     [mode, openAssistantHelp],
@@ -172,6 +193,19 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     : undefined;
   const validation = useProjectValidation(state.document, projectData.collections);
 
+  useEffect(() => {
+    const currentIds = state.document.screens.map((screen) => screen.id);
+    const currentIdSet = new Set(currentIds);
+    const addedIds = currentIds.filter((screenId) => !knownScreenIds.current.has(screenId));
+    setOpenScreenIds((openIds) => {
+      const nextIds = [...openIds.filter((screenId) => currentIdSet.has(screenId)), ...addedIds];
+      return nextIds.length === openIds.length && nextIds.every((screenId, index) => screenId === openIds[index])
+        ? openIds
+        : nextIds;
+    });
+    knownScreenIds.current = currentIdSet;
+  }, [state.document.screens]);
+
   useProjectAutosave({
     projectId: project.id,
     document: state.document,
@@ -198,6 +232,25 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     lastSavedAt: state.lastSavedAt,
     error: state.autosaveError,
   };
+
+  function selectScreenForEditing(screenId: string): void {
+    setOpenScreenIds((openIds) => openIds.includes(screenId) ? openIds : [...openIds, screenId]);
+    dispatch({ type: 'screen/select', screenId });
+  }
+
+  function closeScreenTab(screenId: string): void {
+    const tabIndex = openScreenIds.indexOf(screenId);
+    const fallbackScreenId = openScreenIds[tabIndex + 1] ?? openScreenIds[tabIndex - 1];
+    setOpenScreenIds((openIds) => openIds.filter((candidate) => candidate !== screenId));
+    if (screenId === state.activeScreenId && fallbackScreenId) {
+      dispatch({ type: 'screen/select', screenId: fallbackScreenId });
+    }
+  }
+
+  function deleteScreen(screenId: string): void {
+    setOpenScreenIds((openIds) => openIds.filter((candidate) => candidate !== screenId));
+    dispatch({ type: 'screen/delete', screenId });
+  }
 
   function addFromPalette(nodeType: ComponentType): void {
     const bounds = templateCanvasBounds ?? deviceBounds;
@@ -271,8 +324,6 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       <EditorTopBar
         canRedo={state.future.length > 0}
         canUndo={state.past.length > 0}
-        mode={mode}
-        onBack={onBack}
         onDeploy={() => {
           if (!validation.isValid) {
             setIsValidationOpen(true);
@@ -280,7 +331,6 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
           }
           onDeploy();
         }}
-        onModeChange={setMode}
         onPreview={() => {
           if (!validation.isValid) {
             setIsValidationOpen(true);
@@ -297,21 +347,37 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
+        <EditorLeftRail
+          activeSection={leftSection}
+          isPanelOpen={isLeftPanelOpen}
+          mode={mode}
+          onHome={onBack}
+          onModeChange={setMode}
+          onSectionChange={selectLeftSection}
+        />
         {mode === 'design' ? (
           <div className="flex min-h-0 flex-1 overflow-hidden">
-          <EditorLeftPanel
+          {isLeftPanelOpen ? <EditorLeftPanel
                  frame={activeTemplate}
                  nodes={designNodes}
             onAddByType={addFromPalette}
+            activeScreenId={state.activeScreenId}
+            activeSection={leftSection}
+            onAddScreen={() => dispatch({ type: 'screen/add' })}
+            onDeleteScreen={deleteScreen}
+            onRenameScreen={(screenId, name) => dispatch({ type: 'screen/rename', screenId, name })}
+            onSelectScreen={selectScreenForEditing}
+            screens={state.document.screens}
             isWebsite={project.projectType === 'website' && !activeTemplate}
             onMove={(nodeId, targetId, position) => dispatch({ type: 'node/layer-move', nodeId, targetId, position })}
+            onCollapse={() => setIsLeftPanelOpen(false)}
             onOrder={(nodeId, direction) => dispatch({ type: 'node/order', nodeId, direction })}
             onRename={(nodeId, name) => dispatch({ type: 'node/layer-rename', nodeId, name })}
             onSelect={(nodeId) => dispatch({ type: 'node/select', nodeId })}
             onToggleLock={(nodeId) => dispatch({ type: 'node/layer-lock', nodeId })}
             onToggleVisibility={(nodeId) => dispatch({ type: 'node/layer-visibility', nodeId })}
             selectedNodeId={state.selectedNodeId}
-          />
+          /> : null}
 
           <div className="flex min-w-0 flex-1 flex-col">
             {activeTemplate ? (
@@ -343,50 +409,58 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                   </button>
                 </div>
               </div>
+            ) : openScreens.length === 0 ? (
+              <EditorEmptyState
+                onAddScreen={() => dispatch({ type: 'screen/add' })}
+                onOpenAssistant={openAssistant}
+                onOpenScreens={() => {
+                  setLeftSection('screens');
+                  setIsLeftPanelOpen(true);
+                }}
+              />
             ) : <><ScreenTabs
-              activeScreenId={state.activeScreenId}
-              onAddScreen={() => dispatch({ type: 'screen/add' })}
-              onDeleteScreen={(screenId) => dispatch({ type: 'screen/delete', screenId })}
-              onRenameScreen={(screenId, name) => dispatch({ type: 'screen/rename', screenId, name })}
-              onSelectScreen={(screenId) => dispatch({ type: 'screen/select', screenId })}
-              screens={state.document.screens}
-            />
-            <ScreenRouteEditor
-              onChange={(path) => dispatch({ type: 'screen/path', screenId: activeScreen.id, path })}
-              path={activeScreen.path}
-            />
-            {selectedSectionIndex >= 0 ? (
-              <div aria-label="Section order controls" className="flex min-h-11 items-center justify-between gap-3 border-b border-hairline bg-surface px-4">
-                <span className="truncate text-xs font-medium text-ink-muted">
-                  Section: {selectedNode?.name ?? 'Untitled section'}
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    className="min-h-9 rounded-tile border border-hairline px-3 text-xs font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={selectedSectionPosition === 0}
-                    onClick={() => selectedNode && dispatch({ type: 'section/move', nodeId: selectedNode.id, direction: 'up' })}
-                    type="button"
-                  >
-                    Move up
-                  </button>
-                  <button
-                    className="min-h-9 rounded-tile border border-hairline px-3 text-xs font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={selectedSectionPosition === sectionNodes.length - 1}
-                    onClick={() => selectedNode && dispatch({ type: 'section/move', nodeId: selectedNode.id, direction: 'down' })}
-                    type="button"
-                  >
-                    Move down
-                  </button>
+                activeScreenId={state.activeScreenId}
+                onAddScreen={() => dispatch({ type: 'screen/add' })}
+                onCloseScreen={closeScreenTab}
+                onSelectScreen={selectScreenForEditing}
+                screens={openScreens}
+              />
+              <ScreenRouteEditor
+                onChange={(path) => dispatch({ type: 'screen/path', screenId: activeScreen.id, path })}
+                path={activeScreen.path}
+              />
+              {selectedSectionIndex >= 0 ? (
+                <div aria-label="Section order controls" className="flex min-h-11 items-center justify-between gap-3 border-b border-hairline bg-surface px-4">
+                  <span className="truncate text-xs font-medium text-ink-muted">
+                    Section: {selectedNode?.name ?? 'Untitled section'}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      className="min-h-9 rounded-tile border border-hairline px-3 text-xs font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={selectedSectionPosition === 0}
+                      onClick={() => selectedNode && dispatch({ type: 'section/move', nodeId: selectedNode.id, direction: 'up' })}
+                      type="button"
+                    >
+                      Move up
+                    </button>
+                    <button
+                      className="min-h-9 rounded-tile border border-hairline px-3 text-xs font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={selectedSectionPosition === sectionNodes.length - 1}
+                      onClick={() => selectedNode && dispatch({ type: 'section/move', nodeId: selectedNode.id, direction: 'down' })}
+                      type="button"
+                    >
+                      Move down
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
             </>}
             {activeTemplate && activeTemplate.children.length === 0 ? (
               <div className="border-b border-dashed border-hairline bg-surface px-4 py-3 text-center" role="status">
                 <span className="text-sm text-ink-muted">This item template is empty.</span>
               </div>
             ) : null}
-            <EditorCanvas
+            {activeTemplate || openScreens.length > 0 ? <EditorCanvas
               boundsOverride={templateCanvasBounds}
               dataContext={{ collections: projectData.collections, recordsByCollection: projectData.recordsByCollection }}
               designSystem={state.document.designSystem}
@@ -454,7 +528,7 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
               screen={canvasScreen}
               selectedNodeId={state.selectedNodeId}
               zoom={state.zoom}
-            />
+            /> : null}
           </div>
 
           {isInspectorCollapsed ? null : (
@@ -523,25 +597,6 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                   onToggle={() => setIsValidationOpen((current) => !current)}
                   report={validation}
                 />
-                <div
-                  className="flex min-h-28 flex-[0_1_35%] flex-col overflow-hidden border-t border-hairline"
-                  data-testid="inspector-layers-region"
-                >
-                  <LayersPanel
-                    frame={activeTemplate}
-                    isEmbedded
-                    isRootMainAxis={project.projectType === 'website' && !activeTemplate}
-                    device={state.device}
-                    nodes={designNodes}
-                    onMove={(nodeId, targetId, position) => dispatch({ type: 'node/layer-move', nodeId, targetId, position })}
-                    onOrder={(nodeId, direction) => dispatch({ type: 'node/order', nodeId, direction })}
-                    onRename={(nodeId, name) => dispatch({ type: 'node/layer-rename', nodeId, name })}
-                    onSelect={(nodeId) => dispatch({ type: 'node/select', nodeId })}
-                    onToggleLock={(nodeId) => dispatch({ type: 'node/layer-lock', nodeId })}
-                    onToggleVisibility={(nodeId) => dispatch({ type: 'node/layer-visibility', nodeId })}
-                    selectedNodeId={state.selectedNodeId}
-                  />
-                </div>
               </aside>
             </>
           )}

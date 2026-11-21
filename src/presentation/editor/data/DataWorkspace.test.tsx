@@ -22,7 +22,7 @@ async function renderEditor() {
     </RepositoriesProvider>,
   );
   await screen.findByTestId('canvas-frame', {}, { timeout: 5_000 });
-  fireEvent.click(screen.getByRole('button', { name: 'data' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Data mode' }));
   await screen.findByRole('heading', { name: 'Collections' });
   return { repositories, project };
 }
@@ -109,10 +109,10 @@ describe('DataWorkspace', () => {
       </RepositoriesProvider>,
     );
     await screen.findByTestId('canvas-frame');
-    fireEvent.click(screen.getByRole('button', { name: 'data' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Data mode' }));
     await screen.findByRole('heading', { name: 'Students' });
-    fireEvent.click(screen.getByRole('button', { name: 'design' }));
-    fireEvent.click(screen.getByRole('tab', { name: 'assets' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Layers section' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Assets section' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add ListView' }));
     fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'collection' } });
     fireEvent.click(screen.getByRole('button', { name: 'Edit item design' }));

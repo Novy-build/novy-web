@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { EditorAction } from '../state/editorState';
+import { FieldHelpEnvironmentContext } from '@presentation/components/ui/FieldHelp';
 import { Inspector } from './Inspector';
 import { makeButton, makeColumn, makeContainer, makeImage, makeListView, makeText } from '@test/editorFixtures';
 import type { DataCollection } from '@domain/entities/appData';
@@ -458,6 +459,26 @@ describe('Inspector', () => {
       nodeId: 'node_1',
       props: { fit: 'contain' },
     });
+  });
+
+  it('explains the ListView data source choices from the field help icon', () => {
+    render(
+      <FieldHelpEnvironmentContext.Provider value={{ editor: 'design', onAskNovy: vi.fn() }}>
+        <Inspector
+          behaviors={[]}
+          node={makeListView('node_1')}
+          onAction={vi.fn()}
+          onEditItemTemplate={vi.fn()}
+          onOpenLogic={vi.fn()}
+        />
+      </FieldHelpEnvironmentContext.Provider>,
+    );
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'About Data source' }));
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Where this list gets the items it displays');
+    expect(tooltip).toHaveTextContent('Hard-code a short, fixed list');
+    expect(tooltip).toHaveTextContent('Read records from a project data collection');
   });
 
   it('edits ListView static items line by line', () => {

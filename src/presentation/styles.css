@@ -64,6 +64,19 @@
   --radius-tile: 0.375rem;
 }
 
+/* Compact section labels used throughout the editor inspector. */
+.inspector-section-label {
+  margin-bottom: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-hairline);
+  color: var(--color-ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
 /* Typed component appearance is applied at the shared renderer frame so it
    consistently overrides component-library utility colors in every mode. */
 .novy-node-appearance * {

@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { formatRelativeTime } from '@presentation/pages/projects/formatRelativeTime';
-import type { EditorMode } from '../state/editorState';
 import type { ValidationReport } from '@domain/validation/projectValidation';
+import novyLogo from '@presentation/assets/novy-logo.png';
 export interface AutosaveStatus {
   isSaving: boolean;
   hasUnsavedChanges: boolean;
@@ -12,15 +12,12 @@ export interface AutosaveStatus {
 interface EditorTopBarProps {
   projectName: string;
   onRenameProject: (name: string) => Promise<void>;
-  mode: EditorMode;
-  onModeChange: (mode: EditorMode) => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
   onPreview: () => void;
   onDeploy: () => void;
-  onBack: () => void;
   saving: AutosaveStatus;
   validation: ValidationReport;
 }
@@ -42,21 +39,19 @@ export function autosaveStatusText(saving: AutosaveStatus, now: Date): string {
 }
 
 /**
- * Editor chrome: exit to Projects, inline-editable app name with autosave
- * status, Design|Logic modes, undo/redo, Preview, and the primary Deploy.
+ * Editor chrome: Novy brand, inline-editable app name with autosave
+ * status, undo/redo, Preview, and the primary Deploy. Workspace navigation
+ * lives in the editor activity rail so it has one consistent home.
  */
 export function EditorTopBar({
   projectName,
   onRenameProject,
-  mode,
-  onModeChange,
   canUndo,
   canRedo,
   onUndo,
   onRedo,
   onPreview,
   onDeploy,
-  onBack,
   saving,
   validation,
 }: EditorTopBarProps) {
@@ -95,14 +90,13 @@ export function EditorTopBar({
     <header className="flex flex-col gap-2 border-b border-hairline bg-surface px-4 py-2.5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <button
-            className="shrink-0 rounded-tile border border-hairline px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
-            onClick={onBack}
-            title="Return to projects"
-            type="button"
-          >
-            Exit work
-          </button>
+          <img
+            alt="Novy"
+            className="h-8 w-8 shrink-0 rounded-tile object-contain"
+            data-testid="editor-brand-logo"
+            draggable={false}
+            src={novyLogo}
+          />
           {isEditingName ? (
             <form onSubmit={handleRenameSubmit}>
               <input
@@ -143,26 +137,6 @@ export function EditorTopBar({
         </div>
 
         <div className="flex items-center gap-2">
-          <div
-            aria-label="Editor mode"
-            className="grid h-8 grid-cols-3 gap-1 rounded-tile bg-canvas p-0.5"
-            role="group"
-          >
-            {(['design', 'logic', 'data'] as const).map((candidate) => (
-              <button
-                aria-pressed={mode === candidate}
-                className={`rounded-tile px-3 text-xs font-medium capitalize transition-colors ${
-                  mode === candidate ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink'
-                }`}
-                key={candidate}
-                onClick={() => onModeChange(candidate)}
-                type="button"
-              >
-                {candidate}
-              </button>
-            ))}
-          </div>
-
           <button
             aria-label="Undo"
             className="rounded-tile p-1.5 text-ink-muted transition-colors hover:bg-canvas hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"

@@ -1,19 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router';
+import { NavLink, useNavigate } from 'react-router';
 import {
   Globe2,
   Home,
   LayoutTemplate,
   MoreHorizontal,
-  Pencil,
   Plus,
-  Rocket,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
 import { useSession } from '@main/providers/SessionProvider';
 import { userInitials } from './userInitials';
 import { ThemeToggle } from '@presentation/components/ui/ThemeToggle';
+import novyLogo from '@presentation/assets/novy-logo.png';
 
 interface AppSidebarProps {
   collapsed: boolean;
@@ -21,26 +20,9 @@ interface AppSidebarProps {
   onOpenGallery: () => void;
 }
 
-interface ProjectContext {
-  projectId: string | null;
-  onEditorRoute: boolean;
-  onDeployRoute: boolean;
-}
-
-function useProjectContext(): ProjectContext {
-  const location = useLocation();
-  const match = location.pathname.match(/^\/project\/([^/]+)/);
-  return {
-    projectId: match ? decodeURIComponent(match[1]) : null,
-    onEditorRoute: /^\/project\/[^/]+\/editor/.test(location.pathname),
-    onDeployRoute: /^\/project\/[^/]+\/deploy/.test(location.pathname),
-  };
-}
-
 export function AppSidebar({ collapsed, onToggleCollapsed, onOpenGallery }: AppSidebarProps) {
   const { user, signOut } = useSession();
   const navigate = useNavigate();
-  const { projectId } = useProjectContext();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -93,12 +75,14 @@ export function AppSidebar({ collapsed, onToggleCollapsed, onOpenGallery }: AppS
     >
       {/* Logo + new project */}
       <div className="flex items-center gap-2 px-2.5 py-3">
-        <span
+        <img
+          alt=""
           aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-tile bg-brand-600 text-sm font-bold text-white"
-        >
-          N
-        </span>
+          className="h-8 w-8 shrink-0 rounded-tile object-contain"
+          data-testid="novy-brand-logo"
+          draggable={false}
+          src={novyLogo}
+        />
         {!collapsed ? (
           <>
             <span className="text-base font-bold tracking-tight text-sidebar-ink">Novy</span>
@@ -132,29 +116,6 @@ export function AppSidebar({ collapsed, onToggleCollapsed, onOpenGallery }: AppS
           <Globe2 aria-hidden="true" className="shrink-0" size={18} />
           {!collapsed ? <span className="truncate">Published</span> : null}
         </NavLink>
-
-        {projectId ? (
-          <>
-            <NavLink
-              aria-label="Editor"
-              className={navLinkClass}
-              title={collapsed ? 'Editor' : undefined}
-              to={`/project/${encodeURIComponent(projectId)}/editor`}
-            >
-              <Pencil aria-hidden="true" className="shrink-0" size={18} />
-              {!collapsed ? <span className="truncate">Editor</span> : null}
-            </NavLink>
-            <NavLink
-              aria-label="Deployments"
-              className={navLinkClass}
-              title={collapsed ? 'Deployments' : undefined}
-              to={`/project/${encodeURIComponent(projectId)}/deploy`}
-            >
-              <Rocket aria-hidden="true" className="shrink-0" size={18} />
-              {!collapsed ? <span className="truncate">Deployments</span> : null}
-            </NavLink>
-          </>
-        ) : null}
 
         <button
           aria-label="Templates"

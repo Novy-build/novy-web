@@ -24,6 +24,14 @@ function renderAt(path: string, authenticated = true) {
 }
 
 describe('AppSidebar', () => {
+  it('uses the Novy brand logo instead of the letter badge', async () => {
+    renderAt('/projects');
+    await screen.findByRole('heading', { name: 'Projects' });
+
+    expect(screen.getByTestId('novy-brand-logo')).toHaveAttribute('src', expect.stringContaining('novy-logo'));
+    expect(screen.queryByText('N')).not.toBeInTheDocument();
+  });
+
   it('shows the signed-in user name and initials in the chip', async () => {
     renderAt('/projects');
     expect(await screen.findByText('Student Tester')).toBeInTheDocument();
@@ -47,17 +55,6 @@ describe('AppSidebar', () => {
     fireEvent.click(publishedLink);
     expect(await screen.findByRole('heading', { name: 'Published' })).toBeInTheDocument();
     expect(publishedLink).toHaveAttribute('aria-current', 'page');
-  });
-
-  it('reveals Editor and Deployments rows only inside a project', async () => {
-    renderAt('/project/abc-123/deploy');
-    await screen.findByRole('heading', { name: 'Project not found' });
-
-    const editorLink = screen.getByRole('link', { name: 'Editor' });
-    const deployLink = screen.getByRole('link', { name: 'Deployments' });
-    expect(editorLink).toHaveAttribute('href', '/project/abc-123/editor');
-    expect(deployLink).toHaveAttribute('href', '/project/abc-123/deploy');
-    expect(deployLink).toHaveAttribute('aria-current', 'page');
   });
 
   it('does not render project rows on the dashboard', async () => {

@@ -7,7 +7,7 @@ import { useCreateProject } from '@presentation/hooks/useCreateProject';
 import { NewProjectDialog } from '@presentation/pages/projects/dialogs/NewProjectDialog';
 
 /**
- * App shell for the dashboard + deployment routes: persistent n8n-style sidebar
+ * App shell for dashboard routes: persistent n8n-style sidebar
  * on the left, routed content on the right. The New Project gallery is hosted
  * here so the sidebar's "+" / "Templates" entries work from every shell page.
  */

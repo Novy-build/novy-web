@@ -50,6 +50,31 @@ describe('LogicNodeLibrary', () => {
     expect(screen.getByRole('button', { name: 'Document Loader' })).toBeInTheDocument();
   });
 
+  it('renders a distinct custom SVG icon for every node', () => {
+    const { container } = render(<LogicNodeLibrary onAdd={vi.fn()} />);
+
+    const expectedIcons = [
+      'trigger-click', 'trigger-change', 'trigger-load', 'if-else',
+      'change-text', 'show-message', 'set-component-value', 'add-local-list-item',
+      'navigate', 'set-theme', 'database', 'insert-db', 'get-record', 'update-db',
+      'delete-db', 'set-variable', 'send-email', 'refresh-collection',
+      'document-load', 'document-upload', 'text-split', 'embedding-generate',
+      'vector-store', 'chat-input', 'rerank', 'prompt-template', 'chat-model',
+      'ai-agent', 'chat-output', 'chat-message', 'memory',
+      'cv-liveness', 'cv-enroll', 'cv-verify',
+    ];
+    for (const iconKey of expectedIcons) {
+      const icon = screen.getByTestId(`logic-node-icon-${iconKey}`);
+      expect(icon).toBeInTheDocument();
+      expect(icon.tagName.toLowerCase()).toBe('svg');
+    }
+
+    const clickIcon = screen.getByTestId('logic-node-icon-trigger-click');
+    const changeIcon = screen.getByTestId('logic-node-icon-trigger-change');
+    expect(clickIcon.innerHTML).not.toEqual(changeIcon.innerHTML);
+    expect(container.querySelectorAll('[data-testid^="logic-node-icon-"]').length).toBeGreaterThanOrEqual(expectedIcons.length);
+  });
+
   it('searches node labels, descriptions, and keywords', () => {
     render(<LogicNodeLibrary onAdd={vi.fn()} />);
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search nodes' }), {
