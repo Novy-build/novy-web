@@ -5,6 +5,20 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-21 — Backend Auth and Logic-node implementation roadmap
+
+#### Added
+- Added `ROADMAP.md`, a detailed backend handoff and acceptance contract for builder authentication,
+  immutable generated-app versions, CRUD/email/RAG/CV Logic-node execution, passwordless runtime
+  identity, persistence, security middleware, migrations, and expected test results.
+- Added binding AI-agent handoff rules requiring the backend to preserve the frontend's existing
+  `/api/v1` and `/runtime/v1` paths, camelCase wire contracts, error codes, cookies, and security
+  boundaries without changing the connected frontend HTTP layer.
+
+#### Verification
+- Documentation-only change; verified the documented endpoint names and payload shapes against the
+  current API repositories and backend-facing DTO contracts.
+
 ### 2026-11-21 — Custom SVG icons for Logic nodes
 
 #### Added

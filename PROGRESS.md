@@ -43,6 +43,9 @@ completed production backend integrations.
   mappers, repositories, validation, migrations, and tests.
 - [x] Reciprocal absolute frontend/backend repository locations documented in both projects'
   `AGENTS.md` files, with the backend delivery sequence maintained in `novy-backend/BACKEND_PLAN.md`.
+- [x] Detailed `ROADMAP.md` backend handoff for reproducing the connected Auth and Logic-node runtime
+  contracts, including exact paths/payloads, immutable action resolution, supporting persistence and
+  middleware, security boundaries, migrations, and expected backend/frontend verification results.
 
 ### Implemented routes
 
