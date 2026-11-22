@@ -3,11 +3,9 @@ import type { AxiosRequestConfig } from 'axios';
 import type { User } from '@domain/entities/user';
 import { AuthError } from '@domain/errors/AuthError';
 import type { AuthRepository, SignInInput, SignUpInput } from '@domain/repositories/auth.repository';
-import { CSRF_COOKIE_NAME, readCookieValue } from '../../api/csrf';
 import { mapUserDtoToEntity, parseUserDto } from '../../mappers/user.mapper';
 
 const AUTH_BASE = '/auth';
-const CSRF_BOOTSTRAP_PATH = `${AUTH_BASE}/csrf`;
 
 /** Narrow HTTP contract so the repository can be tested without a network. */
 export interface AuthHttpResponse {
@@ -79,30 +77,9 @@ export class ApiAuthRepository implements AuthRepository {
 
   private readonly client: AuthHttpClient;
   private sessionRequest: Promise<User | null> | null = null;
-  private csrfBootstrap: Promise<void> | null = null;
 
   constructor(client: AuthHttpClient) {
     this.client = client;
-  }
-
-  /**
-   * State-changing auth requests need the readable CSRF cookie and the
-   * pre-auth state that only the backend can issue. Bootstrap once per
-   * browser session before the first mutation.
-   */
-  private async ensureCsrfBootstrap(): Promise<void> {
-    if (readCookieValue(CSRF_COOKIE_NAME, document.cookie)) {
-      return;
-    }
-    if (!this.csrfBootstrap) {
-      this.csrfBootstrap = this.client
-        .get(CSRF_BOOTSTRAP_PATH)
-        .then(() => undefined)
-        .finally(() => {
-          this.csrfBootstrap = null;
-        });
-    }
-    await this.csrfBootstrap;
   }
 
   async getSession(): Promise<User | null> {
@@ -132,7 +109,6 @@ export class ApiAuthRepository implements AuthRepository {
   }
 
   async signIn(input: SignInInput): Promise<User> {
-    await this.ensureCsrfBootstrap();
     try {
       const response = await this.client.post(`${AUTH_BASE}/login`, input);
       return mapUserDtoToEntity(parseUserDto(response.data));
@@ -142,7 +118,6 @@ export class ApiAuthRepository implements AuthRepository {
   }
 
   async signUp(input: SignUpInput): Promise<User> {
-    await this.ensureCsrfBootstrap();
     try {
       const response = await this.client.post(`${AUTH_BASE}/register`, input);
       if (isRegistrationPending(response.data)) {
@@ -162,7 +137,6 @@ export class ApiAuthRepository implements AuthRepository {
   }
 
   async signOut(): Promise<void> {
-    await this.ensureCsrfBootstrap();
     try {
       await this.client.post(`${AUTH_BASE}/logout`);
     } catch (error) {
