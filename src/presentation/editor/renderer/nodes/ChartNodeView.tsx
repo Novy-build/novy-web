@@ -2,7 +2,9 @@ import {
   DEFAULT_CHART_PALETTE,
   type ChartDataSource,
   type ChartProps,
+  type ComponentBorderStyle,
 } from '@domain/entities/componentNode';
+import { widgetBorderCss } from './fieldStyle';
 
 const TEXT_COLOR = 'var(--novy-component-text, var(--novy-app-text, #0e1013))';
 const MUTED_TEXT_COLOR = 'var(--novy-component-text, var(--novy-app-text-muted, #565b66))';
@@ -68,9 +70,12 @@ function truncateLabel(value: string, pixelWidth: number, fontSize: number): str
   return value.length > maximum ? `${value.slice(0, Math.max(1, maximum - 1))}…` : value;
 }
 
-function EmptyChart({ text }: { text: string }) {
+function EmptyChart({ text, borderStyle }: { text: string; borderStyle?: ComponentBorderStyle }) {
   return (
-    <div className="novy-widget-text-muted flex h-full w-full items-center justify-center rounded-tile border border-dashed border-hairline bg-surface text-sm">
+    <div
+      className="novy-widget-text-muted flex h-full w-full items-center justify-center rounded-tile border border-hairline bg-surface text-sm"
+      style={widgetBorderCss(borderStyle)}
+    >
       {text || 'No chart data yet'}
     </div>
   );
@@ -375,16 +380,18 @@ export function ChartNodeView({
   dataSource,
   width,
   height,
+  borderStyle,
 }: {
   props: ChartProps;
   dataSource?: ChartDataSource;
   width: number;
   height: number;
+  borderStyle?: ComponentBorderStyle;
 }) {
   const data = resolveChartData(props, dataSource);
   const hasData = data.categories.length > 0 && data.series.length > 0;
   if (!hasData) {
-    return <EmptyChart text={props.emptyText} />;
+    return <EmptyChart borderStyle={borderStyle} text={props.emptyText} />;
   }
   const viewWidth = Math.max(80, width);
   const viewHeight = Math.max(60, height);
@@ -419,7 +426,10 @@ export function ChartNodeView({
   const description = `${title || 'Chart'}: ${props.chartType} chart with ${data.categories.length} categories and ${data.series.length} series.`;
 
   return (
-    <div className="h-full w-full overflow-hidden rounded-tile border border-hairline bg-surface">
+    <div
+      className="h-full w-full overflow-hidden rounded-tile border border-hairline bg-surface"
+      style={widgetBorderCss(borderStyle)}
+    >
       <svg
         aria-label={description}
         className="h-full w-full"

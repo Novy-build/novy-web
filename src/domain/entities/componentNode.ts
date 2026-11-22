@@ -108,6 +108,12 @@ export type FieldStyle = 'outline' | 'underline' | 'filled';
 
 export const FIELD_STYLES: readonly FieldStyle[] = ['outline', 'underline', 'filled'];
 
+/** Typography applied to the text entered into an Input (not its field label). */
+export type InputTextStyle = Pick<
+  TextProps,
+  'fontFamily' | 'fontSize' | 'fontWeight' | 'lineHeight' | 'letterSpacing' | 'textAlign' | 'fontStyle' | 'textTransform'
+>;
+
 export interface InputProps {
   label: string;
   /** Omitted preserves the legacy behavior of showing the field label. */
@@ -117,6 +123,8 @@ export interface InputProps {
   multiline: boolean;
   /** Omitted inherits the project design system's field style. */
   fieldStyle?: FieldStyle;
+  /** Optional typography for the entered text; omitted uses the app font stack. */
+  textStyle?: InputTextStyle;
 }
 
 export interface ImageProps {

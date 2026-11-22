@@ -52,6 +52,19 @@ describe('application routing', () => {
     expect(await screen.findByRole('heading', { name: 'Published' })).toBeInTheDocument();
   });
 
+  it('renders a Logic node guide for authenticated users', async () => {
+    renderRoutesAt('/docs/logic-nodes/trigger-click');
+
+    expect(await screen.findByRole('heading', { name: 'On Click', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'How to use it' })).toBeInTheDocument();
+  });
+
+  it('redirects anonymous users from Logic node guides to login', async () => {
+    renderRoutesAt('/docs/logic-nodes/trigger-click', { authenticated: false });
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+  });
+
   it('redirects anonymous users from the published route to login', async () => {
     renderRoutesAt('/published', { authenticated: false });
 

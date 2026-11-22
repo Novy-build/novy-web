@@ -1,4 +1,4 @@
-import type { ComponentNode, ComponentType } from '@domain/entities/componentNode';
+import type { ComponentAppearance, ComponentNode, ComponentType } from '@domain/entities/componentNode';
 import { geometryAtBreakpoint, isChildBearingNode, isHiddenAtBreakpoint, isMainAxisLayoutNode, resolveEdgeInsets, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import { createComponentNode, getDefaultNodeSize } from '@domain/factories/componentNode';
 import { generateId } from '@domain/ids';
@@ -515,21 +515,42 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
         isLocked: node.isLocked ? undefined : true,
       }));
 
-    case 'node/appearance':
+    case 'node/appearance': {
+      // A base color edit drops the matching dark override; otherwise the saved
+      // dark value keeps winning in dark mode while the Inspector shows the new
+      // base color, making the edit look like it was ignored.
+      const withoutDarkOverride = (value: ComponentAppearance | undefined): ComponentAppearance | undefined => {
+        if (!action.clearDark || !value?.dark?.[action.clearDark]) return value;
+        const dark = { ...value.dark };
+        delete dark[action.clearDark];
+        return { ...value, dark: Object.keys(dark).length > 0 ? dark : undefined };
+      };
       return updateNodeWithHistory(state, action.nodeId, (node) => {
         if (state.device === 'mobile') {
+          const base = withoutDarkOverride(action.appearance);
           return {
             ...node,
-            appearance: Object.keys(action.appearance).length > 0 ? { ...action.appearance } : undefined,
+            appearance: base && Object.keys(base).length > 0 ? { ...base } : undefined,
           };
         }
         const responsive = { ...(node.responsive ?? {}) };
+        if (action.clearDark) {
+          for (const breakpoint of Object.keys(responsive) as Array<Exclude<ResponsiveBreakpoint, 'mobile'>>) {
+            const entry = responsive[breakpoint];
+            if (entry) responsive[breakpoint] = { ...entry, appearance: withoutDarkOverride(entry.appearance) };
+          }
+        }
         responsive[state.device] = {
           ...(responsive[state.device] ?? {}),
-          appearance: Object.keys(action.appearance).length > 0 ? { ...action.appearance } : undefined,
+          appearance: withoutDarkOverride(action.appearance),
         };
-        return { ...node, responsive };
+        return {
+          ...node,
+          appearance: withoutDarkOverride(node.appearance),
+          responsive,
+        };
       });
+    }
 
     case 'node/style':
       return updateNodeWithHistory(state, action.nodeId, (node) => ({

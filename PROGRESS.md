@@ -55,6 +55,8 @@ completed production backend integrations.
 - [x] `/project/:projectId/editor` — protected visual editor.
 - [x] `/project/:projectId/deploy` — protected, focused deployment screen without the global sidebar.
 - [x] `/project/:projectId` — redirects to the project editor.
+- [x] `/docs/logic-nodes/:nodeId` — protected visual Logic-node guide, normally opened in a new tab from
+  the node library's help icon.
 - [x] Unknown routes redirect to the projects dashboard.
 
 ## 2. Authentication and application shell
@@ -572,6 +574,9 @@ event binding, and its referenced logic graph:
 - Every appearance color field pairs its labeled hex input with a native color picker. The picker
   normalizes shorthand hex for the swatch, while the text input continues to accept free-form CSS
   color strings; appearance values and DTO shapes are unchanged.
+- Editing a base Background, Text, or Border color clears that color's matching dark-theme override
+  across the base and all responsive appearance layers, so the newly chosen color is the one rendered
+  in both themes. Dark-theme color pickers still set their overrides explicitly.
 - A Dropdown with `props.presentation: "menu"` renders as an accessible actions menu and emits a
   change event containing the chosen option. Omitted presentation retains the original select.
 - A Switch with `props.controlsTheme: true` provides a simple off=Light/on=Dark app control without
@@ -598,16 +603,24 @@ event binding, and its referenced logic graph:
   with Flutter-style **All**, **Symmetric**, and **Only** display modes. All four sides stay stored so
   switching modes is non-destructive; layout math and renderers consume each side independently.
   Container remains free-form and intentionally has no padding control.
-- Container, Column, and Row expose optional `appearance.borderStyle` (`solid`, `dashed`, or `none`)
-  in the Inspector. Omitted values preserve the existing shell defaults (Column/Row dashed,
-  Container solid); **None** hides both the frame and shell border even if a border color is saved.
-  Explicit styles without a saved border color use the theme hairline color.
+- Every widget exposes optional `appearance.borderStyle` (`solid`, `dashed`, or `none`) in the
+  Inspector. Omitted values now use **Solid**; widget shells and empty-state placeholders no longer
+  draw a hardcoded dashed outline. **None** hides both the frame and widget border even if a border
+  color is saved. Explicit styles without a saved border color use the theme hairline color.
+  Editor-only guides (selection ring, ListView item-template outlines, drop indicator, and alignment
+  line) are intentionally unaffected.
 - Buttons expose an optional curated Lucide `props.icon` and `props.iconPosition` (`left`, `center`,
   or `right`). Center placement creates an icon-only visual while retaining the label as accessible
   screen-reader text. The icon is decorative (`aria-hidden`), inherits the button text color, and
   is omitted from older saved buttons; unknown persisted icon names are ignored by the DTO mapper.
 - Standalone Icon nodes provide decorative or labelled symbols from a curated Lucide vocabulary,
   inherit appearance colors, and preserve accessible names only when the authored label is nonempty.
+  The Icon Inspector has a **Size** field that sets square width/height, so the drawn glyph and its
+  selection bounds resize together; glyph size otherwise follows the node's smaller geometry side.
+- Input widgets accept an optional `props.textStyle` with the full Text typography set (font family,
+  size, weight, line height, letter spacing, alignment, transform, italic). The Inspector edits it in
+  a dedicated **Text style** section, and it styles the actual input/textarea in every renderer mode
+  and in generated apps; the field label keeps its own typography.
 - Text nodes expose optional `props.fontFamily` (a non-empty CSS font-family value),
   `props.fontSize`, weight, line height, letter spacing, alignment, italic style, transform, and line
   clamp. Typography can vary at tablet/desktop breakpoints and reusable Text styles; omitted values
@@ -858,7 +871,8 @@ Implemented component types:
   values remain unchanged.
 - [x] Solid, dashed, and none border styles for every component type, persisted
   through optional `appearance.borderStyle` and rendered consistently in canvas, preview,
-  thumbnails, and generated-layout appearance data.
+  thumbnails, and generated-layout appearance data. Solid is the default, and **None** removes
+  placeholder/shell borders as well as the outer frame border.
 - [x] Text field borders apply color, solid/dashed/none style, non-negative pixel width, and corner
   radius directly to the input/textarea without adding a second outer frame border.
 - [x] Optional curated Button icons with left/center/right placement, decorative accessibility behavior,
@@ -1006,6 +1020,11 @@ Production workflow execution remains a generated-app/backend responsibility.
   Vision sections.
 - [x] Distinct Lucide icons for every Logic node, shown in both the library and the graph canvas,
   using the same plain muted icon style as the component palette.
+- [x] A `(?)` help icon beside every Logic library node opens a popover with its description, a short
+  how-to, an example-flow preview, **View example**, and **Ask Novy about this**.
+- [x] Curated and generated node guides at `/docs/logic-nodes/:nodeId` show numbered steps, a visual
+  workflow diagram with annotated fields, and a field/options table; dynamic component and current-item
+  nodes resolve to generic guides.
 - [x] Pannable and zoomable dotted graph canvas.
 - [x] Fit-view and zoom controls.
 - [x] Add nodes by clicking or dragging from the node library.

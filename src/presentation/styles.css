@@ -210,7 +210,9 @@
 .novy-node[data-content-size='compact'] select,
 .novy-node[data-content-size='compact'] textarea {
   min-height: 0;
-  height: min(2rem, 100cqh);
+  /* Cap the control to its node instead of forcing a shorter height: forcing
+     min(2rem, 100cqh) left a visible gap under compact buttons and fields. */
+  max-height: 100%;
   padding-block: 0.125rem;
   padding-inline: 0.375rem;
   font-size: min(0.75rem, 30cqh);

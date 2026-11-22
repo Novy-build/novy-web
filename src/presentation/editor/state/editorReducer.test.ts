@@ -1708,6 +1708,73 @@ describe('autosave + chrome', () => {
       borderRadius: 16,
     });
   });
+
+  it('clears only the matching dark-theme color when a base color is edited', () => {
+    let state = editorReducer(stateAt(), {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: {
+        textColor: '#111111',
+        dark: { textColor: '#9ca3af', backgroundColor: '#222222' },
+      },
+    });
+    state = editorReducer(state, {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { textColor: '#ffffff', dark: { backgroundColor: '#222222' } },
+      clearDark: 'textColor',
+    });
+
+    expect(findNodeInScreen(getActiveScreen(state), 'node_button')?.appearance).toEqual({
+      textColor: '#ffffff',
+      dark: { backgroundColor: '#222222' },
+    });
+  });
+
+  it('removes a now-empty dark color map', () => {
+    let state = editorReducer(stateAt(), {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { textColor: '#111111', dark: { textColor: '#9ca3af' } },
+    });
+    state = editorReducer(state, {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { textColor: '#ffffff' },
+      clearDark: 'textColor',
+    });
+
+    expect(findNodeInScreen(getActiveScreen(state), 'node_button')?.appearance).toEqual({ textColor: '#ffffff' });
+  });
+
+  it('preserves dark-theme colors when the dark color field itself is edited', () => {
+    const state = editorReducer(stateAt(), {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { textColor: '#ffffff', dark: { textColor: '#9ca3af' } },
+    });
+
+    expect(findNodeInScreen(getActiveScreen(state), 'node_button')?.appearance?.dark).toEqual({ textColor: '#9ca3af' });
+  });
+
+  it('clears dark overrides from base and responsive layers on a base color edit', () => {
+    let state = editorReducer(stateAt(), {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { textColor: '#111111', dark: { textColor: '#9ca3af' } },
+    });
+    state = { ...state, device: 'desktop' };
+    state = editorReducer(state, {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { textColor: '#ffffff', dark: { textColor: '#9ca3af' } },
+      clearDark: 'textColor',
+    });
+
+    const node = findNodeInScreen(getActiveScreen(state), 'node_button');
+    expect(node?.appearance?.dark?.textColor).toBeUndefined();
+    expect(node?.responsive?.desktop?.appearance?.dark?.textColor).toBeUndefined();
+  });
 });
 
 describe('logic workspace', () => {

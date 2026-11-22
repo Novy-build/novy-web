@@ -11,6 +11,7 @@ import {
 } from './logicNodeRegistry';
 import { PanelCollapseButton } from '../PanelCollapseControl';
 import { LogicNodeIcon, logicNodeIconKey } from './LogicNodeIcons';
+import { LogicNodeHelp } from './LogicNodeHelp';
 
 const CATEGORY_ORDER: readonly LogicNodeCategory[] = [
   'Components',
@@ -120,13 +121,13 @@ export function LogicNodeLibrary({
               </h3>
               <ul className="grid gap-1" hidden={isCollapsed} id={categoryPanelId}>
                 {definitions.map((definition) => (
-                  <li key={definition.id}>
+                  <li className="flex items-center" key={definition.id}>
                     <button
                       aria-label={definition.label}
-                      className="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-canvas"
+                      className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-canvas"
                       draggable
                       onClick={() => onAdd(definition.create())}
-                       onDragStart={(event) => beginDrag(event, definition)}
+                      onDragStart={(event) => beginDrag(event, definition)}
                       type="button"
                     >
                       <LogicNodeIcon iconKey={logicNodeIconKey(definition.id)} />
@@ -135,6 +136,7 @@ export function LogicNodeLibrary({
                         <span className="mt-0.5 block text-[10px] leading-snug text-ink-muted">{definition.description}</span>
                       </span>
                     </button>
+                    <LogicNodeHelp definition={definition} className="mr-1" />
                   </li>
                 ))}
               </ul>

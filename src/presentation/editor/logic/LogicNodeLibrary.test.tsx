@@ -146,6 +146,22 @@ describe('LogicNodeLibrary', () => {
     });
   });
 
+  it('shows a help affordance for every node without adding it', () => {
+    const onAdd = vi.fn();
+    render(<LogicNodeLibrary onAdd={onAdd} />);
+
+    const helpTriggers = screen.getAllByRole('button', { name: /^About / });
+    expect(helpTriggers).toHaveLength(screen.getAllByTestId(/^logic-node-icon-/).length);
+
+    fireEvent.click(screen.getByRole('button', { name: 'About If / Else' }));
+
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: /View example/ })).toHaveAttribute(
+      'href',
+      '/docs/logic-nodes/if-else',
+    );
+  });
+
   it('writes a typed drag payload for canvas placement', () => {
     const setData = vi.fn();
     render(<LogicNodeLibrary onAdd={vi.fn()} />);

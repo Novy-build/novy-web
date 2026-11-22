@@ -25,6 +25,11 @@ const PublishedPage = lazy(() =>
     default: module.PublishedPage,
   })),
 );
+const LogicNodeExamplePage = lazy(() =>
+  import('@presentation/pages/docs/LogicNodeExamplePage').then((module) => ({
+    default: module.LogicNodeExamplePage,
+  })),
+);
 
 /**
  * Route tree per docs/frontend-plan.md:
@@ -34,6 +39,7 @@ const PublishedPage = lazy(() =>
  *   /project/:projectId         redirect -> editor
  *   /project/:projectId/editor  EditorPage (guarded, full canvas)
  *   /project/:projectId/deploy  DeploymentPage (guarded, focused project flow)
+ *   /docs/logic-nodes/:nodeId   LogicNodeExamplePage (guarded, visual node guide)
  */
 export function AppRoutes() {
   return (
@@ -43,6 +49,7 @@ export function AppRoutes() {
           <Route element={<AppShell />}>
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/published" element={<PublishedPage />} />
+            <Route path="/docs/logic-nodes/:nodeId" element={<LogicNodeExamplePage />} />
           </Route>
           <Route path="/project/:projectId" element={<Navigate to="editor" replace />} />
           <Route path="/project/:projectId/editor" element={<EditorPage />} />
