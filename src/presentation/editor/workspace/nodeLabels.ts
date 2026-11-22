@@ -22,6 +22,7 @@ export const NODE_TYPE_LABELS: Record<ComponentNode['type'], string> = {
   camera: 'Camera',
   'file-input': 'File input',
   chat: 'Chat',
+  chart: 'Chart',
 };
 
 /** Short content snippet used in layer rows and aria labels. */
@@ -59,6 +60,8 @@ export function nodeDisplayLabel(node: ComponentNode): string {
       return node.props.label;
     case 'chat':
       return node.props.title;
+    case 'chart':
+      return node.props.title || `${node.props.chartType} chart`;
     case 'image':
       return node.props.alt.length > 0 ? node.props.alt : 'Untitled image';
     case 'listview':

@@ -1141,6 +1141,58 @@ describe('ScreenFrame', () => {
     expect(container.querySelector('[data-screen-id="screen_home"] > div'))
       .toHaveClass('novy-app-theme-light');
   });
+
+  it('renders static and Logic-provided chart data as accessible SVGs', () => {
+    const chart = createComponentNode('chart');
+    if (chart.type !== 'chart') throw new Error('Expected a chart node.');
+    const { rerender } = render(<ComponentRenderer mode="preview" node={chart} selected={false} />);
+
+    const staticChart = screen.getByRole('img', { name: /bar chart with 4 categories and 1 series/ });
+    expect(staticChart.querySelectorAll('rect').length).toBeGreaterThan(0);
+
+    const logicData = { kind: 'static' as const, categories: ['Jan'], series: [{ id: 'total', label: 'Total', values: [42] }] };
+    rerender(
+      <ComponentRenderer
+        dataContext={{ chartDataByNode: new Map([[chart.id, logicData]]), collections: [], recordsByCollection: new Map() }}
+        mode="preview"
+        node={chart}
+        selected={false}
+      />,
+    );
+
+    expect(screen.getByRole('img', { name: /bar chart with 1 categories and 1 series/ })).toBeInTheDocument();
+    expect(screen.getAllByText('Jan').length).toBeGreaterThan(0);
+  });
+
+  it('shows the configured empty state when a chart has no data', () => {
+    const chart = createComponentNode('chart');
+    if (chart.type !== 'chart') throw new Error('Expected a chart node.');
+    const emptyChart = {
+      ...chart,
+      props: {
+        ...chart.props,
+        emptyText: 'Nothing to plot',
+        dataSource: { kind: 'static' as const, categories: [], series: [] },
+      },
+    };
+
+    render(<ComponentRenderer mode="canvas" node={emptyChart} selected={false} />);
+
+    expect(screen.getByText('Nothing to plot')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('adapts chart coordinates and secondary labels to compact geometry', () => {
+    const chart = createComponentNode('chart');
+    if (chart.type !== 'chart') throw new Error('Expected a chart node.');
+    const compact = { ...chart, w: 180, h: 120 };
+
+    const { container } = render(<ComponentRenderer mode="canvas" node={compact} selected={false} />);
+
+    expect(screen.getByRole('img')).toHaveAttribute('viewBox', '0 0 180 120');
+    expect(screen.queryByText('Series 1')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-node-id]')).toHaveAttribute('data-content-size', 'compact');
+  });
 });
 
 describe('unknown components', () => {

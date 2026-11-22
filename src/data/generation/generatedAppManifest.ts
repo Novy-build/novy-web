@@ -142,6 +142,8 @@ function detectActionCapabilities(
     case 'update-record':
     case 'delete-record':
     case 'refresh-collection':
+    case 'load-chart-data':
+    case 'load-list-items':
       requireCapability('database', source);
       return;
     case 'send-email':

@@ -1,5 +1,6 @@
 import {
   ArrowDownUp,
+  BarChart3,
   Binary,
   Bot,
   Box,
@@ -14,6 +15,7 @@ import {
   FileText,
   FileUp,
   GitBranch,
+  List,
   ListPlus,
   Mail,
   MessageCircle,
@@ -70,6 +72,8 @@ const ICONS: Record<IconKey, LucideIcon> = {
   'update-db': SquarePen,
   'delete-db': Trash,
   'refresh-collection': RefreshCw,
+  'load-chart-data': BarChart3,
+  'load-list-items': List,
 
   // Actions
   'set-variable': Variable,

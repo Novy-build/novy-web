@@ -31,6 +31,8 @@ const ACTION_TYPE_LABELS: Record<ActionPayload['type'], string> = {
   'delete-record': 'Delete from DB',
   'send-email': 'Send email',
   'refresh-collection': 'Refresh collection',
+  'load-chart-data': 'Load chart data',
+  'load-list-items': 'Load list items',
   'set-variable': 'Set variable',
   'set-theme': 'Set theme',
   'set-component-value': 'Set component value',

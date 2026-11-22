@@ -94,14 +94,21 @@ export function LogicWorkspace({
   const flatNodes = flattenScreenNodes(screen.nodes);
   const itemSource = behavior ? findNearestListView(screen.nodes, behavior.targetNodeId) : null;
   const itemDataSource = itemSource?.props.dataSource;
-  const listItemFields = itemDataSource?.kind === 'static'
-    ? itemDataSource.fields
-    : itemDataSource?.kind === 'collection'
-      ? collections.find((collection) => collection.id === itemDataSource.collectionId)?.fields ?? []
-      : [];
-  const itemCollection = itemDataSource?.kind === 'collection'
-    ? collections.find((collection) => collection.id === itemDataSource.collectionId) ?? null
+  const listLoader = itemSource
+    ? screen.logicGraphs
+        .flatMap((candidate) => candidate.nodes)
+        .find((node) => node.kind === 'action'
+          && node.payload.type === 'load-list-items'
+          && node.payload.targetNodeId === itemSource.id)
+    : undefined;
+  const listLoaderPayload = listLoader?.kind === 'action' && listLoader.payload.type === 'load-list-items'
+    ? listLoader.payload
     : null;
+  const itemCollection = collections.find((collection) => collection.id === listLoaderPayload?.collectionId) ?? null;
+  const listItemFields = listLoaderPayload && listLoaderPayload.fields.length > 0
+    ? listLoaderPayload.fields
+    : itemCollection?.fields
+      ?? (itemDataSource?.kind === 'static' ? itemDataSource.fields : []);
   const contextualDefinitions: LogicNodeDefinition[] = [
     ...flatNodes
       .map((component): LogicNodeDefinition | null => {
@@ -402,6 +409,8 @@ function defaultEventForComponent(node: ComponentNode): TriggerEvent | null {
     case 'file-input':
     case 'chat':
       return 'change';
+    case 'chart':
+      return 'load';
     default:
       return null;
   }

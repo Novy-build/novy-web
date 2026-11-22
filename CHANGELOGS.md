@@ -5,6 +5,52 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-22 — ListView collection loading moved to Logic
+
+#### Added
+- A **Load List Items** Logic node owns the target ListView, collection, field set, sort field, sort
+  direction, search field, and search input component. Preview and generated apps replace the
+  ListView's runtime items only when this node executes.
+- Saved collection-backed ListView props are auto-migrated into static props plus an on-load Logic
+  graph. Canonical schema-v14 output no longer contains `collectionId` inside any widget prop.
+
+#### Removed
+- Direct collection, record-label, and record-identifier controls from the ListView Inspector.
+  Data-source configuration now lives exclusively in Logic nodes and the Data workspace.
+
+#### Verification
+- Frontend strict typecheck, production build, and focused migration/Logic/renderer suites passed.
+- Generated-app runtime tests, typecheck, and Vite production builds passed with the new action.
+
+### 2026-11-22 — Chart asset in the component palette
+
+#### Added
+- A **Chart** asset is available in the Data category of the component palette. It renders bar, line,
+  and pie charts with accessible hand-built SVG, so the editor and generated apps need no chart
+  library.
+- Chart properties contain presentation-only static categories/series. The Inspector edits title,
+  type, static values, legend/grid/value toggles, empty text, and a validated hex palette; it exposes
+  no collection or database selector.
+- The new **Load Chart Data** Logic node owns the target Chart, collection, category field, and
+  numeric value-field mapping. Preview and generated apps resolve records into chart-node runtime
+  state only when this node executes.
+- Saved collection-backed chart props are automatically migrated into an on-load Logic graph, while
+  canonical schema-v14 output stores no collection ID in Chart props.
+
+#### Changed
+- Every rendered widget now receives a shared compact/small/regular content-size tier and establishes
+  a CSS size container. Controls, labels, padding, chat content, list rows, empty states, and text
+  reduce or truncate secondary content before overflowing when a builder resizes a node.
+- Chart SVG layout uses the node's actual width and height instead of a fixed 640×360 coordinate
+  space. Titles and labels truncate accessibly, bar/line labels thin at narrow widths, legends wrap
+  or move between side/bottom placements, and compact charts hide only secondary visual labels.
+
+#### Verification
+- Strict TypeScript typecheck and production build passed.
+- Full suite passed (142 files / 1,138 tests with `--maxWorkers=2 --testTimeout=20000`); focused
+  chart/content-sizing suites passed. Restricting workers avoids environment-only 5s
+  timeouts seen in unrelated suites during the unrestricted run.
+
 ### 2026-11-21 — Backend Auth and Logic-node implementation roadmap
 
 #### Added

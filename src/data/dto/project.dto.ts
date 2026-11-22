@@ -3,7 +3,7 @@
  * and logic. Dates serialize as ISO-8601 strings over the wire.
  */
 
-import type { AppIconName, ButtonIconName, ComponentAppearance, FieldStyle, TextFontWeight, TextProps } from '@domain/entities/componentNode';
+import type { AppIconName, ButtonIconName, ChartType, ComponentAppearance, FieldStyle, TextFontWeight, TextProps } from '@domain/entities/componentNode';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
 
 /** Schema v11 padding transport. Schema v10 and older used a single number. */
@@ -239,6 +239,34 @@ export interface ChatNodeDTO extends ComponentNodeDTOBase {
   props: { title: string; placeholder: string; sendLabel: string; emptyText: string; showCitations: boolean; fieldStyle?: FieldStyle };
 }
 
+export type ChartDataSourceDTO =
+  | {
+      kind: 'static';
+      categories: string[];
+      series: Array<{ id: string; label: string; color?: string; values: number[] }>;
+    }
+  /** Read compatibility only; the mapper migrates this binding into a Logic node. */
+  | {
+      kind: 'collection';
+      collectionId: string;
+      categoryFieldId: string;
+      series: Array<{ id: string; label: string; valueFieldId: string; color?: string }>;
+    };
+
+export interface ChartNodeDTO extends ComponentNodeDTOBase {
+  type: 'chart';
+  props: {
+    title: string;
+    chartType: ChartType;
+    dataSource: ChartDataSourceDTO;
+    showLegend: boolean;
+    showGrid: boolean;
+    showValues: boolean;
+    emptyText: string;
+    palette: string[];
+  };
+}
+
 export type ComponentNodeDTO =
   | ButtonNodeDTO
   | TextNodeDTO
@@ -262,7 +290,8 @@ export type ComponentNodeDTO =
   | DividerNodeDTO
   | CameraNodeDTO
   | FileInputNodeDTO
-  | ChatNodeDTO;
+  | ChatNodeDTO
+  | ChartNodeDTO;
 
 export interface BehaviorDTO {
   id: string;
@@ -337,6 +366,25 @@ export interface SendEmailPayloadDTO {
 export interface RefreshCollectionPayloadDTO {
   type: 'refresh-collection';
   collectionId: string;
+}
+
+export interface LoadChartDataPayloadDTO {
+  type: 'load-chart-data';
+  targetNodeId: string;
+  collectionId: string;
+  categoryFieldId: string;
+  series: Array<{ id: string; label: string; valueFieldId: string; color?: string }>;
+}
+
+export interface LoadListItemsPayloadDTO {
+  type: 'load-list-items';
+  targetNodeId: string;
+  collectionId: string;
+  fields: Array<{ id: string; label: string; type: 'text' | 'number' | 'boolean' | 'date' }>;
+  sortFieldId?: string;
+  sortDirection?: 'asc' | 'desc';
+  searchFieldId?: string;
+  searchComponentId?: string;
 }
 
 export interface DocumentUploadPayloadDTO {
@@ -561,6 +609,8 @@ export type ActionPayloadDTO =
   | DeleteRecordPayloadDTO
   | SendEmailPayloadDTO
   | RefreshCollectionPayloadDTO
+  | LoadChartDataPayloadDTO
+  | LoadListItemsPayloadDTO
   | DocumentUploadPayloadDTO
   | ChatMessagePayloadDTO
   | SetVariablePayloadDTO

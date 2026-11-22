@@ -80,6 +80,25 @@ export interface RefreshCollectionPayload {
   collectionId: string;
 }
 
+export interface LoadChartDataPayload {
+  type: 'load-chart-data';
+  targetNodeId: string;
+  collectionId: string;
+  categoryFieldId: string;
+  series: Array<{ id: string; label: string; valueFieldId: string; color?: string }>;
+}
+
+export interface LoadListItemsPayload {
+  type: 'load-list-items';
+  targetNodeId: string;
+  collectionId: string;
+  fields: Array<{ id: string; label: string; type: 'text' | 'number' | 'boolean' | 'date' }>;
+  sortFieldId?: string;
+  sortDirection?: 'asc' | 'desc';
+  searchFieldId?: string;
+  searchComponentId?: string;
+}
+
 export interface DocumentUploadPayload {
   type: 'document-upload';
   mediaReference: string;
@@ -281,6 +300,8 @@ export type ActionPayload =
   | DeleteRecordPayload
   | SendEmailPayload
   | RefreshCollectionPayload
+  | LoadChartDataPayload
+  | LoadListItemsPayload
   | DocumentUploadPayload
   | ChatMessagePayload
   | SetVariablePayload

@@ -78,7 +78,7 @@ const FIXTURE_SCREEN: Screen = {
         padding: createPadding(0),
         itemSpacing: 6,
         itemBorderRadius: 10,
-        dataSource: { kind: 'collection', collectionId: 'contacts', displayFieldIds: ['email'] },
+        dataSource: { kind: 'static', fields: [{ id: 'email', label: 'Email', type: 'text' }], items: [] },
       },
       children: [{ id: 'node_list_item', type: 'text', x: 0, y: 0, w: 280, h: 44, props: { text: 'Email', level: 'body' }, bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId: 'email' } }] }],
     },
@@ -700,5 +700,113 @@ describe('screen mapper', () => {
     const migrated = mapScreenFromDto(legacy, 1);
     expect(migrated.path).toBe('/account-settings');
     expect(migrated.logicGraphs[0]!.edges[1]!.fromPort).toBe('success');
+  });
+
+  it('round-trips static chart nodes', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.screens[0]!.nodes.push(
+      {
+        id: 'node_chart_static',
+        type: 'chart',
+        x: 40,
+        y: 780,
+        w: 360,
+        h: 260,
+        props: {
+          title: 'Revenue',
+          chartType: 'line',
+          dataSource: {
+            kind: 'static',
+            categories: ['Jan', 'Feb'],
+            series: [{ id: 'series_a', label: 'Actual', color: '#112233', values: [10, 20] }],
+          },
+          showLegend: true,
+          showGrid: false,
+          showValues: true,
+          emptyText: 'No data',
+          palette: ['#112233', '#445566'],
+        },
+      },
+      {
+        id: 'node_chart_collection',
+        type: 'chart',
+        x: 40,
+        y: 1060,
+        w: 360,
+        h: 260,
+        props: {
+          title: 'By month',
+          chartType: 'pie',
+          dataSource: {
+            kind: 'static',
+            categories: ['Jan'],
+            series: [{ id: 'count', label: 'Count', values: [1] }],
+          },
+          showLegend: false,
+          showGrid: false,
+          showValues: false,
+          emptyText: 'No data',
+          palette: ['#112233'],
+        },
+      },
+    );
+
+    const restored = mapProjectFromDto(roundTrip(mapProjectToDto(project)) as ReturnType<typeof mapProjectToDto>);
+    expect(restored).toEqual(project);
+  });
+
+  it('migrates a legacy collection-backed chart into an on-load Logic action', () => {
+    const dto = mapScreenToDto(FIXTURE_SCREEN);
+    dto.nodes.push({
+      id: 'legacy_chart', type: 'chart', x: 0, y: 0, w: 360, h: 260,
+      props: {
+        title: 'Sales', chartType: 'bar', showLegend: true, showGrid: true, showValues: false,
+        emptyText: 'No data', palette: ['#112233'],
+        dataSource: {
+          kind: 'collection', collectionId: 'sales', categoryFieldId: 'month',
+          series: [{ id: 'total', label: 'Total', valueFieldId: 'total' }],
+        },
+      },
+    });
+
+    const migrated = mapScreenFromDto(dto);
+    const chart = migrated.nodes.find((node) => node.id === 'legacy_chart');
+    expect(chart?.type === 'chart' ? chart.props.dataSource : null).toEqual({ kind: 'static', categories: [], series: [] });
+    expect(migrated.logicGraphs.at(-1)?.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'action', payload: expect.objectContaining({
+        type: 'load-chart-data', targetNodeId: 'legacy_chart', collectionId: 'sales', categoryFieldId: 'month',
+      }) }),
+    ]));
+  });
+
+  it('migrates a legacy collection-backed ListView into an on-load Logic action', () => {
+    const dto = mapScreenToDto(FIXTURE_SCREEN);
+    dto.nodes.push({
+      id: 'legacy_list', type: 'listview', x: 0, y: 0, w: 320, h: 240,
+      props: {
+        emptyText: 'No items', showDividers: true, scrollDirection: 'vertical', crossAxisAlignment: 'stretch',
+        gap: 0, padding: createPadding(0), itemSpacing: 8, itemBorderRadius: 6,
+        dataSource: {
+          kind: 'collection', collectionId: 'students', displayFieldIds: ['name'],
+          sortFieldId: 'name', sortDirection: 'desc', searchFieldId: 'name', searchComponentId: 'search',
+        },
+      },
+      children: [],
+    });
+
+    const migrated = mapScreenFromDto(dto);
+    const list = migrated.nodes.find((node) => node.id === 'legacy_list');
+    expect(list?.type === 'listview' ? list.props.dataSource : null).toEqual({
+      kind: 'static',
+      fields: [{ id: 'name', label: 'name', type: 'text' }],
+      items: [],
+    });
+    expect(migrated.logicGraphs.at(-1)?.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'action', payload: expect.objectContaining({
+        type: 'load-list-items', targetNodeId: 'legacy_list', collectionId: 'students',
+        sortFieldId: 'name', sortDirection: 'desc', searchFieldId: 'name', searchComponentId: 'search',
+      }) }),
+    ]));
+    expect(migrated.behaviors.at(-1)).toMatchObject({ event: 'load', targetNodeId: 'legacy_list' });
   });
 });

@@ -1,4 +1,4 @@
-import type { ComponentNode, NodeGeometry, ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import type { ChartDataSource, ComponentNode, NodeGeometry, ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import type { TriggerEvent } from '@domain/entities/logic';
 import type { DataCollection, DataRecord, ListItemContext, LocalListItemAddition } from '@domain/entities/appData';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
@@ -9,6 +9,8 @@ export type RendererMode = 'canvas' | 'preview' | 'thumbnail';
 export interface RendererDataContext {
   collections: readonly DataCollection[];
   recordsByCollection: ReadonlyMap<string, readonly DataRecord[]>;
+  /** Chart data produced by Load Chart Data Logic nodes, keyed by chart component ID. */
+  chartDataByNode?: ReadonlyMap<string, ChartDataSource>;
   /** Preview/generated-runtime items keyed by ListView or Chat component ID. */
   localItemsByListView?: ReadonlyMap<string, readonly LocalListItemAddition[]>;
   /** Chat components currently waiting for an asynchronous workflow response. */

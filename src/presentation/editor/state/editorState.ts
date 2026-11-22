@@ -7,6 +7,7 @@ import type {
   ComponentPropertyBinding,
   GestureDetectorProps,
   CameraProps,
+  ChartProps,
   ChatProps,
   ColumnProps,
   DividerProps,
@@ -85,6 +86,7 @@ export type EditorNodeAction =
   | { type: 'node/props-slider'; nodeId: string; props: Partial<SliderProps> }
   | { type: 'node/props-progress'; nodeId: string; props: Partial<ProgressProps> }
   | { type: 'node/props-divider'; nodeId: string; props: Partial<DividerProps> }
+  | { type: 'node/props-chart'; nodeId: string; props: Partial<ChartProps> }
   | { type: 'node/duplicate'; nodeId: string }
   | { type: 'node/wrap-gesture-detector'; nodeId: string }
   | { type: 'node/delete'; nodeId: string }

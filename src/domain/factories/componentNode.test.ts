@@ -72,6 +72,24 @@ describe('createComponentNode', () => {
     }
   });
 
+  it('creates a chart with static demo series and a default palette', () => {
+    const node = createComponentNode('chart');
+
+    expect(node.type).toBe('chart');
+    if (node.type === 'chart') {
+      expect(node.props.chartType).toBe('bar');
+      expect(node.props.dataSource.kind).toBe('static');
+      if (node.props.dataSource.kind === 'static') {
+        expect(node.props.dataSource.categories).toEqual(['Jan', 'Feb', 'Mar', 'Apr']);
+        expect(node.props.dataSource.series).toHaveLength(1);
+        expect(node.props.dataSource.series[0]?.values).toHaveLength(4);
+      }
+      expect(node.props.palette.length).toBeGreaterThan(0);
+      expect(node.props.showLegend).toBe(true);
+    }
+    expect(getDefaultNodeSize('chart')).toEqual({ w: 360, h: 260 });
+  });
+
   it('generates unique ids', () => {
     const a = createComponentNode('button');
     const b = createComponentNode('button');

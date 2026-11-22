@@ -569,6 +569,12 @@ function detailFor(
     case 'delete-record': return isCurrentItemAction(node) ? 'Delete the item that was clicked' : node.payload.collectionId ? `Delete from ${node.payload.collectionId}` : 'Collection not set';
     case 'send-email': return node.payload.to ? `Email ${node.payload.to}` : 'Recipient not set';
     case 'refresh-collection': return node.payload.collectionId ? `Refresh ${node.payload.collectionId}` : 'Collection not set';
+    case 'load-chart-data': return node.payload.targetNodeId && node.payload.collectionId
+      ? `${node.payload.collectionId} → ${node.payload.targetNodeId}`
+      : 'Chart or collection not set';
+    case 'load-list-items': return node.payload.targetNodeId && node.payload.collectionId
+      ? `${node.payload.collectionId} → ${node.payload.targetNodeId}`
+      : 'List or collection not set';
     case 'set-variable': return node.payload.name ? `Set ${node.payload.name}` : 'Variable not set';
     case 'set-theme': return node.payload.theme === 'toggle' ? 'Toggle light and dark' : `Use ${node.payload.theme} theme`;
     case 'set-component-value': return node.payload.targetNodeId ? `Set ${node.payload.targetNodeId}` : 'Component not set';

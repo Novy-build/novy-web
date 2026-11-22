@@ -44,6 +44,33 @@ function renderWorkspace(document: ProjectDocument = DOCUMENT) {
   return screen.getByRole('region', { name: 'Logic workspace' });
 }
 
+function withListLoader(source: ReturnType<typeof makeScreen>, listId: string): typeof source {
+  return {
+    ...source,
+    behaviors: [{
+      id: 'load_students_behavior', name: 'Load students', event: 'load',
+      graphId: 'load_students_graph', targetNodeId: listId,
+    }],
+    logicGraphs: [{
+      id: 'load_students_graph', name: 'Load students', sourceNodeId: listId,
+      nodes: [
+        { kind: 'trigger', id: 'load_students_trigger', event: 'load', position: { x: 80, y: 160 } },
+        {
+          kind: 'action', id: 'load_students_action', position: { x: 312, y: 160 },
+          payload: {
+            type: 'load-list-items', targetNodeId: listId, collectionId: 'students',
+            fields: [
+              { id: 'student_name', label: 'Student name', type: 'text' },
+              { id: 'completed', label: 'Completed', type: 'boolean' },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: 'load_students_edge', fromNodeId: 'load_students_trigger', fromPort: 'next', toNodeId: 'load_students_action', toPort: 'in' }],
+    }],
+  };
+}
+
 function seededWorkflow(): ProjectDocument {
   let state = createEditorState(DOCUMENT);
   state = editorReducer(state, {
@@ -62,24 +89,23 @@ beforeEach(() => {
 describe('LogicWorkspace without a workflow', () => {
   it('derives component triggers and current-record actions from a collection ListView', () => {
     const list = makeListView('student_list');
-    list.props.dataSource = { kind: 'collection', collectionId: 'students', displayFieldIds: ['student_name'] };
+    list.props.dataSource = { kind: 'static', fields: [{ id: 'student_name', label: 'Student name', type: 'text' }], items: [] };
     list.children = [makeButton('check_student', {
       name: 'Complete student',
       x: 0,
       y: 0,
       props: { label: 'Check', variant: 'solid' },
     })];
-    const document: ProjectDocument = { screens: [makeScreen('screen_students', [list])] };
+    const document: ProjectDocument = { screens: [withListLoader(makeScreen('screen_students', [list]), 'student_list')] };
     renderWorkspace(document);
 
     fireEvent.click(screen.getByRole('button', { name: 'Complete student · Button' }));
-    expect(getActiveScreen(latest.current!).behaviors[0]).toMatchObject({
-      targetNodeId: 'check_student',
-      event: 'click',
-    });
+    const active = getActiveScreen(latest.current!);
+    const behavior = active.behaviors.find((candidate) => candidate.targetNodeId === 'check_student' && candidate.event === 'click');
+    expect(behavior).toMatchObject({ targetNodeId: 'check_student', event: 'click' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Update current Student' }));
-    const graph = getActiveScreen(latest.current!).logicGraphs[0]!;
+    const graph = getActiveScreen(latest.current!).logicGraphs.find((candidate) => candidate.id === behavior?.graphId)!;
     const update = graph.nodes.find((node) => node.kind === 'action' && node.payload.type === 'update-record');
     expect(update).toMatchObject({
       inputMappings: { '$recordId': { source: 'list-item', fieldId: '$id' } },
@@ -91,7 +117,8 @@ describe('LogicWorkspace without a workflow', () => {
     expect(screen.getByText('Current Student selected automatically')).toBeInTheDocument();
     expect(screen.queryByLabelText('Record ID')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Completed'), { target: { value: 'true' } });
-    const configured = getActiveScreen(latest.current!).logicGraphs[0]!.nodes
+    const configured = getActiveScreen(latest.current!).logicGraphs
+      .flatMap((candidate) => candidate.nodes)
       .find((node) => node.kind === 'action' && node.payload.type === 'update-record');
     expect(configured?.kind === 'action' && configured.payload.type === 'update-record'
       ? configured.payload.values.completed
@@ -100,17 +127,18 @@ describe('LogicWorkspace without a workflow', () => {
 
   it('maps Open current item into an explicit generated detail route', () => {
     const list = makeListView('student_list');
-    list.props.dataSource = { kind: 'collection', collectionId: 'students', displayFieldIds: ['student_name'] };
+    list.props.dataSource = { kind: 'static', fields: [{ id: 'student_name', label: 'Student name', type: 'text' }], items: [] };
     list.children = [makeButton('student_card', { name: 'Student card' })];
-    const source = makeScreen('screen_students', [list], 'Students');
+    const source = withListLoader(makeScreen('screen_students', [list], 'Students'), 'student_list');
     const detail = makeScreen('screen_student_detail', [makeText('student_name')], 'Student detail');
     detail.path = '/students/detail';
     renderWorkspace({ screens: [source, detail] });
 
     fireEvent.click(screen.getByRole('button', { name: 'Student card · Button' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open current Student' }));
-    const action = getActiveScreen(latest.current!).logicGraphs[0]!.nodes.find((node) =>
-      node.kind === 'action' && node.payload.type === 'navigate');
+    const action = getActiveScreen(latest.current!).logicGraphs
+      .flatMap((graph) => graph.nodes)
+      .find((node) => node.kind === 'action' && node.payload.type === 'navigate');
     if (!action) throw new Error('Open current item action was not created');
     fireEvent.click(screen.getByTestId(`logic-node-${action.id}`));
     const historyBeforeTarget = latest.current!.past.length;
@@ -131,16 +159,17 @@ describe('LogicWorkspace without a workflow', () => {
 
   it('explains when a record-aware target has no record route', () => {
     const list = makeListView('student_list');
-    list.props.dataSource = { kind: 'collection', collectionId: 'students', displayFieldIds: ['student_name'] };
+    list.props.dataSource = { kind: 'static', fields: [{ id: 'student_name', label: 'Student name', type: 'text' }], items: [] };
     list.children = [makeButton('student_card', { name: 'Student card' })];
-    const source = makeScreen('screen_students', [list], 'Students');
+    const source = withListLoader(makeScreen('screen_students', [list], 'Students'), 'student_list');
     const home = makeScreen('screen_home', [makeText('home_text')], 'Home');
     renderWorkspace({ screens: [source, home] });
 
     fireEvent.click(screen.getByRole('button', { name: 'Student card · Button' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open current Student' }));
-    const action = getActiveScreen(latest.current!).logicGraphs[0]!.nodes.find((node) =>
-      node.kind === 'action' && node.payload.type === 'navigate');
+    const action = getActiveScreen(latest.current!).logicGraphs
+      .flatMap((graph) => graph.nodes)
+      .find((node) => node.kind === 'action' && node.payload.type === 'navigate');
     if (!action) throw new Error('Open current item action was not created');
     fireEvent.click(screen.getByTestId(`logic-node-${action.id}`));
     fireEvent.change(screen.getByLabelText('Target screen'), { target: { value: home.id } });

@@ -4,11 +4,18 @@ import {
   isButtonIconName,
   isAppIconName,
   isChildBearingNode,
+  isChartType,
   isHiddenAtBreakpoint,
   isTextFontFamily,
   isTextFontWeight,
   normalizePadding,
   resolveEdgeInsets,
+  DEFAULT_CHART_PALETTE,
+  MAX_CHART_CATEGORIES,
+  MAX_CHART_PALETTE,
+  MAX_CHART_SERIES,
+  type ChartDataSource,
+  type ChartProps,
   type ColumnNode,
   type ComponentNode,
   type ListViewDataSource,
@@ -474,6 +481,9 @@ export function mapScreenToDto(screen: Screen): ScreenDTO {
 
 export function mapScreenFromDto(dto: ScreenDTO, index = 0): Screen {
   const legacyFormMigrations = collectLegacyFormMigrations(dto.nodes);
+  const legacyChartMigrations = collectLegacyChartMigrations(dto.nodes);
+  const legacyListMigrations = collectLegacyListMigrations(dto.nodes);
+  const migrations = [...legacyFormMigrations, ...legacyChartMigrations, ...legacyListMigrations];
   const behaviors = dto.behaviors.map(mapBehaviorFromDto);
   const logicGraphs = dto.logicGraphs.map(mapLogicGraphFromDto);
   return {
@@ -487,13 +497,13 @@ export function mapScreenFromDto(dto: ScreenDTO, index = 0): Screen {
     nodes: dto.nodes.map(mapNodeFromDto),
     behaviors: [
       ...behaviors,
-      ...legacyFormMigrations
+      ...migrations
         .map((migration) => migration.behavior)
         .filter((behavior) => !behaviors.some((candidate) => candidate.id === behavior.id)),
     ],
     logicGraphs: [
       ...logicGraphs,
-      ...legacyFormMigrations
+      ...migrations
         .map((migration) => migration.graph)
         .filter((graph) => !logicGraphs.some((candidate) => candidate.id === graph.id)),
     ],
@@ -688,6 +698,26 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         h: node.h,
         props: { ...node.props },
       };
+    case 'chart':
+      return {
+        id: node.id,
+        ...editor,
+        type: 'chart',
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: node.h,
+        props: {
+          title: node.props.title,
+          chartType: node.props.chartType,
+          dataSource: structuredClone(node.props.dataSource),
+          showLegend: node.props.showLegend,
+          showGrid: node.props.showGrid,
+          showValues: node.props.showValues,
+          emptyText: node.props.emptyText,
+          palette: [...node.props.palette],
+        },
+      };
     case 'image':
       return {
         id: node.id,
@@ -751,7 +781,13 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
           padding: node.props.padding,
           itemSpacing: node.props.itemSpacing,
           itemBorderRadius: node.props.itemBorderRadius,
-          dataSource: structuredClone(node.props.dataSource),
+          dataSource: node.props.dataSource.kind === 'collection'
+            ? {
+                kind: 'static',
+                fields: node.props.dataSource.displayFieldIds.map((id) => ({ id, label: id, type: 'text' as const })),
+                items: [],
+              }
+            : structuredClone(node.props.dataSource),
         },
         children: node.children.map(mapNodeToDto),
       };
@@ -780,6 +816,50 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         children: node.children.map(mapNodeToDto),
       };
   }
+}
+
+const CHART_HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+/** Defensively normalizes persisted chart props so unknown/legacy data cannot break rendering. */
+function normalizeChartProps(props: Extract<ComponentNodeDTO, { type: 'chart' }>['props']): ChartProps {
+  const palette = (Array.isArray(props.palette) ? props.palette : [])
+    .filter((color): color is string => typeof color === 'string' && CHART_HEX_COLOR_PATTERN.test(color))
+    .slice(0, MAX_CHART_PALETTE);
+  return {
+    title: typeof props.title === 'string' ? props.title : '',
+    chartType: isChartType(props.chartType) ? props.chartType : 'bar',
+    dataSource: normalizeChartDataSource(props.dataSource),
+    showLegend: props.showLegend !== false,
+    showGrid: props.showGrid !== false,
+    showValues: props.showValues === true,
+    emptyText: typeof props.emptyText === 'string' ? props.emptyText : 'No chart data yet',
+    palette: palette.length > 0 ? palette : [...DEFAULT_CHART_PALETTE],
+  };
+}
+
+function normalizeChartDataSource(
+  source: Extract<ComponentNodeDTO, { type: 'chart' }>['props']['dataSource'],
+): ChartDataSource {
+  if (source?.kind === 'collection') return { kind: 'static', categories: [], series: [] };
+  const categories = (Array.isArray(source?.categories) ? source.categories : [])
+    .filter((category): category is string => typeof category === 'string')
+    .slice(0, MAX_CHART_CATEGORIES);
+  const series = (Array.isArray(source?.series) ? source.series : [])
+    .filter((item) => item
+      && typeof item.id === 'string'
+      && typeof item.label === 'string'
+      && Array.isArray(item.values))
+    .slice(0, MAX_CHART_SERIES)
+    .map((item) => ({
+      id: item.id,
+      label: item.label,
+      values: categories.map((_, index) => {
+        const value = item.values[index];
+        return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+      }),
+      ...(typeof item.color === 'string' && CHART_HEX_COLOR_PATTERN.test(item.color) ? { color: item.color } : {}),
+    }));
+  return { kind: 'static', categories, series };
 }
 
 function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
@@ -986,6 +1066,17 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         h: dto.h,
         props: { ...dto.props },
       };
+    case 'chart':
+      return {
+        id: dto.id,
+        ...editor,
+        type: 'chart',
+        x: dto.x,
+        y: dto.y,
+        w: dto.w,
+        h: dto.h,
+        props: normalizeChartProps(dto.props),
+      };
     case 'image':
       return {
         id: dto.id,
@@ -1092,7 +1183,13 @@ function mapListViewDataSourceFromDto(
   source: Extract<ComponentNodeDTO, { type: 'listview' }>['props']['dataSource'],
   listViewId: string,
 ): ListViewDataSource {
-  if (source.kind === 'collection') return structuredClone(source);
+  if (source.kind === 'collection') {
+    return {
+      kind: 'static',
+      fields: source.displayFieldIds.map((id) => ({ id, label: id, type: 'text' as const })),
+      items: [],
+    };
+  }
   if ('fields' in source) return structuredClone(source);
   return migrateStaticStrings(source.items, listViewId);
 }
@@ -1114,12 +1211,12 @@ function migrateLegacyListNode(
 ): ComponentNode {
   const source: ListViewDataSource = dto.props.dataSource?.kind === 'collection'
     ? {
-        kind: 'collection',
-        collectionId: dto.props.dataSource.collectionId,
-        displayFieldIds: [dto.props.dataSource.displayFieldId],
+        kind: 'static',
+        fields: [{ id: dto.props.dataSource.displayFieldId || 'value', label: dto.props.dataSource.displayFieldId || 'Value', type: 'text' }],
+        items: [],
       }
     : migrateStaticStrings(dto.props.items, dto.id);
-  const fieldId = source.kind === 'collection' ? source.displayFieldIds[0] || 'value' : 'value';
+  const fieldId = source.kind === 'static' ? source.fields[0]?.id ?? 'value' : source.displayFieldIds[0] || 'value';
   return {
     id: dto.id,
     ...editor,
@@ -1148,10 +1245,14 @@ function migrateLegacyRepeaterNode(
   editor: NodeEditorMetadata,
 ): ComponentNode {
   const source: ListViewDataSource = dto.props.dataSource?.kind === 'collection'
-    ? structuredClone(dto.props.dataSource)
+    ? {
+        kind: 'static',
+        fields: dto.props.dataSource.displayFieldIds.map((id) => ({ id, label: id, type: 'text' as const })),
+        items: [],
+      }
     : migrateStaticStrings(dto.props.dataSource?.items ?? [], dto.id);
-  const fieldIds = source.kind === 'collection'
-    ? source.displayFieldIds
+  const fieldIds = dto.props.dataSource?.kind === 'collection'
+    ? dto.props.dataSource.displayFieldIds
     : ['title', 'snippet'];
   return {
     id: dto.id,
@@ -1248,6 +1349,118 @@ function migrateLegacyFormNode(dto: LegacyFormNodeDTO, editor: NodeEditorMetadat
 interface LegacyFormMigration {
   behavior: Behavior;
   graph: LogicGraph;
+}
+
+interface LegacyChartMigration {
+  behavior: Behavior;
+  graph: LogicGraph;
+}
+
+/** Moves the short-lived direct chart/collection binding into an on-load Logic action. */
+function collectLegacyChartMigrations(nodes: readonly ComponentNodeDTO[]): LegacyChartMigration[] {
+  const migrations: LegacyChartMigration[] = [];
+  for (const node of nodes) {
+    if (node.type === 'chart' && node.props.dataSource.kind === 'collection') {
+      const graphId = `${node.id}__load_chart_graph`;
+      const triggerId = `${node.id}__load_chart_trigger`;
+      const actionId = `${node.id}__load_chart_action`;
+      migrations.push({
+        behavior: {
+          id: `${node.id}__load_chart_behavior`,
+          name: `Load ${node.props.title || 'chart'} data`,
+          event: 'load',
+          graphId,
+          targetNodeId: node.id,
+        },
+        graph: {
+          id: graphId,
+          name: `Load ${node.props.title || 'chart'} data`,
+          sourceNodeId: node.id,
+          nodes: [
+            { kind: 'trigger', id: triggerId, event: 'load', position: { x: 80, y: 160 } },
+            {
+              kind: 'action',
+              id: actionId,
+              position: { x: 312, y: 160 },
+              payload: {
+                type: 'load-chart-data',
+                targetNodeId: node.id,
+                collectionId: node.props.dataSource.collectionId,
+                categoryFieldId: node.props.dataSource.categoryFieldId,
+                series: structuredClone(node.props.dataSource.series),
+              },
+            },
+          ],
+          edges: [{
+            id: `${node.id}__load_chart_edge`,
+            fromNodeId: triggerId,
+            fromPort: 'next',
+            toNodeId: actionId,
+            toPort: 'in',
+          }],
+        },
+      });
+    }
+    if (node.type === 'container' || node.type === 'column' || node.type === 'row' || node.type === 'listview') {
+      migrations.push(...collectLegacyChartMigrations(node.children));
+    }
+  }
+  return migrations;
+}
+
+/** Moves every historical ListView collection query into an on-load Logic action. */
+function collectLegacyListMigrations(nodes: readonly ComponentNodeDTO[]): LegacyChartMigration[] {
+  const migrations: LegacyChartMigration[] = [];
+  for (const node of nodes) {
+    const source = node.type === 'listview' && node.props.dataSource.kind === 'collection'
+      ? node.props.dataSource
+      : node.type === 'list' && node.props.dataSource?.kind === 'collection'
+        ? { ...node.props.dataSource, displayFieldIds: [node.props.dataSource.displayFieldId] }
+        : node.type === 'repeater' && node.props.dataSource?.kind === 'collection'
+          ? node.props.dataSource
+          : null;
+    if (source) {
+      const graphId = `${node.id}__load_list_graph`;
+      const triggerId = `${node.id}__load_list_trigger`;
+      const actionId = `${node.id}__load_list_action`;
+      const fields = source.displayFieldIds.map((id) => ({ id, label: id, type: 'text' as const }));
+      migrations.push({
+        behavior: {
+          id: `${node.id}__load_list_behavior`,
+          name: `Load ${node.name || 'list'} items`,
+          event: 'load',
+          graphId,
+          targetNodeId: node.id,
+        },
+        graph: {
+          id: graphId,
+          name: `Load ${node.name || 'list'} items`,
+          sourceNodeId: node.id,
+          nodes: [
+            { kind: 'trigger', id: triggerId, event: 'load', position: { x: 80, y: 160 } },
+            {
+              kind: 'action', id: actionId, position: { x: 312, y: 160 },
+              payload: {
+                type: 'load-list-items',
+                targetNodeId: node.id,
+                collectionId: source.collectionId,
+                fields,
+                ...(source.sortFieldId ? { sortFieldId: source.sortFieldId } : {}),
+                ...(source.sortDirection ? { sortDirection: source.sortDirection } : {}),
+                ...(source.searchFieldId ? { searchFieldId: source.searchFieldId } : {}),
+                ...(source.searchComponentId ? { searchComponentId: source.searchComponentId } : {}),
+              },
+            },
+          ],
+          edges: [{ id: `${node.id}__load_list_edge`, fromNodeId: triggerId, fromPort: 'next', toNodeId: actionId, toPort: 'in' }],
+        },
+      });
+    }
+    if (node.type === 'container' || node.type === 'column' || node.type === 'row' || node.type === 'listview') {
+      migrations.push(...collectLegacyListMigrations(node.children));
+    }
+  }
+  return migrations;
 }
 
 function collectLegacyFormMigrations(nodes: readonly ComponentNodeDTO[]): LegacyFormMigration[] {
@@ -1441,7 +1654,7 @@ function mapLogicGraphFromDto(dto: LogicGraphDTO): LogicGraph {
 }
 
 function mapLogicNodeToDto(node: LogicNode): LogicNodeDTO {
-  return structuredClone(node);
+  return structuredClone(node) as unknown as LogicNodeDTO;
 }
 
 function mapLogicNodeFromDto(dto: LogicNodeDTO, index: number): LogicNode {

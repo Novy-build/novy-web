@@ -107,7 +107,25 @@ describe('generated layout', () => {
     }];
     const list = screen.nodes[0];
     if (list?.type !== 'listview') throw new Error('Expected ListView fixture');
-    list.props.dataSource = { kind: 'collection', collectionId: 'notes', displayFieldIds: ['title'] };
+    list.props.dataSource = { kind: 'static', fields: [{ id: 'title', label: 'Title', type: 'text' }], items: [] };
+    screen.behaviors.push({
+      id: 'load_notes_behavior', name: 'Load notes', event: 'load',
+      graphId: 'load_notes_graph', targetNodeId: list.id,
+    });
+    screen.logicGraphs.push({
+      id: 'load_notes_graph', name: 'Load notes', sourceNodeId: list.id,
+      nodes: [
+        { kind: 'trigger', id: 'load_notes_trigger', event: 'load', position: { x: 80, y: 160 } },
+        {
+          kind: 'action', id: 'load_notes_action', position: { x: 312, y: 160 },
+          payload: {
+            type: 'load-list-items', targetNodeId: list.id, collectionId: 'notes',
+            fields: [{ id: 'title', label: 'Title', type: 'text' }],
+          },
+        },
+      ],
+      edges: [{ id: 'load_notes_edge', fromNodeId: 'load_notes_trigger', fromPort: 'next', toNodeId: 'load_notes_action', toPort: 'in' }],
+    });
 
     const layout = mapProjectToGeneratedLayout(collectionProject, [collection]);
     expect(layout.screens[0]).toMatchObject({

@@ -389,6 +389,37 @@ describe('runClickBehavior', () => {
     expect(runBehavior({ screens: [changed] }, changed, 'node_input', 'load')).toEqual([]);
   });
 
+  it('resolves collection records into chart data through Load Chart Data', () => {
+    const { screen, graphId } = buildScreen();
+    const graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'load-chart-data',
+      targetNodeId: 'chart_sales',
+      collectionId: 'sales',
+      categoryFieldId: 'month',
+      series: [{ id: 'total', label: 'Total', valueFieldId: 'total' }],
+    });
+    const withGraph = { ...screen, logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item) };
+
+    expect(runClickBehavior({ screens: [withGraph] }, withGraph, 'node_button', {
+      componentValues: new Map(),
+      data: {
+        getRecord: () => null,
+        listRecords: () => [{
+          id: 'sale_1', projectId: 'project', collectionId: 'sales', values: { month: 'Jan', total: 42 },
+          createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01'),
+        }],
+      },
+    })).toEqual([{
+      kind: 'chart-data',
+      nodeId: 'chart_sales',
+      dataSource: {
+        kind: 'static',
+        categories: ['Jan'],
+        series: [{ id: 'total', label: 'Total', values: [42] }],
+      },
+    }]);
+  });
+
   it('maps captured media into biometric verification and exposes a simulated result', () => {
     const { screen, graphId } = buildScreen();
     let graph = appendAction(screen.logicGraphs[0]!, {
@@ -689,6 +720,34 @@ describe('resolveValueExpression', () => {
         },
       },
     )).toBe('ada@example.com');
+  });
+
+  it('resolves collection records into ListView items through Load List Items', () => {
+    const { screen, graphId } = buildScreen();
+    const graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'load-list-items',
+      targetNodeId: 'list_items',
+      collectionId: 'students',
+      fields: [{ id: 'name', label: 'Name', type: 'text' }],
+      sortFieldId: 'name',
+      sortDirection: 'desc',
+      searchFieldId: 'name',
+      searchComponentId: 'search',
+    });
+    const withGraph = { ...screen, logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item) };
+    const records = [
+      { id: 'a', projectId: 'project', collectionId: 'students', values: { name: 'Ada' }, createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01') },
+      { id: 'g', projectId: 'project', collectionId: 'students', values: { name: 'Grace' }, createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01') },
+    ];
+
+    expect(runClickBehavior({ screens: [withGraph] }, withGraph, 'node_button', {
+      componentValues: new Map([['search', 'ada']]),
+      data: { getRecord: () => null, listRecords: () => records },
+    })).toEqual([{
+      kind: 'list-items',
+      listViewId: 'list_items',
+      items: [{ itemId: 'a', values: { name: 'Ada', value: 'Ada' } }],
+    }]);
   });
 });
 

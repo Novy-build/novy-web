@@ -264,6 +264,29 @@ function validateComponentProps(
     case 'divider':
       if (node.props.thickness <= 0) issues.push(issue('component-size-invalid', 'error', 'component', 'Divider thickness must be positive.', base));
       break;
+    case 'chart': {
+      const { dataSource } = node.props;
+      if (node.props.palette.length === 0) {
+        issues.push(issue('component-chart-palette', 'warning', 'component', 'Chart needs at least one palette color.', base));
+      }
+      for (const color of node.props.palette) {
+        if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
+          issues.push(issue('component-chart-color', 'warning', 'component', 'Chart palette colors must be six-digit hex values.', base));
+        }
+      }
+      if (dataSource.categories.length === 0) {
+        issues.push(issue('component-chart-categories', 'warning', 'component', 'Chart has no categories.', base));
+      }
+      for (const series of dataSource.series) {
+        if (series.values.length !== dataSource.categories.length) {
+          issues.push(issue('component-chart-series-length', 'error', 'component', 'Each chart series needs one value per category.', base));
+        }
+        if (series.values.some((value) => !Number.isFinite(value))) {
+          issues.push(issue('component-chart-value', 'error', 'component', 'Chart values must be finite numbers.', base));
+        }
+      }
+      break;
+    }
     default:
       break;
   }
@@ -423,7 +446,7 @@ function validateLogic(
           if (expression.source === 'node-output' && !nodeIds.has(expression.nodeId)) {
             issues.push(issue('logic-missing-input-source', 'error', 'logic', 'Action input references a missing workflow node.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
           }
-          validateListItemExpression(expression, graphItemSource, collections, issues, {
+          validateListItemExpression(expression, graphItemSource, screen, collections, issues, {
             screenId: screen.id,
             graphId: graph.id,
             logicNodeId: node.id,
@@ -436,9 +459,15 @@ function validateLogic(
             : 'collectionId' in node.payload
               ? node.payload.collectionId
               : undefined;
-          if (!graphItemSource || graphItemSource.props.dataSource.kind !== 'collection') {
+          const itemCollectionId = graphItemSource
+            ? loadedListCollectionId(screen, graphItemSource.id)
+              ?? (graphItemSource.props.dataSource.kind === 'collection'
+                ? graphItemSource.props.dataSource.collectionId
+                : null)
+            : null;
+          if (!itemCollectionId) {
             issues.push(issue('logic-current-record-context', 'error', 'logic', 'Current-record action requires a collection-backed ListView.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
-          } else if (actionCollectionId && actionCollectionId !== graphItemSource.props.dataSource.collectionId) {
+          } else if (actionCollectionId && actionCollectionId !== itemCollectionId) {
             issues.push(issue('logic-current-record-collection', 'error', 'logic', 'Current-record action must use the enclosing ListView collection.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
           }
         }
@@ -464,7 +493,7 @@ function validateLogic(
         if (node.left.source === 'node-output' && !nodeIds.has(node.left.nodeId)) {
           issues.push(issue('logic-missing-condition-source', 'error', 'logic', 'Condition source node is missing.', { screenId: screen.id, graphId: graph.id, logicNodeId: node.id }));
         }
-        validateListItemExpression(node.left, graphItemSource, collections, issues, {
+        validateListItemExpression(node.left, graphItemSource, screen, collections, issues, {
           screenId: screen.id,
           graphId: graph.id,
           logicNodeId: node.id,
@@ -478,6 +507,7 @@ function validateLogic(
 function validateListItemExpression(
   expression: ValueExpression,
   itemSource: ListViewNode | null,
+  screen: Screen,
   collections: ReadonlyMap<string, DataCollection>,
   issues: ValidationIssue[],
   context: Pick<ValidationIssue, 'screenId' | 'graphId' | 'logicNodeId'>,
@@ -488,8 +518,9 @@ function validateListItemExpression(
     return;
   }
   if (expression.fieldId === CURRENT_ITEM_ID_FIELD) return;
+  const loadedFields = loadedListFieldIds(screen, itemSource.id);
   const exists = itemSource.props.dataSource.kind === 'static'
-    ? itemSource.props.dataSource.fields.some((field) => field.id === expression.fieldId)
+    ? itemSource.props.dataSource.fields.some((field) => field.id === expression.fieldId) || loadedFields.has(expression.fieldId)
     : collections.get(itemSource.props.dataSource.collectionId)?.fields.some((field) => field.id === expression.fieldId) === true;
   if (!exists) {
     issues.push(issue('logic-list-item-field', 'error', 'logic', 'Current-item input references a missing field.', {
@@ -498,6 +529,39 @@ function validateListItemExpression(
       fieldId: expression.fieldId,
     }));
   }
+}
+
+function loadedListCollectionId(
+  screen: Screen,
+  listViewId: string | undefined,
+): string | null {
+  if (!listViewId) return null;
+  for (const graph of screen.logicGraphs) {
+    for (const node of graph.nodes) {
+      if (node.kind === 'action'
+        && node.payload.type === 'load-list-items'
+        && node.payload.targetNodeId === listViewId) {
+        return node.payload.collectionId;
+      }
+    }
+  }
+  return null;
+}
+
+function loadedListFieldIds(
+  screen: Screen,
+  listViewId: string | undefined,
+): Set<string> {
+  for (const graph of screen.logicGraphs) {
+    for (const node of graph.nodes) {
+      if (node.kind === 'action'
+        && node.payload.type === 'load-list-items'
+        && node.payload.targetNodeId === listViewId) {
+        return new Set(node.payload.fields.map((field) => field.id));
+      }
+    }
+  }
+  return new Set();
 }
 
 function findNearestListView(
@@ -583,6 +647,50 @@ function validateActionPayload(
         issues.push(issue('data-missing-collection', 'error', 'logic', 'Refresh Collection references a missing collection.', base));
       }
       break;
+    case 'load-chart-data': {
+      const target = findComponentNode(screen.nodes, payload.targetNodeId);
+      if (!target) issues.push(issue('logic-missing-target', 'error', 'logic', 'Load Chart Data target is missing.', base));
+      else if (target.type !== 'chart') issues.push(issue('logic-chart-target', 'error', 'logic', 'Load Chart Data requires a Chart target.', base));
+      const collection = collections.get(payload.collectionId);
+      if (!collection) {
+        issues.push(issue('data-missing-collection', 'error', 'logic', 'Load Chart Data references a missing collection.', base));
+        break;
+      }
+      if (!collection.fields.some((field) => field.id === payload.categoryFieldId)) {
+        issues.push(issue('data-missing-field', 'error', 'logic', 'Load Chart Data category field is missing.', base));
+      }
+      if (payload.series.length === 0) issues.push(issue('logic-chart-series', 'error', 'logic', 'Load Chart Data needs at least one value field.', base));
+      for (const series of payload.series) {
+        const field = collection.fields.find((candidate) => candidate.id === series.valueFieldId);
+        if (!field) issues.push(issue('data-missing-field', 'error', 'logic', 'Load Chart Data value field is missing.', base));
+        else if (field.type !== 'number') issues.push(issue('data-chart-field-type', 'error', 'logic', 'Load Chart Data value fields must be numeric.', base));
+      }
+      break;
+    }
+    case 'load-list-items': {
+      const target = findComponentNode(screen.nodes, payload.targetNodeId);
+      if (!target) issues.push(issue('logic-missing-target', 'error', 'logic', 'Load List Items target is missing.', base));
+      else if (target.type !== 'listview') issues.push(issue('logic-list-target', 'error', 'logic', 'Load List Items requires a ListView target.', base));
+      const collection = collections.get(payload.collectionId);
+      if (!collection) {
+        issues.push(issue('data-missing-collection', 'error', 'logic', 'Load List Items references a missing collection.', base));
+        break;
+      }
+      for (const field of payload.fields) {
+        if (!collection.fields.some((candidate) => candidate.id === field.id)) {
+          issues.push(issue('data-missing-field', 'error', 'logic', 'Load List Items references a missing field.', base));
+        }
+      }
+      for (const fieldId of [payload.sortFieldId, payload.searchFieldId]) {
+        if (fieldId && !collection.fields.some((candidate) => candidate.id === fieldId)) {
+          issues.push(issue('data-missing-field', 'error', 'logic', 'Load List Items query field is missing.', base));
+        }
+      }
+      if (payload.searchComponentId && !screen.nodes.flatMap(flattenNodeIds).includes(payload.searchComponentId)) {
+        issues.push(issue('logic-missing-target', 'error', 'logic', 'Load List Items search component is missing.', base));
+      }
+      break;
+    }
     case 'send-email':
       if (!payload.to.trim()) issues.push(issue('logic-empty-email', 'warning', 'logic', 'Send Email recipient is empty.', base));
       if (!payload.subject.trim()) issues.push(issue('logic-empty-email-subject', 'warning', 'logic', 'Send Email subject is empty.', base));

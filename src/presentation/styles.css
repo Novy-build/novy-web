@@ -139,6 +139,104 @@
   color: var(--novy-component-text, #ffffff);
 }
 
+/* Every widget is a size container so its contents respond to node resizing. */
+.novy-node {
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+.novy-node:is(
+  [data-node-type='button'],
+  [data-node-type='text'],
+  [data-node-type='icon'],
+  [data-node-type='input'],
+  [data-node-type='image'],
+  [data-node-type='checkbox'],
+  [data-node-type='radio'],
+  [data-node-type='switch'],
+  [data-node-type='dropdown'],
+  [data-node-type='slider'],
+  [data-node-type='progress'],
+  [data-node-type='divider'],
+  [data-node-type='camera'],
+  [data-node-type='file-input'],
+  [data-node-type='chat'],
+  [data-node-type='chart']
+) {
+  overflow: hidden;
+}
+
+.novy-node > *,
+.novy-node button,
+.novy-node input,
+.novy-node textarea,
+.novy-node select {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.novy-node p,
+.novy-node .novy-widget-text,
+.novy-node .novy-widget-text-muted,
+.novy-node .novy-widget-text-contrast {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.novy-node[data-content-size='small'] .novy-widget-text,
+.novy-node[data-content-size='small'] .novy-widget-text-muted,
+.novy-node[data-content-size='small'] .novy-widget-text-contrast {
+  font-size: min(0.75rem, 10cqh);
+}
+
+.novy-node[data-content-size='compact'] > * {
+  gap: 0.125rem !important;
+}
+
+.novy-node[data-content-size='compact'] .novy-widget-text,
+.novy-node[data-content-size='compact'] .novy-widget-text-muted,
+.novy-node[data-content-size='compact'] .novy-widget-text-contrast {
+  overflow: hidden;
+  font-size: min(0.6875rem, 28cqh);
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.novy-node[data-content-size='compact'] button,
+.novy-node[data-content-size='compact'] input,
+.novy-node[data-content-size='compact'] select,
+.novy-node[data-content-size='compact'] textarea {
+  min-height: 0;
+  height: min(2rem, 100cqh);
+  padding-block: 0.125rem;
+  padding-inline: 0.375rem;
+  font-size: min(0.75rem, 30cqh);
+}
+
+@container (max-height: 52px) {
+  .novy-node .flex-col > .novy-widget-text-muted:first-child,
+  .novy-node .flex-col > label:first-child,
+  .novy-node .flex-col > span:first-child:not(:only-child) {
+    display: none;
+  }
+}
+
+@container (max-width: 180px) {
+  .novy-node .px-4 { padding-inline: 0.5rem; }
+  .novy-node .px-3 { padding-inline: 0.375rem; }
+  .novy-node .p-3 { padding: 0.375rem; }
+  .novy-node .gap-3 { gap: 0.375rem; }
+  .novy-node .gap-2 { gap: 0.25rem; }
+}
+
+@container (max-height: 150px) {
+  .novy-node form { padding: 0.375rem; }
+  .novy-node [aria-live='polite'] { padding: 0.375rem; }
+}
+
 @layer base {
   * {
     box-sizing: border-box;

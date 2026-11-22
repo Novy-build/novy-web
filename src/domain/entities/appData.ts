@@ -8,7 +8,7 @@ export interface ListItemContext {
   values: Readonly<Record<string, DataValue>>;
 }
 
-export type ListItemPlacement = 'append' | 'prepend';
+export type ListItemPlacement = 'append' | 'prepend' | 'replace';
 
 /** One session-only item layered around a static ListView's persisted/runtime baseline. */
 export interface LocalListItemAddition {

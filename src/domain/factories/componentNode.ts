@@ -7,6 +7,7 @@ import type {
   GestureDetectorNode,
   ColumnNode,
   CameraNode,
+  ChartNode,
   ChatNode,
   DividerNode,
   FileInputNode,
@@ -22,7 +23,7 @@ import type {
   SwitchNode,
   TextNode,
 } from '../entities/componentNode';
-import { createPadding } from '../entities/componentNode';
+import { createPadding, DEFAULT_CHART_PALETTE } from '../entities/componentNode';
 import { generateId } from '../ids';
 
 /**
@@ -287,6 +288,33 @@ function createChatNode(): ChatNode {
   };
 }
 
+function createChartNode(): ChartNode {
+  return {
+    id: generateId('node'),
+    type: 'chart',
+    x: 24,
+    y: 24,
+    w: 360,
+    h: 260,
+    props: {
+      title: 'Chart title',
+      chartType: 'bar',
+      dataSource: {
+        kind: 'static',
+        categories: ['Jan', 'Feb', 'Mar', 'Apr'],
+        series: [
+          { id: generateId('series'), label: 'Series 1', values: [12, 19, 8, 15] },
+        ],
+      },
+      showLegend: true,
+      showGrid: true,
+      showValues: false,
+      emptyText: 'No chart data yet',
+      palette: [...DEFAULT_CHART_PALETTE],
+    },
+  };
+}
+
 function createDividerNode(): DividerNode {
   return {
     id: generateId('node'),
@@ -324,6 +352,7 @@ const factories: Record<ComponentType, NodeFactory> = {
   'file-input': createFileInputNode,
   chat: createChatNode,
   divider: createDividerNode,
+  chart: createChartNode,
 };
 
 /** Creates a palette component with sensible defaults, ready to drop on canvas. */

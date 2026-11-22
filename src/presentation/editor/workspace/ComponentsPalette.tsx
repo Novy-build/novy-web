@@ -1,5 +1,6 @@
 import { useState, type DragEvent } from 'react';
 import {
+  BarChart3,
   Camera,
   CircleDot,
   CircleGauge,
@@ -56,6 +57,7 @@ export const PALETTE_ITEMS: readonly PaletteItemConfig[] = [
   { type: 'slider', label: 'Slider', description: 'Pick a value from a range', category: 'Form controls', icon: SlidersHorizontal },
   { type: 'progress', label: 'Progress', description: 'Show completion status', category: 'Form controls', icon: CircleGauge },
   { type: 'listview', label: 'ListView', description: 'Scrollable repeated item template', category: 'Data', icon: ListIcon },
+  { type: 'chart', label: 'Chart', description: 'Visualize data as bars, lines, or a pie', category: 'Data', icon: BarChart3 },
 ];
 
 const CATEGORY_ORDER: readonly PaletteCategory[] = ['Layout', 'Interaction', 'Basic', 'Form controls', 'Data'];

@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-21
+**Last reviewed:** 2026-11-22
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -785,6 +785,9 @@ Record identity and routing are explicit in that handoff:
 - [x] Click-to-add alternative to drag and drop.
 - [x] Shared renderer used by canvas, preview, and project thumbnails.
 - [x] Typed defaults and inspector controls for supported components.
+- [x] Shared compact/small/regular content sizing for every widget. Node frames are CSS size
+  containers; leaf widgets clip safely, controls/padding/text adapt through container queries, and
+  full Text values remain available through native titles when visually truncated.
 
 Implemented component types:
 
@@ -800,8 +803,8 @@ Implemented component types:
   nested-control click isolation, and palette-based composition.
 - [x] Column with vertical child composition and main/cross-axis controls.
 - [x] Row with horizontal child composition and main/cross-axis controls.
-- [x] ListView with vertical/horizontal scrolling, static or collection data, and composed item
-  templates.
+- [x] ListView with vertical/horizontal scrolling, static authored content, Logic-loaded collection
+  items, and composed item templates.
 - [x] Dedicated ListView item-design scope with scoped canvas/Layers, sample selection,
   schema-driven property binding controls, an optional record label, palette insertion, undo/redo,
   and autosave reuse. Empty item templates show a status message and rely on the component palette
@@ -832,6 +835,12 @@ Implemented component types:
   bubble during asynchronous workflows, prevent duplicate authored user messages, auto-scroll, and
   retain the submitted message if execution fails. The behavior is shared by isolated Preview, Run
   App, and generated/published applications.
+- [x] Chart with accessible SVG bar, line, and pie rendering, bounded static categories/series,
+  validated hex palette, Inspector controls, and schema-v14 DTO round-trips. Collection bindings
+  live exclusively in the **Load Chart Data** Logic node (target Chart, category field, numeric
+  series fields); legacy direct bindings auto-migrate to an on-load graph. The SVG uses actual node
+  dimensions, reflows side/bottom legends, thins axis labels, and hides secondary labels at compact
+  sizes rather than overlapping or clipping them.
 
 ### Layout and direct manipulation
 
@@ -1145,9 +1154,10 @@ remains blocked until a production provider is explicitly selected and implement
   snapshot endpoint instead of a sequential request waterfall.
 - [x] Project-scoped RAG document sources with upload, list, and delete. Uploaded binaries are
   extracted and stored by the backend and are never persisted in the browser.
-- [x] ListView-to-collection data binding with an optional record label, multiple display fields
-  retained for saved-project compatibility, search/sort metadata, and a repeatable nested item
-  template that supports text, image-only, and mixed-media designs.
+- [x] Collection-backed ListViews are configured through the **Load List Items** Logic node, which
+  owns collection, field, search, and sort metadata. Saved direct bindings auto-migrate to static
+  props plus an on-load graph. The repeatable item template supports text, image-only, and mixed-media
+  designs.
 - [x] Logic variables, component-value actions, typed node outputs, and generalized conditions.
 - [x] Composed Input + Button collection writes through Insert Record workflows and component-value
   input mappings.

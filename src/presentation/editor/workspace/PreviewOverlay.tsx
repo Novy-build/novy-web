@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Screen } from '@domain/entities/screen';
+import type { ChartDataSource } from '@domain/entities/componentNode';
 import type { DataCollection, DataRecord, DataValue, LocalListItemAddition } from '@domain/entities/appData';
 import { validateRecordValues } from '@domain/appData/validation';
 import { generateId } from '@domain/ids';
@@ -109,6 +110,8 @@ export function PreviewOverlay({
   const [previewRecords, setPreviewRecords] = useState<ReadonlyMap<string, readonly DataRecord[]>>(
     () => new Map(recordsByCollection),
   );
+  const [chartDataByNode, setChartDataByNode] = useState<ReadonlyMap<string, ChartDataSource>>(() => new Map());
+  const [listReloadToken, setListReloadToken] = useState(0);
   const previewRecordsRef = useRef(previewRecords);
   previewRecordsRef.current = previewRecords;
   const [persistDataChanges, setPersistDataChanges] = useState(false);
@@ -160,6 +163,7 @@ export function PreviewOverlay({
     return {
       getRecord: (collectionId: string, recordId: string) =>
         (previewRecordsRef.current.get(collectionId) ?? []).find((record) => record.id === recordId) ?? null,
+      listRecords: (collectionId: string) => previewRecordsRef.current.get(collectionId) ?? [],
       loadCollectionDocuments: (
         collectionId: string,
         contentFieldId: string,
@@ -480,6 +484,19 @@ export function PreviewOverlay({
           case 'refresh-collection':
             setToast({ id: Date.now(), message: `Refreshed collection ${effect.collectionId}.` });
             break;
+          case 'chart-data':
+            setChartDataByNode((previous) => new Map([...previous, [effect.nodeId, effect.dataSource]]));
+            break;
+          case 'list-items':
+            setLocalItemsByListView((previous) => new Map([
+              ...previous,
+              [effect.listViewId, effect.items.map((item) => ({
+                itemId: item.itemId,
+                placement: 'replace' as const,
+                values: item.values,
+              }))],
+            ]));
+            break;
           case 'email-simulated':
             setToast({ id: Date.now(), message: `Preview email to ${effect.to} was simulated.` });
             break;
@@ -570,8 +587,9 @@ export function PreviewOverlay({
 
   const loadedScreenRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!screen || loadedScreenRef.current === screen.id) return;
-    loadedScreenRef.current = screen.id;
+    const loadKey = `${screen?.id ?? ''}:${listReloadToken}`;
+    if (!screen || loadedScreenRef.current === loadKey) return;
+    loadedScreenRef.current = loadKey;
     for (const behavior of screen.behaviors.filter((candidate) => candidate.event === 'load')) {
       void runBehaviorAsync(
         { screens },
@@ -598,9 +616,9 @@ export function PreviewOverlay({
         setToast({ id: Date.now(), message: error instanceof Error ? error.message : 'Workflow failed.', kind: 'error' });
       });
     }
-    // Execute once when a screen is entered; runtime state changes must not retrigger On Load.
+    // Run once per screen entry and again after data mutations refresh loaded lists.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen?.id]);
+  }, [screen?.id, listReloadToken]);
 
   async function applyDataOperation(payload: DataOperationPayload): Promise<unknown> {
     activeOperationsRef.current += 1;
@@ -643,6 +661,7 @@ export function PreviewOverlay({
       const latest = previewRecordsRef.current.get(payload.collectionId) ?? [];
       replacePreviewCollection(payload.collectionId, [...latest, record]);
       if (!persistDataChanges) sandboxDirtyRef.current = true;
+      setListReloadToken((currentToken) => currentToken + 1);
       setToast({ id: Date.now(), message: persistDataChanges ? 'Record saved to project data.' : 'Preview record inserted.' });
       return { record };
     }
@@ -660,6 +679,7 @@ export function PreviewOverlay({
         (previewRecordsRef.current.get(payload.collectionId) ?? []).map((record) => record.id === payload.recordId ? updated : record),
       );
       if (!persistDataChanges) sandboxDirtyRef.current = true;
+      setListReloadToken((currentToken) => currentToken + 1);
       setToast({ id: Date.now(), message: persistDataChanges ? 'Record update saved to project data.' : 'Preview record updated.' });
       return { record: updated };
     }
@@ -676,6 +696,7 @@ export function PreviewOverlay({
     );
     if (!persistDataChanges) sandboxDirtyRef.current = true;
     setToast({ id: Date.now(), message: persistDataChanges ? 'Record deleted from project data.' : 'Preview record deleted.' });
+    setListReloadToken((currentToken) => currentToken + 1);
     return { deletedRecordId: payload.recordId, collectionId: payload.collectionId };
   }
 
@@ -957,6 +978,7 @@ export function PreviewOverlay({
             breakpoint={previewDevice}
             componentValues={componentValues}
             dataContext={{
+              chartDataByNode,
               collections,
               localItemsByListView,
               pendingChatNodeIds,

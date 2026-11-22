@@ -56,6 +56,7 @@ const TYPE_ICONS: Readonly<Record<ComponentNode['type'], string>> = {
   camera: '◉',
   'file-input': '⇧',
   chat: '◌',
+  chart: '▥',
 };
 
 /** Figma-inspired hierarchical layer tree with persisted layer controls. */

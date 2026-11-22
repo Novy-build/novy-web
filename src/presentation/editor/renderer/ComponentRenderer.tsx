@@ -6,6 +6,7 @@ import { type CSSProperties, type PropsWithChildren } from 'react';
 import type { ComponentRendererProps, RendererEventContext } from './renderer';
 import { ButtonNodeView } from './nodes/ButtonNodeView';
 import { CameraNodeView } from './nodes/CameraNodeView';
+import { ChartNodeView } from './nodes/ChartNodeView';
 import { ChatNodeView } from './nodes/ChatNodeView';
 import { CheckboxNodeView } from './nodes/CheckboxNodeView';
 import { ContainerNodeView } from './nodes/ContainerNodeView';
@@ -24,9 +25,11 @@ import { TextNodeView } from './nodes/TextNodeView';
 import { GestureDetectorNodeView } from './nodes/GestureDetectorNodeView';
 import { IconNodeView } from './nodes/IconNodeView';
 import { designSystemCssVariables, findNamedStyle } from '@domain/entities/designSystem';
+import { resolveContentSize } from './contentSizing';
 
 interface NodeFrameProps {
   geometry: Pick<ComponentNode, 'id' | 'x' | 'y' | 'w' | 'h'>;
+  nodeType: ComponentNode['type'];
   interactive: boolean;
   selected: boolean;
   onSelect?: (nodeId: string) => void;
@@ -45,7 +48,8 @@ interface NodeFrameProps {
  * it also owns hit-testing: the selection click reaches the deepest node
  * first (inner frames stop propagation).
  */
-function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, onNodeEvent, eventContext, appearance, textColor, semanticLabel, stopClickPropagation = false, children }: PropsWithChildren<NodeFrameProps>) {
+function NodeFrame({ geometry, nodeType, interactive, selected, onSelect, onNodeAction, onNodeEvent, eventContext, appearance, textColor, semanticLabel, stopClickPropagation = false, children }: PropsWithChildren<NodeFrameProps>) {
+  const contentSize = resolveContentSize(geometry.w, geometry.h);
   const selectionClass = interactive && selected ? ' ring-2 ring-brand-600' : '';
   const appearanceClass = appearance
     ? ` novy-node-appearance${appearance.backgroundColor || appearance.gradient ? ' novy-node-background' : ''}${appearance.borderRadius !== undefined ? ' novy-node-radius' : ''}`
@@ -58,7 +62,9 @@ function NodeFrame({ geometry, interactive, selected, onSelect, onNodeAction, on
   return (
     <div
       aria-label={semanticLabel}
-      className={`absolute${appearanceClass}${selectionClass}`}
+      className={`novy-node absolute${appearanceClass}${selectionClass}`}
+      data-content-size={contentSize.tier}
+      data-node-type={nodeType}
       data-node-id={geometry.id}
       data-selected={selected ? 'true' : 'false'}
       onClick={
@@ -148,6 +154,7 @@ export function ComponentRenderer({
   const frame = (children: React.ReactNode) => (
     <NodeFrame
       geometry={geometry}
+      nodeType={node.type}
       appearance={node.type === 'input' ? undefined : resolvedAppearance}
       textColor={resolvedAppearance?.textColor}
       interactive={interactive}
@@ -309,6 +316,8 @@ export function ComponentRenderer({
           renderStatic={renderStatic}
         />,
       );
+    case 'chart':
+      return frame(<ChartNodeView dataSource={dataContext?.chartDataByNode?.get(node.id)} height={geometry.h} props={node.props} width={geometry.w} />);
     case 'container':
     case 'gesture-detector':
     case 'column':

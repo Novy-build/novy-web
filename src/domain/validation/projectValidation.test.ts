@@ -528,4 +528,88 @@ describe('validateProject', () => {
       'logic-local-list-target',
     ]));
   });
+
+  it('validates chart collection references and numeric value fields', () => {
+    const chart = {
+      id: 'chart',
+      type: 'chart' as const,
+      x: 0,
+      y: 0,
+      w: 360,
+      h: 260,
+      props: {
+        title: 'Sales',
+        chartType: 'bar' as const,
+        dataSource: {
+          kind: 'static' as const,
+          categories: [],
+          series: [],
+        },
+        showLegend: true,
+        showGrid: true,
+        showValues: false,
+        emptyText: 'No data',
+        palette: ['#112233'],
+      },
+    };
+    const screen = makeScreen('screen_home', [chart]);
+    screen.behaviors = [{ id: 'behavior', name: 'Load chart', event: 'load', graphId: 'graph', targetNodeId: 'chart' }];
+    screen.logicGraphs = [{
+      id: 'graph', name: 'Load chart', sourceNodeId: 'chart',
+      nodes: [
+        { kind: 'trigger', id: 'trigger', event: 'load', position: { x: 0, y: 0 } },
+        { kind: 'action', id: 'load', position: { x: 200, y: 0 }, payload: {
+          type: 'load-chart-data', targetNodeId: 'chart', collectionId: 'sales', categoryFieldId: 'month',
+          series: [{ id: 'total', label: 'Total', valueFieldId: 'total' }],
+        } },
+      ],
+      edges: [{ id: 'edge', fromNodeId: 'trigger', fromPort: 'next', toNodeId: 'load', toPort: 'in' }],
+    }];
+
+    const missing = validateProject(documentWith(screen));
+    expect(missing.issues.map((entry) => entry.code)).toContain('data-missing-collection');
+
+    const collection: DataCollection = {
+      id: 'sales',
+      projectId: 'project',
+      databaseId: 'database',
+      name: 'Sales',
+      fields: [
+        { id: 'month', key: 'month', label: 'Month', type: 'text', required: false },
+        { id: 'total', key: 'total', label: 'Total', type: 'text', required: false },
+      ],
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    };
+    const typed = validateProject(documentWith(screen), [collection]);
+    expect(typed.issues.map((entry) => entry.code)).toContain('data-chart-field-type');
+  });
+
+  it('reports static chart series that do not match the category count', () => {
+    const screen = makeScreen('screen_home', [{
+      id: 'chart',
+      type: 'chart',
+      x: 0,
+      y: 0,
+      w: 360,
+      h: 260,
+      props: {
+        title: 'Sales',
+        chartType: 'line',
+        dataSource: {
+          kind: 'static',
+          categories: ['Jan', 'Feb'],
+          series: [{ id: 'total', label: 'Total', values: [1] }],
+        },
+        showLegend: true,
+        showGrid: true,
+        showValues: false,
+        emptyText: 'No data',
+        palette: ['#112233'],
+      },
+    }]);
+
+    const report = validateProject(documentWith(screen));
+    expect(report.issues.map((entry) => entry.code)).toContain('component-chart-series-length');
+  });
 });

@@ -508,6 +508,165 @@ export function LogicNodeConfig({
         </div>
       ) : null}
 
+      {actionPayload.type === 'load-chart-data' ? (
+        <div className="mt-4 grid gap-3">
+          <label className="text-xs font-medium text-ink-muted" htmlFor="logic-chart-target">
+            <FieldHelpLabel label="Target chart" />
+          </label>
+          <select
+            className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="logic-chart-target"
+            onChange={(event) => configure({ ...actionPayload, targetNodeId: event.target.value })}
+            value={actionPayload.targetNodeId}
+          >
+            <option value="">Choose a chart…</option>
+            {screenNodes.filter((candidate) => candidate.type === 'chart').map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{nodeLayerName(candidate)}</option>
+            ))}
+          </select>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="logic-chart-category-field">
+            <FieldHelpLabel label="Category field" />
+          </label>
+          <select
+            className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            disabled={!selectedDataCollection}
+            id="logic-chart-category-field"
+            onChange={(event) => configure({ ...actionPayload, categoryFieldId: event.target.value })}
+            value={actionPayload.categoryFieldId}
+          >
+            <option value="">Choose a field…</option>
+            {(selectedDataCollection?.fields ?? []).map((field) => (
+              <option key={field.id} value={field.id}>{field.label || field.id}</option>
+            ))}
+          </select>
+          <fieldset className="grid gap-1">
+            <legend className="text-xs font-medium text-ink-muted">
+              <FieldHelpLabel label="Numeric value fields" />
+            </legend>
+            {(selectedDataCollection?.fields.filter((field) => field.type === 'number') ?? []).map((field) => {
+              const checked = actionPayload.series.some((series) => series.valueFieldId === field.id);
+              return (
+                <label className="flex items-center gap-2 text-xs text-ink" key={field.id}>
+                  <input
+                    checked={checked}
+                    onChange={() => configure({
+                      ...actionPayload,
+                      series: checked
+                        ? actionPayload.series.filter((series) => series.valueFieldId !== field.id)
+                        : [...actionPayload.series, { id: field.id, label: field.label || field.id, valueFieldId: field.id }],
+                    })}
+                    type="checkbox"
+                  />
+                  {field.label || field.id}
+                </label>
+              );
+            })}
+            {selectedDataCollection && !selectedDataCollection.fields.some((field) => field.type === 'number') ? (
+              <p className="text-xs text-ink-muted">This collection has no numeric fields.</p>
+            ) : null}
+          </fieldset>
+        </div>
+      ) : null}
+
+      {actionPayload.type === 'load-list-items' ? (
+        <div className="mt-4 grid gap-3">
+          <label className="text-xs font-medium text-ink-muted" htmlFor="logic-list-target">
+            <FieldHelpLabel label="Target ListView" />
+          </label>
+          <select
+            className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="logic-list-target"
+            onChange={(event) => configure({ ...actionPayload, targetNodeId: event.target.value })}
+            value={actionPayload.targetNodeId}
+          >
+            <option value="">Choose a ListView…</option>
+            {screenNodes.filter((candidate) => candidate.type === 'listview').map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{nodeLayerName(candidate)}</option>
+            ))}
+          </select>
+          <fieldset className="grid gap-1">
+            <legend className="text-xs font-medium text-ink-muted"><FieldHelpLabel label="Fields to load" /></legend>
+            {(selectedDataCollection?.fields ?? []).map((field) => {
+              const checked = actionPayload.fields.length === 0
+                || actionPayload.fields.some((candidate) => candidate.id === field.id);
+              return (
+                <label className="flex items-center gap-2 text-xs text-ink" key={field.id}>
+                  <input
+                    checked={checked}
+                    onChange={() => {
+                      const current = actionPayload.fields.length === 0
+                        ? selectedDataCollection!.fields.map((candidate) => ({ id: candidate.id, label: candidate.label, type: candidate.type }))
+                        : actionPayload.fields;
+                      const next = checked
+                        ? current.filter((candidate) => candidate.id !== field.id)
+                        : [...current, { id: field.id, label: field.label, type: field.type }];
+                      configure({ ...actionPayload, fields: next });
+                    }}
+                    type="checkbox"
+                  />
+                  {field.label || field.id}
+                </label>
+              );
+            })}
+            {!selectedDataCollection ? <p className="text-xs text-ink-muted">Choose a collection first.</p> : null}
+          </fieldset>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="logic-list-sort">
+            <FieldHelpLabel label="Sort field" />
+          </label>
+          <select
+            className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="logic-list-sort"
+            onChange={(event) => configure({ ...actionPayload, sortFieldId: event.target.value || undefined })}
+            value={actionPayload.sortFieldId ?? ''}
+          >
+            <option value="">None</option>
+            {(selectedDataCollection?.fields ?? []).map((field) => (
+              <option key={field.id} value={field.id}>{field.label || field.id}</option>
+            ))}
+          </select>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="logic-list-direction">
+            <FieldHelpLabel label="Sort direction" />
+          </label>
+          <select
+            className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="logic-list-direction"
+            onChange={(event) => configure({ ...actionPayload, sortDirection: event.target.value as 'asc' | 'desc' })}
+            value={actionPayload.sortDirection ?? 'asc'}
+          >
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="logic-list-search-field">
+            <FieldHelpLabel label="Search field" />
+          </label>
+          <select
+            className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="logic-list-search-field"
+            onChange={(event) => configure({ ...actionPayload, searchFieldId: event.target.value || undefined })}
+            value={actionPayload.searchFieldId ?? ''}
+          >
+            <option value="">None</option>
+            {(selectedDataCollection?.fields ?? []).map((field) => (
+              <option key={field.id} value={field.id}>{field.label || field.id}</option>
+            ))}
+          </select>
+          <label className="text-xs font-medium text-ink-muted" htmlFor="logic-list-search-component">
+            <FieldHelpLabel label="Search input component" />
+          </label>
+          <select
+            className="h-9 w-full rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            id="logic-list-search-component"
+            onChange={(event) => configure({ ...actionPayload, searchComponentId: event.target.value || undefined })}
+            value={actionPayload.searchComponentId ?? ''}
+          >
+            <option value="">None</option>
+            {screenNodes.filter((candidate) => candidate.type === 'input').map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{nodeLayerName(candidate)}</option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
       {actionPayload.type === 'add-local-list-item' ? (
         <div className="mt-4 grid gap-3">
           <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-800">
@@ -651,13 +810,15 @@ export function LogicNodeConfig({
 
 function isDataPayload(
   payload: ActionPayload,
-): payload is Extract<ActionPayload, { type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record' | 'refresh-collection' }> {
+): payload is Extract<ActionPayload, { type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record' | 'refresh-collection' | 'load-chart-data' }> {
   return payload.type === 'get-records' ||
     payload.type === 'get-record' ||
     payload.type === 'insert-record' ||
     payload.type === 'update-record' ||
     payload.type === 'delete-record' ||
-    payload.type === 'refresh-collection';
+    payload.type === 'refresh-collection' ||
+    payload.type === 'load-chart-data' ||
+    payload.type === 'load-list-items';
 }
 
 function actionInputDefinitions(
@@ -755,6 +916,8 @@ function actionInputDefinitions(
     case 'navigate':
     case 'get-records':
     case 'refresh-collection':
+    case 'load-chart-data':
+    case 'load-list-items':
       return [];
     default:
       return [];

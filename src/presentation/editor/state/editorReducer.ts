@@ -449,6 +449,11 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
         node.type === 'divider' ? { ...node, props: { ...node.props, ...action.props } } : node,
       );
 
+    case 'node/props-chart':
+      return updateNodeWithHistory(state, action.nodeId, (node) =>
+        node.type === 'chart' ? { ...node, props: { ...node.props, ...action.props } } : node,
+      );
+
     case 'node/duplicate':
       if (isItemFrame(state, action.nodeId)) return state;
       return duplicateNode(state, action.nodeId);

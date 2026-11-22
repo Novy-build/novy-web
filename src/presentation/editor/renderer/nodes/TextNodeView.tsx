@@ -30,5 +30,5 @@ export function TextNodeView({ props }: { props: TextProps }) {
     overflow: props.lineClamp ? 'hidden' : undefined,
   };
 
-  return <p className={`break-words ${levelClasses[props.level]}`} style={style}>{props.text}</p>;
+  return <p className={`break-words ${levelClasses[props.level]}`} style={style} title={props.text}>{props.text}</p>;
 }

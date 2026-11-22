@@ -28,7 +28,8 @@ export type ComponentType =
   | 'divider'
   | 'camera'
   | 'file-input'
-  | 'chat';
+  | 'chat'
+  | 'chart';
 
 /**
  * Curated Lucide icon names available to Button widgets. Keeping the set
@@ -296,17 +297,28 @@ export interface StaticListViewItem {
   values: Record<string, DataValue>;
 }
 
-export type ListViewDataSource =
-  | { kind: 'static'; fields: ListViewItemField[]; items: StaticListViewItem[] }
-  | {
-      kind: 'collection';
-      collectionId: string;
-      displayFieldIds: string[];
-      sortFieldId?: string;
-      sortDirection?: 'asc' | 'desc';
-      searchFieldId?: string;
-      searchComponentId?: string;
-    };
+export interface StaticListViewDataSource {
+  kind: 'static';
+  fields: ListViewItemField[];
+  items: StaticListViewItem[];
+}
+
+/**
+ * Read-compatibility shape for projects saved before collection bindings moved
+ * into Logic. The mapper converts this into a static source plus a
+ * `load-list-items` action and never writes it back to canonical project JSON.
+ */
+export interface LegacyCollectionListViewDataSource {
+  kind: 'collection';
+  collectionId: string;
+  displayFieldIds: string[];
+  sortFieldId?: string;
+  sortDirection?: 'asc' | 'desc';
+  searchFieldId?: string;
+  searchComponentId?: string;
+}
+
+export type ListViewDataSource = StaticListViewDataSource | LegacyCollectionListViewDataSource;
 
 export interface ListViewProps {
   emptyText: string;
@@ -394,6 +406,55 @@ export interface ChatProps {
   emptyText: string;
   showCitations: boolean;
   fieldStyle?: FieldStyle;
+}
+
+export const CHART_TYPES = ['bar', 'line', 'pie'] as const;
+
+export type ChartType = (typeof CHART_TYPES)[number];
+
+export function isChartType(value: unknown): value is ChartType {
+  return typeof value === 'string' && (CHART_TYPES as readonly string[]).includes(value);
+}
+
+/** Bounded series/category counts keep persisted charts and generated output small. */
+export const MAX_CHART_CATEGORIES = 24;
+export const MAX_CHART_SERIES = 6;
+export const MAX_CHART_PALETTE = 12;
+
+/** Theme-agnostic fallback palette; validated hex colors only. */
+export const DEFAULT_CHART_PALETTE: readonly string[] = [
+  '#4f46e5',
+  '#0ea5e9',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+];
+
+export interface ChartStaticSeries {
+  id: string;
+  label: string;
+  /** Optional validated hex color; omitted falls back to the chart palette. */
+  color?: string;
+  /** One numeric value per category. */
+  values: number[];
+}
+
+export interface ChartDataSource {
+  kind: 'static';
+  categories: string[];
+  series: ChartStaticSeries[];
+}
+
+export interface ChartProps {
+  title: string;
+  chartType: ChartType;
+  dataSource: ChartDataSource;
+  showLegend: boolean;
+  showGrid: boolean;
+  showValues: boolean;
+  emptyText: string;
+  palette: string[];
 }
 
 export interface NodeGeometry {
@@ -691,6 +752,11 @@ export interface ChatNode extends NodeBase {
   props: ChatProps;
 }
 
+export interface ChartNode extends NodeBase {
+  type: 'chart';
+  props: ChartProps;
+}
+
 export type ComponentNode =
   | ButtonNode
   | TextNode
@@ -711,7 +777,8 @@ export type ComponentNode =
   | DividerNode
   | CameraNode
   | FileInputNode
-  | ChatNode;
+  | ChatNode
+  | ChartNode;
 
 export type ChildBearingNode = ContainerNode | GestureDetectorNode | ColumnNode | RowNode | ListViewNode;
 
@@ -852,4 +919,5 @@ export const CHILD_WIDGET_TYPES: readonly ComponentType[] = [
   'camera',
   'file-input',
   'chat',
+  'chart',
 ];

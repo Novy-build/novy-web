@@ -1,7 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { EditorAction } from '../state/editorState';
-import { FieldHelpEnvironmentContext } from '@presentation/components/ui/FieldHelp';
 import { Inspector } from './Inspector';
 import { makeButton, makeColumn, makeContainer, makeImage, makeListView, makeText } from '@test/editorFixtures';
 import type { DataCollection } from '@domain/entities/appData';
@@ -19,6 +18,16 @@ const COLLECTION: DataCollection = {
   ],
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
+};
+
+const SALES_COLLECTION: DataCollection = {
+  ...COLLECTION,
+  id: 'collection_sales',
+  name: 'Sales',
+  fields: [
+    { id: 'field_month', key: 'month', label: 'Month', type: 'text', required: false },
+    { id: 'field_total', key: 'total', label: 'Total', type: 'number', required: false },
+  ],
 };
 
 const PINNED_COLLECTION: DataCollection = {
@@ -60,6 +69,26 @@ describe('Inspector', () => {
     const { onAction } = renderInspector(node);
     fireEvent.click(screen.getByRole('checkbox', { name: 'Use as dark mode switch' }));
     expect(onAction).toHaveBeenCalledWith({ type: 'node/props-switch', nodeId: node.id, props: { controlsTheme: true } });
+  });
+
+  it('edits chart type and static categories without exposing collections', () => {
+    const node = createComponentNode('chart');
+    const { onAction } = renderInspector(node, vi.fn(), [], [SALES_COLLECTION]);
+
+    fireEvent.change(screen.getByLabelText('Chart type'), { target: { value: 'line' } });
+    expect(onAction).toHaveBeenCalledWith({ type: 'node/props-chart', nodeId: node.id, props: { chartType: 'line' } });
+
+    fireEvent.change(screen.getByLabelText('Categories (one per line)'), { target: { value: 'Jan\nFeb' } });
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'node/props-chart',
+      nodeId: node.id,
+      props: expect.objectContaining({
+        dataSource: expect.objectContaining({ kind: 'static', categories: ['Jan', 'Feb'] }),
+      }),
+    }));
+
+    expect(screen.queryByLabelText('Data source')).not.toBeInTheDocument();
+    expect(screen.getByText(/Load Chart Data node/)).toBeInTheDocument();
   });
 
   it('edits dark-theme colors without replacing the base appearance', () => {
@@ -461,24 +490,11 @@ describe('Inspector', () => {
     });
   });
 
-  it('explains the ListView data source choices from the field help icon', () => {
-    render(
-      <FieldHelpEnvironmentContext.Provider value={{ editor: 'design', onAskNovy: vi.fn() }}>
-        <Inspector
-          behaviors={[]}
-          node={makeListView('node_1')}
-          onAction={vi.fn()}
-          onEditItemTemplate={vi.fn()}
-          onOpenLogic={vi.fn()}
-        />
-      </FieldHelpEnvironmentContext.Provider>,
-    );
+  it('points ListView collection data to the Logic Builder instead of a direct binding', () => {
+    renderInspector(makeListView('node_1'));
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'About Data source' }));
-    const tooltip = screen.getByRole('tooltip');
-    expect(tooltip).toHaveTextContent('Where this list gets the items it displays');
-    expect(tooltip).toHaveTextContent('Hard-code a short, fixed list');
-    expect(tooltip).toHaveTextContent('Read records from a project data collection');
+    expect(screen.queryByLabelText('Data source')).not.toBeInTheDocument();
+    expect(screen.getByText(/Load List Items node/)).toBeInTheDocument();
   });
 
   it('edits ListView static items line by line', () => {
@@ -578,85 +594,8 @@ describe('Inspector', () => {
     });
   });
 
-  it('binds a ListView to a collection with a sensible default record label', () => {
-    const { onAction } = renderInspector(makeListView('node_list'), vi.fn(), [], [COLLECTION]);
-    fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'collection' } });
-
-    expect(onAction).toHaveBeenCalledWith({
-      type: 'node/props-listview',
-      nodeId: 'node_list',
-      props: {
-        dataSource: {
-          kind: 'collection',
-          collectionId: 'collection_students',
-          displayFieldIds: ['field_name'],
-        },
-      },
-    });
-  });
-
-  it('keeps the ListView record label optional and independent from the item design', () => {
-    const list = makeListView('node_list', {
-      props: {
-        ...makeListView('node_list').props,
-        dataSource: { kind: 'collection', collectionId: COLLECTION.id, displayFieldIds: ['field_name'] },
-      },
-    });
-    const { onAction } = renderInspector(list, vi.fn(), [], [COLLECTION]);
-
-    expect(screen.queryByLabelText('Primary display field')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Record label')).toHaveDisplayValue('Name (Text)');
-    expect(screen.getByText('Optional. Used for menus and screen readers; your item design stays unchanged.')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Record label'), { target: { value: '' } });
-    expect(onAction).toHaveBeenLastCalledWith({
-      type: 'node/props-listview',
-      nodeId: 'node_list',
-      props: {
-        dataSource: {
-          kind: 'collection',
-          collectionId: COLLECTION.id,
-          displayFieldIds: [],
-        },
-      },
-    });
-  });
-
-  it('edits the backend-generated item ID name from a collection ListView', async () => {
-    const list = makeListView('node_list', {
-      props: {
-        ...makeListView('node_list').props,
-        dataSource: { kind: 'collection', collectionId: COLLECTION.id, displayFieldIds: ['field_name'] },
-      },
-    });
-    const onRecordIdentifierChange = vi.fn(async () => undefined);
-    render(
-      <Inspector
-        behaviors={[]}
-        collections={[COLLECTION]}
-        node={list}
-        onAction={vi.fn()}
-        onOpenLogic={vi.fn()}
-        onRecordIdentifierChange={onRecordIdentifierChange}
-        recordRoutePaths={['/students/:studentId']}
-      />,
-    );
-
-    const input = screen.getByLabelText('Item ID name');
-    expect(input).toHaveValue('studentId');
-    expect(screen.getByText('Linked route: /students/:studentId')).toBeInTheDocument();
-    fireEvent.change(input, { target: { value: 'learnerId' } });
-    fireEvent.blur(input);
-    await waitFor(() => expect(onRecordIdentifierChange).toHaveBeenCalledWith(COLLECTION.id, 'learnerId'));
-  });
-
   it('shows the item ID name on the focused ListView item frame', () => {
-    const list = makeListView('node_list', {
-      props: {
-        ...makeListView('node_list').props,
-        dataSource: { kind: 'collection', collectionId: COLLECTION.id, displayFieldIds: ['field_name'] },
-      },
-    });
+    const list = makeListView('node_list');
     render(
       <Inspector
         behaviors={[]}
@@ -671,16 +610,12 @@ describe('Inspector', () => {
     expect(screen.getByText(/backend generates a unique value/i)).toBeInTheDocument();
   });
 
-  it('explains how to connect records when no collections exist', () => {
-    const list = makeListView('node_list', {
-      props: {
-        ...makeListView('node_list').props,
-        dataSource: { kind: 'collection', collectionId: '', displayFieldIds: [] },
-      },
-    });
-    renderInspector(list);
+  it('does not offer direct collection binding for ListViews', () => {
+    renderInspector(makeListView('node_list'));
 
-    expect(screen.getByText('No collections yet. Create one in the Data workspace.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Collection')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Record label')).not.toBeInTheDocument();
+    expect(screen.getByText(/Load List Items node/)).toBeInTheDocument();
   });
 
   it('edits Column axis alignment and spacing', () => {

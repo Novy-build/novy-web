@@ -6,12 +6,14 @@ import type {
   CvVerifyPayload,
   LogicGraph,
   LogicOutputPort,
+  LoadListItemsPayload,
   TriggerEvent,
   ValueExpression,
 } from '../entities/logic';
 import type { ProjectDocument, Screen } from '../entities/screen';
 import type { ComponentNode } from '../entities/componentNode';
-import type { DataFieldType, DataValue, ListItemContext } from '../entities/appData';
+import type { ChartDataSource } from '../entities/componentNode';
+import type { DataFieldType, DataRecord, DataValue, ListItemContext } from '../entities/appData';
 import { isChildBearingNode } from '../entities/componentNode';
 import { removeLogicNodes } from './graph';
 import { isAsyncActionPayload } from './graph';
@@ -34,6 +36,12 @@ export type PreviewEffect =
       payload: Extract<ActionPayload, { type: 'get-records' | 'get-record' | 'insert-record' | 'update-record' | 'delete-record' }>;
     }
   | { kind: 'refresh-collection'; collectionId: string }
+  | { kind: 'chart-data'; nodeId: string; dataSource: ChartDataSource }
+  | {
+      kind: 'list-items';
+      listViewId: string;
+      items: ReadonlyArray<{ itemId: string; values: Readonly<Record<string, DataValue>> }>;
+    }
   | { kind: 'email-simulated'; to: string; subject: string }
   | { kind: 'set-variable'; name: string; value: string }
   | { kind: 'set-theme'; theme: 'light' | 'dark' | 'system' | 'toggle' }
@@ -85,6 +93,7 @@ export interface PreviewRuntimeContext {
   createLocalListItemId?: (listViewId: string, logicNodeId: string) => string;
   data?: {
     getRecord: (collectionId: string, recordId: string) => unknown;
+    listRecords?: (collectionId: string) => readonly DataRecord[];
     loadCollectionDocuments?: (collectionId: string, contentFieldId: string, titleFieldId?: string, documentIdFieldId?: string) => readonly unknown[];
     vectorUpsert?: (chunks: readonly unknown[]) => { insertedCount: number; updatedCount: number };
     vectorDelete?: (documentId: string) => { removedCount: number };
@@ -100,6 +109,66 @@ export interface PreviewRuntimeContext {
 
 const EMPTY_RUNTIME_CONTEXT: PreviewRuntimeContext = { componentValues: new Map() };
 const MAX_RUNTIME_STEPS = 100;
+
+function resolveChartActionData(
+  payload: Extract<ActionPayload, { type: 'load-chart-data' }>,
+  records: readonly DataRecord[],
+): { dataSource: ChartDataSource } {
+  return {
+    dataSource: {
+      kind: 'static',
+      categories: records.map((record, index) => {
+        const value = record.values[payload.categoryFieldId];
+        const label = typeof value === 'string' ? value.trim() : String(value ?? '');
+        return label || `Item ${index + 1}`;
+      }),
+      series: payload.series.map((series) => ({
+        id: series.id,
+        label: series.label,
+        ...(series.color ? { color: series.color } : {}),
+        values: records.map((record) => {
+          const value = record.values[series.valueFieldId];
+          if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+          if (typeof value === 'string' && value.trim()) {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+          }
+          return 0;
+        }),
+      })),
+    },
+  };
+}
+
+function resolveListItems(
+  payload: LoadListItemsPayload,
+  records: readonly DataRecord[],
+  componentValues: ReadonlyMap<string, string>,
+): ReadonlyArray<{ itemId: string; values: Readonly<Record<string, DataValue>> }> {
+  const selectedFields = payload.fields.map((field) => field.id);
+  const searchQuery = payload.searchComponentId && payload.searchFieldId
+    ? (componentValues.get(payload.searchComponentId) ?? '').trim().toLowerCase()
+    : '';
+  const filtered = searchQuery && payload.searchFieldId
+    ? records.filter((record) => String(record.values[payload.searchFieldId!] ?? '').toLowerCase().includes(searchQuery))
+    : [...records];
+  if (payload.sortFieldId) {
+    const direction = payload.sortDirection === 'desc' ? -1 : 1;
+    filtered.sort((left, right) => direction * String(left.values[payload.sortFieldId!] ?? '')
+      .localeCompare(String(right.values[payload.sortFieldId!] ?? '')));
+  }
+  return filtered.map((record) => {
+    const values: Record<string, DataValue> = selectedFields.length === 0
+      ? { ...record.values }
+      : Object.fromEntries(selectedFields
+          .filter((fieldId) => record.values[fieldId] !== undefined)
+          .map((fieldId) => [fieldId, record.values[fieldId]]));
+    if (values.value === undefined && selectedFields.length > 0) {
+      values.value = record.values[selectedFields[0]!] ?? '';
+    }
+    return { itemId: record.id, values };
+  });
+}
 
 export function runClickBehavior(
   document: ProjectDocument,
@@ -181,6 +250,12 @@ export function runBehavior(
         });
       } else if (payload.type === 'delete-record') {
         outputs.set(node.id, { deletedRecordId: payload.recordId, collectionId: payload.collectionId });
+      } else if (payload.type === 'load-chart-data') {
+        outputs.set(node.id, resolveChartActionData(payload, runtimeContext.data?.listRecords?.(payload.collectionId) ?? []));
+      } else if (payload.type === 'load-list-items') {
+        outputs.set(node.id, {
+          items: resolveListItems(payload, runtimeContext.data?.listRecords?.(payload.collectionId) ?? [], runtimeContext.componentValues),
+        });
       } else if (payload.type === 'vector-store') {
         outputs.set(node.id, executeVectorStore(node.id, payload, graph, inputs, outputs, runtimeContext));
       } else if (payload.type === 'ai-agent') {
@@ -370,6 +445,12 @@ function setActionOutput(
   } else if (payload.type === 'add-local-list-item') {
     const itemId = runtimeContext.createLocalListItemId?.(payload.targetNodeId, nodeId) ?? generateId('local-list-item');
     outputs.set(nodeId, { item: { id: itemId, listViewId: payload.targetNodeId, values: { ...payload.values } } });
+  } else if (payload.type === 'load-chart-data') {
+    outputs.set(nodeId, resolveChartActionData(payload, runtimeContext.data?.listRecords?.(payload.collectionId) ?? []));
+  } else if (payload.type === 'load-list-items') {
+    outputs.set(nodeId, {
+      items: resolveListItems(payload, runtimeContext.data?.listRecords?.(payload.collectionId) ?? [], runtimeContext.componentValues),
+    });
   } else if (payload.type === 'vector-store') {
     outputs.set(nodeId, executeVectorStore(nodeId, payload, graph, inputs, outputs, runtimeContext));
   } else if (payload.type === 'ai-agent') {
@@ -508,6 +589,8 @@ function applyActionInputMappings(
       };
     case 'get-records':
     case 'refresh-collection':
+    case 'load-chart-data':
+    case 'load-list-items':
     case 'text-split':
     case 'embedding-generate':
     case 'vector-upsert':
@@ -1028,6 +1111,28 @@ function effectFor(
         : null;
     case 'refresh-collection':
       return payload.collectionId ? { kind: 'refresh-collection', collectionId: payload.collectionId } : null;
+    case 'load-chart-data': {
+      const result = runtimeRecord(output);
+      const dataSource = result.dataSource as ChartDataSource | undefined;
+      return payload.targetNodeId && dataSource
+        ? { kind: 'chart-data', nodeId: payload.targetNodeId, dataSource }
+        : null;
+    }
+    case 'load-list-items': {
+      const result = runtimeRecord(output);
+      const items = Array.isArray(result.items) ? result.items : [];
+      return payload.targetNodeId ? {
+        kind: 'list-items',
+        listViewId: payload.targetNodeId,
+        items: items.map((candidate, index) => {
+          const item = runtimeRecord(candidate);
+          return {
+            itemId: runtimeText(item.itemId) || `runtime_item_${index + 1}`,
+            values: runtimeRecord(item.values) as Record<string, DataValue>,
+          };
+        }),
+      } : null;
+    }
     case 'send-email':
       return payload.to ? { kind: 'email-simulated', to: payload.to, subject: payload.subject } : null;
     case 'vector-upsert':
@@ -1145,7 +1250,7 @@ function effectFor(
       return {
         kind: 'add-local-list-item',
         listViewId: payload.targetNodeId,
-        placement: payload.placement,
+        placement: payload.placement === 'replace' ? 'append' : payload.placement,
         item: { itemId, values: { ...payload.values } },
       };
     }

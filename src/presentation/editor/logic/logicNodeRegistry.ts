@@ -123,6 +123,41 @@ export const LOGIC_NODE_DEFINITIONS: readonly LogicNodeDefinition[] = [
     create: () => ({ kind: 'action', payload: { type: 'get-records', collectionId: '' } }),
   },
   {
+    id: 'load-chart-data',
+    category: 'Database',
+    label: 'Load Chart Data',
+    description: 'Load collection records into a Chart component',
+    icon: '▥',
+    keywords: ['chart', 'collection', 'records', 'visualize', 'load'],
+    create: () => ({
+      kind: 'action',
+      payload: {
+        type: 'load-chart-data',
+        targetNodeId: '',
+        collectionId: '',
+        categoryFieldId: '',
+        series: [],
+      },
+    }),
+  },
+  {
+    id: 'load-list-items',
+    category: 'Database',
+    label: 'Load List Items',
+    description: 'Load collection records into a ListView',
+    icon: '☷',
+    keywords: ['list', 'listview', 'collection', 'records', 'load', 'query'],
+    create: () => ({
+      kind: 'action',
+      payload: {
+        type: 'load-list-items',
+        targetNodeId: '',
+        collectionId: '',
+        fields: [],
+      },
+    }),
+  },
+  {
     id: 'insert-db',
     category: 'Database',
     label: 'Insert to DB',

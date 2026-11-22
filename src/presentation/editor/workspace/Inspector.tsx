@@ -40,6 +40,7 @@ import { TRIGGER_EVENT_LABELS } from '../logic/behaviorLabels';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
 import { colorTokenCssValue, normalizeDesignSystem } from '@domain/entities/designSystem';
 import type { Screen } from '@domain/entities/screen';
+import { ChartInspector } from './ChartInspector';
 import { DesignSystemInspector } from './DesignSystemInspector';
 import { FontFamilyPicker } from './FontFamilyPicker';
 import { InspectorSection } from './InspectorSection';
@@ -68,12 +69,6 @@ export interface ListItemBindingField {
   id: string;
   label: string;
   type: DataFieldType;
-}
-
-const RECORD_LABEL_FIELD_TYPES: readonly DataFieldType[] = ['text', 'number', 'date'];
-
-function defaultRecordLabelFieldId(collection: DataCollection | undefined): string {
-  return collection?.fields.find((field) => RECORD_LABEL_FIELD_TYPES.includes(field.type))?.id ?? '';
 }
 
 interface SegmentOption<T extends string> {
@@ -257,7 +252,6 @@ export function Inspector({
   behaviors,
   onAction,
   onOpenLogic,
-  collections = [],
   device = 'mobile',
   listItemFields = [],
   listItemSourceName,
@@ -311,15 +305,6 @@ export function Inspector({
   const hasBorderStyleControl = true;
   const activeBorderStyle = appearance?.borderStyle
     ?? (node.type === 'column' || node.type === 'row' ? 'dashed' : 'solid');
-  const listViewCollectionSource = node.type === 'listview' && node.props.dataSource.kind === 'collection'
-    ? node.props.dataSource
-    : null;
-  const listViewCollection = listViewCollectionSource
-    ? collections.find((collection) => collection.id === listViewCollectionSource.collectionId) ?? null
-    : null;
-  const recordLabelFields = listViewCollection
-    ? listViewCollection.fields.filter((field) => RECORD_LABEL_FIELD_TYPES.includes(field.type))
-    : [];
   function numberFromEvent(event: ChangeEvent<HTMLInputElement>): number | null {
     const raw = event.target.value;
     if (raw.trim().length === 0) {
@@ -811,6 +796,13 @@ export function Inspector({
         </div>
       ) : null}
 
+      {node.type === 'chart' ? (
+        <ChartInspector
+          onChange={(props) => onAction({ type: 'node/props-chart', nodeId: node.id, props })}
+          props={node.props}
+        />
+      ) : null}
+
       {node.type === 'column' || node.type === 'row' ? (
         <div className="mt-4 grid gap-3">
           <p className="inspector-section-label">Axis layout</p>
@@ -890,110 +882,9 @@ export function Inspector({
             Edit item design
           </button>
           <p className="text-xs text-ink-muted">{node.children.length} root widget{node.children.length === 1 ? '' : 's'} in the shared item template.</p>
-          <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-source"><FieldHelpLabel label="Data source" /></label>
-          <select
-            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-            id="inspector-listview-source"
-            onChange={(event) => {
-              if (event.target.value === 'static') {
-                onAction({
-                  type: 'node/props-listview',
-                  nodeId: node.id,
-                  props: {
-                    dataSource: {
-                      kind: 'static',
-                      fields: [{ id: 'value', label: 'Value', type: 'text' }],
-                      items: [],
-                    },
-                  },
-                });
-                return;
-              }
-              const collection = collections[0];
-              const labelFieldId = defaultRecordLabelFieldId(collection);
-              onAction({
-                type: 'node/props-listview',
-                nodeId: node.id,
-                props: {
-                  dataSource: {
-                    kind: 'collection',
-                    collectionId: collection?.id ?? '',
-                    displayFieldIds: labelFieldId ? [labelFieldId] : [],
-                  },
-                },
-              });
-            }}
-            value={node.props.dataSource.kind}
-          >
-            <option value="static">Static items</option>
-            <option value="collection">Collection</option>
-          </select>
-          {listViewCollectionSource ? (
-            <>
-              <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-collection"><FieldHelpLabel label="Collection" /></label>
-              {collections.length > 0 ? (
-                <select
-                  className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-                  id="inspector-listview-collection"
-                  onChange={(event) => {
-                    const collection = collections.find((item) => item.id === event.target.value);
-                    const labelFieldId = defaultRecordLabelFieldId(collection);
-                    onAction({
-                      type: 'node/props-listview',
-                      nodeId: node.id,
-                      props: {
-                        dataSource: {
-                          kind: 'collection',
-                          collectionId: event.target.value,
-                          displayFieldIds: labelFieldId ? [labelFieldId] : [],
-                        },
-                      },
-                    });
-                  }}
-                  value={listViewCollectionSource.collectionId}
-                >
-                  <option value="">Choose a collection…</option>
-                  {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
-                </select>
-              ) : (
-                <p className="text-xs text-ink-muted">No collections yet. Create one in the Data workspace.</p>
-              )}
-              {listViewCollection ? (
-                <>
-                  <RecordIdentifierField
-                    collection={listViewCollection}
-                    onChange={onRecordIdentifierChange}
-                    routePaths={recordRoutePaths}
-                  />
-                  <label className="text-xs font-medium text-ink-muted" htmlFor="inspector-listview-label"><FieldHelpLabel label="Record label" /></label>
-                  {recordLabelFields.length > 0 ? (
-                    <select
-                      className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-                      id="inspector-listview-label"
-                      onChange={(event) => onAction({
-                        type: 'node/props-listview',
-                        nodeId: node.id,
-                        props: { dataSource: { ...listViewCollectionSource, displayFieldIds: event.target.value ? [event.target.value] : [] } },
-                      })}
-                      value={listViewCollectionSource.displayFieldIds[0] ?? ''}
-                    >
-                      <option value="">None</option>
-                      {recordLabelFields.map((field) => (
-                        <option key={field.id} value={field.id}>{field.label} ({FIELD_TYPE_LABELS[field.type]})</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <p className="text-sm text-ink">None</p>
-                  )}
-                  <p className="text-xs text-ink-muted">
-                    {recordLabelFields.length > 0
-                      ? 'Optional. Used for menus and screen readers; your item design stays unchanged.'
-                      : 'Add a Text, Number, or Date field to label records in menus.'}
-                  </p>
-                </>
-              ) : null}
-            </>
-          ) : null}
+          <p className="text-xs text-ink-muted">
+            Collection data is configured with the Logic Builder’s Load List Items node.
+          </p>
           {node.props.dataSource.kind === 'static' ? (
             <>
               <StaticListItemsEditor node={node} onAction={onAction} />

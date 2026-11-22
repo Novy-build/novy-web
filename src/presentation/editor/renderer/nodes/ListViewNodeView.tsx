@@ -230,12 +230,18 @@ function resolveListViewRecords(
   const source = props.dataSource;
   if (source.kind === 'static') {
     const runtimeRecords = parseRuntimeItems(runtimeValue ?? '', nodeId);
-    const baseline = runtimeRecords.length > 0 ? runtimeRecords : source.items.map((item) => ({
-      listViewId: nodeId,
-      itemId: item.id,
-      values: item.values,
-    }));
-    return (dataContext?.localItemsByListView?.get(nodeId) ?? []).reduce<ListItemContext[]>(
+    const additions = dataContext?.localItemsByListView?.get(nodeId) ?? [];
+    const replaced = additions.some((addition) => addition.placement === 'replace');
+    const baseline = replaced
+      ? []
+      : runtimeRecords.length > 0
+        ? runtimeRecords
+        : source.items.map((item) => ({
+            listViewId: nodeId,
+            itemId: item.id,
+            values: item.values,
+          }));
+    return additions.reduce<ListItemContext[]>(
       (records, addition) => {
         const item = { listViewId: nodeId, itemId: addition.itemId, values: addition.values };
         return addition.placement === 'prepend' ? [item, ...records] : [...records, item];

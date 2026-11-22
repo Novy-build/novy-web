@@ -3,6 +3,7 @@ import { recordIdentifierForCollection, type DataCollection } from '@domain/enti
 import type {
   ComponentNodeDTO,
   ListViewNodeDTO,
+  ScreenDTO,
 } from '../dto/project.dto';
 import type {
   GeneratedItemFrameDTO,
@@ -22,6 +23,7 @@ function isContainerNode(node: ComponentNodeDTO): node is Extract<ComponentNodeD
 function mapGeneratedLayoutNode(
   node: ComponentNodeDTO,
   collections: ReadonlyMap<string, DataCollection>,
+  screen?: ScreenDTO,
 ): GeneratedLayoutNodeDTO {
   const base: GeneratedLayoutNodeDTO = {
     id: node.id,
@@ -43,14 +45,22 @@ function mapGeneratedLayoutNode(
   if (isContainerNode(node)) {
     return {
       ...base,
-      children: node.children.map((child) => mapGeneratedLayoutNode(child, collections)),
+      children: node.children.map((child) => mapGeneratedLayoutNode(child, collections, screen)),
     };
   }
 
   if (isListViewNode(node)) {
-    const collection = node.props.dataSource.kind === 'collection'
-      ? collections.get(node.props.dataSource.collectionId)
-      : undefined;
+    const loader = screen?.logicGraphs
+      .flatMap((graph) => graph.nodes)
+      .find((candidate) => candidate.kind === 'action'
+        && candidate.payload.type === 'load-list-items'
+        && candidate.payload.targetNodeId === node.id);
+    const loaderCollectionId = loader?.kind === 'action' && loader.payload.type === 'load-list-items'
+      ? loader.payload.collectionId
+      : node.props.dataSource.kind === 'collection'
+        ? node.props.dataSource.collectionId
+        : null;
+    const collection = loaderCollectionId ? collections.get(loaderCollectionId) : undefined;
     const identifier = collection ? recordIdentifierForCollection(collection) : null;
     return {
       ...base,
@@ -76,7 +86,7 @@ function mapGeneratedLayoutNode(
               },
             }
           : {}),
-        children: node.children.map((child) => mapGeneratedLayoutNode(child, collections)),
+        children: node.children.map((child) => mapGeneratedLayoutNode(child, collections, screen)),
       } as GeneratedItemFrameDTO,
     };
   }
@@ -107,7 +117,7 @@ export function mapProjectToGeneratedLayout(
             })),
           }
         : {}),
-      nodes: screen.nodes.map((node) => mapGeneratedLayoutNode(node, collectionById)),
+      nodes: screen.nodes.map((node) => mapGeneratedLayoutNode(node, collectionById, screen)),
     })),
   };
 }

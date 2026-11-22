@@ -78,9 +78,12 @@ const notesScreen = makeScreen(NOTES_SCREEN_ID, 'Notes', '/', [
       itemSpacing: 10,
       itemBorderRadius: 12,
       dataSource: {
-        kind: 'collection',
-        collectionId: NOTES_COLLECTION_REFERENCE,
-        displayFieldIds: [NOTE_TITLE_FIELD, NOTE_CONTENT_FIELD],
+        kind: 'static',
+        fields: [
+          { id: NOTE_TITLE_FIELD, label: 'Title', type: 'text' },
+          { id: NOTE_CONTENT_FIELD, label: 'Content', type: 'text' },
+        ],
+        items: [],
       },
     },
     children: [
@@ -238,10 +241,22 @@ editNoteScreen.routeParameters = [{
 }];
 
 wireScreen(notesScreen, [
+  behavior('behavior_notes_load', 'Load notes', 'load', 'graph_notes_load', 'notes_list'),
   behavior('behavior_notes_add', 'Add note', 'click', 'graph_notes_add', 'notes_add'),
   behavior('behavior_notes_open', 'Open note', 'click', 'graph_notes_open', 'note_card'),
   behavior('behavior_notes_menu', 'Delete note from menu', 'change', 'graph_notes_menu', 'note_card_menu'),
 ], [
+  graph('graph_notes_load', 'Load notes', 'notes_list', 'load', [
+    action('load_notes', {
+      type: 'load-list-items',
+      targetNodeId: 'notes_list',
+      collectionId: NOTES_COLLECTION_REFERENCE,
+      fields: [
+        { id: NOTE_TITLE_FIELD, label: 'Title', type: 'text' },
+        { id: NOTE_CONTENT_FIELD, label: 'Content', type: 'text' },
+      ],
+    }),
+  ]),
   graph('graph_notes_add', 'Add note', 'notes_add', 'click', [
     action('navigate_to_add', { type: 'navigate', targetScreenId: ADD_NOTE_SCREEN_ID }),
   ]),

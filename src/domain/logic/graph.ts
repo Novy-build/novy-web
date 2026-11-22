@@ -382,7 +382,8 @@ export function resourceInputPortsFor(node: LogicNode): readonly LogicResourcePo
 }
 
 export function isAsyncActionPayload(payload: ActionPayload): boolean {
-  return payload.type === 'get-records' || payload.type === 'get-record' ||
+  return payload.type === 'get-records' || payload.type === 'get-record' || payload.type === 'load-chart-data' ||
+    payload.type === 'load-list-items' ||
     payload.type === 'insert-record' ||
     payload.type === 'update-record' ||
     payload.type === 'delete-record' ||
