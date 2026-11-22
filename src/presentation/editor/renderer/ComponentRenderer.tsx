@@ -200,11 +200,14 @@ export function ComponentRenderer({
         />,
       );
     case 'image':
-      return frame(<ImageNodeView props={{
-        ...node.props,
-        src: resolveBoundText(node, 'image.source', itemContext, node.props.src),
-        alt: resolveBoundText(node, 'image.alt', itemContext, node.props.alt),
-      }} />);
+      return frame(<ImageNodeView
+        borderStyle={resolvedAppearance?.borderStyle}
+        props={{
+          ...node.props,
+          src: resolveBoundText(node, 'image.source', itemContext, node.props.src),
+          alt: resolveBoundText(node, 'image.alt', itemContext, node.props.alt),
+        }}
+      />);
     case 'checkbox':
       return frame(
         <CheckboxNodeView
@@ -278,6 +281,7 @@ export function ComponentRenderer({
     case 'camera':
       return frame(
         <CameraNodeView
+          borderStyle={resolvedAppearance?.borderStyle}
           isPreview={mode === 'preview'}
           onCapture={(mediaReference, media) => {
             onNodeMediaChange?.(node.id, media);
@@ -291,6 +295,7 @@ export function ComponentRenderer({
     case 'file-input':
       return frame(
         <FileInputNodeView
+          borderStyle={resolvedAppearance?.borderStyle}
           isPreview={mode === 'preview'}
           onSelect={(mediaReference, file) => {
             onNodeMediaChange?.(node.id, file);
@@ -317,7 +322,13 @@ export function ComponentRenderer({
         />,
       );
     case 'chart':
-      return frame(<ChartNodeView dataSource={dataContext?.chartDataByNode?.get(node.id)} height={geometry.h} props={node.props} width={geometry.w} />);
+      return frame(<ChartNodeView
+        borderStyle={resolvedAppearance?.borderStyle}
+        dataSource={dataContext?.chartDataByNode?.get(node.id)}
+        height={geometry.h}
+        props={node.props}
+        width={geometry.w}
+      />);
     case 'container':
     case 'gesture-detector':
     case 'column':
@@ -346,10 +357,10 @@ export function ComponentRenderer({
       ));
       return frame(
         node.type === 'container'
-          ? <ContainerNodeView borderStyle={node.appearance?.borderStyle}>{children}</ContainerNodeView>
+          ? <ContainerNodeView borderStyle={resolvedAppearance?.borderStyle}>{children}</ContainerNodeView>
           : node.type === 'gesture-detector'
             ? <GestureDetectorNodeView isCanvas={mode === 'canvas'}>{children}</GestureDetectorNodeView>
-            : <LinearLayoutNodeView borderStyle={node.appearance?.borderStyle} direction={node.type}>{children}</LinearLayoutNodeView>,
+            : <LinearLayoutNodeView borderStyle={resolvedAppearance?.borderStyle} direction={node.type}>{children}</LinearLayoutNodeView>,
       );
     }
     case 'listview': {
@@ -357,6 +368,7 @@ export function ComponentRenderer({
       const itemExtent = listViewItemExtent(node, childGeometries, breakpoint);
       return frame(
         <ListViewNodeView
+          borderStyle={resolvedAppearance?.borderStyle}
           componentValues={componentValues}
           crossExtent={node.props.scrollDirection === 'vertical' ? geometry.w : geometry.h}
           dataContext={dataContext}

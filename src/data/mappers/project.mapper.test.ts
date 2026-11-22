@@ -363,6 +363,29 @@ describe('project mapper', () => {
     expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
   });
 
+  it('round-trips Input text typography', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    const column = project.document.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (column?.type !== 'column') throw new Error('Fixture column is missing');
+    const input = column.children.find((node) => node.id === 'node_form_email');
+    if (input?.type !== 'input') throw new Error('Fixture input is missing');
+    input.props = {
+      ...input.props,
+      textStyle: {
+        fontFamily: 'Georgia', fontSize: 18, fontWeight: 'semibold', lineHeight: 1.4,
+        letterSpacing: 0.5, textAlign: 'center', fontStyle: 'italic', textTransform: 'uppercase',
+      },
+    };
+
+    const dto = mapProjectToDto(project);
+    const dtoColumn = dto.screens[0]!.nodes.find((node) => node.id === 'node_column');
+    if (dtoColumn?.type !== 'column') throw new Error('DTO column is missing');
+    expect(dtoColumn.children.find((node) => node.id === 'node_form_email')).toMatchObject({
+      props: { textStyle: { fontFamily: 'Georgia', fontSize: 18, fontWeight: 'semibold', fontStyle: 'italic' } },
+    });
+    expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
+  });
+
   it('round-trips field style and per-side borders', () => {
     const project = structuredClone(FIXTURE_PROJECT);
     const column = project.document.screens[0]!.nodes.find((node) => node.id === 'node_column');

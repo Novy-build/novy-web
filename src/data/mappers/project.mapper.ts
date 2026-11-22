@@ -17,6 +17,8 @@ import {
   type ChartDataSource,
   type ChartProps,
   type ColumnNode,
+  type InputTextStyle,
+  type TextFontWeight,
   type ComponentNode,
   type ListViewDataSource,
   type ListViewNode,
@@ -38,6 +40,7 @@ import type {
   LogicNodeDTO,
   ProjectDTO,
   ScreenDTO,
+  TypographyDTO,
 } from '../dto/project.dto';
 import { normalizeLogicGraph } from '@domain/logic/graph';
 import { ensureWebsiteSectionDarkAppearances } from '@domain/sections/sectionLayout';
@@ -47,6 +50,37 @@ import { ensureWebsiteSectionDarkAppearances } from '@domain/sections/sectionLay
  * and logic unions are mapped explicitly so the presentation layer never sees
  * API-shaped fixtures.
  */
+
+type TypographyLike = Partial<{
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: TextFontWeight;
+  lineHeight: number;
+  letterSpacing: number;
+  textAlign: InputTextStyle['textAlign'];
+  fontStyle: InputTextStyle['fontStyle'];
+  textTransform: InputTextStyle['textTransform'];
+}>;
+
+function sanitizeTypography(value: unknown): TypographyDTO | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const source = value as TypographyLike;
+  const result: TypographyDTO = {};
+  if (isTextFontFamily(source.fontFamily)) result.fontFamily = source.fontFamily.trim();
+  if (typeof source.fontSize === 'number' && Number.isFinite(source.fontSize) && source.fontSize > 0) result.fontSize = source.fontSize;
+  if (isTextFontWeight(source.fontWeight)) result.fontWeight = source.fontWeight;
+  if (typeof source.lineHeight === 'number' && Number.isFinite(source.lineHeight) && source.lineHeight > 0) result.lineHeight = source.lineHeight;
+  if (typeof source.letterSpacing === 'number' && Number.isFinite(source.letterSpacing)) result.letterSpacing = source.letterSpacing;
+  if (source.textAlign === 'left' || source.textAlign === 'center' || source.textAlign === 'right' || source.textAlign === 'justify') result.textAlign = source.textAlign;
+  if (source.fontStyle === 'normal' || source.fontStyle === 'italic') result.fontStyle = source.fontStyle;
+  if (source.textTransform === 'none' || source.textTransform === 'uppercase' || source.textTransform === 'lowercase' || source.textTransform === 'capitalize') result.textTransform = source.textTransform;
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function typographyField(value: unknown): { textStyle?: TypographyDTO } {
+  const textStyle = sanitizeTypography(value);
+  return textStyle ? { textStyle } : {};
+}
 
 export function mapProjectToDto(project: Project): ProjectDTO {
   return {
@@ -581,6 +615,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
           inputType: node.props.inputType,
           multiline: node.props.multiline,
           ...(node.props.fieldStyle ? { fieldStyle: node.props.fieldStyle } : {}),
+          ...typographyField(node.props.textStyle),
         },
       };
     case 'checkbox':
@@ -949,6 +984,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
           inputType: dto.props.inputType ?? 'text',
           multiline: dto.props.multiline ?? false,
           ...(dto.props.fieldStyle ? { fieldStyle: dto.props.fieldStyle } : {}),
+          ...typographyField(dto.props.textStyle),
         },
       };
     case 'checkbox':

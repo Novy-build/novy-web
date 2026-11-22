@@ -256,6 +256,7 @@ describe('Inspector', () => {
       type: 'node/appearance',
       nodeId: 'node_1',
       appearance: { backgroundColor: '#112233' },
+      clearDark: 'backgroundColor',
     });
 
     fireEvent.change(screen.getByLabelText('Corner radius'), { target: { value: '18' } });
@@ -283,6 +284,7 @@ describe('Inspector', () => {
         backgroundColor: '#112233',
         dark: { textColor: '#eeeeee', backgroundColor: '#123456' },
       },
+      clearDark: 'backgroundColor',
     });
 
     fireEvent.click(screen.getByText('Dark theme colors'));
@@ -297,6 +299,53 @@ describe('Inspector', () => {
     });
   });
 
+  it('flags base text color edits so the matching dark override is cleared', () => {
+    const node = makeButton('node_1', {
+      appearance: { textColor: '#111111', dark: { textColor: '#9ca3af' } },
+    });
+    const { onAction } = renderInspector(node);
+
+    fireEvent.change(screen.getByLabelText('Text color'), { target: { value: '#ffffff' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'node_1',
+      appearance: { textColor: '#ffffff', dark: { textColor: '#9ca3af' } },
+      clearDark: 'textColor',
+    });
+  });
+
+  it('resizes an icon to a square size from the Icon section', () => {
+    const icon = createComponentNode('icon');
+    const { onAction } = renderInspector(icon);
+
+    fireEvent.change(screen.getByLabelText('Size'), { target: { value: '96' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/layout-size',
+      nodeId: icon.id,
+      w: 96,
+      h: 96,
+    });
+  });
+
+  it('edits Input field text typography', () => {
+    const input = createComponentNode('input');
+    const { onAction } = renderInspector(input);
+
+    fireEvent.change(screen.getByLabelText('Font size (px)'), { target: { value: '22' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-input',
+      nodeId: input.id,
+      props: { textStyle: { fontSize: 22 } },
+    });
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Italic' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-input',
+      nodeId: input.id,
+      props: { textStyle: { fontStyle: 'italic' } },
+    });
+  });
+
   it('edits the border style for Column and Row layout nodes', () => {
     const node = makeColumn('column_1', [], {
       appearance: { backgroundColor: '#ffffff', borderColor: '#112233' },
@@ -304,7 +353,7 @@ describe('Inspector', () => {
     const { onAction } = renderInspector(node);
 
     const group = screen.getByRole('group', { name: 'Border style' });
-    expect(within(group).getByRole('button', { name: 'Dashed' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(group).getByRole('button', { name: 'Solid' })).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(within(group).getByRole('button', { name: 'None' }));
     expect(onAction).toHaveBeenLastCalledWith({

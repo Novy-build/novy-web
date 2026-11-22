@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import type { ComponentBorderStyle } from '@domain/entities/componentNode';
+import { widgetBorderCss } from './fieldStyle';
 
 interface LinearLayoutNodeViewProps extends PropsWithChildren {
   borderStyle?: ComponentBorderStyle;
@@ -10,9 +11,9 @@ interface LinearLayoutNodeViewProps extends PropsWithChildren {
 export function LinearLayoutNodeView({ borderStyle, children, direction }: LinearLayoutNodeViewProps) {
   return (
     <div
-      className="relative h-full w-full overflow-hidden rounded-tile border border-dashed border-hairline bg-surface/60"
+      className="relative h-full w-full overflow-hidden rounded-tile border border-hairline bg-surface/60"
       data-layout-direction={direction}
-      style={borderStyle ? { borderStyle } : undefined}
+      style={widgetBorderCss(borderStyle)}
     >
       {children}
     </div>

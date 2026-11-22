@@ -1,5 +1,22 @@
 import type { CSSProperties } from 'react';
-import type { ComponentAppearance, FieldStyle } from '@domain/entities/componentNode';
+import type { ComponentAppearance, ComponentBorderStyle, FieldStyle } from '@domain/entities/componentNode';
+
+/**
+ * Widget shells and empty-state placeholders use a solid border unless the
+ * node explicitly selects dashed or none. Editor-only guides (selection ring,
+ * item outlines, drop indicators) are not routed through this helper and keep
+ * their own dashed styling.
+ */
+export function resolveWidgetBorderStyle(borderStyle: ComponentBorderStyle | undefined): ComponentBorderStyle {
+  return borderStyle ?? 'solid';
+}
+
+export function widgetBorderCss(borderStyle: ComponentBorderStyle | undefined): CSSProperties {
+  const resolved = resolveWidgetBorderStyle(borderStyle);
+  return resolved === 'none'
+    ? { borderStyle: 'none', borderWidth: 0 }
+    : { borderStyle: resolved };
+}
 
 /** Shared visual treatment for interactive form controls in editor previews. */
 export function fieldStyleClass(fieldStyle: FieldStyle | undefined): string {

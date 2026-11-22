@@ -53,6 +53,18 @@ export interface ButtonNodeDTO extends ComponentNodeDTOBase {
   };
 }
 
+/** Typography shared by Text nodes and Input field text. */
+export interface TypographyDTO {
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: TextFontWeight;
+  lineHeight?: number;
+  letterSpacing?: number;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  fontStyle?: 'normal' | 'italic';
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+}
+
 export interface TextNodeDTO extends ComponentNodeDTOBase {
   type: 'text';
   props: {
@@ -75,7 +87,7 @@ export interface TextNodeDTO extends ComponentNodeDTOBase {
 
 export interface InputNodeDTO extends ComponentNodeDTOBase {
   type: 'input';
-  props: { label: string; showLabel?: boolean; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number' | 'date'; multiline?: boolean; fieldStyle?: FieldStyle };
+  props: { label: string; showLabel?: boolean; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number' | 'date'; multiline?: boolean; fieldStyle?: FieldStyle; textStyle?: TypographyDTO };
 }
 
 export interface IconNodeDTO extends ComponentNodeDTOBase {

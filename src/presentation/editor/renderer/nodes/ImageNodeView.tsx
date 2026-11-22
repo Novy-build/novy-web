@@ -1,9 +1,13 @@
-import type { ImageProps } from '@domain/entities/componentNode';
+import type { ComponentBorderStyle, ImageProps } from '@domain/entities/componentNode';
+import { widgetBorderCss } from './fieldStyle';
 
-export function ImageNodeView({ props }: { props: ImageProps }) {
+export function ImageNodeView({ props, borderStyle }: { props: ImageProps; borderStyle?: ComponentBorderStyle }) {
   if (!props.src) {
     return (
-      <div className="novy-widget-text-muted flex h-full w-full items-center justify-center rounded-tile border border-dashed border-hairline bg-surface text-sm">
+      <div
+        className="novy-widget-text-muted flex h-full w-full items-center justify-center rounded-tile border border-hairline bg-surface text-sm"
+        style={widgetBorderCss(borderStyle)}
+      >
         Add an image
       </div>
     );

@@ -1,6 +1,7 @@
 import { useId, type CSSProperties } from 'react';
 import type { ComponentAppearance, InputProps } from '@domain/entities/componentNode';
 import { fieldStyleClass, fieldStyleCss } from './fieldStyle';
+import { inputTextStyleCss } from './textTypography';
 
 /**
  * Visual twin of the published input widget. `renderStatic` swaps the
@@ -28,7 +29,7 @@ export function InputNodeView({
     || props.placeholder.trim()
     || (props.multiline ? 'Text area' : `${props.inputType === 'text' ? 'Text' : props.inputType} field`);
   const hasVisibleLabel = showLabel && props.label.trim().length > 0;
-  const widgetStyle: CSSProperties = fieldStyleCss(appearance, props.fieldStyle);
+  const widgetStyle: CSSProperties = { ...fieldStyleCss(appearance, props.fieldStyle), ...inputTextStyleCss(props.textStyle) };
   const textVariableStyle = appearance?.textColor
     ? { '--novy-component-text': appearance.textColor } as CSSProperties
     : undefined;

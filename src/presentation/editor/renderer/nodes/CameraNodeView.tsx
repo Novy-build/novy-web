@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CameraProps } from '@domain/entities/componentNode';
+import type { CameraProps, ComponentBorderStyle } from '@domain/entities/componentNode';
+import { widgetBorderCss } from './fieldStyle';
 import {
   assessFaceCapture,
   FACE_ANALYSIS_INTERVAL_MS,
@@ -15,11 +16,13 @@ export function CameraNodeView({
   props,
   isPreview = false,
   renderStatic = false,
+  borderStyle,
   onCapture,
 }: {
   props: CameraProps;
   isPreview?: boolean;
   renderStatic?: boolean;
+  borderStyle?: ComponentBorderStyle;
   onCapture?: (mediaReference: string, media: File) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -176,7 +179,10 @@ export function CameraNodeView({
 
   if (renderStatic || !isPreview) {
     return (
-      <div className="novy-widget-text-muted flex h-full w-full flex-col items-center justify-center gap-2 rounded-tile border border-dashed border-hairline bg-canvas text-sm">
+      <div
+        className="novy-widget-text-muted flex h-full w-full flex-col items-center justify-center gap-2 rounded-tile border border-hairline bg-canvas text-sm"
+        style={widgetBorderCss(borderStyle)}
+      >
         <span aria-hidden="true" className="text-2xl">◉</span>
         <span>{props.label || 'Camera'}</span>
         <span className="text-xs">Camera activates only in Preview.</span>
@@ -188,6 +194,7 @@ export function CameraNodeView({
     <div
       className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-tile border border-hairline bg-ink text-surface"
       onClick={(event) => event.stopPropagation()}
+      style={widgetBorderCss(borderStyle)}
     >
       {capturedImage ? (
         <img alt="Captured camera preview" className="absolute inset-0 h-full w-full object-cover" src={capturedImage} />

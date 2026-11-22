@@ -14,9 +14,8 @@ import type {
   ListViewNode,
   ResponsiveBreakpoint,
   StaticListViewItem,
-  TextProps,
 } from '@domain/entities/componentNode';
-import { FIELD_STYLES, geometryAtBreakpoint, isAppIconName, isButtonIconName, isTextFontWeight } from '@domain/entities/componentNode';
+import { FIELD_STYLES, geometryAtBreakpoint, isAppIconName, isButtonIconName } from '@domain/entities/componentNode';
 import {
   RECORD_IDENTIFIER_KEY_PATTERN,
   recordIdentifierForCollection,
@@ -35,14 +34,14 @@ import { PaddingField } from './PaddingField';
 import { ColorField } from './ColorField';
 import { BUTTON_ICON_OPTIONS } from '../renderer/nodes/buttonIcons';
 import { APP_ICON_OPTIONS } from '../renderer/nodes/appIcons';
-import { TEXT_FONT_WEIGHT_OPTIONS } from '../renderer/nodes/textTypography';
+
 import { TRIGGER_EVENT_LABELS } from '../logic/behaviorLabels';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
 import { colorTokenCssValue, normalizeDesignSystem } from '@domain/entities/designSystem';
 import type { Screen } from '@domain/entities/screen';
 import { ChartInspector } from './ChartInspector';
 import { DesignSystemInspector } from './DesignSystemInspector';
-import { FontFamilyPicker } from './FontFamilyPicker';
+import { TypographyFields } from './TypographyFields';
 import { InspectorSection } from './InspectorSection';
 
 interface InspectorProps {
@@ -303,8 +302,7 @@ export function Inspector({
     ? { ...node.props, ...(device === 'mobile' ? {} : node.responsive?.[device]?.textStyle) }
     : null;
   const hasBorderStyleControl = true;
-  const activeBorderStyle = appearance?.borderStyle
-    ?? (node.type === 'column' || node.type === 'row' ? 'dashed' : 'solid');
+  const activeBorderStyle = appearance?.borderStyle ?? 'solid';
   function numberFromEvent(event: ChangeEvent<HTMLInputElement>): number | null {
     const raw = event.target.value;
     if (raw.trim().length === 0) {
@@ -496,109 +494,13 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-text', nodeId: node.id, props: { text: event.target.value } })}
             value={node.props.text}
           />
-          <FontFamilyPicker
-            allowAppFonts
-            appFonts={normalizeDesignSystem(designSystem).typography}
-            label="Font family"
-            name="inspector-text-font-family"
-            onChange={(fontFamily) => {
-              onAction({
-                type: 'node/responsive-text-style',
-                nodeId: node.id,
-                textStyle: { fontFamily: fontFamily || undefined },
-              });
-            }}
-            value={effectiveTextProps?.fontFamily ?? ''}
+          <TypographyFields
+            appFonts={designSystem}
+            namePrefix="inspector-text"
+            note="Blank values use the app font and selected text level preset."
+            onChange={(patch) => onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: patch })}
+            value={effectiveTextProps ?? undefined}
           />
-          <div className="grid grid-cols-2 gap-2">
-            <TextInput
-              label="Font size (px)"
-              max={200}
-              min={8}
-              name="inspector-text-font-size"
-              onChange={(event) => {
-                const raw = event.target.value;
-                if (raw.trim().length === 0) {
-                  onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontSize: undefined } });
-                  return;
-                }
-                const parsed = Number(raw);
-                if (Number.isFinite(parsed) && parsed > 0) {
-                  onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontSize: parsed } });
-                }
-              }}
-              placeholder="Level preset"
-              step={1}
-              type="number"
-              value={effectiveTextProps?.fontSize ?? ''}
-            />
-            <label className="grid gap-1 text-xs font-medium text-ink-muted">
-              <FieldHelpLabel label="Font weight" />
-              <select
-                className="h-10 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (!value) {
-                    onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontWeight: undefined } });
-                    return;
-                  }
-                  if (isTextFontWeight(value)) {
-                    onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontWeight: value } });
-                  }
-                }}
-                value={effectiveTextProps?.fontWeight ?? ''}
-              >
-                <option value="">Level preset</option>
-                {TEXT_FONT_WEIGHT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <TextInput
-              label="Line height"
-              min={0.8}
-              name="inspector-text-line-height"
-              onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (Number.isFinite(parsed) && parsed > 0) onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { lineHeight: parsed } });
-              }}
-              step={0.05}
-              type="number"
-              value={effectiveTextProps?.lineHeight ?? 1.25}
-            />
-            <TextInput
-              label="Letter spacing"
-              name="inspector-text-letter-spacing"
-              onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (Number.isFinite(parsed)) onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { letterSpacing: parsed } });
-              }}
-              step={0.1}
-              type="number"
-              value={effectiveTextProps?.letterSpacing ?? 0}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="grid gap-1 text-xs font-medium text-ink-muted">
-              <FieldHelpLabel label="Alignment" />
-              <select className="h-10 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { textAlign: event.target.value as TextProps['textAlign'] } })} value={effectiveTextProps?.textAlign ?? 'left'}>
-                <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option>
-              </select>
-            </label>
-            <label className="grid gap-1 text-xs font-medium text-ink-muted">
-              <FieldHelpLabel label="Transform" />
-              <select className="h-10 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink" onChange={(event) => onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { textTransform: event.target.value as TextProps['textTransform'] } })} value={effectiveTextProps?.textTransform ?? 'none'}>
-                <option value="none">None</option><option value="uppercase">Uppercase</option><option value="lowercase">Lowercase</option><option value="capitalize">Capitalize</option>
-              </select>
-            </label>
-          </div>
-          <label className="flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
-            <input checked={effectiveTextProps?.fontStyle === 'italic'} onChange={(event) => onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: { fontStyle: event.target.checked ? 'italic' : 'normal' } })} type="checkbox" />
-            <FieldHelpLabel label="Italic" />
-          </label>
-          <p className="text-xs text-ink-muted">Blank values use the app font and selected text level preset.</p>
         </div>
       ) : null}
 
@@ -617,6 +519,20 @@ export function Inspector({
               {APP_ICON_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
+          <TextInput
+            label="Size"
+            min={24}
+            name="inspector-icon-size"
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              if (!Number.isFinite(value) || value <= 0) return;
+              const size = Math.max(24, Math.min(256, Math.round(value)));
+              resizeBy(size, size);
+            }}
+            step={1}
+            type="number"
+            value={Math.min(effectiveGeometry.w, effectiveGeometry.h)}
+          />
           <TextInput
             label="Accessible label"
             name="inspector-icon-label"
@@ -687,6 +603,18 @@ export function Inspector({
           <FieldStyleControl
             value={node.props.fieldStyle}
             onChange={(fieldStyle) => onAction({ type: 'node/props-input', nodeId: node.id, props: { fieldStyle } })}
+          />
+          <p className="inspector-section-label mt-1">Text style</p>
+          <TypographyFields
+            appFonts={designSystem}
+            namePrefix="inspector-input-text"
+            note="Blank values use the app font stack. The field label keeps its own size."
+            onChange={(patch) => onAction({
+              type: 'node/props-input',
+              nodeId: node.id,
+              props: { textStyle: { ...node.props.textStyle, ...patch } },
+            })}
+            value={node.props.textStyle}
           />
         </div>
       ) : null}
@@ -1256,7 +1184,7 @@ export function Inspector({
           <FieldHelpLabel label="Quick background token" />
           <select
             className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
-            onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, backgroundColor: event.target.value || undefined, gradient: undefined } })}
+            onChange={(event) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, backgroundColor: event.target.value || undefined, gradient: undefined }, clearDark: 'backgroundColor' })}
             value=""
           >
             <option value="">Choose a semantic token…</option>
@@ -1267,21 +1195,21 @@ export function Inspector({
           <ColorField
             label="Background"
             name="inspector-appearance-background"
-            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, backgroundColor: value || undefined } })}
+            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, backgroundColor: value || undefined }, clearDark: 'backgroundColor' })}
             placeholder="#ffffff"
             value={appearance?.backgroundColor ?? ''}
           />
           <ColorField
             label="Text color"
             name="inspector-appearance-text"
-            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, textColor: value || undefined } })}
+            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, textColor: value || undefined }, clearDark: 'textColor' })}
             placeholder="#111827"
             value={appearance?.textColor ?? ''}
           />
           <ColorField
             label="Border color"
             name="inspector-appearance-border"
-            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, borderColor: value || undefined } })}
+            onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, borderColor: value || undefined }, clearDark: 'borderColor' })}
             placeholder="#d1d5db"
             value={appearance?.borderColor ?? ''}
           />

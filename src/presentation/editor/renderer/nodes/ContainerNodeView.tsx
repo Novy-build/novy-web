@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import type { ComponentBorderStyle } from '@domain/entities/componentNode';
+import { widgetBorderCss } from './fieldStyle';
 
 interface ContainerNodeViewProps extends PropsWithChildren {
   borderStyle?: ComponentBorderStyle;
@@ -10,7 +11,7 @@ export function ContainerNodeView({ borderStyle, children }: ContainerNodeViewPr
   return (
     <div
       className="relative h-full w-full rounded-tile border border-hairline bg-surface"
-      style={borderStyle ? { borderStyle } : undefined}
+      style={widgetBorderCss(borderStyle)}
     >
       {children}
     </div>

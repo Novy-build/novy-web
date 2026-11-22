@@ -94,7 +94,13 @@ export type EditorNodeAction =
   | { type: 'node/layer-rename'; nodeId: string; name: string }
   | { type: 'node/layer-visibility'; nodeId: string }
   | { type: 'node/layer-lock'; nodeId: string }
-  | { type: 'node/appearance'; nodeId: string; appearance: ComponentAppearance }
+  | {
+      type: 'node/appearance';
+      nodeId: string;
+      appearance: ComponentAppearance;
+      /** Base color edits drop the matching dark-theme override so the new color is actually shown. */
+      clearDark?: 'backgroundColor' | 'textColor' | 'borderColor';
+    }
   | { type: 'node/style'; nodeId: string; styleId: string | undefined }
   | { type: 'node/responsive-text-style'; nodeId: string; textStyle: Partial<Omit<TextProps, 'text' | 'level'>> }
   | { type: 'node/bindings'; nodeId: string; bindings: ComponentPropertyBinding[] }

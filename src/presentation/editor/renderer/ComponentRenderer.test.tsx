@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ButtonNode, CameraNode, ChatNode, ColumnNode, ComponentNode, ContainerNode, DropdownNode, FileInputNode, GestureDetectorNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
+import type { ButtonNode, CameraNode, ChartNode, ChatNode, ColumnNode, ComponentNode, ContainerNode, DropdownNode, FileInputNode, GestureDetectorNode, ImageNode, InputNode, ListViewNode, RowNode } from '@domain/entities/componentNode';
 import { createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import type { DataCollection, DataRecord } from '@domain/entities/appData';
@@ -379,6 +379,70 @@ describe('ComponentRenderer', () => {
     expect(frame.firstElementChild).toHaveStyle({ borderStyle: 'dashed' });
   });
 
+  it('defaults layout shells to a solid border and removes it when border style is none', () => {
+    const column = makeColumn('border_default_column', []);
+    const { container, rerender } = render(<ComponentRenderer mode="canvas" node={column} selected={false} />);
+    const shell = (): HTMLElement => container.querySelector('[data-layout-direction="column"]') as HTMLElement;
+
+    expect(shell()).toHaveStyle({ borderStyle: 'solid' });
+    expect(shell()).not.toHaveClass('border-dashed');
+
+    rerender(<ComponentRenderer mode="canvas" node={{ ...column, appearance: { borderStyle: 'none' } }} selected={false} />);
+    expect(shell()).toHaveStyle({ borderStyle: 'none', borderWidth: '0px' });
+  });
+
+  it('defaults widget placeholders to a solid border and removes it when border style is none', () => {
+    const image = createComponentNode('image');
+    const camera = createComponentNode('camera');
+    const fileInput = createComponentNode('file-input');
+    const listView = createComponentNode('listview');
+    const renderNodes = (none?: boolean) => (
+      <>
+        <ComponentRenderer key="image" mode="canvas" node={none ? { ...image, appearance: { borderStyle: 'none' } } : image} selected={false} />
+        <ComponentRenderer key="camera" mode="canvas" node={none ? { ...camera, appearance: { borderStyle: 'none' } } : camera} selected={false} />
+        <ComponentRenderer key="file" mode="canvas" node={none ? { ...fileInput, appearance: { borderStyle: 'none' } } : fileInput} selected={false} />
+        <ComponentRenderer key="list" mode="canvas" node={none ? { ...listView, appearance: { borderStyle: 'none' } } : listView} selected={false} />
+      </>
+    );
+    const { rerender } = render(renderNodes());
+    const placeholders = () => [
+      screen.getByText('Add an image'),
+      screen.getByText('Camera').parentElement as HTMLElement,
+      screen.getByText('Upload document').closest('label') as HTMLElement,
+      document.querySelector('[data-listview-node-id]') as HTMLElement,
+    ];
+
+    for (const placeholder of placeholders()) {
+      expect(placeholder).toHaveStyle({ borderStyle: 'solid' });
+      expect(placeholder).not.toHaveClass('border-dashed');
+    }
+
+    rerender(renderNodes(true));
+    for (const placeholder of placeholders()) {
+      expect(placeholder).toHaveStyle({ borderStyle: 'none', borderWidth: '0px' });
+    }
+  });
+
+  it('applies border style to chart frames and empty chart placeholders', () => {
+    const chart = createComponentNode('chart');
+    const emptyChart = {
+      ...chart,
+      props: { ...chart.props, dataSource: { kind: 'static' as const, categories: [], series: [] } },
+    } as ChartNode;
+    const { rerender } = render(<ComponentRenderer mode="canvas" node={chart} selected={false} />);
+    const chartBorder = (): HTMLElement => screen.getByRole('img').parentElement as HTMLElement;
+    expect(chartBorder()).toHaveStyle({ borderStyle: 'solid' });
+
+    rerender(<ComponentRenderer mode="canvas" node={{ ...chart, appearance: { borderStyle: 'none' } }} selected={false} />);
+    expect(chartBorder()).toHaveStyle({ borderStyle: 'none', borderWidth: '0px' });
+
+    rerender(<ComponentRenderer mode="canvas" node={emptyChart} selected={false} />);
+    expect(screen.getByText('No chart data yet')).toHaveStyle({ borderStyle: 'solid' });
+
+    rerender(<ComponentRenderer mode="canvas" node={{ ...emptyChart, appearance: { borderStyle: 'none' } }} selected={false} />);
+    expect(screen.getByText('No chart data yet')).toHaveStyle({ borderStyle: 'none', borderWidth: '0px' });
+  });
+
   it('reports clicks on the node in canvas mode', () => {
     const onSelect = vi.fn();
     render(<ComponentRenderer mode="canvas" node={BUTTON} selected={false} onSelect={onSelect} />);
@@ -542,6 +606,29 @@ describe('ComponentRenderer', () => {
       borderColor: '#334155', borderStyle: 'dashed', borderWidth: '3px', borderRadius: '12px',
     });
     expect(container.querySelector('[data-node-id="node_email"]')).not.toHaveStyle({ borderStyle: 'dashed' });
+  });
+
+  it('applies authored Input text typography to the actual control', () => {
+    const input: InputNode = {
+      id: 'node_styled_input', type: 'input', x: 0, y: 0, w: 240, h: 56,
+      props: {
+        label: 'Email', placeholder: 'you@example.com', inputType: 'text', multiline: false,
+        textStyle: {
+          fontFamily: 'Georgia', fontSize: 20, fontWeight: 'semibold', lineHeight: 1.6,
+          letterSpacing: 1.5, textAlign: 'center', fontStyle: 'italic', textTransform: 'uppercase',
+        },
+      },
+    };
+    const { rerender } = render(<ComponentRenderer mode="preview" node={input} selected={false} />);
+    const control = () => screen.getByRole('textbox', { name: 'Email' });
+
+    expect(control()).toHaveStyle({
+      fontFamily: 'Georgia', fontSize: '20px', fontWeight: '600', lineHeight: '1.6',
+      letterSpacing: '1.5px', textAlign: 'center', fontStyle: 'italic', textTransform: 'uppercase',
+    });
+
+    rerender(<ComponentRenderer mode="preview" node={{ ...input, props: { ...input.props, multiline: true } }} selected={false} />);
+    expect(screen.getByRole('textbox', { name: 'Email' })).toHaveStyle({ fontSize: '20px', fontStyle: 'italic' });
   });
 
   it('renders an underline field with a bottom edge only', () => {

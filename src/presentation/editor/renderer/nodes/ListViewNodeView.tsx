@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import type { DataRecord, DataValue, ListItemContext } from '@domain/entities/appData';
-import { resolveEdgeInsets, type ListViewProps } from '@domain/entities/componentNode';
+import { resolveEdgeInsets, type ComponentBorderStyle, type ListViewProps } from '@domain/entities/componentNode';
 import type { RendererDataContext, RendererMode } from '../renderer';
+import { widgetBorderCss } from './fieldStyle';
 
 interface ListViewNodeViewProps {
+  borderStyle?: ComponentBorderStyle;
   componentValues?: ReadonlyMap<string, string>;
   crossExtent: number;
   dataContext?: RendererDataContext;
@@ -20,6 +22,7 @@ interface ListViewNodeViewProps {
 
 /** Scrollable collection that repeats one composed item template per record. */
 export function ListViewNodeView({
+  borderStyle,
   componentValues,
   crossExtent,
   dataContext,
@@ -37,8 +40,9 @@ export function ListViewNodeView({
     return (
       <div
         aria-hidden="true"
-        className="h-full w-full rounded-tile border border-dashed border-hairline bg-surface"
+        className="h-full w-full rounded-tile border border-hairline bg-surface"
         data-listview-node-id={nodeId}
+        style={widgetBorderCss(borderStyle)}
       />
     );
   }
@@ -60,7 +64,10 @@ export function ListViewNodeView({
 
   if (visibleRecords.length === 0) {
     return (
-      <div className="novy-widget-text-muted flex h-full w-full items-center justify-center rounded-tile border border-dashed border-hairline bg-surface text-sm">
+      <div
+        className="novy-widget-text-muted flex h-full w-full items-center justify-center rounded-tile border border-hairline bg-surface text-sm"
+        style={widgetBorderCss(borderStyle)}
+      >
         {props.emptyText || 'No items yet'}
       </div>
     );
@@ -75,7 +82,7 @@ export function ListViewNodeView({
       }`}
       data-listview-node-id={nodeId}
       role="list"
-      style={{ gap: Math.max(0, props.itemSpacing) }}
+      style={{ gap: Math.max(0, props.itemSpacing), ...widgetBorderCss(borderStyle) }}
     >
       {visibleRecords.map((record, index) => {
         const itemLabel = String(record.values.value ?? '').trim() || `Item ${index + 1}`;

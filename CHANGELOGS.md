@@ -17,6 +17,82 @@ first, and retain previous entries as project history.
 - Strict typecheck passed.
 - Focused auth and CSRF suites: 37 tests passed.
 
+### 2026-11-22 — Input text typography and compact control fill
+
+#### Added
+- Input widgets now support a `props.textStyle` with the same typography controls as Text nodes:
+  font family, size, weight, line height, letter spacing, alignment, transform, and italic. The
+  controls live in a **Text style** section of the Input Inspector and are applied to the real
+  input/textarea (including placeholder) in the canvas, preview, thumbnails, and generated apps.
+- Extracted the shared typography controls into `TypographyFields.tsx`, reused by both Text and Input
+  Inspectors.
+
+#### Fixed
+- Compact widgets no longer force `height: min(2rem, 100cqh)` on child buttons/fields, which made a
+  default 160×44 button render only 32px tall and leave a dark strip at the bottom of its node frame.
+  Controls now use `max-height: 100%` and fill their authored frame; the same fix is in generated apps.
+
+#### Verification
+- Added Inspector, renderer, and DTO round-trip tests for Input typography. Full frontend suite passed
+  (145 files / 1,167 tests with `--maxWorkers=2 --testTimeout=20000`); strict typecheck and production
+  build passed. Backend generation contract tests and generated-app builds passed as well.
+
+### 2026-11-22 — Authored text colors win in dark mode; icons have a Size control
+
+#### Fixed
+- Editing a base **Background**, **Text color**, or **Border color** in the Inspector now clears that
+  color's matching `appearance.dark` override (in the base appearance and every responsive layer).
+  Previously a saved dark value silently kept winning whenever dark mode was active, so a Text color
+  changed to pure white still rendered the old gray value — the Inspector only showed the base field
+  while the dark override stayed hidden in a collapsed section. Dark-theme color pickers continue to
+  set overrides explicitly and are unaffected.
+- Standalone Icon nodes can now be resized from a dedicated **Size** field in the Icon Inspector. It
+  sets square width/height through the existing layout-size action, keeping the drawn glyph and the
+  selection bounds in sync; the glyph previously had only the generic drag handles / Width-Height
+  fields.
+
+#### Verification
+- Added reducer and Inspector tests for dark-override clearing, preservation of explicit dark edits,
+  and square icon resizing. Full frontend suite passed (145 files / 1,164 tests with
+  `--maxWorkers=2 --testTimeout=20000`); strict typecheck and production build passed.
+
+### 2026-11-22 — Border style None removes widget placeholder outlines
+
+#### Changed
+- Widget shells and empty-state placeholders (Container, Column/Row, Image, Chart, Camera, File Input,
+  and ListView) now resolve `borderStyle` through one shared helper: omitted means **Solid**, `dashed`
+  is honored, and `none` removes the border entirely. Previously several widgets hard-coded a dashed
+  Tailwind outline that stayed visible even after selecting **Border style: None**.
+- The Inspector reports **Solid** as the default border style for every widget type, including new
+  Column and Row widgets (previously shown as dashed).
+- Editor-only guides (selection ring, ListView item-template outlines, drop indicator, and alignment
+  line) are unchanged and remain visible as editing aids.
+
+#### Verification
+- Added renderer and Inspector tests covering the solid default and `none` border removal for layout
+  shells and image/chart/camera/file-input/listview placeholders. Focused renderer and Inspector suites
+  pass (106 tests), strict typecheck passes, and production build succeeds.
+- Full frontend suite passed (145 files / 1,158 tests with `--maxWorkers=2 --testTimeout=20000`).
+  Without those stability flags, unrelated async route/sidebar tests can time out under load.
+
+### 2026-11-22 — Logic node help icons and visual example guides
+
+#### Added
+- Every Logic library node now has a `(?)` help affordance beside it, matching the editor's existing
+  field-help icon. Hover, focus, or click opens a popover with the node's description, a short
+  "how to use" summary, an example-flow preview, **View example**, and **Ask Novy about this**.
+- **View example** opens `/docs/logic-nodes/:nodeId` in a new browser tab so the editor and any unsaved
+  graph work stay intact. The guide shows numbered steps, a visual workflow diagram with annotated
+  field values, and a field/options table, plus a safe "Back to editor" link when opened from a project.
+- Curated guides cover common triggers, flow, UI, database, and current-item nodes. All remaining nodes
+  receive a generated guide derived from their default payload fields, and dynamic component/current-item
+  node ids resolve to generic guides.
+
+#### Verification
+- Full frontend suite passed (145 files / 1,155 tests with `--maxWorkers=2 --testTimeout=20000`).
+- Strict TypeScript typecheck and production build passed. Added help-content, popover, node-library,
+  and guide-page tests.
+
 ### 2026-11-22 — ListView collection loading moved to Logic
 
 #### Added
