@@ -5,18 +5,6 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
-### 2026-11-22 — Backend integration setup and CSRF bootstrap
-
-#### Added
-- Local `.env.local` with `VITE_API_BASE_URL=/api/v1` and a Vite dev proxy from `/api` to the local
-  FastAPI service, so cookie-authenticated API calls stay same-origin during development.
-- `ApiAuthRepository` bootstraps `GET /auth/csrf` once before sign-in, sign-up, and sign-out when the
-  `novy_csrf` cookie is absent, avoiding 403 CSRF failures on first registration.
-
-#### Verified
-- Strict typecheck passed.
-- Focused auth and CSRF suites: 37 tests passed.
-
 ### 2026-11-22 — Input text typography and compact control fill
 
 #### Added

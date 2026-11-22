@@ -1,5 +1,5 @@
 import { AxiosError, type AxiosResponse } from 'axios';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiAuthRepository, type AuthHttpClient } from './ApiAuthRepository';
 
 const USER = { id: 'user_1', displayName: 'Ada', email: 'ada@novy.app' };
@@ -27,7 +27,6 @@ function makeClient(): {
 } {
   const get = vi.fn<AuthHttpClient['get']>();
   const post = vi.fn<AuthHttpClient['post']>();
-  get.mockResolvedValue(response({ csrfToken: 'token' }));
   return { client: { get, post }, get, post };
 }
 
@@ -69,33 +68,6 @@ describe('ApiAuthRepository session', () => {
     await expect(new ApiAuthRepository(client).getSession()).rejects.toMatchObject({
       code: 'unavailable',
     });
-  });
-});
-
-afterEach(() => {
-  document.cookie = 'novy_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-});
-
-describe('ApiAuthRepository CSRF bootstrap', () => {
-  it('bootstraps CSRF before the first state-changing request', async () => {
-    const { client, get, post } = makeClient();
-    get.mockResolvedValue(response({ csrfToken: 'token' }));
-    post.mockResolvedValue(response(USER));
-
-    await new ApiAuthRepository(client).signIn({ email: 'ada@novy.app', password: 'secret123' });
-
-    expect(get).toHaveBeenCalledWith('/auth/csrf');
-    expect(get.mock.invocationCallOrder[0]).toBeLessThan(post.mock.invocationCallOrder[0] ?? 0);
-  });
-
-  it('skips bootstrap when the CSRF cookie is already present', async () => {
-    document.cookie = 'novy_csrf=existing';
-    const { client, get, post } = makeClient();
-    post.mockResolvedValue(response(USER));
-
-    await new ApiAuthRepository(client).signIn({ email: 'ada@novy.app', password: 'secret123' });
-
-    expect(get).not.toHaveBeenCalled();
   });
 });
 

@@ -17,10 +17,6 @@ completed production backend integrations.
 
 ## 1. Application foundation
 
-- [x] Local backend integration via `.env.local` (`VITE_API_BASE_URL=/api/v1`) and a Vite `/api`
-  development proxy to the FastAPI service, keeping cookies and CSRF same-origin.
-- [x] API authentication repository bootstraps `GET /auth/csrf` before the first state-changing auth
-  request so initial registration is not rejected by the backend CSRF guard.
 - [x] React and TypeScript application with strict type checking.
 - [x] Vite development and production build configuration.
 - [x] Lazy-loaded projects, editor, and deployment route chunks; login remains eager for immediate
