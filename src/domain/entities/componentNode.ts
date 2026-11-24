@@ -794,6 +794,20 @@ export function isChildBearingNode(node: ComponentNode): node is ChildBearingNod
   return node.type === 'container' || node.type === 'gesture-detector' || node.type === 'column' || node.type === 'row' || node.type === 'listview';
 }
 
+/**
+ * A template-style full-screen background layer: an empty container pinned at
+ * the screen origin that covers the design canvas. Its color is kept in sync
+ * with the screen surface background so editing that field has a visible effect.
+ */
+export function isFullScreenBackgroundNode(node: ComponentNode): boolean {
+  return node.type === 'container'
+    && node.children.length === 0
+    && node.x === 0
+    && node.y === 0
+    && node.w >= 320
+    && node.h >= 400;
+}
+
 export function isLinearLayoutNode(node: ComponentNode): node is ColumnNode | RowNode | ListViewNode {
   return node.type === 'column' || node.type === 'row' || node.type === 'listview';
 }

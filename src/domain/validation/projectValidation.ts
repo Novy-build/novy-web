@@ -182,7 +182,7 @@ function validateScreenTree(
       if ((parent?.type === 'container' || parent?.type === 'gesture-detector') && (node.x < 0 || node.y < 0 || node.x + node.w > parent.w || node.y + node.h > parent.h)) {
         issues.push(issue('component-outside-frame', 'warning', 'component', 'Component extends outside its parent frame.', { screenId, componentId: node.id }));
       }
-      validateComponentProps(node, screenId, collections, issues, itemSource, screenRecordCollectionIds);
+      validateComponentProps(node, screenId, collections, issues, itemSource, screenRecordCollectionIds, screen);
       if (isChildBearingNode(node)) {
         visit(node.children, node, node.type === 'listview' ? node : itemSource);
       }
@@ -198,9 +198,10 @@ function validateComponentProps(
   issues: ValidationIssue[],
   itemSource?: ListViewNode,
   screenRecordCollectionIds?: ReadonlySet<string>,
+  screen?: Screen,
 ): void {
   const base = { screenId, componentId: node.id };
-  validateComponentBindings(node, itemSource, screenRecordCollectionIds, screenId, collections, issues);
+  validateComponentBindings(node, itemSource, screenRecordCollectionIds, screenId, collections, issues, screen);
   switch (node.type) {
     case 'button':
       break;
@@ -299,6 +300,7 @@ function validateComponentBindings(
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
   issues: ValidationIssue[],
+  screen?: Screen,
 ): void {
   const seen = new Set<ComponentBindingTarget>();
   for (const binding of node.bindings ?? []) {
@@ -322,9 +324,11 @@ function validateComponentBindings(
       issues.push(issue('component-binding-context', 'error', 'component', 'Record binding must be inside a ListView item template or a record-aware detail screen.', base));
       continue;
     }
+    const loadedFields = itemSource && screen ? loadedListFieldDefinitions(screen, itemSource.id) : [];
     const field = itemSource
       ? itemSource.props.dataSource.kind === 'static'
         ? itemSource.props.dataSource.fields.find((candidate) => candidate.id === binding.value.fieldId)
+          ?? loadedFields.find((candidate) => candidate.id === binding.value.fieldId)
         : collections.get(itemSource.props.dataSource.collectionId)?.fields.find((candidate) => candidate.id === binding.value.fieldId)
       : incomingCollections
         .flatMap((collection) => collection.fields)
@@ -546,6 +550,23 @@ function loadedListCollectionId(
     }
   }
   return null;
+}
+
+function loadedListFieldDefinitions(
+  screen: Screen,
+  listViewId: string | undefined,
+): ReadonlyArray<{ id: string; type: DataFieldType }> {
+  if (!listViewId) return [];
+  for (const graph of screen.logicGraphs) {
+    for (const node of graph.nodes) {
+      if (node.kind === 'action'
+        && node.payload.type === 'load-list-items'
+        && node.payload.targetNodeId === listViewId) {
+        return node.payload.fields;
+      }
+    }
+  }
+  return [];
 }
 
 function loadedListFieldIds(

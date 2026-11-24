@@ -5,6 +5,65 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-25 — Visible project background changes
+
+#### Fixed
+- **App styles → Screen surface → Background / Dark background** now updates a full-screen
+  background container when one covers the screen (as in the Notes template). Previously the
+  container's own solid color hid the screen-level change, so the control appeared to do nothing.
+- The Inspector now explains that a covering background component is kept in sync with the screen
+  surface fields.
+
+#### Added
+- `isFullScreenBackgroundNode` in `domain/entities/componentNode.ts` plus reducer/Inspector tests
+  covering light and dark background synchronization and the Inspector hint.
+
+#### Verified
+- `npm run typecheck` — passed; `npm run build` — passed; focused suites 113 tests passed;
+  full `npm test -- --run --maxWorkers=2` — 145 files / 1,178 tests passed.
+
+### 2026-11-25 — Data-load validation feedback and publish gate
+
+#### Changed
+- The editor Validation dock now shows a neutral "Loading project data…" state or a data-unavailable
+  state with **Retry** instead of false missing-collection/field issues while the app-data snapshot
+  is still loading or failed. `validateProject` itself is unchanged.
+- The Deployment page tracks collection-load status explicitly, shows a retry action on failure,
+  and disables publishing while data is unavailable.
+- `useDeployment.publish` blocks with a clear validation message before any provider call when
+  project data is loading or failed; the existing strict validation still runs once data is ready.
+
+#### Added
+- Regression tests for the dock's loading/error states, the hook-level publish block, and the
+  deployment-page data-unavailable banner.
+
+#### Verified
+- `npm run typecheck` — passed; `npm test -- --run` — 145 files / 1,175 tests passed;
+  `npm run build` — passed (pre-existing chunk-size warning only). A default-worker rerun produced
+  one `DeploymentPage` timing flake that passed in isolation and in a stable `--maxWorkers=2` full
+  run (145 files / 1,175 tests).
+
+### 2026-11-24 — Missing-reference validation fixes
+
+#### Fixed
+- Item bindings inside a ListView now resolve fields selected in the Logic Builder's
+  **Load List Items** node, so a generated `field.id` that differs from its key no longer produces
+  a false "Item binding references a missing field" error.
+- The Inspector's current-item fields now follow the collection declared by the load node, matching
+  the Logic workspace instead of relying only on the component dataSource or a navigation route.
+- Loading a legacy collection-backed component alongside an authored loader no longer adds a second
+  loader with a stale field set.
+- Verified that the mapper's collection-to-static conversion is the intended one-time legacy
+  migration into Logic nodes; it was deliberately left unchanged.
+
+#### Added
+- Regression tests in `projectValidation.test.ts` and `project.mapper.test.ts` for load-node field
+  resolution and duplicate-loader prevention.
+
+#### Verified
+- `npm run typecheck` — passed; `npm test -- --run` — 145 files / 1,171 tests passed;
+  `npm run build` — passed (pre-existing chunk-size warning only).
+
 ### 2026-11-22 — Backend integration setup and CSRF bootstrap
 
 #### Added

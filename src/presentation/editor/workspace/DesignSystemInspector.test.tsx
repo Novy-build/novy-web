@@ -19,6 +19,19 @@ describe('DesignSystemInspector field help', () => {
   });
 });
 
+describe('DesignSystemInspector screen surface', () => {
+  it('explains that a full-screen background component is kept in sync', () => {
+    const homeScreen = makeScreen('home', [{
+      id: 'background', type: 'container', x: 0, y: 0, w: 390, h: 780, props: {}, children: [],
+      appearance: { backgroundColor: '#eef0f7' },
+    }]);
+
+    render(<DesignSystemInspector onAction={vi.fn()} screen={homeScreen} />);
+
+    expect(document.body.textContent).toContain('full-screen background component');
+  });
+});
+
 describe('DesignSystemInspector typography', () => {
   it('uses font previews for both project font fields without permitting self-referencing app fonts', () => {
     const onAction = vi.fn();

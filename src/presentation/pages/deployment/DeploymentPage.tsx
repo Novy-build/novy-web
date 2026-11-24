@@ -13,7 +13,7 @@ import { DeploymentHistory } from './DeploymentHistory';
 import { PublishStepper } from './PublishStepper';
 import { PublishSuccessModal } from './PublishSuccessModal';
 import { RuntimeReadinessPanel } from './RuntimeReadinessPanel';
-import { useDeployment } from './useDeployment';
+import { useDeployment, type DeploymentDataStatus } from './useDeployment';
 import { useReactExport } from './useReactExport';
 
 /** Per-project publish screen backed by the configured deployment provider. */
@@ -23,8 +23,11 @@ export function DeploymentPage() {
   const { appData } = useRepositories();
   const [collections, setCollections] = useState<import('@domain/entities/appData').DataCollection[]>([]);
   const [database, setDatabase] = useState<ProjectDatabase | null>(null);
+  const [dataStatus, setDataStatus] = useState<DeploymentDataStatus>('loading');
+  const [dataReloadToken, setDataReloadToken] = useState(0);
   useEffect(() => {
     let active = true;
+    setDataStatus('loading');
     void Promise.all([
       appData.listDatabases(projectId),
       appData.listCollections(projectId),
@@ -32,14 +35,16 @@ export function DeploymentPage() {
       if (!active) return;
       setDatabase(databases[0] ?? null);
       setCollections(loadedCollections);
+      setDataStatus('ready');
     }).catch(() => {
       if (!active) return;
       setDatabase(null);
       setCollections([]);
+      setDataStatus('error');
     });
     return () => { active = false; };
-  }, [appData, projectId]);
-  const deployment = useDeployment(projectId, { collections });
+  }, [appData, projectId, dataReloadToken]);
+  const deployment = useDeployment(projectId, { collections, dataStatus });
   const handoff = deployment.project
     ? buildGeneratedAppManifest(deployment.project, database, collections)
     : null;
@@ -104,6 +109,20 @@ export function DeploymentPage() {
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8" id="main-content">
+        {dataStatus !== 'ready' ? (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-tile border border-signal-invalid/30 bg-signal-invalid/5 p-3 text-sm" role="status">
+            <span className="text-ink-muted">
+              {dataStatus === 'loading'
+                ? 'Loading project data… publishing is paused until collections are available.'
+                : 'Project data could not be loaded. Publishing is blocked until it is available.'}
+            </span>
+            {dataStatus === 'error' ? (
+              <Button onClick={() => setDataReloadToken((current) => current + 1)} type="button">
+                Retry
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-ink">Publish your app</h1>
@@ -113,7 +132,7 @@ export function DeploymentPage() {
           </div>
           <Button
             className="min-w-36"
-            disabled={deployment.isPublishing || !deployment.provider}
+            disabled={deployment.isPublishing || !deployment.provider || dataStatus !== 'ready'}
             isLoading={deployment.isPublishing}
             onClick={() => void deployment.publish(handoff)}
           >

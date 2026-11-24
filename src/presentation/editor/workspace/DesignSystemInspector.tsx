@@ -4,6 +4,7 @@ import {
   DESIGN_COLOR_TOKEN_NAMES,
   normalizeDesignSystem,
 } from '@domain/entities/designSystem';
+import { isFullScreenBackgroundNode } from '@domain/entities/componentNode';
 import type { Screen } from '@domain/entities/screen';
 import type { EditorAction } from '../state/editorState';
 import { ColorField } from './ColorField';
@@ -35,6 +36,7 @@ export function DesignSystemInspector({
   onAction: (action: EditorAction) => void;
 }) {
   const value = normalizeDesignSystem(designSystem);
+  const hasCoveringBackground = screen.nodes.some(isFullScreenBackgroundNode);
 
   function update(next: AppDesignSystem): void {
     onAction({ type: 'design/system', designSystem: next });
@@ -71,6 +73,12 @@ export function DesignSystemInspector({
           placeholder="Dark canvas token"
           value={screen.appearance?.dark?.backgroundColor ?? ''}
         />
+        {hasCoveringBackground ? (
+          <p className="text-xs text-ink-muted">
+            A full-screen background component covers this screen. Its color is kept in sync with
+            these fields, so changes are visible on the canvas.
+          </p>
+        ) : null}
       </InspectorSection>
 
       <InspectorSection title="Light theme colors">

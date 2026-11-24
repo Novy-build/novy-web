@@ -513,13 +513,31 @@ export function mapScreenToDto(screen: Screen): ScreenDTO {
   };
 }
 
+function hasAuthoredLoader(
+  graphs: readonly LogicGraph[],
+  targetNodeId: string,
+  type: 'load-list-items' | 'load-chart-data',
+): boolean {
+  return graphs.some((graph) => graph.nodes.some((node) =>
+    node.kind === 'action'
+    && node.payload.type === type
+    && node.payload.targetNodeId === targetNodeId));
+}
+
 export function mapScreenFromDto(dto: ScreenDTO, index = 0): Screen {
   const legacyFormMigrations = collectLegacyFormMigrations(dto.nodes);
   const legacyChartMigrations = collectLegacyChartMigrations(dto.nodes);
   const legacyListMigrations = collectLegacyListMigrations(dto.nodes);
-  const migrations = [...legacyFormMigrations, ...legacyChartMigrations, ...legacyListMigrations];
   const behaviors = dto.behaviors.map(mapBehaviorFromDto);
   const logicGraphs = dto.logicGraphs.map(mapLogicGraphFromDto);
+  // A legacy collection dataSource and an authored loader can point at the same
+  // component. Keep the authored loader; a second one would load a different
+  // (possibly stale) field set and produce false missing-reference errors.
+  const migrations = [...legacyFormMigrations, ...legacyChartMigrations, ...legacyListMigrations]
+    .filter((migration) => !migration.graph.nodes.some((node) =>
+      node.kind === 'action'
+      && (node.payload.type === 'load-list-items' || node.payload.type === 'load-chart-data')
+      && hasAuthoredLoader(logicGraphs, node.payload.targetNodeId, node.payload.type)));
   return {
     id: dto.id,
     name: dto.name,

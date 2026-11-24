@@ -1,5 +1,6 @@
 import { ChevronRight } from 'lucide-react';
 import type { ValidationIssue, ValidationReport } from '@domain/validation/projectValidation';
+import { Button } from '@presentation/components/ui/Button';
 import { ResizeHandle } from '../layout/ResizeHandle';
 import { useResizablePane } from '../layout/useResizablePane';
 import { ValidationPanel } from './ValidationPanel';
@@ -12,6 +13,9 @@ export interface ValidationDockProps {
   onToggle: () => void;
   onCollapse: () => void;
   onIssueSelect?: (issue: ValidationIssue) => void;
+  /** Data-load state shown instead of data-reference issues until it is ready. */
+  dataStatus?: 'loading' | 'ready' | 'error';
+  onRetryData?: () => void;
 }
 
 /**
@@ -25,6 +29,8 @@ export function ValidationDock({
   onToggle,
   onCollapse,
   onIssueSelect,
+  onRetryData,
+  dataStatus = 'ready',
 }: ValidationDockProps) {
   const { size, isDragging, startResize, onKeyDown, reset } = useResizablePane({
     defaultSize: 200,
@@ -36,7 +42,16 @@ export function ValidationDock({
     onCollapse,
   });
   const errorCount = report.issues.filter((issue) => issue.severity === 'error').length;
-  const stateLabel = report.isValid ? 'Valid' : String(errorCount);
+  const stateLabel = dataStatus === 'loading'
+    ? '…'
+    : dataStatus === 'error'
+      ? '!'
+      : report.isValid ? 'Valid' : String(errorCount);
+  const badgeClass = dataStatus === 'loading'
+    ? 'bg-canvas text-ink-muted'
+    : dataStatus === 'error' || !report.isValid
+      ? 'bg-signal-invalid/10 text-signal-invalid'
+      : 'bg-signal-valid/10 text-signal-valid';
 
   return (
     <div className="shrink-0 border-t border-hairline">
@@ -57,13 +72,7 @@ export function ValidationDock({
           />
           Validation
         </span>
-        <span
-          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-            report.isValid
-              ? 'bg-signal-valid/10 text-signal-valid'
-              : 'bg-signal-invalid/10 text-signal-invalid'
-          }`}
-        >
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}>
           {stateLabel}
         </span>
       </button>
@@ -86,7 +95,20 @@ export function ValidationDock({
             value={size}
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <ValidationPanel onIssueSelect={onIssueSelect} report={report} />
+            {dataStatus === 'loading' ? (
+              <p className="p-4 text-sm text-ink-muted" role="status">
+                Loading project data… reference validation resumes when it is ready.
+              </p>
+            ) : dataStatus === 'error' ? (
+              <div className="p-4 text-sm">
+                <p className="text-ink-muted" role="alert">Project data could not be loaded.</p>
+                {onRetryData ? (
+                  <Button className="mt-3" onClick={onRetryData} type="button">Retry</Button>
+                ) : null}
+              </div>
+            ) : (
+              <ValidationPanel onIssueSelect={onIssueSelect} report={report} />
+            )}
           </div>
         </div>
       ) : null}

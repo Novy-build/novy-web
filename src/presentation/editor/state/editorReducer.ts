@@ -1,5 +1,5 @@
 import type { ComponentAppearance, ComponentNode, ComponentType } from '@domain/entities/componentNode';
-import { geometryAtBreakpoint, isChildBearingNode, isHiddenAtBreakpoint, isMainAxisLayoutNode, resolveEdgeInsets, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
+import { geometryAtBreakpoint, isChildBearingNode, isFullScreenBackgroundNode, isHiddenAtBreakpoint, isMainAxisLayoutNode, resolveEdgeInsets, type NodeGeometry, type ResponsiveBreakpoint } from '@domain/entities/componentNode';
 import { createComponentNode, getDefaultNodeSize } from '@domain/factories/componentNode';
 import { generateId } from '@domain/ids';
 import { screenPathFromName } from '@domain/factories/screen';
@@ -257,16 +257,19 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
         return applyBreakpointGeometry(node, { ...current, x: next.x, y: next.y }, state.device);
       });
 
-    case 'screen/appearance':
+    case 'screen/appearance': {
+      const nextAppearance = action.appearance && Object.keys(action.appearance).length > 0
+        ? structuredClone(action.appearance)
+        : undefined;
       return pushHistory(state, (document) => ({
         ...state,
         document: replaceScreen(document, action.screenId, (screen) => ({
           ...screen,
-          appearance: action.appearance && Object.keys(action.appearance).length > 0
-            ? structuredClone(action.appearance)
-            : undefined,
+          appearance: nextAppearance,
+          nodes: syncBackgroundComponents(screen.nodes, nextAppearance),
         })),
       }) as EditorState);
+    }
 
     case 'node/layout-position': {
       if (isItemFrame(state, action.nodeId)) return state;
@@ -2126,6 +2129,26 @@ function uniqueScreenPath(document: ProjectDocument, candidate: string): string 
   let index = 2;
   while (document.screens.some((screen) => screen.path === `${candidate === '/' ? '/screen' : candidate}-${index}`)) index += 1;
   return `${candidate === '/' ? '/screen' : candidate}-${index}`;
+}
+
+function syncBackgroundComponents(
+  nodes: readonly ComponentNode[],
+  appearance: ComponentAppearance | undefined,
+): ComponentNode[] {
+  const syncLight = appearance !== undefined && 'backgroundColor' in appearance;
+  const syncDark = appearance?.dark !== undefined && 'backgroundColor' in appearance.dark;
+  if (!syncLight && !syncDark) return nodes as ComponentNode[];
+  const light = appearance?.backgroundColor;
+  const dark = appearance?.dark?.backgroundColor;
+  return nodes.map((node) => {
+    if (!isFullScreenBackgroundNode(node)) return node;
+    const nextAppearance: ComponentAppearance = {
+      ...node.appearance,
+      ...(syncLight ? { backgroundColor: light } : {}),
+      ...(syncDark ? { dark: { ...node.appearance?.dark, backgroundColor: dark } } : {}),
+    };
+    return { ...node, appearance: nextAppearance };
+  });
 }
 
 function replaceScreen(

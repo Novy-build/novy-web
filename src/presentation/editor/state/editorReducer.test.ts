@@ -3,6 +3,7 @@ import { createBehaviorBundle } from '@domain/factories/logic';
 import { appendAction } from '@domain/logic/graph';
 import type { Behavior, LogicGraph } from '@domain/entities/logic';
 import { childGeometriesAtBreakpoint, geometryAtBreakpoint, createEdgePadding, createPadding } from '@domain/entities/componentNode';
+import type { ComponentNode } from '@domain/entities/componentNode';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
 import { editorReducer } from './editorReducer';
 import { createEditorState, findNodeInScreen, getActiveScreen, type EditorState } from './editorState';
@@ -36,6 +37,45 @@ const SCREEN: Screen = {
 };
 
 const DOCUMENT: ProjectDocument = { screens: [SCREEN] };
+
+describe('screen surface background', () => {
+  const backgroundNode: ComponentNode = {
+    id: 'background', type: 'container', x: 0, y: 0, w: 390, h: 780, props: {}, children: [],
+    appearance: { backgroundColor: '#eef0f7', dark: { backgroundColor: '#111827' } },
+  };
+  const cardNode: ComponentNode = {
+    id: 'card', type: 'container', x: 24, y: 24, w: 200, h: 120, props: {}, children: [],
+    appearance: { backgroundColor: '#ffffff' },
+  };
+
+  function state(): EditorState {
+    return createEditorState({ screens: [{ ...SCREEN, nodes: [backgroundNode, cardNode] }] });
+  }
+
+  it('keeps a covering background component in sync with the screen background', () => {
+    const next = editorReducer(state(), {
+      type: 'screen/appearance', screenId: SCREEN.id,
+      appearance: { backgroundColor: '#ff0000' },
+    });
+
+    expect(getActiveScreen(next).appearance?.backgroundColor).toBe('#ff0000');
+    const background = findNodeInScreen(getActiveScreen(next), 'background');
+    expect(background?.type === 'container' ? background.appearance?.backgroundColor : null).toBe('#ff0000');
+    const card = findNodeInScreen(getActiveScreen(next), 'card');
+    expect(card?.type === 'container' ? card.appearance?.backgroundColor : null).toBe('#ffffff');
+  });
+
+  it('syncs the dark background without changing the light component background', () => {
+    const next = editorReducer(state(), {
+      type: 'screen/appearance', screenId: SCREEN.id,
+      appearance: { backgroundColor: '#eef0f7', dark: { backgroundColor: '#000000' } },
+    });
+
+    const background = findNodeInScreen(getActiveScreen(next), 'background');
+    expect(background?.type === 'container' ? background.appearance?.backgroundColor : null).toBe('#eef0f7');
+    expect(background?.type === 'container' ? background.appearance?.dark?.backgroundColor : null).toBe('#000000');
+  });
+});
 
 describe('responsive italic styling', () => {
   it.each(['mobile', 'tablet', 'desktop'] as const)('stores italic at the %s breakpoint and preserves undo', (device) => {

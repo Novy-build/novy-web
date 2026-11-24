@@ -77,6 +77,39 @@ describe('ValidationDock', () => {
     expect(onCollapse).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a neutral loading state instead of false missing-reference issues', () => {
+    render(
+      <ValidationDock
+        dataStatus="loading"
+        isOpen
+        onCollapse={vi.fn()}
+        onToggle={vi.fn()}
+        report={report}
+      />,
+    );
+
+    expect(screen.getByText(/loading project data/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Target component is missing/ })).not.toBeInTheDocument();
+  });
+
+  it('shows a retry action when project data cannot load', () => {
+    const onRetryData = vi.fn();
+    render(
+      <ValidationDock
+        dataStatus="error"
+        isOpen
+        onCollapse={vi.fn()}
+        onRetryData={onRetryData}
+        onToggle={vi.fn()}
+        report={report}
+      />,
+    );
+
+    expect(screen.getByText(/project data could not be loaded/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetryData).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the panel open when the splitter stays above the minimum', () => {
     const onCollapse = vi.fn();
     render(

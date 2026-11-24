@@ -137,9 +137,9 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       node.payload.targetScreenId === activeScreen.id && node.payload.recordContext
       ? [node.payload.recordContext.collectionId]
       : [])[0];
-  const itemCollectionId = itemDataSource?.kind === 'collection'
-    ? itemDataSource.collectionId
-    : screenRecordCollectionId;
+  const listLoaderCollectionId = itemSource ? findListLoaderCollectionId(activeScreen, itemSource.id) : null;
+  const itemCollectionId = listLoaderCollectionId
+    ?? (itemDataSource?.kind === 'collection' ? itemDataSource.collectionId : screenRecordCollectionId);
   const itemCollection = itemCollectionId
     ? projectData.collections.find((collection) => collection.id === itemCollectionId)
     : undefined;
@@ -588,8 +588,10 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
                   />
                 </div>
                 <ValidationDock
+                  dataStatus={projectData.status}
                   isOpen={isValidationOpen}
                   onCollapse={() => setIsValidationOpen(false)}
+                  onRetryData={projectData.reload}
                   onIssueSelect={(issue) => {
                     if (issue.screenId) dispatch({ type: 'screen/select', screenId: issue.screenId });
                     if (issue.componentId) dispatch({ type: 'node/select', nodeId: issue.componentId });
@@ -662,6 +664,20 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
     </main>
     </FieldHelpEnvironmentContext.Provider>
   );
+}
+
+function findListLoaderCollectionId(screen: Screen, listViewId: string): string | null {
+  for (const graph of screen.logicGraphs) {
+    for (const node of graph.nodes) {
+      if (node.kind === 'action'
+        && node.payload.type === 'load-list-items'
+        && node.payload.targetNodeId === listViewId
+        && node.payload.collectionId) {
+        return node.payload.collectionId;
+      }
+    }
+  }
+  return null;
 }
 
 function findNearestListView(

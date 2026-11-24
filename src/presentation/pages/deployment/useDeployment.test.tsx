@@ -80,6 +80,26 @@ describe('useDeployment', () => {
     expect(result.current.publishError).toMatch(/Publish failed/);
   });
 
+  it('blocks publishing while project data is still loading', async () => {
+    const repositories = createStubRepositories();
+    await ensureDemoProject(repositories);
+    const project = (await repositories.projects.listProjects())[0]!;
+    const publishDeployment = vi.spyOn(repositories.deployments, 'publishDeployment');
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <RepositoriesProvider repositories={repositories}>{children}</RepositoriesProvider>
+    );
+    const { result } = renderHook(() => useDeployment(project.id, { dataStatus: 'loading' }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => result.current.publish());
+
+    expect(result.current.validationError).toMatch(/project data is unavailable/i);
+    expect(result.current.isPublishing).toBe(false);
+    expect(publishDeployment).not.toHaveBeenCalled();
+  });
+
   it('keeps refreshing history while a release is still building', async () => {
     const repositories = createStubRepositories();
     await ensureDemoProject(repositories);

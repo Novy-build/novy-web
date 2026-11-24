@@ -612,4 +612,48 @@ describe('validateProject', () => {
     const report = validateProject(documentWith(screen));
     expect(report.issues.map((entry) => entry.code)).toContain('component-chart-series-length');
   });
+
+  it('accepts item bindings that reference fields selected in a Load List Items node', () => {
+    const fieldId = 'field_2_ab12cd';
+    const list = makeListView('list', {
+      props: {
+        ...makeListView('defaults').props,
+        dataSource: {
+          kind: 'static',
+          fields: [{ id: 'value', label: 'Value', type: 'text' }],
+          items: [],
+        },
+      },
+      children: [{
+        id: 'list_title', type: 'text', x: 0, y: 0, w: 300, h: 40,
+        props: { text: 'Title', level: 'body' },
+        bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId } }],
+      }],
+    });
+    const screen = makeScreen('screen_home', [list]);
+    screen.logicGraphs = [{
+      id: 'load_graph', name: 'Load notes', sourceNodeId: 'list',
+      nodes: [
+        { kind: 'trigger', id: 'load_trigger', event: 'load', position: { x: 0, y: 0 } },
+        {
+          kind: 'action', id: 'load_action', position: { x: 240, y: 0 },
+          payload: {
+            type: 'load-list-items', targetNodeId: 'list', collectionId: 'notes',
+            fields: [{ id: fieldId, label: 'Title', type: 'text' }],
+          },
+        },
+      ],
+      edges: [{ id: 'edge', fromNodeId: 'load_trigger', fromPort: 'next', toNodeId: 'load_action', toPort: 'in' }],
+    }];
+    const notes: DataCollection = {
+      id: 'notes', projectId: 'project', databaseId: 'database', name: 'Notes',
+      fields: [{ id: fieldId, key: 'title', label: 'Title', type: 'text', required: true }],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+
+    const codes = validateProject(documentWith(screen), [notes]).issues.map((entry) => entry.code);
+
+    expect(codes).not.toContain('component-binding-field');
+    expect(codes).not.toContain('logic-list-item-field');
+  });
 });

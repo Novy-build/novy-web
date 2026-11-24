@@ -147,6 +147,18 @@ describe('DeploymentPage', () => {
     );
   });
 
+  it('blocks publishing when project collections cannot be loaded', async () => {
+    const { repositories, projectId } = await setupProject();
+    const publishDeployment = vi.spyOn(repositories.deployments, 'publishDeployment');
+    repositories.appData.listCollections = vi.fn().mockRejectedValue(new Error('offline'));
+    renderDeployment(projectId, repositories);
+    await screen.findByRole('heading', { name: 'Publish your app' });
+
+    expect(screen.getByText(/project data could not be loaded/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
+    expect(publishDeployment).not.toHaveBeenCalled();
+  });
+
   it('reports a missing project rather than rendering publish controls', async () => {
     const repositories = createStubRepositories({ sessionUser: STUB_USER });
     renderDeployment('missing-project', repositories);

@@ -11,6 +11,7 @@ import type { Project } from '@domain/entities/project';
 import { useRepositories } from '@main/providers/RepositoriesProvider';
 
 export type DeploymentPageStatus = 'loading' | 'ready' | 'notFound' | 'error';
+export type DeploymentDataStatus = 'loading' | 'ready' | 'error';
 
 export interface DeploymentController {
   project: Project | null;
@@ -38,9 +39,13 @@ export interface DeploymentController {
  */
 export function useDeployment(
   projectId: string,
-  options: { collections?: readonly import('@domain/entities/appData').DataCollection[] } = {},
+  options: {
+    collections?: readonly import('@domain/entities/appData').DataCollection[];
+    dataStatus?: DeploymentDataStatus;
+  } = {},
 ): DeploymentController {
   const collections = options.collections ?? [];
+  const dataStatus = options.dataStatus ?? 'ready';
   const { projects, deployments: deploymentRepository } = useRepositories();
   const [project, setProject] = useState<Project | null>(null);
   const [deployments, setDeployments] = useState<DeploymentRecord[]>([]);
@@ -125,6 +130,12 @@ export function useDeployment(
     setPublishError(null);
     setValidationError(null);
     setSuccessfulDeployment(null);
+    if (dataStatus !== 'ready') {
+      setValidationError(
+        'Deployment blocked: project data is unavailable. Retry after collection data loads.',
+      );
+      return;
+    }
     setIsPublishing(true);
 
     try {
@@ -171,7 +182,7 @@ export function useDeployment(
         setActiveStageIndex(null);
       }
     }
-  }, [collections, deploymentRepository, environment, isPublishing, project, provider]);
+  }, [collections, dataStatus, deploymentRepository, environment, isPublishing, project, provider]);
 
   return {
     project,

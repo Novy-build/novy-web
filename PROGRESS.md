@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-22
+**Last reviewed:** 2026-11-25
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -883,6 +883,9 @@ Implemented component types:
   persisted `props.icon`/`props.iconPosition`, and backward-compatible label-only defaults.
 - [x] Project-wide semantic light/dark colors, body/heading fonts, radius presets, screen surfaces,
   and reusable component styles with create/apply/update/detach Inspector actions.
+- [x] The App styles screen-surface Background/Dark background fields also update a full-screen
+  background container when one covers the screen, so template backgrounds visibly follow the
+  project setting. The Inspector explains this synchronization.
 - [x] Typed gradients, layered shadow/glow, backdrop blur, clipping, opacity, and mobile-first
   responsive appearance and typography controls with editor/Preview/thumbnail/export parity.
 - [x] Duplicate and delete selected components.
@@ -1329,6 +1332,12 @@ provider. Ollama remains the local generation/testing and embedding runtime.
 - [x] An undesigned ListView item template is a blocking component error until at least one item
   widget is added.
 - [x] Missing collection and field reference detection.
+- [x] Item bindings inside a ListView accept fields selected in the Load List Items node even when
+  the component's own dataSource is static (generated field IDs that differ from keys included).
+- [x] The Inspector's current-item field source follows the collection declared by the load node,
+  matching the Logic workspace instead of only the component dataSource or a navigation route.
+- [x] Legacy collection-backed dataSource migrations do not add a second loader when an authored
+  load action already targets the same component.
 - [x] Validation uses the editor's live project-data collection state, including assistant-created
   schemas refreshed after Apply, rather than retaining a separate one-time collection snapshot.
 - [x] Behavior target and graph reference validation.
@@ -1341,6 +1350,10 @@ provider. Ollama remains the local generation/testing and embedding runtime.
 - [x] Validation badge and issue panel in the editor, with a vertically resizable split pane that
   collapses from its header or by dragging the splitter below the minimum height.
 - [x] Preview and deployment blocking when project validation contains errors.
+- [x] The editor Validation dock shows an explicit data-loading or data-unavailable state with a
+  retry action instead of presenting false missing-reference errors from an empty collection snapshot.
+- [x] Publishing is blocked while project collections are loading or failed to load; the strict
+  `validateProject` gate still applies once data is ready.
 
 ## 11. Interactive preview
 
@@ -1600,6 +1613,36 @@ Verified on 2026-11-20 for lifted 3D stage focus:
 - `npm run typecheck` — passed; focused illustration/auth suites — 59 tests passed.
 - `npm test -- --maxWorkers=2 --testTimeout=20000` — 134 files / 1,076 tests passed.
 - `npm run build` — passed.
+
+Verified on 2026-11-25 for screen background synchronization:
+
+- `npm run typecheck` — passed; `npm run build` — passed (pre-existing chunk-size warning only).
+- Focused reducer and Inspector suites: 113 tests passed (three new tests); full
+  `npm test -- --run --maxWorkers=2` — 145 files / 1,178 tests passed.
+- An isolated `ScreenFrame` probe confirmed the editor already applies `screen.appearance` as an
+  inline background; the visible problem was the template's covering background container.
+
+Verified on 2026-11-25 for data-load validation and publish gating:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 145 test files and 1,175 tests passed (four new regression tests). A later
+  default-worker run hit one `DeploymentPage` findByRole timeout that passed in isolation (6/6) and
+  in a stable `npm test -- --run --maxWorkers=2` full run (145 files / 1,175 tests), matching the
+  known high-concurrency timing flake documented in this file.
+- `npm run build` — passed; only the pre-existing large-chunk warning was emitted.
+- New coverage: Validation dock loading/error states with retry, strict publish blocking when
+  collection data is unavailable, and the deployment page data-status banner.
+- `validateProject` semantics were not changed; only editor display and the publish gate consume
+  the data-load status.
+
+Verified on 2026-11-24 for missing-reference validation fixes:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run` — 145 test files and 1,171 tests passed (two new regression tests).
+- `npm run build` — passed; only the pre-existing large-chunk warning was emitted.
+- New coverage: static ListView bindings resolved from Load List Items fields with a generated
+  `field.id` distinct from `field.key`; no duplicate legacy loader when an authored loader exists.
+- No DTO, wire-name, route, cookie, or mapper-migration behavior changes were made.
 
 Verified on 2026-11-21 for dropdown choices in field help:
 

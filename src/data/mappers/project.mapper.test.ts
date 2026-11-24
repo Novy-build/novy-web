@@ -832,4 +832,43 @@ describe('screen mapper', () => {
     ]));
     expect(migrated.behaviors.at(-1)).toMatchObject({ event: 'load', targetNodeId: 'legacy_list' });
   });
+
+  it('does not add a second loader when a legacy collection source and an authored loader target the same ListView', () => {
+    const dto = mapScreenToDto(FIXTURE_SCREEN);
+    dto.nodes.push({
+      id: 'legacy_list', type: 'listview', x: 0, y: 0, w: 320, h: 240,
+      props: {
+        emptyText: 'No items', showDividers: true, scrollDirection: 'vertical', crossAxisAlignment: 'stretch',
+        gap: 0, padding: createPadding(0), itemSpacing: 8, itemBorderRadius: 6,
+        dataSource: {
+          kind: 'collection', collectionId: 'students', displayFieldIds: ['name'],
+        },
+      },
+      children: [],
+    });
+    dto.logicGraphs.push({
+      id: 'authored_graph', name: 'Load students', sourceNodeId: 'legacy_list',
+      nodes: [
+        { kind: 'trigger', id: 'authored_trigger', event: 'load', position: { x: 0, y: 0 } },
+        {
+          kind: 'action', id: 'authored_load', position: { x: 240, y: 0 },
+          payload: {
+            type: 'load-list-items', targetNodeId: 'legacy_list', collectionId: 'students',
+            fields: [{ id: 'name', label: 'Name', type: 'text' }],
+          },
+        },
+      ],
+      edges: [{ id: 'authored_edge', fromNodeId: 'authored_trigger', fromPort: 'next', toNodeId: 'authored_load', toPort: 'in' }],
+    });
+
+    const migrated = mapScreenFromDto(dto);
+    const loaders = migrated.logicGraphs
+      .flatMap((graph) => graph.nodes)
+      .filter((node) => node.kind === 'action'
+        && node.payload.type === 'load-list-items'
+        && node.payload.targetNodeId === 'legacy_list');
+
+    expect(loaders).toHaveLength(1);
+    expect(loaders[0]?.id).toBe('authored_load');
+  });
 });
