@@ -25,6 +25,10 @@ export interface Screen {
   routeParameters?: RecordRouteParameter[];
   /** Screen surface styling; components can still provide their own fills. */
   appearance?: ComponentAppearance;
+  /** Fill the available viewport height instead of using the authored design height. */
+  viewportFill?: boolean;
+  /** Component id anchored to the bottom edge when viewportFill is enabled. */
+  bottomAnchorNodeId?: string;
   nodes: ComponentNode[];
   behaviors: Behavior[];
   logicGraphs: LogicGraph[];

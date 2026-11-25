@@ -10,6 +10,20 @@ export function assistantProposalTitle(proposal: AssistantProposalV1): string {
     || 'Your app';
 }
 
+export function assistantProposalRagDisclosure(proposal: AssistantProposalV1): {
+  usesRag: boolean;
+  remoteProfiles: string[];
+} {
+  const usesRag = proposal.blueprint.screens.some((screen) =>
+    screen.workflows.some((workflow) =>
+      workflow.actions.some((action) =>
+        action.type === 'ingest-document' || action.type === 'answer-with-documents')));
+  const remoteProfiles = (proposal.preview.ragProfiles ?? [])
+    .filter((profile) => profile.location === 'remote' || profile.costWarning)
+    .map((profile) => profile.id);
+  return { usesRag, remoteProfiles };
+}
+
 /** Proposal schemas only: never load or mutate the project's saved records. */
 export function assistantPreviewCollections(proposal: AssistantProposalV1): DataCollection[] {
   return proposal.preview.collections.map((collection) => ({

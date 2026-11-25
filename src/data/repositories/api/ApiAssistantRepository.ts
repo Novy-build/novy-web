@@ -2,21 +2,38 @@ import axios from 'axios';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
 import type {
   AppBlueprintV1,
+  AppBlueprintV2,
+  AssistantBlueprint,
   AssistantCapabilities,
   AssistantBuildResult,
   AssistantConversationTurn,
   AssistantHelpAnswer,
   AssistantHelpSource,
+  AssistantFeasibilityReport,
   AssistantPreviewCollection,
+  AssistantPreviewRagProfile,
   AssistantProposalV1,
   AssistantVerificationReport,
   AssistantImageAttachment,
+  AssistantReferenceAttachment,
   AssistantModelCapability,
   AssistantProviderCapability,
   AssistantProviderId,
+  AssistantViewContext,
+  AssistantQualityMode,
+  AssistantStageTrace,
+  AssistantVisualCategoryScore,
+  AssistantVisualQualityStatus,
+  AssistantVisualReview,
+  AssistantVisualReviewStatus,
+  AssistantRenderCapture,
+  AssistantQualityReport,
   BlueprintCollection,
   BlueprintComponent,
+  BlueprintDesignChange,
   BlueprintField,
+  BlueprintLayoutItem,
+  BlueprintRagProfiles,
   BlueprintRecordField,
   BlueprintRouteParameter,
   BlueprintScreen,
@@ -58,10 +75,13 @@ export class ApiAssistantRepository implements AssistantRepository {
     prompt: string,
     context?: {
       conversation?: AssistantConversationTurn[];
-      draftBlueprint?: AppBlueprintV1;
+      draftBlueprint?: AssistantBlueprint;
       providerId?: AssistantProviderId;
       modelId?: string;
       images?: AssistantImageAttachment[];
+      references?: AssistantReferenceAttachment[];
+      view?: AssistantViewContext;
+      qualityMode?: AssistantQualityMode;
     },
   ): Promise<AssistantBuildResult> {
     try {
@@ -70,10 +90,13 @@ export class ApiAssistantRepository implements AssistantRepository {
         {
           prompt,
           conversation: context?.conversation ?? [],
-          draftBlueprint: context?.draftBlueprint ?? null,
+          draftBlueprint: context?.draftBlueprint ? toApiBlueprint(context.draftBlueprint) : null,
           providerId: context?.providerId ?? null,
           modelId: context?.modelId ?? null,
           images: context?.images ?? [],
+          references: context?.references ?? [],
+          view: context?.view ?? null,
+          qualityMode: context?.qualityMode ?? 'standard',
         },
         { timeout: ASSISTANT_REQUEST_TIMEOUT_MS },
       );
@@ -97,6 +120,7 @@ export class ApiAssistantRepository implements AssistantRepository {
       providerId?: AssistantProviderId;
       modelId?: string;
       images?: AssistantImageAttachment[];
+      references?: AssistantReferenceAttachment[];
     } = {},
   ): Promise<AssistantHelpAnswer> {
     try {
@@ -108,6 +132,7 @@ export class ApiAssistantRepository implements AssistantRepository {
           providerId: context.providerId ?? null,
           modelId: context.modelId ?? null,
           images: context.images ?? [],
+          references: context.references ?? [],
         },
         { timeout: ASSISTANT_REQUEST_TIMEOUT_MS },
       );
@@ -117,11 +142,43 @@ export class ApiAssistantRepository implements AssistantRepository {
     }
   }
 
+  async visualReview(
+    projectId: string,
+    proposal: AssistantProposalV1,
+    input: {
+      references?: AssistantReferenceAttachment[];
+      images?: AssistantImageAttachment[];
+      captures: AssistantRenderCapture[];
+      providerId?: AssistantProviderId;
+      modelId?: string;
+    },
+  ): Promise<AssistantProposalV1> {
+    try {
+      const response = await this.client.post(
+        `/projects/${encodeURIComponent(projectId)}/assistant/proposals/${encodeURIComponent(proposal.id)}/visual-review`,
+        {
+          baseRevision: proposal.baseRevision,
+          blueprint: toApiBlueprint(proposal.blueprint),
+          providerId: input.providerId ?? null,
+          modelId: input.modelId ?? null,
+          qualityMode: 'high-fidelity',
+          references: input.references ?? [],
+          images: input.images ?? [],
+          captures: input.captures,
+        },
+        { timeout: ASSISTANT_REQUEST_TIMEOUT_MS },
+      );
+      return parseProposal(response.data);
+    } catch (error) {
+      throw mapAssistantError(error);
+    }
+  }
+
   async acceptProposal(projectId: string, proposal: AssistantProposalV1): Promise<Project> {
     try {
       const response = await this.client.post(
         `/projects/${encodeURIComponent(projectId)}/assistant/proposals/${encodeURIComponent(proposal.id)}/accept`,
-        { baseRevision: proposal.baseRevision, blueprint: proposal.blueprint },
+        { baseRevision: proposal.baseRevision, blueprint: toApiBlueprint(proposal.blueprint) },
         { headers: { 'If-Match': `"${proposal.baseRevision}"` } },
       );
       return this.adoptProject(response.data);
@@ -136,6 +193,8 @@ export function parseCapabilities(value: unknown): AssistantCapabilities {
     !isRecord(value)
     || !isProviderId(value.defaultProviderId)
     || typeof value.helpRetrievalAvailable !== 'boolean'
+    || typeof value.designPipelineV2 !== 'boolean'
+    || !isReferenceLimits(value.referenceLimits)
     || !Array.isArray(value.providers)
   ) {
     throw new AssistantError('unexpected', 'The backend returned invalid assistant capabilities.');
@@ -143,6 +202,8 @@ export function parseCapabilities(value: unknown): AssistantCapabilities {
   return {
     defaultProviderId: value.defaultProviderId,
     helpRetrievalAvailable: value.helpRetrievalAvailable,
+    designPipelineV2: value.designPipelineV2,
+    referenceLimits: value.referenceLimits,
     providers: value.providers.map(parseProviderCapability),
   };
 }
@@ -158,6 +219,7 @@ function parseProviderCapability(value: unknown): AssistantProviderCapability {
     || typeof value.costWarning !== 'boolean'
     || (value.defaultModelId !== null && typeof value.defaultModelId !== 'string')
     || !Array.isArray(value.models)
+    || !isNonNegativeInteger(value.maxImages)
   ) {
     throw new AssistantError('unexpected', 'The backend returned an invalid provider capability.');
   }
@@ -170,6 +232,7 @@ function parseProviderCapability(value: unknown): AssistantProviderCapability {
     costWarning: value.costWarning,
     defaultModelId: value.defaultModelId,
     models: value.models.map(parseModelCapability),
+    maxImages: value.maxImages,
   };
 }
 
@@ -184,6 +247,7 @@ function parseModelCapability(value: unknown): AssistantModelCapability {
     || (value.location !== 'local' && value.location !== 'remote')
     || typeof value.costWarning !== 'boolean'
     || typeof value.usageNote !== 'string'
+    || !isNonNegativeInteger(value.maxImages)
   ) {
     throw new AssistantError('unexpected', 'The backend returned an invalid model capability.');
   }
@@ -196,7 +260,25 @@ function parseModelCapability(value: unknown): AssistantModelCapability {
     location: value.location,
     costWarning: value.costWarning,
     usageNote: value.usageNote,
+    maxImages: value.maxImages,
   };
+}
+
+function isReferenceLimits(value: unknown): value is AssistantCapabilities['referenceLimits'] {
+  return isRecord(value)
+    && isPositiveInteger(value.maxCount)
+    && isPositiveInteger(value.maxBytesEach)
+    && isPositiveInteger(value.maxBytesTotal)
+    && isPositiveInteger(value.maxPixelsEach)
+    && isPositiveInteger(value.maxPixelsTotal);
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return Number.isInteger(value) && typeof value === 'number' && value > 0;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isInteger(value) && typeof value === 'number' && value >= 0;
 }
 
 function isProviderId(value: unknown): value is AssistantProviderId {
@@ -272,9 +354,161 @@ export function parseProposal(value: unknown): AssistantProposalV1 {
           mapScreenFromDto(screen as ScreenDTO, index)),
       },
       collections,
+      ragProfiles: parsePreviewRagProfiles(value.preview.ragProfiles),
+      seedRecords: parsePreviewSeedRecords(value.preview.seedRecords),
     },
     verification: parseVerification(value.verification),
+    feasibility: parseFeasibility(value.feasibility),
+    seedRecordCount: isNonNegativeInteger(value.seedRecordCount) ? value.seedRecordCount : 0,
+    seedExclusions: Array.isArray(value.seedExclusions)
+      ? value.seedExclusions.filter((item): item is string => typeof item === 'string')
+      : [],
+    deferredIntent: Array.isArray(value.deferredIntent)
+      ? value.deferredIntent.filter((item): item is string => typeof item === 'string')
+      : [],
+    qualityMode: value.qualityMode === 'high-fidelity' ? 'high-fidelity' : 'standard',
+    stageTrace: parseStageTrace(value.stageTrace),
+    visualReview: parseVisualReview(value.visualReview),
+    quality: parseQuality(value.quality),
   };
+}
+
+function parseStageTrace(value: unknown): AssistantStageTrace[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): AssistantStageTrace[] => {
+    if (
+      !isRecord(item)
+      || typeof item.id !== 'string'
+      || (item.status !== 'passed' && item.status !== 'repaired'
+        && item.status !== 'skipped' && item.status !== 'failed')
+      || !isNonNegativeInteger(item.attempts)
+    ) {
+      return [];
+    }
+    return [{
+      id: item.id,
+      status: item.status,
+      attempts: item.attempts,
+      repaired: item.repaired === true,
+    }];
+  });
+}
+
+function parseQuality(value: unknown): AssistantQualityReport | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (
+    !isRecord(value)
+    || typeof value.passed !== 'boolean'
+    || typeof value.label !== 'string'
+    || typeof value.overallScore !== 'number'
+  ) {
+    throw new AssistantError('unexpected', 'The backend returned invalid quality metadata.');
+  }
+  return {
+    passed: value.passed,
+    label: value.label,
+    overallScore: value.overallScore,
+    categoryScores: isRecord(value.categoryScores)
+      ? Object.fromEntries(Object.entries(value.categoryScores).filter(([, score]) => typeof score === 'number')) as Record<string, number>
+      : {},
+    issueCounts: isRecord(value.issueCounts)
+      ? Object.fromEntries(Object.entries(value.issueCounts).filter(([, count]) => typeof count === 'number')) as Record<string, number>
+      : {},
+  };
+}
+
+function parseVisualReview(value: unknown): AssistantVisualReview | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (!isRecord(value) || typeof value.required !== 'boolean') {
+    throw new AssistantError('unexpected', 'The backend returned invalid visual-review metadata.');
+  }
+  const statuses: AssistantVisualReviewStatus[] = [
+    'not-required', 'pending', 'reviewed', 'review-failed', 'continued-unreviewed',
+  ];
+  const qualities: AssistantVisualQualityStatus[] = [
+    'unreviewed', 'reviewed', 'review-failed', 'continued-unreviewed',
+  ];
+  if (
+    !statuses.includes(value.status as AssistantVisualReviewStatus)
+    || !qualities.includes(value.qualityStatus as AssistantVisualQualityStatus)
+    || !Array.isArray(value.captureRequests)
+  ) {
+    throw new AssistantError('unexpected', 'The backend returned invalid visual-review metadata.');
+  }
+  const requests = value.captureRequests.flatMap((item) => {
+    if (
+      !isRecord(item)
+      || typeof item.screenKey !== 'string'
+      || (item.viewport !== 'mobile' && item.viewport !== 'tablet' && item.viewport !== 'desktop')
+    ) {
+      return [];
+    }
+    return [{ screenKey: item.screenKey, viewport: item.viewport as 'mobile' | 'tablet' | 'desktop' }];
+  });
+  const categoryScores: AssistantVisualCategoryScore[] = Array.isArray(value.categoryScores)
+    ? value.categoryScores.flatMap((item) => {
+      if (!isRecord(item) || typeof item.category !== 'string' || typeof item.score !== 'number') {
+        return [];
+      }
+      return [{ category: item.category, score: item.score, note: typeof item.note === 'string' ? item.note : '' }];
+    })
+    : [];
+  return {
+    required: value.required,
+    status: value.status as AssistantVisualReviewStatus,
+    qualityStatus: value.qualityStatus as AssistantVisualQualityStatus,
+    captureRequests: requests,
+    score: typeof value.score === 'number' ? value.score : null,
+    categoryScores,
+    approximations: Array.isArray(value.approximations)
+      ? value.approximations.filter((item): item is string => typeof item === 'string')
+      : [],
+    summary: typeof value.summary === 'string' ? value.summary : '',
+  };
+}
+
+function parseFeasibility(value: unknown): AssistantFeasibilityReport | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (
+    !isRecord(value)
+    || (value.status !== 'feasible' && value.status !== 'approximate')
+    || typeof value.summary !== 'string'
+    || !isBoundedScore(value.predictedFidelity)
+    || !isNonNegativeInteger(value.approximationCount)
+    || !isNonNegativeInteger(value.unsupportedCount)
+    || !Array.isArray(value.notices)
+  ) {
+    throw new AssistantError('unexpected', 'The backend returned invalid feasibility metadata.');
+  }
+  const severities = ['minor', 'moderate', 'major', 'critical'] as const;
+  return {
+    status: value.status,
+    summary: value.summary,
+    predictedFidelity: value.predictedFidelity,
+    approximationCount: value.approximationCount,
+    unsupportedCount: value.unsupportedCount,
+    notices: value.notices.map((notice) => {
+      if (
+        !isRecord(notice)
+        || typeof notice.requirement !== 'string'
+        || typeof notice.impact !== 'string'
+        || !severities.includes(notice.severity as typeof severities[number])
+        || (notice.safeAlternative !== null && typeof notice.safeAlternative !== 'string')
+      ) {
+        throw new AssistantError('unexpected', 'The backend returned an invalid feasibility notice.');
+      }
+      return {
+        requirement: notice.requirement,
+        impact: notice.impact,
+        severity: notice.severity as typeof severities[number],
+        safeAlternative: notice.safeAlternative,
+      };
+    }),
+  };
+}
+
+function isBoundedScore(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100;
 }
 
 function parsePreviewDesignSystem(value: unknown): AppDesignSystem {
@@ -289,6 +523,54 @@ function parsePreviewDesignSystem(value: unknown): AppDesignSystem {
     throw new AssistantError('unexpected', 'The backend returned an invalid preview design system.');
   }
   return value as unknown as AppDesignSystem;
+}
+
+function parsePreviewRagProfiles(value: unknown): AssistantPreviewRagProfile[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new AssistantError('unexpected', 'The backend returned invalid RAG profile metadata.');
+  }
+  const capabilities = ['embedding', 'chat', 'vector', 'memory', 'reranking'] as const;
+  const locations = ['local', 'remote', 'backend'] as const;
+  return value.map((candidate) => {
+    if (
+      !isRecord(candidate)
+      || typeof candidate.id !== 'string'
+      || !capabilities.includes(candidate.capability as typeof capabilities[number])
+      || !locations.includes(candidate.location as typeof locations[number])
+      || typeof candidate.costWarning !== 'boolean'
+      || typeof candidate.usageNote !== 'string'
+    ) {
+      throw new AssistantError('unexpected', 'The backend returned an invalid RAG profile entry.');
+    }
+    return {
+      id: candidate.id,
+      capability: candidate.capability as AssistantPreviewRagProfile['capability'],
+      location: candidate.location as AssistantPreviewRagProfile['location'],
+      costWarning: candidate.costWarning,
+      usageNote: candidate.usageNote,
+    };
+  });
+}
+
+function parsePreviewSeedRecords(
+  value: unknown,
+): AssistantProposalV1['preview']['seedRecords'] {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value)) {
+    throw new AssistantError('unexpected', 'The backend returned invalid seed-record metadata.');
+  }
+  return Object.fromEntries(Object.entries(value).map(([collectionId, records]) => {
+    if (!Array.isArray(records) || records.length > 50) {
+      throw new AssistantError('unexpected', 'The backend returned invalid seed records.');
+    }
+    return [collectionId, records.map((record) => {
+      if (!isRecord(record) || !isRecord(record.values)) {
+        throw new AssistantError('unexpected', 'The backend returned an invalid seed record.');
+      }
+      return { values: record.values as Record<string, string | number | boolean | null> };
+    })];
+  }));
 }
 
 function parseVerification(value: unknown): AssistantVerificationReport {
@@ -358,23 +640,165 @@ function parseVerification(value: unknown): AssistantVerificationReport {
   };
 }
 
-function parseBlueprint(value: unknown): AppBlueprintV1 {
+export function toApiBlueprint(blueprint: AssistantBlueprint): unknown {
+  if (blueprint.version !== 2) return blueprint;
+  const { designSystemIntent, ...rest } = blueprint;
+  return { ...rest, designSystem: designSystemIntent };
+}
+
+function parseBlueprint(value: unknown): AssistantBlueprint {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    (value.version !== 1 && value.version !== 2) ||
     typeof value.summary !== 'string' ||
     !Array.isArray(value.screens) ||
     !Array.isArray(value.collections)
   ) {
     throw new AssistantError('unexpected', 'The backend returned an invalid app blueprint.');
   }
-  return {
-    version: 1,
+  const common = {
     summary: value.summary,
     screens: value.screens.map(parseScreen),
     collections: value.collections.map(parseCollection),
     design: parseDesign(value.design),
   };
+  const ragProfiles = parseRagProfiles(value.ragProfiles);
+  const designChanges = parseDesignChanges(value.designChanges);
+  if (value.version === 1) {
+    const blueprint: AppBlueprintV1 = { version: 1, ...common };
+    if (Object.keys(ragProfiles).length > 0) blueprint.ragProfiles = ragProfiles;
+    if (designChanges.length > 0) blueprint.designChanges = designChanges;
+    return blueprint;
+  }
+  const blueprint: AppBlueprintV2 = {
+    version: 2,
+    ...common,
+    designSystemIntent: parseV2DesignSystem(value.designSystem),
+    screenIntents: parseV2ScreenIntents(value.screenIntents),
+    seedRecords: parseV2SeedRecords(value.seedRecords),
+    rationale: typeof value.rationale === 'string' ? value.rationale : '',
+    ...(Object.keys(ragProfiles).length > 0 ? { ragProfiles } : {}),
+    ...(designChanges.length > 0 ? { designChanges } : {}),
+  };
+  return blueprint;
+}
+
+function parseV2DesignSystem(value: unknown): AppBlueprintV2['designSystemIntent'] {
+  if (!isRecord(value) || !isRecord(value.lightPalette) || !isRecord(value.darkPalette)) {
+    throw new AssistantError('unexpected', 'The backend returned an invalid V2 design system.');
+  }
+  const colors = ['primary', 'accent', 'canvas', 'surface', 'surfaceElevated', 'text', 'textMuted', 'border', 'success', 'warning', 'danger'];
+  const palette = (source: Record<string, unknown>) => {
+    if (!colors.every((key) => typeof source[key] === 'string')) {
+      throw new AssistantError('unexpected', 'The backend returned an invalid V2 palette.');
+    }
+    return Object.fromEntries(colors.map((key) => [key, source[key]])) as unknown as AppBlueprintV2['designSystemIntent']['lightPalette'];
+  };
+  const fonts = ['inter', 'jetbrains-mono', 'system-sans', 'system-serif'] as const;
+  if (
+    !fonts.includes(value.bodyFontFamily as typeof fonts[number])
+    || !fonts.includes(value.headingFontFamily as typeof fonts[number])
+    || !['light', 'dark', 'system'].includes(String(value.defaultTheme))
+    || !Array.isArray(value.typeScale)
+    || !Array.isArray(value.spacingScale)
+    || !Array.isArray(value.radiusScale)
+  ) {
+    throw new AssistantError('unexpected', 'The backend returned invalid V2 design intent.');
+  }
+  return {
+    defaultTheme: value.defaultTheme as AppBlueprintV2['designSystemIntent']['defaultTheme'],
+    lightPalette: palette(value.lightPalette),
+    darkPalette: palette(value.darkPalette),
+    bodyFontFamily: value.bodyFontFamily as AppBlueprintV2['designSystemIntent']['bodyFontFamily'],
+    headingFontFamily: value.headingFontFamily as AppBlueprintV2['designSystemIntent']['headingFontFamily'],
+    typeScale: value.typeScale.filter((item): item is number => typeof item === 'number'),
+    spacingScale: value.spacingScale.filter((item): item is number => typeof item === 'number'),
+    radiusScale: value.radiusScale.filter((item): item is number => typeof item === 'number'),
+    rationale: typeof value.rationale === 'string' ? value.rationale : '',
+  };
+}
+
+function parseV2ScreenIntents(value: unknown): AppBlueprintV2['screenIntents'] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new AssistantError('unexpected', 'The backend returned invalid V2 screen intent.');
+  }
+  return value.map((candidate) => {
+    if (
+      !isRecord(candidate)
+      || typeof candidate.key !== 'string'
+      || !['start', 'center', 'end', 'space-between'].includes(String(candidate.horizontalStrategy))
+      || !['start', 'center', 'end'].includes(String(candidate.verticalStrategy))
+      || !['plain', 'subtle', 'outlined', 'elevated'].includes(String(candidate.canvas))
+      || !['fixed', 'vertical', 'horizontal', 'none'].includes(String(candidate.scrollIntent))
+      || typeof candidate.maxContentWidth !== 'number'
+      || !Array.isArray(candidate.layoutGroups)
+      || !Array.isArray(candidate.placements)
+      || !Array.isArray(candidate.repeatedRows)
+      || !Array.isArray(candidate.textBindings)
+    ) {
+      throw new AssistantError('unexpected', 'The backend returned an invalid V2 screen intent.');
+    }
+    return candidate as unknown as AppBlueprintV2['screenIntents'][number];
+  });
+}
+
+function parseV2SeedRecords(value: unknown): AppBlueprintV2['seedRecords'] {
+  if (value === undefined || value === null) return {};
+  if (!isRecord(value)) {
+    throw new AssistantError('unexpected', 'The backend returned invalid V2 seed records.');
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, records]) => {
+    if (!Array.isArray(records) || records.length > 50 || records.some((record) => !isRecord(record) || !isRecord(record.values))) {
+      throw new AssistantError('unexpected', 'The backend returned invalid V2 seed records.');
+    }
+    return [key, records as AppBlueprintV2['seedRecords'][string]];
+  }));
+}
+
+function parseDesignChanges(value: unknown): BlueprintDesignChange[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 25) {
+    throw new AssistantError('unexpected', 'The backend returned invalid design changes.');
+  }
+  const types = [
+    'center-horizontal',
+    'center-vertical',
+    'surface',
+    'border',
+    'field-style',
+    'chat-style',
+  ];
+  return value.map((candidate) => {
+    if (
+      !isRecord(candidate)
+      || !types.includes(String(candidate.type))
+      || typeof candidate.targetComponentKey !== 'string'
+      || typeof candidate.value !== 'string'
+      || candidate.value.length < 1
+      || candidate.value.length > 100
+    ) {
+      throw new AssistantError('unexpected', 'The backend returned an invalid design change.');
+    }
+    return candidate as unknown as BlueprintDesignChange;
+  });
+}
+
+function parseRagProfiles(value: unknown): BlueprintRagProfiles {
+  if (value === undefined || value === null) return {};
+  if (!isRecord(value)) {
+    throw new AssistantError('unexpected', 'The backend returned invalid RAG profiles.');
+  }
+  const roles = ['embedding', 'chat', 'vector', 'memory', 'reranking'] as const;
+  const result: BlueprintRagProfiles = {};
+  for (const role of roles) {
+    const candidate = value[role];
+    if (candidate === undefined || candidate === null) continue;
+    if (typeof candidate !== 'string') {
+      throw new AssistantError('unexpected', 'The backend returned an invalid RAG profile id.');
+    }
+    result[role] = candidate;
+  }
+  return result;
 }
 
 function parseDesign(value: unknown): AppBlueprintV1['design'] {
@@ -384,6 +808,11 @@ function parseDesign(value: unknown): AppBlueprintV1['design'] {
   const radii = ['sharp', 'soft', 'rounded', 'pill'] as const;
   const densities = ['compact', 'comfortable', 'spacious'] as const;
   const fieldStyles = ['outline', 'underline', 'filled'] as const;
+  const alignments = ['start', 'center'] as const;
+  const surfaces = ['plain', 'subtle', 'outlined', 'elevated'] as const;
+  const horizontalAlignment = isRecord(value) ? value.horizontalAlignment ?? 'start' : undefined;
+  const verticalAlignment = isRecord(value) ? value.verticalAlignment ?? 'start' : undefined;
+  const surface = isRecord(value) ? value.surface ?? 'plain' : undefined;
   if (
     !isRecord(value)
     || !styles.includes(value.style as typeof styles[number])
@@ -392,6 +821,9 @@ function parseDesign(value: unknown): AppBlueprintV1['design'] {
     || !radii.includes(value.radius as typeof radii[number])
     || !densities.includes(value.density as typeof densities[number])
     || !fieldStyles.includes(value.fieldStyle as typeof fieldStyles[number])
+    || !alignments.includes(horizontalAlignment as typeof alignments[number])
+    || !alignments.includes(verticalAlignment as typeof alignments[number])
+    || !surfaces.includes(surface as typeof surfaces[number])
   ) {
     throw new AssistantError('unexpected', 'The backend returned an invalid blueprint design.');
   }
@@ -402,6 +834,9 @@ function parseDesign(value: unknown): AppBlueprintV1['design'] {
     radius: value.radius as typeof radii[number],
     density: value.density as typeof densities[number],
     fieldStyle: value.fieldStyle as typeof fieldStyles[number],
+    horizontalAlignment: horizontalAlignment as typeof alignments[number],
+    verticalAlignment: verticalAlignment as typeof alignments[number],
+    surface: surface as typeof surfaces[number],
   };
 }
 
@@ -415,10 +850,12 @@ function parseScreen(value: unknown): BlueprintScreen {
     !Array.isArray(value.workflows) ||
     (value.routeParameters !== undefined && !Array.isArray(value.routeParameters)) ||
     (value.recordFields !== undefined && !Array.isArray(value.recordFields))
+    || (value.layout !== undefined && !Array.isArray(value.layout))
+    || (Array.isArray(value.layout) && value.layout.length > 200)
   ) {
     throw new AssistantError('unexpected', 'The backend returned an invalid blueprint screen.');
   }
-  return {
+  const screen: BlueprintScreen = {
     key: value.key,
     name: value.name,
     path: value.path,
@@ -427,6 +864,46 @@ function parseScreen(value: unknown): BlueprintScreen {
     routeParameters: (value.routeParameters ?? []).map(parseRouteParameter),
     recordFields: (value.recordFields ?? []).map(parseRecordField),
   };
+  const layout = (value.layout ?? []).map(parseLayoutItem);
+  if (layout.length > 0) screen.layout = layout;
+  return screen;
+}
+
+function parseLayoutItem(value: unknown): BlueprintLayoutItem {
+  if (!isRecord(value) || typeof value.key !== 'string' || typeof value.order !== 'number') {
+    throw new AssistantError('unexpected', 'The backend returned an invalid layout item.');
+  }
+  if (value.parentKey !== undefined && value.parentKey !== null && typeof value.parentKey !== 'string') {
+    throw new AssistantError('unexpected', 'The backend returned an invalid layout parent.');
+  }
+  if (value.kind === 'component') {
+    if (
+      typeof value.componentKey !== 'string'
+      || (value.width !== 'content' && value.width !== 'stretch')
+    ) {
+      throw new AssistantError('unexpected', 'The backend returned an invalid component placement.');
+    }
+    return value as unknown as BlueprintLayoutItem;
+  }
+  const layouts = ['column', 'row', 'container'];
+  const mainAlignments = ['start', 'center', 'end', 'space-between', 'space-around', 'space-evenly'];
+  const crossAlignments = ['start', 'center', 'end', 'stretch'];
+  const spacing = ['none', 'compact', 'comfortable', 'spacious'];
+  const surfaces = ['plain', 'subtle', 'outlined', 'elevated'];
+  const widths = ['content', 'wide', 'full'];
+  if (
+    value.kind !== 'group'
+    || !layouts.includes(String(value.layout))
+    || !mainAlignments.includes(String(value.mainAxisAlignment))
+    || !crossAlignments.includes(String(value.crossAxisAlignment))
+    || !spacing.includes(String(value.gap))
+    || !spacing.includes(String(value.padding))
+    || !surfaces.includes(String(value.surface))
+    || !widths.includes(String(value.width))
+  ) {
+    throw new AssistantError('unexpected', 'The backend returned an invalid layout group.');
+  }
+  return value as unknown as BlueprintLayoutItem;
 }
 
 function parseRouteParameter(value: unknown): BlueprintRouteParameter {
@@ -453,7 +930,7 @@ function parseRecordField(value: unknown): BlueprintRecordField {
 }
 
 function parseComponent(value: unknown): BlueprintComponent {
-  const allowed = ['text', 'button', 'input', 'image', 'list', 'checkbox', 'dropdown', 'switch', 'divider'];
+  const allowed = ['text', 'button', 'input', 'image', 'list', 'checkbox', 'dropdown', 'switch', 'divider', 'file-input', 'chat'];
   if (!isRecord(value) || typeof value.key !== 'string' || typeof value.type !== 'string' || !allowed.includes(value.type)) {
     throw new AssistantError('unexpected', 'The backend returned an invalid blueprint component.');
   }
@@ -527,6 +1004,7 @@ export function mapAssistantError(error: unknown): AssistantError {
     case 'assistant_provider_quota_exceeded': return new AssistantError('quota-exceeded', message, envelope.error.details);
     case 'assistant_knowledge_unavailable': return new AssistantError('knowledge-unavailable', message);
     case 'invalid_assistant_response': return new AssistantError('validation', message, envelope.error.details);
+    case 'assistant_feasibility_blocked': return new AssistantError('feasibility-blocked', message, envelope.error.details);
     case 'invalid_assistant_proposal': return new AssistantError('invalid-proposal', message, envelope.error.details);
     case 'assistant_acceptance_failed': return new AssistantError('apply-failed', message, envelope.error.details);
     case 'validation_error': return new AssistantError('validation', message, envelope.error.details);

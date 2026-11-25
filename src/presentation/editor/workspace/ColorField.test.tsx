@@ -22,6 +22,21 @@ describe('ColorField', () => {
     expect(onChange).toHaveBeenLastCalledWith('#445566');
   });
 
+  it('toggles a transparent value when the option is enabled', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<ColorField allowTransparent label="Background" name="background" onChange={onChange} value="#112233" />);
+
+    const toggle = screen.getByRole('button', { name: 'Background transparent' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenLastCalledWith('transparent');
+
+    rerender(<ColorField allowTransparent label="Background" name="background" onChange={onChange} value="transparent" />);
+    expect(screen.getByRole('button', { name: 'Background transparent' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Background transparent' }));
+    expect(onChange).toHaveBeenLastCalledWith('');
+  });
+
   it('normalizes shorthand hex and falls back for unsupported values', () => {
     expect(normalizeHexColor('#abc')).toBe('#aabbcc');
     expect(normalizeHexColor('#AABBCC')).toBe('#aabbcc');

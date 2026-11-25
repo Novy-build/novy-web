@@ -191,6 +191,7 @@ export class ApiProjectRepository implements ProjectRepository {
       projectType: dto.projectType,
       createdAt: dto.createdAt,
       updatedAt: dto.updatedAt,
+      designSystem: dto.designSystem,
       screens: dto.screens,
     });
     this.projects.set(dto.id, { project, storedAt: Date.now() });

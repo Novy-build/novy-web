@@ -268,6 +268,16 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
         })),
       }) as EditorState);
 
+    case 'screen/layout-intent':
+      return pushHistory(state, (document) => ({
+        ...state,
+        document: replaceScreen(document, action.screenId, (screen) => ({
+          ...screen,
+          viewportFill: action.viewportFill || undefined,
+          bottomAnchorNodeId: action.bottomAnchorNodeId || undefined,
+        })),
+      }) as EditorState);
+
     case 'node/layout-position': {
       if (isItemFrame(state, action.nodeId)) return state;
       const layoutBounds = resolveNodeGeometryBounds(
@@ -526,19 +536,22 @@ function reduceEditorState(state: EditorState, action: EditorAction): EditorStat
         return { ...value, dark: Object.keys(dark).length > 0 ? dark : undefined };
       };
       return updateNodeWithHistory(state, action.nodeId, (node) => {
-        if (state.device === 'mobile') {
-          const base = withoutDarkOverride(action.appearance);
-          return {
-            ...node,
-            appearance: base && Object.keys(base).length > 0 ? { ...base } : undefined,
-          };
-        }
         const responsive = { ...(node.responsive ?? {}) };
+        // Strip every layer first: a base edit on Mobile must not leave a dark
+        // override in a tablet/desktop layer that resurfaces at that breakpoint.
         if (action.clearDark) {
           for (const breakpoint of Object.keys(responsive) as Array<Exclude<ResponsiveBreakpoint, 'mobile'>>) {
             const entry = responsive[breakpoint];
             if (entry) responsive[breakpoint] = { ...entry, appearance: withoutDarkOverride(entry.appearance) };
           }
+        }
+        if (state.device === 'mobile') {
+          const base = withoutDarkOverride(action.appearance);
+          return {
+            ...node,
+            appearance: base && Object.keys(base).length > 0 ? { ...base } : undefined,
+            responsive,
+          };
         }
         responsive[state.device] = {
           ...(responsive[state.device] ?? {}),

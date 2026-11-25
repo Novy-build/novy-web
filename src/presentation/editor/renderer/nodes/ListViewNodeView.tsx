@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { DataRecord, DataValue, ListItemContext } from '@domain/entities/appData';
 import { resolveEdgeInsets, type ComponentBorderStyle, type ListViewProps } from '@domain/entities/componentNode';
 import type { RendererDataContext, RendererMode } from '../renderer';
-import { widgetBorderCss } from './fieldStyle';
+import { fieldStyleCss, widgetBorderCss } from './fieldStyle';
 
 interface ListViewNodeViewProps {
   borderStyle?: ComponentBorderStyle;
@@ -36,6 +36,8 @@ export function ListViewNodeView({
   runtimeValue,
   templateHasChildren,
 }: ListViewNodeViewProps) {
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [pressedItemId, setPressedItemId] = useState<string | null>(null);
   if (mode === 'canvas' && !templateHasChildren) {
     return (
       <div
@@ -66,7 +68,11 @@ export function ListViewNodeView({
     return (
       <div
         className="novy-widget-text-muted flex h-full w-full items-center justify-center rounded-tile border border-hairline bg-surface text-sm"
-        style={widgetBorderCss(borderStyle)}
+        style={{
+          ...widgetBorderCss(borderStyle),
+          ...fieldStyleCss(props.emptyStateAppearance, undefined),
+          ...props.emptyStateTextStyle,
+        }}
       >
         {props.emptyText || 'No items yet'}
       </div>
@@ -74,53 +80,76 @@ export function ListViewNodeView({
   }
 
   const isVertical = props.scrollDirection === 'vertical';
+  const dividerStyle: CSSProperties = {
+    ...(props.dividerColor ? { borderColor: props.dividerColor } : {}),
+    ...(props.dividerThickness !== undefined
+      ? { borderTopWidth: props.dividerThickness, borderLeftWidth: props.dividerThickness }
+      : {}),
+  };
   return (
     <div
       aria-label="ListView"
       className={`flex h-full w-full rounded-tile border border-hairline bg-surface ${
         isVertical ? 'flex-col overflow-y-auto overflow-x-hidden' : 'flex-row overflow-x-auto overflow-y-hidden'
-      }`}
+      } ${props.scrollbarVisibility === 'hidden' ? 'novy-listview-no-scrollbar' : ''}`}
       data-listview-node-id={nodeId}
       role="list"
-      style={{ gap: Math.max(0, props.itemSpacing), ...widgetBorderCss(borderStyle) }}
+      style={{
+        gap: Math.max(0, props.itemSpacing),
+        ...widgetBorderCss(borderStyle),
+        ...(props.scrollbarVisibility === 'hidden' ? { scrollbarWidth: 'none' } as CSSProperties : {}),
+      }}
     >
       {visibleRecords.map((record, index) => {
         const itemLabel = String(record.values.value ?? '').trim() || `Item ${index + 1}`;
+        const key = `${record.itemId}-${index}`;
+        const selected = props.selectionEnabled === true && selectedItemId === record.itemId;
+        const pressed = pressedItemId === key;
+        const hasDivider = props.showDividers && index > 0;
         return (
         <div
           aria-label={mode === 'preview' ? `${itemLabel}. Press Enter or Space to open.` : undefined}
           className={`relative shrink-0 ${mode === 'preview' ? 'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-600' : ''} ${
-            props.showDividers && index > 0
+            hasDivider
               ? isVertical ? 'border-t border-hairline' : 'border-l border-hairline'
               : ''
           }`}
-          key={`${record.itemId}-${index}`}
+          key={key}
           onClick={mode === 'preview' ? (event) => {
             event.stopPropagation();
             if ((event.target as HTMLElement).closest('button,input,select,textarea,a,[role="button"]')) return;
+            if (props.selectionEnabled) {
+              setSelectedItemId(record.itemId);
+              return;
+            }
             onItemSelect?.(record);
           } : undefined}
           onKeyDown={mode === 'preview' ? (event) => {
             if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
             event.preventDefault();
             event.stopPropagation();
+            if (props.selectionEnabled) {
+              setSelectedItemId(record.itemId);
+              return;
+            }
             onItemSelect?.(record);
           } : undefined}
+          onPointerCancel={props.itemPressedAppearance ? () => setPressedItemId(null) : undefined}
+          onPointerDown={props.itemPressedAppearance ? () => setPressedItemId(key) : undefined}
+          onPointerLeave={props.itemPressedAppearance ? () => setPressedItemId(null) : undefined}
+          onPointerUp={props.itemPressedAppearance ? () => setPressedItemId(null) : undefined}
           role="listitem"
           tabIndex={mode === 'preview' ? 0 : undefined}
-          style={isVertical
-            ? {
-                width: '100%',
-                height: itemExtent,
-                borderRadius: Math.max(0, props.itemBorderRadius),
-                overflow: props.itemBorderRadius > 0 ? 'hidden' : undefined,
-              }
-            : {
-                width: itemExtent,
-                height: '100%',
-                borderRadius: Math.max(0, props.itemBorderRadius),
-                overflow: props.itemBorderRadius > 0 ? 'hidden' : undefined,
-              }}
+          style={{
+            width: isVertical ? '100%' : itemExtent,
+            height: isVertical ? itemExtent : '100%',
+            ...fieldStyleCss(props.itemAppearance, undefined),
+            ...(selected ? fieldStyleCss(props.itemSelectedAppearance, undefined) : {}),
+            ...(pressed ? fieldStyleCss(props.itemPressedAppearance, undefined) : {}),
+            ...(hasDivider ? dividerStyle : {}),
+            borderRadius: Math.max(0, props.itemBorderRadius),
+            overflow: props.itemBorderRadius > 0 ? 'hidden' : undefined,
+          }}
         >
           {templateHasChildren ? renderItem(record) : (
             <FallbackListItem index={index} props={props} record={record} />

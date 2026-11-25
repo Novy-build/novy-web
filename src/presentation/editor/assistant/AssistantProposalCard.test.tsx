@@ -10,8 +10,50 @@ const PROPOSAL: AssistantProposalV1 = {
     version: 1, summary: 'Track your equipment.', screens: [], collections: [],
     design: { style: 'product', palette: 'indigo', typography: 'modern-sans', radius: 'soft', density: 'comfortable', fieldStyle: 'outline' },
   },
-  preview: { schemaVersion: 14, document: { screens: [makeScreen('home', [makeText('heading')], 'Equipment')] }, collections: [] },
+  preview: {
+    schemaVersion: 14,
+    document: { screens: [makeScreen('home', [makeText('heading')], 'Equipment')] },
+    collections: [],
+    seedRecords: { tasks: [{ values: { title: 'Plan the week' } }] },
+  },
   verification: { passed: true, repairAttempts: 2, stages: [], viewports: [], issues: [] },
+  seedRecordCount: 1,
+  seedExclusions: ['tasks.api_key was excluded from automatic seeding.'],
+  qualityMode: 'high-fidelity',
+  stageTrace: [
+    { id: 'design-intent', status: 'passed', attempts: 1, repaired: false },
+    { id: 'v2-blueprint', status: 'repaired', attempts: 2, repaired: true },
+  ],
+  visualReview: {
+    required: true,
+    status: 'reviewed',
+    qualityStatus: 'reviewed',
+    captureRequests: [{ screenKey: 'home', viewport: 'mobile' }],
+    score: 88,
+    categoryScores: [],
+    approximations: ['Icons approximated.'],
+    summary: 'The render closely matches the reference.',
+  },
+  quality: {
+    passed: true,
+    label: 'verified-high-fidelity',
+    overallScore: 92,
+    categoryScores: { composition: 94 },
+    issueCounts: { total: 0 },
+  },
+  feasibility: {
+    status: 'approximate',
+    summary: 'Novy can build this with one disclosed approximation; predicted fidelity is 88%.',
+    predictedFidelity: 88,
+    approximationCount: 1,
+    unsupportedCount: 0,
+    notices: [{
+      requirement: 'Preserve a custom palette.',
+      impact: 'V1 uses the closest preset palette.',
+      severity: 'moderate',
+      safeAlternative: 'Use the closest disclosed preset.',
+    }],
+  },
 };
 
 describe('AssistantProposalCard', () => {
@@ -22,7 +64,26 @@ describe('AssistantProposalCard', () => {
     expect(screen.getByRole('img', { name: 'Visual preview of Equipment' })).toBeInTheDocument();
     expect(container.querySelector('[data-node-id="heading"]')).not.toBeNull();
     expect(screen.getByText('Automated checks passed')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Seed data' })).toHaveTextContent(
+      '1 seed record will be created when you apply',
+    );
+    expect(screen.getByText('tasks.api_key was excluded from automatic seeding.')).toBeVisible();
+    expect(screen.getByTestId('assistant-stage-trace')).toHaveTextContent('High-fidelity stages');
+    expect(screen.getByText(/v2-blueprint: repaired/)).toBeVisible();
+    expect(screen.getByTestId('assistant-visual-review-status')).toHaveTextContent(
+      'Completed · 88 / 100 fidelity',
+    );
+    expect(screen.getByText('The render closely matches the reference.')).toBeVisible();
+    expect(screen.getByTestId('assistant-quality-report')).toHaveTextContent(
+      'verified-high-fidelity · 92 / 100',
+    );
     expect(screen.getByText('Check details').closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByRole('region', { name: 'Design feasibility' })).toHaveTextContent(
+      '88% predicted fidelity',
+    );
+    expect(screen.getByText('Fidelity notes (1)').closest('details')).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByText('Fidelity notes (1)'));
+    expect(screen.getByText('Safe alternative: Use the closest disclosed preset.')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Preview app' }));
     expect(onPreview).toHaveBeenCalledWith(expect.any(HTMLButtonElement));
   });

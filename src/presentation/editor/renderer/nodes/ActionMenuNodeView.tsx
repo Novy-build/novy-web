@@ -3,7 +3,11 @@ import { createPortal } from 'react-dom';
 import { useAppTheme } from '../AppThemeContext';
 
 interface ActionMenuNodeViewProps {
+  backgroundColor?: string;
+  hoverColor?: string;
+  iconSize?: number;
   label: string;
+  textColor?: string;
   itemLabel?: string;
   options: readonly string[];
   isPreview: boolean;
@@ -12,7 +16,7 @@ interface ActionMenuNodeViewProps {
 }
 
 /** A per-item actions menu; its change event retains the renderer's item context. */
-export function ActionMenuNodeView({ label, itemLabel, options, isPreview, onSelect, menuStyle }: ActionMenuNodeViewProps) {
+export function ActionMenuNodeView({ backgroundColor, hoverColor, iconSize, label, textColor, itemLabel, options, isPreview, onSelect, menuStyle }: ActionMenuNodeViewProps) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ left: 0, top: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -84,6 +88,7 @@ export function ActionMenuNodeView({ label, itemLabel, options, isPreview, onSel
         disabled={!isPreview || entries.length === 0}
         onClick={(event) => { event.stopPropagation(); toggle(); }}
         ref={triggerRef}
+        style={iconSize ? { fontSize: `${iconSize}px` } : undefined}
         type="button"
       >
         <span aria-hidden="true">⋮</span>
@@ -97,11 +102,18 @@ export function ActionMenuNodeView({ label, itemLabel, options, isPreview, onSel
           onKeyDown={handleKeyDown}
           ref={menuRef}
           role="menu"
-          style={{ ...menuStyle, left: position.left, top: position.top }}
+          style={{
+            ...menuStyle,
+            ...(backgroundColor ? { backgroundColor } : {}),
+            ...(textColor ? { color: textColor } : {}),
+            ...(hoverColor ? { '--novy-menu-hover': hoverColor } as CSSProperties : {}),
+            left: position.left,
+            top: position.top,
+          }}
         >
           {entries.map((option, index) => (
             <button
-              className="novy-widget-text block min-h-11 w-full rounded-tile px-3 text-left text-sm hover:bg-canvas focus-visible:outline-2 focus-visible:outline-brand-600"
+              className="novy-action-menu-option novy-widget-text block min-h-11 w-full rounded-tile px-3 text-left text-sm hover:bg-canvas focus-visible:outline-2 focus-visible:outline-brand-600"
               key={`${option}-${index}`}
               onClick={() => { close(); onSelect?.(option); }}
               role="menuitem"

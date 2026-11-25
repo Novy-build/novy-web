@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createPadding } from '../entities/componentNode';
 import type { DataCollection } from '../entities/appData';
+import type { Screen } from '../entities/screen';
 import type { ProjectDocument } from '../entities/screen';
 import { makeButton, makeColumn, makeListView, makeScreen, makeText } from '@test/editorFixtures';
 import { validateProject } from './projectValidation';
@@ -369,6 +370,35 @@ describe('validateProject', () => {
     expect(report.issues).toContainEqual(expect.objectContaining({ code: 'component-layout-spacing' }));
   });
 
+  it('rejects invalid ListView style overrides', () => {
+    const list = makeListView('node_list', {
+      props: {
+        ...makeListView('defaults').props,
+        dividerThickness: -1,
+        dividerColor: 'red; color: blue',
+        scrollbarVisibility: 'sometimes' as 'auto',
+      },
+    });
+    const report = validateProject(documentWith(makeScreen('screen_home', [list])));
+
+    expect(report.issues.filter((issue) => issue.code === 'component-list-style')).toHaveLength(3);
+  });
+
+  it('rejects an unsafe divider color', () => {
+    const divider = {
+      id: 'divider_unsafe',
+      type: 'divider' as const,
+      x: 0,
+      y: 0,
+      w: 100,
+      h: 2,
+      props: { orientation: 'horizontal' as const, thickness: 2, color: 'red; color: blue' },
+    };
+    const report = validateProject(documentWith(makeScreen('screen_home', [divider])));
+
+    expect(report.issues).toContainEqual(expect.objectContaining({ code: 'component-divider-color' }));
+  });
+
   it('rejects negative per-side layout padding', () => {
     const column = makeColumn('column', [], {
       props: {
@@ -410,6 +440,69 @@ describe('validateProject', () => {
       'data-static-item-duplicate',
       'data-static-item-type',
     ]));
+  });
+
+  const notesCollection: DataCollection = {
+    id: 'notes_collection', projectId: 'project', databaseId: 'database', name: 'notes-collection',
+    fields: [{ id: 'title', key: 'title', label: 'Title', type: 'text', required: true }],
+    createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01'),
+  };
+
+  function listScreenWithLoader(fieldId: string, loaderFields: Array<{ id: string; label: string; type: 'text' }>): Screen {
+    const list = makeListView('list_notes', {
+      children: [{
+        id: 'text_title', type: 'text', x: 0, y: 0, w: 200, h: 32,
+        props: { text: 'Title', level: 'body' },
+        bindings: [{ target: 'text.content', value: { source: 'list-item', fieldId } }],
+      }],
+    });
+    const screen = makeScreen('screen_home', [list]);
+    screen.behaviors = [{ id: 'load_behavior', name: 'Load notes', event: 'load', graphId: 'load_graph', targetNodeId: list.id }];
+    screen.logicGraphs = [{
+      id: 'load_graph', name: 'Load notes', sourceNodeId: list.id,
+      nodes: [
+        { kind: 'trigger', id: 'load_trigger', event: 'load', position: { x: 0, y: 0 } },
+        {
+          kind: 'action', id: 'load_action', position: { x: 100, y: 0 },
+          payload: {
+            type: 'load-list-items', targetNodeId: list.id,
+            collectionId: notesCollection.id, fields: loaderFields,
+          },
+        },
+      ],
+      edges: [{ id: 'edge', fromNodeId: 'load_trigger', fromPort: 'next', toNodeId: 'load_action', toPort: 'in' }],
+    }];
+    return screen;
+  }
+
+  it('accepts item bindings to fields supplied by the Load list items action', () => {
+    const screen = listScreenWithLoader('title', [{ id: 'title', label: 'Title', type: 'text' }]);
+
+    expect(validateProject(documentWith(screen), [notesCollection]).issues).toEqual([]);
+  });
+
+  it('accepts item bindings when the loader uses the collection schema', () => {
+    const screen = listScreenWithLoader('title', []);
+
+    expect(validateProject(documentWith(screen), [notesCollection]).issues).toEqual([]);
+  });
+
+  it('accepts the value alias produced by the loader', () => {
+    const screen = listScreenWithLoader('value', []);
+
+    expect(validateProject(documentWith(screen), [notesCollection]).issues).toEqual([]);
+  });
+
+  it('reports a detailed error for a genuinely missing item field', () => {
+    const screen = listScreenWithLoader('does_not_exist', []);
+
+    const issue = validateProject(documentWith(screen), [notesCollection]).issues
+      .find((candidate) => candidate.code === 'component-binding-field');
+    expect(issue?.message).toContain('does_not_exist');
+    expect(issue?.message).toContain('notes-collection');
+    expect(issue).toMatchObject({
+      componentId: 'text_title', bindingTarget: 'text.content', collectionId: notesCollection.id,
+    });
   });
 
   it('accepts current item IDs only within a repeated ListView item', () => {

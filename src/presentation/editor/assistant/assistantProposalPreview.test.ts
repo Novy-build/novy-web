@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AssistantProposalV1 } from '@domain/entities/assistant';
-import { assistantPreviewCollections, assistantProposalTitle } from './assistantProposalPreview';
+import { assistantPreviewCollections, assistantProposalRagDisclosure, assistantProposalTitle } from './assistantProposalPreview';
 
 const PROPOSAL: AssistantProposalV1 = {
   id: 'draft', projectId: 'project', baseRevision: 1, message: 'Build inventory',
@@ -38,6 +38,35 @@ describe('assistant proposal preview', () => {
     });
     expect(PROPOSAL).toEqual(before);
     expect(collections[0]?.fields).not.toBe(PROPOSAL.preview.collections[0]?.fields);
+  });
+
+  it('discloses RAG usage and remote profile costs from the proposal', () => {
+    const ragProposal: AssistantProposalV1 = {
+      ...PROPOSAL,
+      blueprint: {
+        ...PROPOSAL.blueprint,
+        screens: [{
+          key: 'home', name: 'Documents', path: '/',
+          components: [{ key: 'picker', type: 'file-input' }],
+          workflows: [{
+            key: 'ingest', name: 'Ingest', triggerComponentKey: 'picker', event: 'change',
+            actions: [{ type: 'ingest-document', fileInputKey: 'picker' }],
+          }],
+        }],
+      },
+      preview: {
+        ...PROPOSAL.preview,
+        ragProfiles: [{
+          id: 'openrouter-chat', capability: 'chat', location: 'remote',
+          costWarning: true, usageNote: 'remote',
+        }],
+      },
+    };
+    expect(assistantProposalRagDisclosure(ragProposal)).toEqual({
+      usesRag: true,
+      remoteProfiles: ['openrouter-chat'],
+    });
+    expect(assistantProposalRagDisclosure(PROPOSAL)).toEqual({ usesRag: false, remoteProfiles: [] });
   });
 });
 

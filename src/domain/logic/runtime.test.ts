@@ -749,6 +749,28 @@ describe('resolveValueExpression', () => {
       items: [{ itemId: 'a', values: { name: 'Ada', value: 'Ada' } }],
     }]);
   });
+  it('aliases the first stored value when Load List Items loads every field', () => {
+    const { screen, graphId } = buildScreen();
+    const graph = appendAction(screen.logicGraphs[0]!, {
+      type: 'load-list-items',
+      targetNodeId: 'list_items',
+      collectionId: 'students',
+      fields: [],
+    });
+    const withGraph = { ...screen, logicGraphs: screen.logicGraphs.map((item) => item.id === graphId ? graph : item) };
+    const records = [
+      { id: 'a', projectId: 'project', collectionId: 'students', values: { name: 'Ada', age: 36 }, createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01') },
+    ];
+
+    expect(runClickBehavior({ screens: [withGraph] }, withGraph, 'node_button', {
+      componentValues: new Map(),
+      data: { getRecord: () => null, listRecords: () => records },
+    })).toEqual([{
+      kind: 'list-items',
+      listViewId: 'list_items',
+      items: [{ itemId: 'a', values: { name: 'Ada', age: 36, value: 'Ada' } }],
+    }]);
+  });
 });
 
 describe('applyTextOverrides', () => {

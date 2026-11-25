@@ -37,6 +37,7 @@ import { PanelCollapseButton } from '../PanelCollapseControl';
 import { ResizeHandle } from '../layout/ResizeHandle';
 import { useResizablePane } from '../layout/useResizablePane';
 import type { ListItemBindingField } from './Inspector';
+import { resolveListItemFieldSource } from './listItemFields';
 import { FieldHelpEnvironmentContext } from '@presentation/components/ui/FieldHelp';
 import { getComponentTreeLocation } from '@domain/componentTree';
 import { buildGeneratedAppManifest } from '@data/generation/generatedAppManifest';
@@ -129,7 +130,6 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
   const itemSource = state.selectedNodeId
     ? findNearestListView(activeScreen.nodes, state.selectedNodeId)
     : null;
-  const itemDataSource = itemSource?.props.dataSource;
   const screenRecordCollectionId = state.document.screens
     .flatMap((candidate) => candidate.logicGraphs)
     .flatMap((graph) => graph.nodes)
@@ -137,18 +137,15 @@ export function EditorWorkspace({ project, onRenameProject, onBack, onDeploy }: 
       node.payload.targetScreenId === activeScreen.id && node.payload.recordContext
       ? [node.payload.recordContext.collectionId]
       : [])[0];
-  const itemCollectionId = itemDataSource?.kind === 'collection'
-    ? itemDataSource.collectionId
-    : screenRecordCollectionId;
-  const itemCollection = itemCollectionId
-    ? projectData.collections.find((collection) => collection.id === itemCollectionId)
-    : undefined;
-  const listItemFields: readonly ListItemBindingField[] = itemDataSource?.kind === 'static'
-    ? itemDataSource.fields
-    : itemCollection?.fields.map(({ id, label, type }) => ({ id, label, type })) ?? [];
-  const listItemSourceName = itemDataSource?.kind === 'static'
-    ? 'Static items'
-    : itemCollection?.name;
+  const itemFieldSource = resolveListItemFieldSource(
+    itemSource,
+    activeScreen.logicGraphs,
+    projectData.collections,
+    screenRecordCollectionId,
+  );
+  const itemCollection = itemFieldSource.collection;
+  const listItemFields: readonly ListItemBindingField[] = itemFieldSource.fields;
+  const listItemSourceName = itemFieldSource.sourceName;
   const scopedListView = state.designScope.kind === 'list-item-template'
     ? findNodeInScreen(activeScreen, state.designScope.listViewId)
     : null;

@@ -1,5 +1,6 @@
 import {
   createPadding,
+  DEFAULT_CHAT_STYLE,
   geometryAtBreakpoint,
   isButtonIconName,
   isAppIconName,
@@ -80,6 +81,11 @@ function sanitizeTypography(value: unknown): TypographyDTO | undefined {
 function typographyField(value: unknown): { textStyle?: TypographyDTO } {
   const textStyle = sanitizeTypography(value);
   return textStyle ? { textStyle } : {};
+}
+
+function labelStyleField(value: unknown): { labelStyle?: TypographyDTO } {
+  const labelStyle = sanitizeTypography(value);
+  return labelStyle ? { labelStyle } : {};
 }
 
 export function mapProjectToDto(project: Project): ProjectDTO {
@@ -507,6 +513,8 @@ export function mapScreenToDto(screen: Screen): ScreenDTO {
       ? { routeParameters: structuredClone(screen.routeParameters) }
       : {}),
     ...(screen.appearance ? { appearance: structuredClone(screen.appearance) } : {}),
+    ...(screen.viewportFill === true ? { viewportFill: true } : {}),
+    ...(screen.bottomAnchorNodeId ? { bottomAnchorNodeId: screen.bottomAnchorNodeId } : {}),
     nodes: screen.nodes.map(mapNodeToDto),
     behaviors: screen.behaviors.map(mapBehaviorToDto),
     logicGraphs: screen.logicGraphs.map(mapLogicGraphToDto),
@@ -528,6 +536,8 @@ export function mapScreenFromDto(dto: ScreenDTO, index = 0): Screen {
       ? { routeParameters: structuredClone(dto.routeParameters) }
       : {}),
     ...(dto.appearance ? { appearance: structuredClone(dto.appearance) } : {}),
+    ...(dto.viewportFill === true ? { viewportFill: true } : {}),
+    ...(dto.bottomAnchorNodeId ? { bottomAnchorNodeId: dto.bottomAnchorNodeId } : {}),
     nodes: dto.nodes.map(mapNodeFromDto),
     behaviors: [
       ...behaviors,
@@ -561,6 +571,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
           variant: node.props.variant,
           ...(node.props.icon ? { icon: node.props.icon } : {}),
           ...(node.props.iconPosition ? { iconPosition: node.props.iconPosition } : {}),
+          ...(node.props.textStyle ? { textStyle: { ...node.props.textStyle } } : {}),
         },
       };
     case 'text':
@@ -610,6 +621,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         h: node.h,
         props: {
           label: node.props.label,
+          ...(node.props.labelStyle ? { labelStyle: { ...node.props.labelStyle } } : {}),
           ...(typeof node.props.showLabel === 'boolean' ? { showLabel: node.props.showLabel } : {}),
           placeholder: node.props.placeholder,
           inputType: node.props.inputType,
@@ -660,7 +672,7 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { label: node.props.label, placeholder: node.props.placeholder, options: [...node.props.options], selectedIndex: node.props.selectedIndex, ...(node.props.presentation === 'menu' ? { presentation: 'menu' } : {}), ...(node.props.fieldStyle ? { fieldStyle: node.props.fieldStyle } : {}) },
+        props: { label: node.props.label, placeholder: node.props.placeholder, options: [...node.props.options], selectedIndex: node.props.selectedIndex, ...(node.props.presentation === 'menu' ? { presentation: 'menu' } : {}), ...(node.props.fieldStyle ? { fieldStyle: node.props.fieldStyle } : {}), ...(typeof node.props.menuIconSize === 'number' ? { menuIconSize: node.props.menuIconSize } : {}), ...(node.props.menuBackgroundColor ? { menuBackgroundColor: node.props.menuBackgroundColor } : {}), ...(node.props.menuTextColor ? { menuTextColor: node.props.menuTextColor } : {}), ...(node.props.menuHoverColor ? { menuHoverColor: node.props.menuHoverColor } : {}) },
       };
     case 'slider':
       return {
@@ -693,7 +705,11 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
         y: node.y,
         w: node.w,
         h: node.h,
-        props: { orientation: node.props.orientation, thickness: node.props.thickness },
+        props: {
+          orientation: node.props.orientation,
+          thickness: node.props.thickness,
+          ...(node.props.color ? { color: node.props.color } : {}),
+        },
       };
     case 'camera':
       return {
@@ -816,6 +832,15 @@ function mapNodeToDto(node: ComponentNode): ComponentNodeDTO {
           padding: node.props.padding,
           itemSpacing: node.props.itemSpacing,
           itemBorderRadius: node.props.itemBorderRadius,
+          ...(node.props.itemAppearance ? { itemAppearance: structuredClone(node.props.itemAppearance) } : {}),
+          ...(node.props.itemSelectedAppearance ? { itemSelectedAppearance: structuredClone(node.props.itemSelectedAppearance) } : {}),
+          ...(node.props.itemPressedAppearance ? { itemPressedAppearance: structuredClone(node.props.itemPressedAppearance) } : {}),
+          ...(node.props.selectionEnabled !== undefined ? { selectionEnabled: node.props.selectionEnabled } : {}),
+          ...(node.props.dividerColor !== undefined ? { dividerColor: node.props.dividerColor } : {}),
+          ...(node.props.dividerThickness !== undefined ? { dividerThickness: node.props.dividerThickness } : {}),
+          ...(node.props.emptyStateAppearance ? { emptyStateAppearance: structuredClone(node.props.emptyStateAppearance) } : {}),
+          ...(node.props.emptyStateTextStyle ? { emptyStateTextStyle: structuredClone(node.props.emptyStateTextStyle) } : {}),
+          ...(node.props.scrollbarVisibility !== undefined ? { scrollbarVisibility: node.props.scrollbarVisibility } : {}),
           dataSource: node.props.dataSource.kind === 'collection'
             ? {
                 kind: 'static',
@@ -918,6 +943,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
             || dto.props.iconPosition === 'right'
             ? { iconPosition: dto.props.iconPosition }
             : {}),
+          ...typographyField(dto.props.textStyle),
         },
       };
     case 'text':
@@ -979,6 +1005,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         h: dto.h,
         props: {
           label: dto.props.label,
+          ...labelStyleField(dto.props.labelStyle),
           ...(typeof dto.props.showLabel === 'boolean' ? { showLabel: dto.props.showLabel } : {}),
           placeholder: dto.props.placeholder,
           inputType: dto.props.inputType ?? 'text',
@@ -1029,7 +1056,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { label: dto.props.label, placeholder: dto.props.placeholder, options: [...dto.props.options], selectedIndex: dto.props.selectedIndex, ...(dto.props.presentation === 'menu' ? { presentation: 'menu' } : {}), ...(dto.props.fieldStyle ? { fieldStyle: dto.props.fieldStyle } : {}) },
+        props: { label: dto.props.label, placeholder: dto.props.placeholder, options: [...dto.props.options], selectedIndex: dto.props.selectedIndex, ...(dto.props.presentation === 'menu' ? { presentation: 'menu' } : {}), ...(dto.props.fieldStyle ? { fieldStyle: dto.props.fieldStyle } : {}), ...(typeof dto.props.menuIconSize === 'number' ? { menuIconSize: Math.max(12, Math.min(48, dto.props.menuIconSize)) } : {}), ...(dto.props.menuBackgroundColor ? { menuBackgroundColor: dto.props.menuBackgroundColor } : {}), ...(dto.props.menuTextColor ? { menuTextColor: dto.props.menuTextColor } : {}), ...(dto.props.menuHoverColor ? { menuHoverColor: dto.props.menuHoverColor } : {}) },
       };
     case 'slider':
       return {
@@ -1062,7 +1089,11 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { orientation: dto.props.orientation, thickness: dto.props.thickness },
+        props: {
+          orientation: dto.props.orientation,
+          thickness: dto.props.thickness,
+          ...(dto.props.color ? { color: dto.props.color } : {}),
+        },
       };
     case 'camera':
       return {
@@ -1100,7 +1131,7 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
         y: dto.y,
         w: dto.w,
         h: dto.h,
-        props: { ...dto.props },
+        props: { ...dto.props, style: { ...DEFAULT_CHAT_STYLE, ...dto.props.style } },
       };
     case 'chart':
       return {
@@ -1180,6 +1211,15 @@ function mapNodeFromDto(dto: ComponentNodeDTO): ComponentNode {
           padding: normalizePadding(dto.props.padding),
           itemSpacing: dto.props.itemSpacing ?? 0,
           itemBorderRadius: dto.props.itemBorderRadius ?? 0,
+          ...(dto.props.itemAppearance ? { itemAppearance: dto.props.itemAppearance } : {}),
+          ...(dto.props.itemSelectedAppearance ? { itemSelectedAppearance: dto.props.itemSelectedAppearance } : {}),
+          ...(dto.props.itemPressedAppearance ? { itemPressedAppearance: dto.props.itemPressedAppearance } : {}),
+          ...(dto.props.selectionEnabled !== undefined ? { selectionEnabled: dto.props.selectionEnabled } : {}),
+          ...(dto.props.dividerColor !== undefined ? { dividerColor: dto.props.dividerColor } : {}),
+          ...(dto.props.dividerThickness !== undefined ? { dividerThickness: dto.props.dividerThickness } : {}),
+          ...(dto.props.emptyStateAppearance ? { emptyStateAppearance: dto.props.emptyStateAppearance } : {}),
+          ...(dto.props.emptyStateTextStyle ? { emptyStateTextStyle: dto.props.emptyStateTextStyle } : {}),
+          ...(dto.props.scrollbarVisibility !== undefined ? { scrollbarVisibility: dto.props.scrollbarVisibility } : {}),
           dataSource: mapListViewDataSourceFromDto(dto.props.dataSource, dto.id),
         },
         children: dto.children.map(mapNodeFromDto),

@@ -53,6 +53,12 @@ export type EditorScreenAction =
   | { type: 'screen/rename'; screenId: string; name: string }
   | { type: 'screen/path'; screenId: string; path: string }
   | { type: 'screen/appearance'; screenId: string; appearance: ComponentAppearance | undefined }
+  | {
+      type: 'screen/layout-intent';
+      screenId: string;
+      viewportFill: boolean;
+      bottomAnchorNodeId: string | undefined;
+    }
   | { type: 'design/system'; designSystem: AppDesignSystem }
   | { type: 'routes/record-identifier-sync'; collectionId: string; identifierKey: string }
   | { type: 'screen/delete'; screenId: string };

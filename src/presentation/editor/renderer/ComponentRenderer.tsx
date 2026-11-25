@@ -26,6 +26,7 @@ import { GestureDetectorNodeView } from './nodes/GestureDetectorNodeView';
 import { IconNodeView } from './nodes/IconNodeView';
 import { designSystemCssVariables, findNamedStyle } from '@domain/entities/designSystem';
 import { resolveContentSize } from './contentSizing';
+import { bottomAnchorFrameStyle } from '@domain/entities/layoutIntent';
 
 interface NodeFrameProps {
   geometry: Pick<ComponentNode, 'id' | 'x' | 'y' | 'w' | 'h'>;
@@ -41,6 +42,7 @@ interface NodeFrameProps {
   textColor?: string;
   semanticLabel?: string;
   stopClickPropagation?: boolean;
+  bottomAnchored?: boolean;
 }
 
 /**
@@ -48,7 +50,7 @@ interface NodeFrameProps {
  * it also owns hit-testing: the selection click reaches the deepest node
  * first (inner frames stop propagation).
  */
-function NodeFrame({ geometry, nodeType, interactive, selected, onSelect, onNodeAction, onNodeEvent, eventContext, appearance, textColor, semanticLabel, stopClickPropagation = false, children }: PropsWithChildren<NodeFrameProps>) {
+function NodeFrame({ geometry, nodeType, interactive, selected, onSelect, onNodeAction, onNodeEvent, eventContext, appearance, textColor, semanticLabel, stopClickPropagation = false, bottomAnchored = false, children }: PropsWithChildren<NodeFrameProps>) {
   const contentSize = resolveContentSize(geometry.w, geometry.h);
   const selectionClass = interactive && selected ? ' ring-2 ring-brand-600' : '';
   const appearanceClass = appearance
@@ -89,7 +91,7 @@ function NodeFrame({ geometry, nodeType, interactive, selected, onSelect, onNode
       role={semanticLabel && (onNodeEvent || onNodeAction) ? 'button' : undefined}
       style={{
         left: geometry.x,
-        top: geometry.y,
+        ...bottomAnchorFrameStyle(geometry.y, bottomAnchored),
         width: geometry.w,
         height: geometry.h,
         ...appearanceStyle(appearance),
@@ -124,6 +126,7 @@ export function ComponentRenderer({
   geometryOverride,
   itemContext,
   interactiveNodeIds,
+  bottomAnchored = false,
 }: ComponentRendererProps) {
   const appTheme = useAppTheme();
   if (isHiddenAtBreakpoint(node, breakpoint) || !resolveBoundBoolean(node, 'component.visible', itemContext, true)) {
@@ -165,6 +168,7 @@ export function ComponentRenderer({
       eventContext={itemContext ? { listItem: itemContext } : undefined}
       semanticLabel={node.type === 'gesture-detector' ? node.props.semanticLabel : undefined}
       stopClickPropagation={interactiveNodeIds !== undefined}
+      bottomAnchored={bottomAnchored}
     >
       {children}
     </NodeFrame>

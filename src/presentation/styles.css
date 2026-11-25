@@ -139,6 +139,19 @@
   color: var(--novy-component-text, #ffffff);
 }
 
+.novy-listview-no-scrollbar {
+  scrollbar-width: none;
+}
+
+.novy-listview-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Per-widget Actions-menu hover color overrides the app-token hover surface. */
+.novy-action-menu-option:hover {
+  background-color: var(--novy-menu-hover, var(--color-canvas));
+}
+
 /* Every widget is a size container so its contents respond to node resizing. */
 .novy-node {
   min-width: 0;

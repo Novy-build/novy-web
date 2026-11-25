@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createEdgePadding, createPadding } from '@domain/entities/componentNode';
 import type { Project } from '@domain/entities/project';
 import type { ProjectDocument, Screen } from '@domain/entities/screen';
-import type { ComponentNodeDTO, ScreenDTO } from '../dto/project.dto';
+import type { ComponentNodeDTO, ProjectDTO, ScreenDTO } from '../dto/project.dto';
 import { validateProject } from '@domain/validation/projectValidation';
 import { DEFAULT_APP_DESIGN_SYSTEM } from '@domain/entities/designSystem';
 import {
@@ -187,6 +187,29 @@ describe('project mapper', () => {
     const restored = mapProjectFromDto(roundTrip(mapProjectToDto(project)) as never);
 
     expect(restored).toEqual(project);
+  });
+
+  it('round-trips default theme and screen layout intent', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.designSystem = {
+      ...structuredClone(DEFAULT_APP_DESIGN_SYSTEM),
+      defaultTheme: 'dark',
+    };
+    project.document.screens[0]!.viewportFill = true;
+    project.document.screens[0]!.bottomAnchorNodeId = 'node_button';
+
+    const dto = roundTrip(mapProjectToDto(project)) as ProjectDTO;
+    expect(dto.designSystem?.defaultTheme).toBe('dark');
+    expect(dto.screens[0]?.viewportFill).toBe(true);
+    expect(dto.screens[0]?.bottomAnchorNodeId).toBe('node_button');
+    expect(mapProjectFromDto(dto as never)).toEqual(project);
+  });
+
+  it('omits new layout fields for legacy documents', () => {
+    const legacy = mapProjectToDto(FIXTURE_PROJECT);
+    expect(legacy.screens[0]?.viewportFill).toBeUndefined();
+    expect(legacy.screens[0]?.bottomAnchorNodeId).toBeUndefined();
+    expect(legacy.designSystem?.defaultTheme).toBeUndefined();
   });
 
   it('adds safe dark appearances to legacy website sections', () => {
@@ -476,6 +499,19 @@ describe('project mapper', () => {
     const dto = mapProjectToDto(project);
     dto.schemaVersion = 9;
     expect(mapProjectFromDto(dto)).toEqual(project);
+  });
+
+  it('round-trips the Actions menu icon size', () => {
+    const project = structuredClone(FIXTURE_PROJECT);
+    project.document.screens[0]!.nodes.push(
+      { id: 'menu_sized', type: 'dropdown', x: 0, y: 0, w: 44, h: 44, props: { label: 'Actions', placeholder: '', options: ['Edit'], selectedIndex: -1, presentation: 'menu', menuIconSize: 36, menuBackgroundColor: '#123456', menuTextColor: '#ffffff', menuHoverColor: '#654321' } },
+    );
+
+    const dto = mapProjectToDto(project);
+    expect(dto.screens[0]!.nodes.find((node) => node.id === 'menu_sized')).toMatchObject({
+      props: { presentation: 'menu', menuIconSize: 36, menuBackgroundColor: '#123456', menuTextColor: '#ffffff', menuHoverColor: '#654321' },
+    });
+    expect(mapProjectFromDto(roundTrip(dto) as ReturnType<typeof mapProjectToDto>)).toEqual(project);
   });
 
   it('round-trips typed Add Local List Item actions', () => {
@@ -831,5 +867,74 @@ describe('screen mapper', () => {
       }) }),
     ]));
     expect(migrated.behaviors.at(-1)).toMatchObject({ event: 'load', targetNodeId: 'legacy_list' });
+  });
+
+  it('preserves widget typography and divider color through DTO mapping', () => {
+    const screen: Screen = {
+      id: 'screen_styled',
+      name: 'Styled',
+      path: '/',
+      behaviors: [],
+      logicGraphs: [],
+      nodes: [
+        {
+          id: 'styled_button', type: 'button', x: 0, y: 0, w: 120, h: 44,
+          props: { label: 'Save', variant: 'solid', textStyle: { fontSize: 18, fontWeight: 'bold', textTransform: 'uppercase' } },
+        },
+        {
+          id: 'styled_input', type: 'input', x: 0, y: 60, w: 240, h: 44,
+          props: { label: 'TITLE', labelStyle: { fontSize: 11, textTransform: 'uppercase' }, placeholder: 'Value', inputType: 'text', multiline: false },
+        },
+        {
+          id: 'styled_divider', type: 'divider', x: 0, y: 120, w: 240, h: 2,
+          props: { orientation: 'horizontal', thickness: 2, color: '#222222' },
+        },
+      ],
+    };
+
+    const mapped = mapScreenFromDto(mapScreenToDto(screen));
+    const button = mapped.nodes.find((node) => node.id === 'styled_button');
+    const input = mapped.nodes.find((node) => node.id === 'styled_input');
+    const divider = mapped.nodes.find((node) => node.id === 'styled_divider');
+    expect(button?.type === 'button' ? button.props.textStyle : null).toEqual({
+      fontSize: 18, fontWeight: 'bold', textTransform: 'uppercase',
+    });
+    expect(input?.type === 'input' ? input.props.labelStyle : null).toEqual({
+      fontSize: 11, textTransform: 'uppercase',
+    });
+    expect(divider?.type === 'divider' ? divider.props.color : null).toBe('#222222');
+  });
+
+  it('preserves ListView style overrides through DTO mapping', () => {
+    const dto = mapScreenToDto(FIXTURE_SCREEN);
+    dto.nodes.push({
+      id: 'styled_list', type: 'listview', x: 0, y: 0, w: 320, h: 240,
+      props: {
+        emptyText: 'None', showDividers: true, scrollDirection: 'vertical', crossAxisAlignment: 'stretch',
+        gap: 0, padding: createPadding(0), itemSpacing: 8, itemBorderRadius: 12,
+        itemAppearance: { backgroundColor: '#ffffff', borderColor: '#000000', borderRadius: 12 },
+        itemSelectedAppearance: { backgroundColor: '#eeeeee' },
+        itemPressedAppearance: { backgroundColor: '#dddddd' },
+        selectionEnabled: true,
+        dividerColor: '#111111',
+        dividerThickness: 2,
+        emptyStateAppearance: { backgroundColor: '#fafafa' },
+        emptyStateTextStyle: { fontSize: 13 },
+        scrollbarVisibility: 'hidden',
+        dataSource: { kind: 'static', fields: [{ id: 'value', label: 'Value', type: 'text' }], items: [] },
+      },
+      children: [],
+    });
+
+    const mapped = mapScreenFromDto(dto);
+    const list = mapped.nodes.find((node) => node.id === 'styled_list');
+    expect(list?.type === 'listview' ? list.props.itemAppearance : null).toEqual({
+      backgroundColor: '#ffffff', borderColor: '#000000', borderRadius: 12,
+    });
+    expect(list?.type === 'listview' ? list.props.selectionEnabled : null).toBe(true);
+
+    const roundTrip = mapScreenToDto(mapped).nodes.find((node) => node.id === 'styled_list');
+    expect(roundTrip?.type === 'listview' ? roundTrip.props.dividerThickness : null).toBe(2);
+    expect(roundTrip?.type === 'listview' ? roundTrip.props.scrollbarVisibility : null).toBe('hidden');
   });
 });

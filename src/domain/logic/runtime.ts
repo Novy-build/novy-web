@@ -163,8 +163,12 @@ function resolveListItems(
       : Object.fromEntries(selectedFields
           .filter((fieldId) => record.values[fieldId] !== undefined)
           .map((fieldId) => [fieldId, record.values[fieldId]]));
-    if (values.value === undefined && selectedFields.length > 0) {
-      values.value = record.values[selectedFields[0]!] ?? '';
+    if (values.value === undefined) {
+      // An empty payload field list means "load every field". There is no
+      // first selected field in that case, so alias the first stored value to
+      // keep `value` (used by item-template bindings and fallbacks) available.
+      const aliasFieldId = selectedFields[0] ?? Object.keys(record.values)[0];
+      if (aliasFieldId) values.value = record.values[aliasFieldId] ?? '';
     }
     return { itemId: record.id, values };
   });

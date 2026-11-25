@@ -1,5 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+
+const { mockCaptureScreenFrames } = vi.hoisted(() => ({ mockCaptureScreenFrames: vi.fn() }));
+vi.mock('./visualCapture', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./visualCapture')>();
+  return { ...actual, captureScreenFrames: mockCaptureScreenFrames };
+});
+
 import type { AssistantProposalV1 } from '@domain/entities/assistant';
 import { AssistantSheet } from './AssistantSheet';
 import type { AssistantConversation } from './useAssistantConversation';
@@ -92,20 +99,35 @@ function conversation(overrides: Partial<AssistantConversation> = {}): Assistant
     hasExistingContent: overrides.hasExistingContent ?? false,
     projectType: overrides.projectType ?? 'app',
     isAvailable: overrides.isAvailable ?? true,
+    capabilitiesStatus: overrides.capabilitiesStatus ?? 'ready',
+    capabilitiesError: overrides.capabilitiesError ?? null,
+    reloadCapabilities: overrides.reloadCapabilities ?? vi.fn(),
+    designPipelineV2: overrides.designPipelineV2 ?? false,
+    referenceLimits: overrides.referenceLimits ?? {
+      maxCount: 1,
+      maxBytesEach: 3 * 1024 * 1024,
+      maxBytesTotal: 3 * 1024 * 1024,
+      maxPixelsEach: 16_000_000,
+      maxPixelsTotal: 16_000_000,
+    },
+    pendingReferences: overrides.pendingReferences ?? [],
     providers: overrides.providers ?? [{
       id: 'opencode', model: 'nemotron-free', available: true,
       imageInput: true, location: 'remote', costWarning: false,
       defaultModelId: 'nemotron-super',
+      maxImages: 6,
       models: [
         {
           id: 'nemotron-super', name: 'Nemotron 3.5 Super VL', model: 'opencode/nemotron',
           available: true, imageInput: true, location: 'remote', costWarning: false,
           usageNote: 'Free OpenCode quota; remote processing.',
+          maxImages: 6,
         },
         {
           id: 'gpt-6.1-terra', name: 'GPT-6.1 Terra', model: 'openai/gpt-6.1-terra',
           available: true, imageInput: true, location: 'remote', costWarning: true,
           usageNote: 'Uses the OpenAI account connected to OpenCode.',
+          maxImages: 6,
         },
       ],
     }],
@@ -113,9 +135,13 @@ function conversation(overrides: Partial<AssistantConversation> = {}): Assistant
     setSelectedProviderId: overrides.setSelectedProviderId ?? vi.fn(),
     selectedModelId: overrides.selectedModelId ?? 'nemotron-super',
     setSelectedModelId: overrides.setSelectedModelId ?? vi.fn(),
+    qualityMode: overrides.qualityMode ?? 'standard',
+    setQualityMode: overrides.setQualityMode ?? vi.fn(),
     setMode: overrides.setMode ?? vi.fn(),
     send: overrides.send ?? vi.fn().mockResolvedValue(undefined),
     accept: overrides.accept ?? vi.fn().mockResolvedValue(undefined),
+    reviewVisual: overrides.reviewVisual ?? vi.fn().mockResolvedValue(undefined),
+    continueUnreviewed: overrides.continueUnreviewed ?? vi.fn(),
     reject: overrides.reject ?? vi.fn(),
   };
 }
@@ -193,13 +219,55 @@ describe('AssistantSheet', () => {
     expect(controller.send).toHaveBeenCalledWith('Build a task app', []);
   });
 
+  it('shows a loading badge only while capabilities are pending', () => {
+    render(<AssistantSheet conversation={conversation({
+      capabilitiesStatus: 'loading',
+      providers: [],
+    })} onClose={vi.fn()} />);
+
+    expect(screen.getByText('Loading assistant providers…')).toBeInTheDocument();
+  });
+
+  it('shows a failed provider probe with a retry instead of an endless loading state', () => {
+    const reloadCapabilities = vi.fn();
+    render(<AssistantSheet conversation={conversation({
+      capabilitiesStatus: 'error',
+      capabilitiesError: 'The provider check took too long.',
+      providers: [],
+      reloadCapabilities,
+    })} onClose={vi.fn()} />);
+
+    expect(screen.getByText(/Couldn't load providers/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(reloadCapabilities).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Model settings' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('The provider check took too long.');
+    expect(screen.getByRole('option', { name: 'No providers available' })).toBeInTheDocument();
+  });
+
+  it('retries a failed capability probe when model settings are opened', () => {
+    const reloadCapabilities = vi.fn();
+    render(<AssistantSheet conversation={conversation({
+      capabilitiesStatus: 'error',
+      capabilitiesError: 'Backend unreachable.',
+      providers: [],
+      reloadCapabilities,
+    })} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Model settings' }));
+
+    expect(reloadCapabilities).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+
   it('lets the builder explicitly select an available provider', () => {
     const setSelectedProviderId = vi.fn();
     render(<AssistantSheet conversation={conversation({
       providers: [
-        { id: 'opencode', model: 'nemotron', available: true, imageInput: true, location: 'remote', costWarning: false, defaultModelId: null, models: [] },
-        { id: 'ollama', model: 'qwen3', available: true, imageInput: false, location: 'local', costWarning: false, defaultModelId: null, models: [] },
-        { id: 'openrouter', model: '', available: false, imageInput: true, location: 'remote', costWarning: true, defaultModelId: null, models: [] },
+        { id: 'opencode', model: 'nemotron', available: true, imageInput: true, location: 'remote', costWarning: false, defaultModelId: null, models: [], maxImages: 6 },
+        { id: 'ollama', model: 'qwen3', available: true, imageInput: false, location: 'local', costWarning: false, defaultModelId: null, models: [], maxImages: 0 },
+        { id: 'openrouter', model: '', available: false, imageInput: true, location: 'remote', costWarning: true, defaultModelId: null, models: [], maxImages: 6 },
       ],
       setSelectedProviderId,
     })} onClose={vi.fn()} />);
@@ -236,8 +304,8 @@ describe('AssistantSheet', () => {
       { type: 'image/png' },
     );
 
-    fireEvent.change(screen.getByLabelText('Attach image'), { target: { files: [file] } });
-    await waitFor(() => expect(screen.getByText('Image: layout.png')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Attach design references'), { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByText('1. layout.png')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Use this layout' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
@@ -245,6 +313,144 @@ describe('AssistantSheet', () => {
       'Use this layout',
       [expect.objectContaining({ name: 'layout.png', mimeType: 'image/png' })],
     );
+  });
+
+  it('only exposes high-fidelity mode when the guarded V2 pipeline is enabled', () => {
+    const { unmount } = render(<AssistantSheet conversation={conversation()} onClose={vi.fn()} />);
+    expect(screen.queryByRole('radio', { name: 'High fidelity' })).not.toBeInTheDocument();
+    unmount();
+
+    const controller = conversation({ designPipelineV2: true, qualityMode: 'high-fidelity' });
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+    expect(screen.getByRole('radio', { name: 'High fidelity' })).toBeChecked();
+    expect(screen.getByTestId('assistant-quality-disclosure')).toHaveTextContent('no lower-fidelity draft is substituted');
+  });
+
+  it('supports multiple thumbnails, reordering, and image-only V2 submission', async () => {
+    const controller = conversation({
+      designPipelineV2: true,
+      referenceLimits: {
+        maxCount: 6,
+        maxBytesEach: 3 * 1024 * 1024,
+        maxBytesTotal: 12 * 1024 * 1024,
+        maxPixelsEach: 16_000_000,
+        maxPixelsTotal: 40_000_000,
+      },
+    });
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+    const mobile = new File([new Uint8Array([1, 2, 3])], 'mobile.png', { type: 'image/png' });
+    const desktop = new File([new Uint8Array([4, 5, 6])], 'desktop.webp', { type: 'image/webp' });
+
+    fireEvent.change(screen.getByLabelText('Attach design references'), {
+      target: { files: [mobile, desktop] },
+    });
+    await waitFor(() => expect(screen.getByText('2. desktop.webp')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Move desktop.webp earlier' }));
+    expect(screen.getByText('1. desktop.webp')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(controller.send).toHaveBeenCalledWith('', [
+      expect.objectContaining({ name: 'desktop.webp', order: 0 }),
+      expect.objectContaining({ name: 'mobile.png', order: 1 }),
+    ]);
+  });
+
+  it('replaces and removes references with accessible controls', async () => {
+    const controller = conversation({ designPipelineV2: true });
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+    const original = new File([new Uint8Array([1])], 'original.png', { type: 'image/png' });
+    const replacement = new File([new Uint8Array([2])], 'replacement.jpg', { type: 'image/jpeg' });
+
+    fireEvent.change(screen.getByLabelText('Attach design references'), {
+      target: { files: [original] },
+    });
+    await waitFor(() => expect(screen.getByText('1. original.png')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Replace original.png'), {
+      target: { files: [replacement] },
+    });
+    await waitFor(() => expect(screen.getByText('1. replacement.jpg')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Remove replacement.jpg' }));
+    expect(screen.queryByText('1. replacement.jpg')).not.toBeInTheDocument();
+  });
+
+  it('restores pending references for refinement and clears them on discard', () => {
+    const reference = {
+      name: 'mobile.png',
+      mimeType: 'image/png' as const,
+      contentBase64: 'bW9iaWxl',
+      role: 'mobile-reference' as const,
+      order: 0,
+    };
+    const controller = conversation({
+      designPipelineV2: true,
+      pendingReferences: [reference],
+      messages: [{
+        id: 'assistant_1', mode: 'build', role: 'assistant', text: PROPOSAL.message,
+        proposal: PROPOSAL, status: 'pending',
+      }],
+    });
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Make changes' }));
+    expect(screen.getByText('1. mobile.png')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }));
+    expect(screen.queryByText('1. mobile.png')).not.toBeInTheDocument();
+    expect(controller.reject).toHaveBeenCalledWith('assistant_1');
+  });
+
+  it('reviews a high-fidelity draft and surfaces retry/continue/cancel on failure', async () => {
+    const highFidelityProposal: AssistantProposalV1 = {
+      ...PROPOSAL,
+      qualityMode: 'high-fidelity',
+      visualReview: {
+        required: true,
+        status: 'pending',
+        qualityStatus: 'unreviewed',
+        captureRequests: [{ screenKey: 'home', viewport: 'mobile' }],
+      },
+    };
+    const reviewVisual = vi.fn().mockResolvedValue(undefined);
+    const continueUnreviewed = vi.fn();
+    const controller = conversation({
+      designPipelineV2: true,
+      qualityMode: 'high-fidelity',
+      reviewVisual,
+      continueUnreviewed,
+      messages: [{
+        id: 'assistant_hf', mode: 'build', role: 'assistant', text: highFidelityProposal.message,
+        proposal: highFidelityProposal, status: 'pending',
+      }],
+    });
+    mockCaptureScreenFrames.mockResolvedValue([{
+      screenKey: 'home',
+      viewport: 'mobile',
+      name: 'home_mobile.png',
+      mimeType: 'image/png',
+      contentBase64: 'aGVsbG8=',
+      order: 0,
+    }]);
+    render(<AssistantSheet conversation={controller} onClose={vi.fn()} />);
+
+    expect(screen.getByTestId('assistant-visual-review-panel')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Review visual match' }));
+    await waitFor(() => expect(screen.getByTestId('assistant-visual-capture-stage')).toBeInTheDocument());
+    await waitFor(() => expect(reviewVisual).toHaveBeenCalledWith(
+      'assistant_hf',
+      expect.arrayContaining([expect.objectContaining({ contentBase64: 'aGVsbG8=' })]),
+    ));
+
+    reviewVisual.mockRejectedValueOnce(new Error('review failed'));
+    fireEvent.click(screen.getByRole('button', { name: 'Review visual match' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/could not be completed/));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue without review' }));
+    expect(continueUnreviewed).toHaveBeenCalledWith('assistant_hf');
+
+    reviewVisual.mockRejectedValueOnce(new Error('review failed'));
+    fireEvent.click(screen.getByRole('button', { name: 'Review visual match' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/could not be completed/));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('shows a visual draft with collapsed details and persistent explicit actions', () => {

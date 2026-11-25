@@ -8,6 +8,7 @@ const CHAT_SCREEN_ID = 'screen_rag_chat';
 const FILE_INPUT_ID = 'rag_demo_file';
 const STATUS_ID = 'rag_demo_status';
 const CHAT_ID = 'rag_demo_chat';
+const OPEN_CHAT_BUTTON_ID = 'rag_demo_open_chat';
 const INDEX_NAME = 'rag-demo-documents';
 
 const uploadScreen: Screen = {
@@ -18,7 +19,7 @@ const uploadScreen: Screen = {
     title('rag_demo_upload_title', 'Chat with a document', 56),
     body(
       'rag_demo_upload_intro',
-      'Choose a text, Markdown, HTML, or PDF file. Novy will index it and open the chat automatically.',
+      'Choose a text, Markdown, HTML, or PDF file. Novy will index it, then open the chat when you are ready.',
       112,
       72,
     ),
@@ -36,9 +37,21 @@ const uploadScreen: Screen = {
       },
     },
     body(STATUS_ID, 'Your document stays private to this demo project.', 360, 52),
+    {
+      id: OPEN_CHAT_BUTTON_ID,
+      type: 'button',
+      x: 24,
+      y: 424,
+      w: 200,
+      h: 44,
+      props: { label: 'Open document chat', variant: 'solid' },
+    },
   ],
-  behaviors: [behavior('rag_demo_upload_behavior', 'Upload and index document', FILE_INPUT_ID, 'rag_demo_upload_graph', 'change')],
-  logicGraphs: [uploadGraph()],
+  behaviors: [
+    behavior('rag_demo_upload_behavior', 'Upload and index document', FILE_INPUT_ID, 'rag_demo_upload_graph', 'change'),
+    behavior('rag_demo_open_chat_behavior', 'Open document chat', OPEN_CHAT_BUTTON_ID, 'rag_demo_open_chat_graph', 'click'),
+  ],
+  logicGraphs: [uploadGraph(), openChatGraph()],
 };
 
 const chatScreen: Screen = {
@@ -93,12 +106,6 @@ function uploadGraph(): LogicGraph {
       minimumScore: 0,
     },
   };
-  const navigate: ActionNode = {
-    kind: 'action',
-    id: 'rag_demo_action_open_chat',
-    position: { x: 776, y: 160 },
-    payload: { type: 'navigate', targetScreenId: CHAT_SCREEN_ID },
-  };
   const loader: ActionNode = {
     kind: 'action',
     id: 'rag_demo_resource_loader',
@@ -145,7 +152,6 @@ function uploadGraph(): LogicGraph {
       { kind: 'trigger', id: 'rag_demo_upload_trigger', event: 'change', position: { x: 80, y: 160 } },
       upload,
       store,
-      navigate,
       loader,
       splitter,
       embeddings,
@@ -153,10 +159,34 @@ function uploadGraph(): LogicGraph {
     edges: [
       control('rag_demo_edge_upload_1', 'rag_demo_upload_trigger', 'next', upload.id),
       control('rag_demo_edge_upload_2', upload.id, 'success', store.id),
-      control('rag_demo_edge_upload_3', store.id, 'success', navigate.id),
       resource('rag_demo_edge_upload_documents', loader.id, 'documents', store.id),
       resource('rag_demo_edge_upload_splitter', splitter.id, 'text-splitter', loader.id),
       resource('rag_demo_edge_upload_embeddings', embeddings.id, 'embeddings', store.id),
+    ],
+  };
+}
+
+function openChatGraph(): LogicGraph {
+  return {
+    id: 'rag_demo_open_chat_graph',
+    name: 'Open document chat',
+    sourceNodeId: OPEN_CHAT_BUTTON_ID,
+    nodes: [
+      { kind: 'trigger', id: 'rag_demo_open_chat_trigger', event: 'click', position: { x: 80, y: 160 } },
+      {
+        kind: 'action',
+        id: 'rag_demo_open_chat_action',
+        position: { x: 312, y: 160 },
+        payload: { type: 'navigate', targetScreenId: CHAT_SCREEN_ID },
+      },
+    ],
+    edges: [
+      control(
+        'rag_demo_edge_open_chat',
+        'rag_demo_open_chat_trigger',
+        'next',
+        'rag_demo_open_chat_action',
+      ),
     ],
   };
 }

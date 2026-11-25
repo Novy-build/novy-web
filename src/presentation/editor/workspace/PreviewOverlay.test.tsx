@@ -409,6 +409,7 @@ describe('PreviewOverlay', () => {
       target: { files: [new File(['Alpha handbook content'], 'handbook.txt', { type: 'text/plain' })] },
     });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Open document chat' }));
     expect(await screen.findByText('Ask your document')).toBeInTheDocument();
     expect(uploadDocument).toHaveBeenCalledWith(
       'app_preview',

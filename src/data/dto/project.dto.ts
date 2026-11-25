@@ -50,6 +50,7 @@ export interface ButtonNodeDTO extends ComponentNodeDTOBase {
     /** Optional for backward compatibility with buttons saved before icons. */
     icon?: ButtonIconName;
     iconPosition?: 'left' | 'center' | 'right';
+    textStyle?: TypographyDTO;
   };
 }
 
@@ -87,7 +88,7 @@ export interface TextNodeDTO extends ComponentNodeDTOBase {
 
 export interface InputNodeDTO extends ComponentNodeDTOBase {
   type: 'input';
-  props: { label: string; showLabel?: boolean; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number' | 'date'; multiline?: boolean; fieldStyle?: FieldStyle; textStyle?: TypographyDTO };
+  props: { label: string; labelStyle?: TypographyDTO; showLabel?: boolean; placeholder: string; inputType?: 'text' | 'email' | 'password' | 'number' | 'date'; multiline?: boolean; fieldStyle?: FieldStyle; textStyle?: TypographyDTO };
 }
 
 export interface IconNodeDTO extends ComponentNodeDTOBase {
@@ -141,6 +142,16 @@ export interface ListViewNodeDTO extends ComponentNodeDTOBase {
     /** Added in schema v8; older documents omit both item-container values. */
     itemSpacing?: number;
     itemBorderRadius?: number;
+    /** Optional item-container styling; older documents inherit theme defaults. */
+    itemAppearance?: ComponentAppearance;
+    itemSelectedAppearance?: ComponentAppearance;
+    itemPressedAppearance?: ComponentAppearance;
+    selectionEnabled?: boolean;
+    dividerColor?: string;
+    dividerThickness?: number;
+    emptyStateAppearance?: ComponentAppearance;
+    emptyStateTextStyle?: Partial<Omit<TextProps, 'text' | 'level'>>;
+    scrollbarVisibility?: 'auto' | 'hidden';
     dataSource:
       | { kind: 'static'; items: string[] }
       | {
@@ -213,7 +224,7 @@ export interface SwitchNodeDTO extends ComponentNodeDTOBase {
 
 export interface DropdownNodeDTO extends ComponentNodeDTOBase {
   type: 'dropdown';
-  props: { label: string; placeholder: string; options: string[]; selectedIndex: number; presentation?: 'select' | 'menu'; fieldStyle?: FieldStyle };
+  props: { label: string; placeholder: string; options: string[]; selectedIndex: number; presentation?: 'select' | 'menu'; fieldStyle?: FieldStyle; menuIconSize?: number; menuBackgroundColor?: string; menuTextColor?: string; menuHoverColor?: string };
 }
 
 export interface SliderNodeDTO extends ComponentNodeDTOBase {
@@ -228,7 +239,7 @@ export interface ProgressNodeDTO extends ComponentNodeDTOBase {
 
 export interface DividerNodeDTO extends ComponentNodeDTOBase {
   type: 'divider';
-  props: { orientation: 'horizontal' | 'vertical'; thickness: number };
+  props: { orientation: 'horizontal' | 'vertical'; thickness: number; color?: string };
 }
 
 export interface CameraNodeDTO extends ComponentNodeDTOBase {
@@ -246,9 +257,45 @@ export interface FileInputNodeDTO extends ComponentNodeDTOBase {
   props: { label: string; helperText: string; accept: string[] };
 }
 
+export interface ChatControlStyleDTO {
+  kind: 'send' | 'input';
+  width?: number;
+  height?: number;
+  appearance?: ComponentAppearance;
+  textStyle?: TypographyDTO;
+  variant?: 'solid' | 'outline' | 'text';
+  fieldStyle?: FieldStyle;
+}
+
+export interface ChatStyleDTO {
+  headerTone: 'surface' | 'canvas' | 'primary' | 'muted';
+  bubbleRadius: 'sharp' | 'soft' | 'rounded' | 'pill';
+  userBubbleTone: 'primary' | 'accent' | 'surface' | 'canvas';
+  assistantBubbleTone: 'surface' | 'canvas' | 'surface-elevated';
+  composerTone: 'surface' | 'canvas' | 'surface-elevated';
+  sendVariant: 'solid' | 'outline' | 'text';
+  border: 'none' | 'subtle' | 'outlined';
+  spacing: 'compact' | 'comfortable' | 'spacious';
+  citationsTone: 'muted' | 'primary' | 'text';
+  headerTextSize?: 'small' | 'medium' | 'large';
+  headerTextWeight?: 'regular' | 'semibold' | 'bold';
+  headerTextAlign?: 'start' | 'center' | 'end';
+  bubbleTextSize?: 'small' | 'medium' | 'large';
+  bubbleTextWeight?: 'regular' | 'semibold' | 'bold';
+  bubbleMaxWidth?: 'compact' | 'normal' | 'wide';
+  emptyTextSize?: 'small' | 'medium' | 'large';
+  emptyTextAlign?: 'start' | 'center' | 'end';
+  inputTextSize?: 'small' | 'medium' | 'large';
+  inputTextWeight?: 'regular' | 'semibold' | 'bold';
+  sendTextSize?: 'small' | 'medium' | 'large';
+  sendTextWeight?: 'regular' | 'semibold' | 'bold';
+  sendButton?: ChatControlStyleDTO;
+  composerInput?: ChatControlStyleDTO;
+}
+
 export interface ChatNodeDTO extends ComponentNodeDTOBase {
   type: 'chat';
-  props: { title: string; placeholder: string; sendLabel: string; emptyText: string; showCitations: boolean; fieldStyle?: FieldStyle };
+  props: { title: string; placeholder: string; sendLabel: string; emptyText: string; showCitations: boolean; fieldStyle?: FieldStyle; style?: ChatStyleDTO };
 }
 
 export type ChartDataSourceDTO =
@@ -706,6 +753,8 @@ export interface ScreenDTO {
     source: { kind: 'record-id'; collectionId: string; identifierKey: string };
   }>;
   appearance?: ComponentAppearance;
+  viewportFill?: boolean;
+  bottomAnchorNodeId?: string;
   nodes: ComponentNodeDTO[];
   behaviors: BehaviorDTO[];
   logicGraphs: LogicGraphDTO[];

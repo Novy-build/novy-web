@@ -1040,6 +1040,29 @@ describe('ComponentRenderer', () => {
     expect(onSelect).toHaveBeenCalledWith('menu');
   });
 
+  it('applies the authored dots size to an Actions menu', () => {
+    const { rerender } = render(<ComponentRenderer mode="canvas" node={{
+      id: 'menu_size', type: 'dropdown', x: 0, y: 0, w: 44, h: 44,
+      props: { label: 'Actions', placeholder: '', options: ['Edit'], selectedIndex: -1, presentation: 'menu', menuIconSize: 36 },
+    }} selected={false} />);
+
+    expect(screen.getByText('⋮')).toHaveStyle({ fontSize: '36px' });
+
+    rerender(<ComponentRenderer mode="preview" node={{
+      id: 'menu_size', type: 'dropdown', x: 0, y: 0, w: 44, h: 44,
+      props: {
+        label: 'Actions', placeholder: '', options: ['Edit'], selectedIndex: -1, presentation: 'menu', menuIconSize: 36,
+        menuBackgroundColor: '#123456', menuTextColor: '#ffffff', menuHoverColor: '#654321',
+      },
+    }} selected={false} />);
+    expect(screen.getByRole('button', { name: 'Actions' })).toHaveStyle({ fontSize: '36px' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    const popup = screen.getByRole('menu');
+    expect(popup).toHaveStyle({ backgroundColor: '#123456', color: '#ffffff' });
+    expect(popup).toHaveStyle({ '--novy-menu-hover': '#654321' });
+  });
+
   it('layers local additions around the active static runtime baseline', () => {
     const list = makeListView('node_list');
     render(
@@ -1149,6 +1172,19 @@ describe('ScreenFrame', () => {
 
     expect(container.querySelector('[data-screen-id="screen_home"]')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+  });
+
+  it('applies viewport-fill and bottom-anchor intent in the editor preview', () => {
+    const anchored = { ...homeScreen, viewportFill: true, bottomAnchorNodeId: BUTTON.id };
+    const { container } = render(
+      <ScreenFrame mode="preview" screen={anchored} size={CANVAS_PRESETS.mobile} />,
+    );
+
+    const frame = container.querySelector('[data-screen-id="screen_home"] > div');
+    expect(frame).toHaveStyle({ minHeight: 'var(--novy-viewport-height, 100dvh)' });
+    expect(container.querySelector('[data-node-id="node_save"]')).toHaveStyle({
+      top: 'auto', bottom: '24px',
+    });
   });
 
   it('scales thumbnails via CSS transform', () => {

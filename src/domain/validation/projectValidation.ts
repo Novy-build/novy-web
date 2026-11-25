@@ -9,6 +9,7 @@ import { isChildBearingNode, isValidPadding, type ComponentBindingTarget, type C
 import { isBindingTargetAllowed, isFieldTypeCompatible } from '../bindings/componentBindings';
 import { CURRENT_ITEM_ID_FIELD, type ActionInputMappings, type ActionPayload, type LogicGraph, type ValueExpression } from '../entities/logic';
 import { outputPortsFor, resourceInputPortsFor, resourceOutputPortsFor } from '../logic/graph';
+import { resolveListItemFieldResolution } from '../logic/listItemFields';
 import type { ProjectDocument, Screen } from '../entities/screen';
 
 export type ValidationSeverity = 'error' | 'warning';
@@ -108,7 +109,19 @@ export function validateProject(
         issues.push(issue('screen-route-segment-unmapped', 'error', 'screen', `Route segment :${segmentName} is not mapped to a record identifier.`, { screenId: screen.id }));
       }
     }
-    validateScreenTree(screen, componentIds, issues, screen.id, collectionById, screenRecordCollectionById.get(screen.id));
+    if (
+      screen.bottomAnchorNodeId
+      && !screen.nodes.flatMap(flattenNodeIds).includes(screen.bottomAnchorNodeId)
+    ) {
+      issues.push(issue(
+        'screen-bottom-anchor-missing',
+        'error',
+        'screen',
+        'Bottom anchor references a component that is not on this screen.',
+        { screenId: screen.id, componentId: screen.bottomAnchorNodeId },
+      ));
+    }
+    validateScreenTree(screen, componentIds, issues, screen.id, collectionById, screen.logicGraphs, screenRecordCollectionById.get(screen.id));
     validateLogic(screen, issues, collectionById, screenIds);
   }
 
@@ -144,6 +157,7 @@ function validateScreenTree(
   issues: ValidationIssue[],
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
+  logicGraphs: readonly LogicGraph[],
   screenRecordCollectionIds?: ReadonlySet<string>,
 ): void {
   function visit(nodes: readonly ComponentNode[], parent?: ComponentNode, itemSource?: ListViewNode): void {
@@ -182,7 +196,7 @@ function validateScreenTree(
       if ((parent?.type === 'container' || parent?.type === 'gesture-detector') && (node.x < 0 || node.y < 0 || node.x + node.w > parent.w || node.y + node.h > parent.h)) {
         issues.push(issue('component-outside-frame', 'warning', 'component', 'Component extends outside its parent frame.', { screenId, componentId: node.id }));
       }
-      validateComponentProps(node, screenId, collections, issues, itemSource, screenRecordCollectionIds);
+      validateComponentProps(node, screenId, collections, logicGraphs, issues, itemSource, screenRecordCollectionIds);
       if (isChildBearingNode(node)) {
         visit(node.children, node, node.type === 'listview' ? node : itemSource);
       }
@@ -195,12 +209,13 @@ function validateComponentProps(
   node: ComponentNode,
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
+  logicGraphs: readonly LogicGraph[],
   issues: ValidationIssue[],
   itemSource?: ListViewNode,
   screenRecordCollectionIds?: ReadonlySet<string>,
 ): void {
   const base = { screenId, componentId: node.id };
-  validateComponentBindings(node, itemSource, screenRecordCollectionIds, screenId, collections, issues);
+  validateComponentBindings(node, itemSource, screenRecordCollectionIds, screenId, collections, logicGraphs, issues);
   switch (node.type) {
     case 'button':
       break;
@@ -228,6 +243,20 @@ function validateComponentProps(
         || node.props.itemBorderRadius < 0
       ) {
         issues.push(issue('component-layout-spacing', 'error', 'component', 'ListView item layout values cannot be negative.', base));
+      }
+      if (node.props.dividerThickness !== undefined
+        && (!Number.isFinite(node.props.dividerThickness)
+          || node.props.dividerThickness < 0
+          || node.props.dividerThickness > 1_000)) {
+        issues.push(issue('component-list-style', 'error', 'component', 'ListView divider thickness must be between 0 and 1000.', base));
+      }
+      if (node.props.dividerColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(node.props.dividerColor)) {
+        issues.push(issue('component-list-style', 'error', 'component', 'ListView divider color must be a six-digit hex value.', base));
+      }
+      if (node.props.scrollbarVisibility !== undefined
+        && node.props.scrollbarVisibility !== 'auto'
+        && node.props.scrollbarVisibility !== 'hidden') {
+        issues.push(issue('component-list-style', 'error', 'component', 'ListView scrollbar visibility is invalid.', base));
       }
       if (node.props.dataSource.kind === 'collection') {
         const collection = collections.get(node.props.dataSource.collectionId);
@@ -263,6 +292,9 @@ function validateComponentProps(
       break;
     case 'divider':
       if (node.props.thickness <= 0) issues.push(issue('component-size-invalid', 'error', 'component', 'Divider thickness must be positive.', base));
+      if (node.props.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(node.props.color)) {
+        issues.push(issue('component-divider-color', 'error', 'component', 'Divider color must be a six-digit hex value.', base));
+      }
       break;
     case 'chart': {
       const { dataSource } = node.props;
@@ -298,6 +330,7 @@ function validateComponentBindings(
   screenRecordCollectionIds: ReadonlySet<string> | undefined,
   screenId: string,
   collections: ReadonlyMap<string, DataCollection>,
+  logicGraphs: readonly LogicGraph[],
   issues: ValidationIssue[],
 ): void {
   const seen = new Set<ComponentBindingTarget>();
@@ -318,21 +351,41 @@ function validateComponentBindings(
     const incomingCollections = [...(screenRecordCollectionIds ?? [])]
       .map((collectionId) => collections.get(collectionId))
       .filter((collection): collection is DataCollection => Boolean(collection));
-    if (!itemSource && incomingCollections.length === 0) {
+    const resolution = itemSource
+      ? resolveListItemFieldResolution(itemSource, logicGraphs, collections)
+      : null;
+    if (!resolution && incomingCollections.length === 0) {
       issues.push(issue('component-binding-context', 'error', 'component', 'Record binding must be inside a ListView item template or a record-aware detail screen.', base));
       continue;
     }
-    const field = itemSource
-      ? itemSource.props.dataSource.kind === 'static'
-        ? itemSource.props.dataSource.fields.find((candidate) => candidate.id === binding.value.fieldId)
-        : collections.get(itemSource.props.dataSource.collectionId)?.fields.find((candidate) => candidate.id === binding.value.fieldId)
+    const sourceCollection = resolution?.collectionId ? collections.get(resolution.collectionId) : undefined;
+    const sourceLabel = sourceCollection?.name
+      ?? (resolution?.source === 'static' ? 'static items' : 'the current item');
+    const fieldId = binding.value.fieldId;
+    const field = resolution
+      ? fieldId === 'value' && resolution.hasValueAlias
+        ? { id: 'value', label: 'Value', type: 'text' as DataFieldType }
+        : resolution.fields.find((candidate) => candidate.id === fieldId)
       : incomingCollections
         .flatMap((collection) => collection.fields)
-        .find((candidate) => candidate.id === binding.value.fieldId);
+        .find((candidate) => candidate.id === fieldId);
+    const detail = { ...base, ...(sourceCollection ? { collectionId: sourceCollection.id } : {}) };
     if (!field) {
-      issues.push(issue('component-binding-field', 'error', 'data', 'Item binding references a missing field.', base));
+      issues.push(issue(
+        'component-binding-field',
+        'error',
+        'data',
+        `Item binding references field “${fieldId}”, which is not available in ${sourceLabel}.`,
+        detail,
+      ));
     } else if (!isFieldTypeCompatible(binding.target, field.type)) {
-      issues.push(issue('component-binding-type', 'error', 'data', 'Item field type is incompatible with the bound property.', base));
+      issues.push(issue(
+        'component-binding-type',
+        'error',
+        'data',
+        `Item field “${field.label}” (${field.type}) cannot be bound to ${binding.target}.`,
+        detail,
+      ));
     }
   }
 }

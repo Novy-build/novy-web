@@ -71,6 +71,28 @@ describe('generated layout', () => {
     expect(listView.children).toBeUndefined();
   });
 
+  it('mirrors default theme and screen layout intent into the generated layout', () => {
+    const themed = structuredClone(project);
+    themed.document.designSystem = {
+      colors: {} as never,
+      darkColors: {} as never,
+      typography: { bodyFontFamily: 'Inter', headingFontFamily: 'Inter' },
+      radii: { small: 4, medium: 8, large: 16, pill: 999 },
+      styles: [],
+      defaultTheme: 'dark',
+    };
+    themed.document.screens[0]!.viewportFill = true;
+    themed.document.screens[0]!.bottomAnchorNodeId = 'listview_notes';
+
+    const layout = mapProjectToGeneratedLayout(themed);
+    expect(layout.designSystem?.defaultTheme).toBe('dark');
+    expect(layout.screens[0]).toMatchObject({
+      viewportFill: true,
+      bottomAnchorNodeId: 'listview_notes',
+    });
+    expect(layout.layoutVersion).toBe(2);
+  });
+
   it('does not mutate the source project', () => {
     const before = structuredClone(project);
     mapProjectToGeneratedLayout(project);

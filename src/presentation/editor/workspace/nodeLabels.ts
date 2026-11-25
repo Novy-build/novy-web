@@ -39,7 +39,10 @@ export function nodeDisplayLabel(node: ComponentNode): string {
     case 'icon':
       return node.props.label || node.props.icon;
     case 'input':
-      return node.props.label;
+      // The placeholder is the text the builder actually sees in the field, so
+      // it identifies the widget in Logic and Layers even when the label is
+      // blank or hidden. Fall back to the label, then to a stable generic name.
+      return node.props.placeholder.trim() || node.props.label.trim() || 'Untitled text field';
     case 'checkbox':
       return node.props.label;
     case 'radio':

@@ -1,6 +1,7 @@
 import type { ButtonProps } from '@domain/entities/componentNode';
 import type { CSSProperties } from 'react';
 import { ButtonIcon } from './buttonIcons';
+import { inputTextStyleCss } from './textTypography';
 
 /**
  * Visual twin of the published button widget. `renderStatic` renders a
@@ -20,6 +21,7 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
     : props.variant === 'outline'
       ? { borderColor: 'var(--novy-app-primary, #5551f2)', color: 'var(--novy-component-text, var(--novy-app-primary, #5551f2))' }
       : { color: 'var(--novy-component-text, var(--novy-app-primary, #5551f2))' };
+  const textStyle: CSSProperties = inputTextStyleCss(props.textStyle);
   const iconPosition = props.iconPosition ?? 'left';
   const isIconOnly = Boolean(props.icon && iconPosition === 'center');
   const content = (
@@ -32,7 +34,7 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
   );
 
   if (renderStatic) {
-    return <div className={widgetClass} style={tokenStyle}>{content}</div>;
+    return <div className={widgetClass} style={{ ...tokenStyle, ...textStyle }}>{content}</div>;
   }
 
   return (
@@ -40,7 +42,7 @@ export function ButtonNodeView({ props, renderStatic = false }: { props: ButtonP
       aria-label={props.label.trim() || 'Button'}
       type="button"
       className={widgetClass}
-      style={tokenStyle}
+      style={{ ...tokenStyle, ...textStyle }}
     >
       {content}
     </button>

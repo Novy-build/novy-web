@@ -46,4 +46,6 @@ export interface ComponentRendererProps {
   itemContext?: ListItemContext;
   /** Component IDs with an explicit click behavior on the active screen. */
   interactiveNodeIds?: ReadonlySet<string>;
+  /** Phase 5 bottom-anchor intent, set only on the designated primary action. */
+  bottomAnchored?: boolean;
 }

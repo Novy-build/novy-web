@@ -41,6 +41,7 @@ export const BUTTON_ICON_NAMES = [
   'arrow-right',
   'calendar',
   'check',
+  'chevron-right',
   'download',
   'external-link',
   'heart',
@@ -72,6 +73,8 @@ export interface ButtonProps {
   icon?: ButtonIconName;
   /** Omitted defaults to left; center renders an accessible icon-only button. */
   iconPosition?: ButtonIconPosition;
+  /** Optional typography override for the button label. */
+  textStyle?: InputTextStyle;
 }
 
 export interface TextProps {
@@ -116,6 +119,8 @@ export type InputTextStyle = Pick<
 
 export interface InputProps {
   label: string;
+  /** Optional typography override for the field label. */
+  labelStyle?: InputTextStyle;
   /** Omitted preserves the legacy behavior of showing the field label. */
   showLabel?: boolean;
   placeholder: string;
@@ -341,6 +346,24 @@ export interface ListViewProps {
   itemSpacing: number;
   /** Corner radius applied to each repeated item container. */
   itemBorderRadius: number;
+  /** Visual treatment applied to every repeated item container. */
+  itemAppearance?: ComponentAppearance;
+  /** Appearance of the selected row; requires selectionEnabled. */
+  itemSelectedAppearance?: ComponentAppearance;
+  /** Appearance of a row while pressed. */
+  itemPressedAppearance?: ComponentAppearance;
+  /** Opt-in row selection; selection never triggers a workflow. */
+  selectionEnabled?: boolean;
+  /** Overrides the theme hairline color for item dividers. */
+  dividerColor?: string;
+  /** Overrides the 1px divider thickness. */
+  dividerThickness?: number;
+  /** Visual treatment of the empty-state surface. */
+  emptyStateAppearance?: ComponentAppearance;
+  /** Typography of the empty-state text. */
+  emptyStateTextStyle?: Partial<Omit<TextProps, 'text' | 'level'>>;
+  /** Whether the scrollbar is always visible or only while scrolling. */
+  scrollbarVisibility?: 'auto' | 'hidden';
   dataSource: ListViewDataSource;
 }
 
@@ -372,6 +395,12 @@ export interface DropdownProps {
   /** Action menus emit the chosen option through the normal change event. */
   presentation?: 'select' | 'menu';
   fieldStyle?: FieldStyle;
+  /** Font size in pixels for the Actions-menu trigger glyph; omitted uses the default. */
+  menuIconSize?: number;
+  /** Optional per-widget colors for the Actions-menu popup; omitted uses app theme tokens. */
+  menuBackgroundColor?: string;
+  menuTextColor?: string;
+  menuHoverColor?: string;
 }
 
 export interface SliderProps {
@@ -391,6 +420,8 @@ export interface ProgressProps {
 export interface DividerProps {
   orientation: 'horizontal' | 'vertical';
   thickness: number;
+  /** Optional hex color for the divider line; omitted uses the theme hairline. */
+  color?: string;
 }
 
 export interface CameraProps {
@@ -407,6 +438,68 @@ export interface FileInputProps {
   accept: string[];
 }
 
+export interface ChatControlStyle {
+  kind: 'send' | 'input';
+  width?: number;
+  height?: number;
+  appearance?: ComponentAppearance;
+  textStyle?: InputTextStyle;
+  variant?: 'solid' | 'outline' | 'text';
+  fieldStyle?: FieldStyle;
+}
+
+export interface ChatStyle {
+  headerTone: 'surface' | 'canvas' | 'primary' | 'muted';
+  bubbleRadius: 'sharp' | 'soft' | 'rounded' | 'pill';
+  userBubbleTone: 'primary' | 'accent' | 'surface' | 'canvas';
+  assistantBubbleTone: 'surface' | 'canvas' | 'surface-elevated';
+  composerTone: 'surface' | 'canvas' | 'surface-elevated';
+  sendVariant: 'solid' | 'outline' | 'text';
+  border: 'none' | 'subtle' | 'outlined';
+  spacing: 'compact' | 'comfortable' | 'spacious';
+  citationsTone: 'muted' | 'primary' | 'text';
+  headerTextSize: 'small' | 'medium' | 'large';
+  headerTextWeight: 'regular' | 'semibold' | 'bold';
+  headerTextAlign: 'start' | 'center' | 'end';
+  bubbleTextSize: 'small' | 'medium' | 'large';
+  bubbleTextWeight: 'regular' | 'semibold' | 'bold';
+  bubbleMaxWidth: 'compact' | 'normal' | 'wide';
+  emptyTextSize: 'small' | 'medium' | 'large';
+  emptyTextAlign: 'start' | 'center' | 'end';
+  inputTextSize: 'small' | 'medium' | 'large';
+  inputTextWeight: 'regular' | 'semibold' | 'bold';
+  sendTextSize: 'small' | 'medium' | 'large';
+  sendTextWeight: 'regular' | 'semibold' | 'bold';
+  sendButton?: ChatControlStyle;
+  composerInput?: ChatControlStyle;
+}
+
+export const DEFAULT_CHAT_STYLE: ChatStyle = {
+  headerTone: 'surface',
+  bubbleRadius: 'soft',
+  userBubbleTone: 'primary',
+  assistantBubbleTone: 'surface',
+  composerTone: 'surface',
+  sendVariant: 'solid',
+  border: 'subtle',
+  spacing: 'comfortable',
+  citationsTone: 'muted',
+  headerTextSize: 'medium',
+  headerTextWeight: 'bold',
+  headerTextAlign: 'start',
+  bubbleTextSize: 'medium',
+  bubbleTextWeight: 'regular',
+  bubbleMaxWidth: 'normal',
+  emptyTextSize: 'small',
+  emptyTextAlign: 'center',
+  inputTextSize: 'medium',
+  inputTextWeight: 'regular',
+  sendTextSize: 'medium',
+  sendTextWeight: 'semibold',
+  sendButton: { kind: 'send', width: 120, height: 36 },
+  composerInput: { kind: 'input', height: 36 },
+};
+
 export interface ChatProps {
   title: string;
   placeholder: string;
@@ -414,6 +507,7 @@ export interface ChatProps {
   emptyText: string;
   showCitations: boolean;
   fieldStyle?: FieldStyle;
+  style?: ChatStyle;
 }
 
 export const CHART_TYPES = ['bar', 'line', 'pie'] as const;

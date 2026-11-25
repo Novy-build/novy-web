@@ -31,6 +31,7 @@ import { ZoomPill } from './ZoomPill';
 import { AlignmentGuides } from './AlignmentGuides';
 import { DistanceIndicators } from './DistanceIndicators';
 import { ListViewDesignPrompt } from './ListViewDesignPrompt';
+import { useDocumentAppTheme } from '../renderer/useDocumentAppTheme';
 /** Padding around the device frame inside the scrollable stage. */
 export const CANVAS_PAD_PX = 48;
 /** Pointer travel (screen px) before a press counts as a drag, not a click. */
@@ -217,6 +218,7 @@ export function EditorCanvas({
   isWebsite = false,
   onAddSection,
 }: EditorCanvasProps) {
+  const canvasTheme = useDocumentAppTheme();
   const viewportRef = useRef<HTMLDivElement>(null);
   const interactionLayerRef = useRef<HTMLDivElement>(null);
   const dragSessionRef = useRef<DragSession | null>(null);
@@ -757,7 +759,13 @@ export function EditorCanvas({
           zoom={zoom}
         />
       </div>
-      <div className="pointer-events-none absolute bottom-4 right-4 z-20">
+      <div className="pointer-events-none absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
+        <span
+          className="pointer-events-auto rounded-full border border-hairline bg-surface px-2.5 py-1 text-[10px] font-medium text-ink-muted"
+          title="The design canvas follows Novy's light/dark theme, so widgets' dark-theme color overrides are active in dark mode. Use Preview to test a specific app theme."
+        >
+          Canvas theme: {canvasTheme === 'dark' ? 'Dark' : 'Light'} (follows Novy)
+        </span>
         <div className="pointer-events-auto">
           <DeviceToggle
             label="Canvas device"

@@ -5,6 +5,424 @@ first, and retain previous entries as project history.
 
 ## Unreleased
 
+### 2026-11-25 — V2 validation field details
+
+#### Fixed
+- V2 validation messages now include the safe backend field path and validation message, so failures
+  identify fields such as `designSystem.rationale` without exposing model content.
+
+#### Verification
+- Strict typecheck, 1,243 tests across 151 files, and the Vite production build pass.
+
+### 2026-11-25 — V2 validation error message
+
+#### Fixed
+- V2 validation failures now show a clear “failed Novy’s V2 validation — try again or switch to
+  Standard” message instead of “backend could not be reached.”
+
+#### Verification
+- Strict typecheck, 1,243 tests across 151 files, and the Vite production build pass.
+
+### 2026-11-25 — High-fidelity timeout fix
+
+#### Fixed
+- Timeout errors now identify the failing high-fidelity stage and point to GPT-6.1 Terra Fast or
+  Standard mode without implying an automatic fallback. The high-fidelity disclosure now states that
+  the pipeline can take several minutes.
+
+#### Verification
+- Strict typecheck, 1,242 tests across 151 files, and the Vite production build pass.
+
+### 2026-11-25 — Assistant design pipeline Phase 10 rollout documentation
+
+#### Added
+- Documented V2 rollout behavior in the assistant baseline: development enables V2 by default,
+  production requires an explicit operator rollout, and the boolean flag remains an immediate rollback.
+  No frontend behavior changed in this phase.
+
+#### Verification
+- Strict typecheck, 1,241 tests across 151 files, and the Vite production build pass.
+
+### 2026-11-25 — Assistant design pipeline Phase 9 quality gates
+
+#### Added
+- Proposal cards now display the backend quality label and overall score from the universal
+  deterministic gates. Added a three-viewport parity test for the editor's mirrored layout-intent
+  helpers.
+
+#### Verification
+- Strict typecheck, 1,241 tests across 151 files, and the Vite production build pass.
+
+### 2026-11-25 — Assistant design pipeline Phase 8 visual review
+
+#### Added
+- Added `modern-screenshot` 4.7.0 as the maintained browser capture strategy and an offscreen
+  `ScreenFrame` capture stage that waits for `document.fonts.ready`, captures bounded mobile/tablet/
+  desktop frames in memory, and never persists or logs data URLs.
+- High-fidelity drafts now show a visual-review action with retry, continue-without-review, and cancel
+  handling. Acceptance is blocked until review succeeds or the builder explicitly skips it, and the
+  proposal card reports fidelity score, approximations, and review status.
+
+#### Verification
+- Strict typecheck, 1,238 tests across 151 files, and the Vite production build pass.
+
+### 2026-11-25 — Assistant design pipeline Phase 7 quality modes
+
+#### Added
+- Parsed quality mode and stage traces from assistant proposals. The assistant sheet now exposes a
+  guarded standard/high-fidelity control only when the V2 pipeline flag is enabled, with explicit
+  locality/cost and no-fallback disclosure, and proposal cards list traceable stage outcomes.
+
+#### Verification
+- Strict typecheck, 1,230 tests across 150 files, and the Vite production build pass.
+
+### 2026-11-24 — Assistant design pipeline Phase 6 seed records
+
+#### Added
+- Parsed strict seed preview and exclusion metadata from V2 proposals, disclosed seeded record counts
+  and exclusions in the proposal card, and seeded the sandbox Run App preview from unapplied proposals.
+
+#### Verification
+- Strict typecheck, 1,227 tests across 150 files, and the Vite production build pass.
+
+### 2026-11-24 — Assistant design pipeline Phase 5 project primitives
+
+#### Added
+- Added optional project default-theme, viewport-fill, and bottom-action intent through DTO, domain,
+  mapper, validation, inspector, editor renderer, and generated-layout parity. Legacy documents omit
+  the fields and keep their existing appearance.
+- Preview theme now starts from the project default while an explicit stored builder preference wins;
+  editor and generated runtime share deterministic bottom-anchor and dynamic-viewport-height styles.
+
+#### Verification
+- Strict typecheck, 1,227 tests across 150 files, and the Vite production build pass.
+
+### 2026-11-24 — Assistant design pipeline Phase 4 blueprint compatibility
+
+#### Added
+- Added V2 blueprint domain/API types with strict parsing of bounded semantic palettes, type/spacing
+  scales, per-screen layout intent, repeated rows, text/record bindings, and seed records.
+- Convert V2 blueprints back to the backend API shape on refinement and acceptance so V1 display and
+  acceptance behavior remain unchanged during transition.
+
+#### Verification
+- Strict typecheck, 1,217 tests across 149 files, and the Vite production build pass.
+
+### 2026-11-24 — Assistant design pipeline Phase 3 feasibility disclosure
+
+#### Added
+- Parsed optional proposal feasibility metadata and added an accessible design-match panel with a
+  predicted-fidelity summary and collapsed fidelity notes containing safe alternatives.
+- Mapped `assistant_feasibility_blocked` to a distinct fail-closed assistant message instead of
+  presenting a blocked design as model validation failure.
+
+#### Verification
+- Strict typecheck, 1,216 tests across 149 files, and the Vite production build pass.
+
+### 2026-11-24 — Assistant design pipeline Phase 2 compatibility
+
+#### Changed
+- Documented the backend-only guarded reference-analysis and design-intent stages. The frontend
+  request/capability contract is unchanged from Phase 1; structured stage outputs remain internal to
+  the backend and raw media remains in-memory only.
+
+#### Verification
+- Strict typecheck, the full 1,214-test frontend suite, and production build pass against the Phase 2
+  backend contract.
+
+### 2026-11-24 — Assistant design pipeline Phase 1 reference composer
+
+#### Added
+- Added guarded image-only and multi-reference composer behavior with in-memory thumbnails, accessible
+  remove/replace/reorder controls, model/count/byte limits, and explicit ordered reference roles.
+- Added pending-proposal reference reuse for refinements, deterministic pending-media clearing after
+  apply/discard, and unsent-composer clearing on replacement and mode changes.
+
+#### Changed
+- Capability parsing now includes `designPipelineV2`, effective reference limits, and provider/model
+  `maxImages`. With the flag disabled, the frontend preserves text-required legacy single-image
+  requests; with it enabled, requests use the new `references` contract. Provider selection remains
+  explicit and never falls back automatically.
+
+#### Verification
+- Added repository mapping, image-only, multi-thumbnail control, reference-retention, terminal cleanup,
+  and legacy-mapping coverage. Strict typecheck and production build pass; the full frontend suite
+  passes with 1,214 tests across 149 files.
+
+### 2026-11-24 — Assistant design pipeline Phase 0 baseline
+
+#### Added
+- Added a mapper-derived representative ProjectDTO fixture and tests locking Project schema v14,
+  generated manifest v2, generated layout v2, and serialized preview/generated geometry parity.
+- Added `docs/assistant-v1-baseline.md` documenting current text-required, single-image request
+  behavior, V1 proposal/preview behavior, acceptance, and known limitations.
+
+#### Changed
+- Recorded Phase 0 only; image-only, multi-reference, visual analysis, V2 generation, and visual
+  repair remain unavailable. The backend V2 feature flag defaults to disabled.
+
+#### Verification
+- Strict typecheck passes. The full suite passes with 1,207 tests across 149 files when run with four
+  workers, and the Vite production build passes. An initial unconstrained concurrent run had 11
+  unrelated lazy-route/UI timeouts; the isolated bounded-worker rerun was clean.
+
+### 2026-11-24 — Widget Inspector gains the remaining design fields
+
+#### Added
+- Divider line color, Button label typography, Input field-label typography, Icon color, Text max
+  lines, Chat citation visibility, File input accepted MIME types, and full empty-state typography
+  for ListView are now editable in the Inspector. The `chevron-right` icon is available on buttons.
+- Each new field is optional and round-trips through the v14 DTO; editor previews and generated apps
+  apply the same values.
+
+#### Verification
+- Added validation, mapper, generation, and Inspector tests. Strict typecheck, frontend suite, and
+  production build pass. Coordinated backend changes are in `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — ListView is fully stylable in the editor
+
+#### Added
+- `ListViewProps` now carries bounded item/selected/pressed appearances, opt-in row selection,
+  divider color/thickness, empty-state styling, scrollbar visibility, and defaults for older
+  projects. The `chevron-right` icon was added to the button and app icon vocabularies.
+- The Item frame Inspector section exposes these controls; editor previews apply them just like
+  generated apps.
+
+#### Verification
+- Added mapper round-trip and validation tests. Strict typecheck, targeted and full frontend suites,
+  and production build pass. Coordinated backend changes are in `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — Chat content styles are editable in the Inspector
+
+#### Added
+- The Inspector now exposes chat header/bubble/empty/input/Send typography presets and the existing
+  tone, radius, border, spacing, and variant controls. Values are bounded tokens and merge with
+  defaults for older projects.
+- Editor previews and generated apps apply the same token presets; the AI assistant can set them via
+  `chat-style` design changes.
+
+#### Verification
+- Added Inspector and mapper/renderer tests; strict typecheck, full frontend suite, and production
+  build pass. Coordinated backend changes are in `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — Assistant uses the current editor view to resolve targets
+
+#### Fixed
+- Assistant requests now send the active screen, component labels, geometry, alignment state, and the
+  current selection. “Center the button” now targets the uncentered button on the screen you are
+  viewing instead of asking for a blueprint or component key.
+- Explicitly naming another screen still overrides the current-screen default.
+
+#### Verification
+- Extended assistant conversation tests; strict typecheck, full frontend suite, and production build
+  pass. Coordinated backend changes are in `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — Targeted assistant design edits and custom chat styling
+
+#### Added
+- Assistant proposals can carry targeted `designChanges` that affect only the named component.
+  Requests without a clear target now return a clarification message instead of a full redesign.
+- `ChatProps.style` exposes token-only control over header tone, bubble radius/tones, composer tone,
+  Send variant, border, spacing, and citation tone. The editor renderer and generated runtime both
+  apply these values without arbitrary CSS.
+- Assistant repository parsing validates design changes and chat styling.
+
+#### Verification
+- Extended assistant repository and renderer tests; strict typecheck, full frontend suite, and
+  production build pass. Coordinated backend changes are in `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — Assistant draft text is no longer clipped in centered layouts
+
+#### Fixed
+- Backend compiler sizes text widgets for wrapped content before compiling an authored centered
+  layout. Narrow row children now have enough height for all lines, so no text is clipped by the
+  rounded surface. No frontend change was required.
+
+### 2026-11-23 — Assistant drafts can use centered, minimal layouts
+
+#### Added
+- Assistant blueprint parsing accepts flat layout lists and the new allowlisted design controls
+  (`horizontalAlignment`, `verticalAlignment`, `surface`). Invalid parents, cycles, oversized lists,
+  and unknown enum values are rejected with the usual assistant error envelope.
+- Minimalist/center/border requests are compiled by the backend into centered, bordered layouts;
+  previews and accepted projects render them with the existing column/row/container renderer.
+
+#### Verification
+- Extended assistant repository tests with a centered layout group and design controls. Strict
+  typecheck and targeted tests passed; full suites and builds passed after the coordinated backend
+  changes recorded in `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — Built-in Chat with a document template uses an Open document chat button
+
+#### Changed
+- The `template_rag_chat` starter now shows an **Open document chat** button on the upload screen and
+  navigates to the chat screen through an explicit click workflow. Uploading a file no longer opens
+  chat automatically, and the intro text no longer promises automatic navigation.
+- Updated the real-runtime preview test to click the button before expecting the chat screen.
+
+#### Verification
+- Template catalog validation and the Run App preview test pass; strict typecheck passed.
+- This matches the manual flow already used by assistant-generated document-chat proposals.
+
+### 2026-11-23 — Assistant document-chat apps use a manual Open document chat button
+
+#### Changed
+- New assistant-generated document-chat proposals include an **Open document chat** button. Uploading
+  a file no longer opens the chat by itself when that explicit navigation workflow exists. Older
+  drafts without the button keep the previous automatic navigation for compatibility.
+- No frontend code changed; this is a coordinated backend Builder Skill/compiler change recorded in
+  `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — Run App keeps the design system from loaded projects
+
+#### Fixed
+- Projects loaded from the backend (including drafts accepted from the AI assistant) now keep their
+  `designSystem` in editor state. `ProjectResponseDTO` declares it and `ApiProjectRepository.adopt`
+  passes it to the mapper, so reusable component styles travel into generated runtime manifests.
+- This fixes the `invalid_manifest` 422 on **Run App** for assistant-generated apps whose buttons
+  reference `assistant_style_*` styles: previously the style ids were present but their definitions
+  were dropped, so backend validation reported “Reusable component style was not found.”
+
+#### Verification
+- Added a repository test that a backend project response with a named button style survives into
+  both `project.designSystem` and the generated manifest. Strict typecheck and targeted tests passed.
+- The matching local rate-limit adjustments are recorded in `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — Assistant proposals can build document-chat apps
+
+#### Added
+- Assistant proposals now accept `file-input` and `chat` blueprint components and the
+  `ingest-document`, `answer-with-documents`, and `chat-message` composite actions with an explicit
+  `ragProfiles` map. The repository parses and round-trips them through refinement and Apply.
+- Proposal cards disclose when a draft uses backend RAG, that raw files and provider credentials
+  stay on the backend, and when a remote provider may send prompts and retrieved context outside
+  Novy and incur cost.
+- Draft previews show a clear message when a backend document/chat action is triggered before the
+  real runtime is started.
+
+#### Fixed
+- Asking the assistant to make a document-chat app tablet/desktop responsive no longer drops the
+  **Choose a document** widget. The assistant can regenerate the upload and chat widgets while
+  applying the responsive layout.
+
+#### Verification
+- Extended assistant repository and preview-helper tests; strict typecheck and production build
+  passed. Full frontend suite passed (three unrelated timing-sensitive shell tests passed on rerun).
+  Coordinated backend compiler/contract work is recorded in `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — Assistant provider loading no longer sticks
+
+#### Fixed
+- The Model settings **Provider** dropdown no longer shows **Loading providers…** forever when the capability probe fails. The conversation hook now tracks `loading`, `ready`, `error`, and `unavailable` explicitly instead of collapsing every failure into an empty provider list.
+- A failed probe is now recoverable: **Retry** is available in the Model settings popover and the assistant header badge, and reopening Model settings also retries. Loading, error, unavailable, and genuinely empty provider states render distinctly.
+
+#### Verification
+- Extended `useAssistantConversation` and `AssistantSheet` tests for failed probes, retry recovery, and the loading badge; strict typecheck and full frontend suite passed. Coordinated backend probe hardening is recorded in `novy-backend/CHANGELOG.md`.
+
+### 2026-11-23 — Visible dark-color overrides and per-widget menu styling
+
+#### Fixed
+- Editing a base color on **Mobile** now also clears the matching dark-theme override from tablet and
+  desktop appearance layers; previously the gray Notes-template dark text color resurfaced when
+  switching to Desktop.
+- The Inspector shows a **Dark theme text: #… overrides this color** notice with a **Clear dark
+  override** action whenever a dark (or named-style) text color would win over the base color.
+- The design canvas now displays a **Canvas theme: Light/Dark (follows Novy)** badge so dark-theme
+  overrides are not invisible while editing.
+
+#### Added
+- Actions-menu Dropdowns expose **Menu background**, **Menu text**, and **Hover background** color
+  fields in the Inspector. They are applied to the popup in the editor and generated apps, with app
+  theme tokens still used when unset.
+
+#### Verification
+- Added reducer regression tests for mobile dark-override clearing, Inspector notice/clear + menu
+  style tests, renderer popup style tests, mapper round-trip, and backend generation preservation.
+  Full frontend suite passed (148 files / 1,190 tests with `--maxWorkers=2 --testTimeout=20000`);
+  strict typecheck, production build, and backend generation suite (14 tests) passed.
+
+### 2026-11-23 — Transparent background option and resizable Actions-menu dots
+
+#### Added
+- The Background color field now has a **Transparent** toggle, and **Quick background token** includes
+  a **Transparent** entry. Selecting either sets `appearance.backgroundColor: "transparent"`, which
+  makes the widget frame and list shell see-through while item templates keep their own styling.
+- Dropdowns with **Actions menu** presentation expose a **Dots size (px)** field (12–48). The authored
+  size is applied to the ⋮ glyph in canvas, preview, thumbnails, and generated apps.
+
+#### Verification
+- Added ColorField, Inspector, renderer, and mapper round-trip tests for both features. Full frontend
+  suite passed (148 files / 1,188 tests with `--maxWorkers=2 --testTimeout=20000`); strict typecheck and
+  production build passed. Backend generation suite passed (14 tests, including generated-app builds).
+
+### 2026-11-22 — Validation accepts Logic-loaded item fields and shows details
+
+#### Fixed
+- Project validation no longer reports a false **"Item binding references a missing field"** for a
+  ListView whose collection is loaded by a `load-list-items` Logic action. Binding fields are now
+  resolved by the same shared domain helper used by the Inspector: explicit load fields, the load
+  action's collection schema (when the field list is empty), the `value` alias, and legacy static
+  fields are all accepted.
+- Genuine missing/incompatible field issues now name the field and the item source in their message.
+
+#### Changed
+- The Validation panel now shows the issue code, area, component, field, binding target, collection,
+  behavior, graph, and node IDs alongside each message, instead of only severity and screen ID.
+
+#### Verification
+- Added validation tests for load-action fields, collection-schema fields, the `value` alias, and
+  detailed genuine-error messages, plus a Validation panel detail-rendering test. Full frontend suite
+  passed (148 files / 1,183 tests with `--maxWorkers=2 --testTimeout=20000`); strict typecheck and
+  production build passed.
+
+### 2026-11-22 — List items bound to Value work with "load all fields"
+
+#### Fixed
+- `Load list items` with an empty explicit field list (the default "all fields" state) now injects the
+  `value` alias from the first stored field, matching the explicit-field path. Previously a Text in
+  the item template bound to **Value** fell back to its static text (e.g. "Title") because no `value`
+  existed on the runtime item.
+- The item-template Inspector also treats an empty load-action field list as "all fields" and offers
+  the collection's fields (Title, Body), instead of falling back to the ListView's static `Value`
+  field. The same alias fix is applied in the generated app runtime.
+
+#### Verification
+- Added runtime alias tests (editor and generated app), an Inspector field-resolution test for the
+  empty-field case, and a renderer regression test for bound Text inside collection-loaded ListViews.
+  Full frontend suite passed (148 files / 1,178 tests with `--maxWorkers=2 --testTimeout=20000`);
+  strict typecheck, production build, and backend generation tests (13 passed) succeeded.
+
+### 2026-11-22 — Item data fields follow the Load list items action
+
+#### Fixed
+- The ListView item-template Inspector now derives its **Item data** field list from the active
+  `load-list-items` Logic action targeting that ListView (fields + collection name), instead of only
+  the ListView's legacy static `value` field. This makes record fields such as **Title (Text)** and
+  **Body (Text)** selectable for widget bindings — previously they were only visible in Logic mode,
+  so a Text widget could silently keep its static fallback text (e.g. "Title") for every row.
+- Extracted the resolution into `workspace/listItemFields.ts`, mirroring the Logic workspace's
+  current-item field logic, with static/collection fallbacks preserved.
+
+#### Verification
+- Added `listItemFields.test.ts` for loader-field preference, other-ListView loaders, and collection
+  fallback. Full frontend suite passed (147 files / 1,175 tests with
+  `--maxWorkers=2 --testTimeout=20000`); strict typecheck and production build passed.
+
+### 2026-11-22 — Text fields are named by their placeholder in Logic and Layers
+
+#### Changed
+- `nodeDisplayLabel()` now names Input widgets from `props.placeholder` first, then `props.label`, then
+  the generic `Untitled text field`. An explicit custom node name still takes precedence.
+- This fixes Logic **Target component** dropdowns showing a bare `Text field —` when the field label was
+  blank or hidden, and removes the need to show a label on the canvas just to identify the field in
+  Logic. Logic palette/node text ("When … is changed"), behavior names, and Layers rows use the same
+  name. Behavior names remain frozen at creation, so only newly created behaviors pick this up.
+
+#### Verification
+- Added `nodeLabels.test.ts` for placeholder-first naming, label fallback, generic fallback, and custom
+  name precedence. Full frontend suite passed (146 files / 1,172 tests with
+  `--maxWorkers=2 --testTimeout=20000`); strict typecheck and production build passed.
+
 ### 2026-11-22 — Input text typography and compact control fill
 
 #### Added

@@ -1,8 +1,10 @@
 import { AxiosError, type AxiosResponse } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
+import { DEFAULT_APP_DESIGN_SYSTEM, type AppDesignSystem } from '@domain/entities/designSystem';
 import type { Template } from '@domain/entities/template';
 import { ProjectError } from '@domain/errors/ProjectError';
 import type { ApiHttpClient, ApiHttpResponse } from '../../api/http';
+import { buildGeneratedAppManifest } from '../../generation/generatedAppManifest';
 import { ApiProjectRepository } from './ApiProjectRepository';
 
 const NOW = '2026-11-11T12:00:00.000Z';
@@ -54,6 +56,44 @@ const BLANK_TEMPLATE: Template = {
 };
 
 describe('ApiProjectRepository', () => {
+  it('preserves the design system returned by the backend', async () => {
+    const { client, get } = makeClient();
+    const designSystem: AppDesignSystem = {
+      ...structuredClone(DEFAULT_APP_DESIGN_SYSTEM),
+      styles: [{
+        id: 'assistant_style_primary_button',
+        name: 'Primary action',
+        componentType: 'button',
+      }],
+    };
+    const screens = [{
+      id: 'screen_home',
+      name: 'Home',
+      path: '/',
+      nodes: [{
+        id: 'button_open',
+        type: 'button' as const,
+        x: 24,
+        y: 24,
+        w: 200,
+        h: 44,
+        styleId: 'assistant_style_primary_button',
+        props: { label: 'Open', variant: 'solid' as const },
+      }],
+      behaviors: [],
+      logicGraphs: [],
+    }];
+    get.mockResolvedValue(projectResponse({ designSystem, screens }));
+
+    const project = await new ApiProjectRepository(client).getProject('project_1');
+
+    expect(project?.document.designSystem).toEqual(designSystem);
+    if (!project) throw new Error('Expected a project.');
+    const manifest = buildGeneratedAppManifest(project, null, []);
+    expect(manifest.project.designSystem?.styles).toEqual(designSystem.styles);
+    expect(manifest.layout.designSystem?.styles).toEqual(designSystem.styles);
+  });
+
   it('lists owner-scoped project summaries', async () => {
     const { client, get } = makeClient();
     get.mockResolvedValue({

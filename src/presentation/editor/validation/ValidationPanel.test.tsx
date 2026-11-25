@@ -25,4 +25,31 @@ describe('ValidationPanel', () => {
     fireEvent.click(issue);
     expect(onIssueSelect).toHaveBeenCalledWith(report.issues[0]);
   });
+
+  it('shows the issue code and available context', () => {
+    const detailed: ValidationReport = {
+      isValid: false,
+      issues: [{
+        id: 'binding-1',
+        code: 'component-binding-field',
+        severity: 'error',
+        area: 'data',
+        message: 'Item binding references field “missing”, which is not available in notes-collection.',
+        screenId: 'screen_home',
+        componentId: 'text_title',
+        fieldId: 'missing',
+        bindingTarget: 'text.content',
+        collectionId: 'notes_collection',
+      }],
+    };
+    render(<ValidationPanel report={detailed} />);
+
+    const issue = screen.getByRole('button', { name: /Item binding references field/ });
+    for (const detail of [
+      'Code: component-binding-field', 'Area: data', 'Screen: screen_home',
+      'Component: text_title', 'Field: missing', 'Target: text.content', 'Collection: notes_collection',
+    ]) {
+      expect(issue).toHaveTextContent(detail);
+    }
+  });
 });

@@ -3,6 +3,9 @@ import { FieldHelpLabel } from '@presentation/components/ui/FieldHelp';
 import type {
   BorderSides,
   CameraProps,
+  ChatControlStyle,
+  ChatStyle,
+  ComponentAppearance,
   ComponentNode,
   ComponentBindingTarget,
   CrossAxisAlignment,
@@ -15,7 +18,7 @@ import type {
   ResponsiveBreakpoint,
   StaticListViewItem,
 } from '@domain/entities/componentNode';
-import { FIELD_STYLES, geometryAtBreakpoint, isAppIconName, isButtonIconName } from '@domain/entities/componentNode';
+import { DEFAULT_CHAT_STYLE, FIELD_STYLES, geometryAtBreakpoint, isAppIconName, isButtonIconName } from '@domain/entities/componentNode';
 import {
   RECORD_IDENTIFIER_KEY_PATTERN,
   recordIdentifierForCollection,
@@ -44,6 +47,11 @@ import { DesignSystemInspector } from './DesignSystemInspector';
 import { TypographyFields } from './TypographyFields';
 import { InspectorSection } from './InspectorSection';
 
+function numberFromEvent(event: ChangeEvent<HTMLInputElement>): number | null {
+  const value = Number(event.target.value);
+  return Number.isFinite(value) ? value : null;
+}
+
 interface InspectorProps {
   node: ComponentNode | null;
   /** All behaviors of the active screen, filtered for the selected node. */
@@ -68,6 +76,242 @@ export interface ListItemBindingField {
   id: string;
   label: string;
   type: DataFieldType;
+}
+
+function ChatControlStyleFields({
+  control,
+  designSystem,
+  label,
+  onChange,
+}: {
+  control: ChatControlStyle;
+  designSystem: AppDesignSystem | undefined;
+  label: string;
+  onChange: (control: ChatControlStyle) => void;
+}) {
+  const appearance: ComponentAppearance = control.appearance ?? {};
+  const updateAppearance = (patch: ComponentAppearance) =>
+    onChange({ ...control, appearance: { ...appearance, ...patch } });
+  return (
+    <div className="mt-2 grid gap-2 rounded-tile border border-hairline p-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <TextInput
+          label="Width (px)"
+          min={24}
+          name={`chat-${control.kind}-width`}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            if (Number.isFinite(value)) onChange({ ...control, width: Math.max(24, Math.min(1000, value)) });
+          }}
+          type="number"
+          value={control.width ?? ''}
+        />
+        <TextInput
+          label="Height (px)"
+          min={24}
+          name={`chat-${control.kind}-height`}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            if (Number.isFinite(value)) onChange({ ...control, height: Math.max(24, Math.min(1000, value)) });
+          }}
+          type="number"
+          value={control.height ?? ''}
+        />
+      </div>
+      {control.kind === 'send' ? (
+        <label className="grid gap-1">
+          <span className="text-xs font-medium text-ink-muted">Variant</span>
+          <select
+            aria-label="Chat Send variant"
+            className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+            onChange={(event) => onChange({ ...control, variant: event.target.value as ChatControlStyle['variant'] })}
+            value={control.variant ?? 'solid'}
+          >
+            <option value="solid">Solid</option>
+            <option value="outline">Outline</option>
+            <option value="text">Text</option>
+          </select>
+        </label>
+      ) : (
+        <FieldStyleControl
+          value={control.fieldStyle}
+          onChange={(fieldStyle) => onChange({ ...control, fieldStyle })}
+        />
+      )}
+      <ColorField
+        label="Background"
+        name={`chat-${control.kind}-background`}
+        onChange={(backgroundColor) => updateAppearance({ backgroundColor })}
+        value={appearance.backgroundColor ?? ''}
+      />
+      <ColorField
+        label="Text color"
+        name={`chat-${control.kind}-text`}
+        onChange={(textColor) => updateAppearance({ textColor })}
+        value={appearance.textColor ?? ''}
+      />
+      <ColorField
+        label="Border color"
+        name={`chat-${control.kind}-border`}
+        onChange={(borderColor) => updateAppearance({ borderColor, borderStyle: appearance.borderStyle ?? 'solid' })}
+        value={appearance.borderColor ?? ''}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <TextInput
+          label="Radius (px)"
+          min={0}
+          name={`chat-${control.kind}-radius`}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            if (Number.isFinite(value)) updateAppearance({ borderRadius: Math.max(0, value) });
+          }}
+          type="number"
+          value={appearance.borderRadius ?? ''}
+        />
+        <TextInput
+          label="Border width"
+          min={0}
+          name={`chat-${control.kind}-border-width`}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            if (Number.isFinite(value)) updateAppearance({ borderWidth: Math.max(0, value) });
+          }}
+          type="number"
+          value={appearance.borderWidth ?? ''}
+        />
+      </div>
+      <label className="grid gap-1">
+        <span className="text-xs font-medium text-ink-muted">Border style</span>
+        <select
+          aria-label={`Chat ${label} border style`}
+          className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+          onChange={(event) => updateAppearance({ borderStyle: event.target.value as ComponentAppearance['borderStyle'] })}
+          value={appearance.borderStyle ?? 'solid'}
+        >
+          <option value="solid">Solid</option>
+          <option value="dashed">Dashed</option>
+          <option value="none">None</option>
+        </select>
+      </label>
+      <label className="grid gap-1">
+        <span className="text-xs font-medium text-ink-muted">Effect</span>
+        <select
+          aria-label={`Chat ${label} effect`}
+          className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+          onChange={(event) => updateAppearance({
+            boxShadows: event.target.value === 'none'
+              ? undefined
+              : event.target.value === 'soft'
+                ? [{ x: 0, y: 4, blur: 12, spread: -6, color: '#11182726' }]
+                : [{ x: 0, y: 12, blur: 28, spread: -12, color: '#11182733' }],
+          })}
+          value={appearance.boxShadows?.length === 1 && appearance.boxShadows[0]?.blur > 20 ? 'elevated' : appearance.boxShadows?.length ? 'soft' : 'none'}
+        >
+          <option value="none">None</option>
+          <option value="soft">Soft shadow</option>
+          <option value="elevated">Elevated</option>
+        </select>
+      </label>
+      <p className="inspector-section-label mt-1">Text style</p>
+      <TypographyFields
+        appFonts={designSystem}
+        namePrefix={`chat-${control.kind}-text`}
+        onChange={(textStyle) => onChange({ ...control, textStyle: { ...control.textStyle, ...textStyle } })}
+        value={control.textStyle}
+      />
+    </div>
+  );
+}
+
+function ChatStyleFields({
+  style,
+  designSystem,
+  onChange,
+}: {
+  style: ChatStyle | undefined;
+  designSystem: AppDesignSystem | undefined;
+  onChange: (style: ChatStyle) => void;
+}) {
+  const current = { ...DEFAULT_CHAT_STYLE, ...style };
+  const select = <K extends keyof ChatStyle>(
+    label: string,
+    key: K,
+    options: ReadonlyArray<ChatStyle[K]>,
+  ) => (
+    <label className="grid gap-1">
+      <span className="text-xs font-medium text-ink-muted">{label}</span>
+      <select
+        aria-label={`Chat ${label}`}
+        className="h-9 rounded-tile border border-hairline bg-surface px-2 text-sm text-ink"
+        onChange={(event) => onChange({ ...current, [key]: event.target.value })}
+        value={String(current[key])}
+      >
+        {options.map((option) => (
+          <option key={String(option)} value={String(option)}>{String(option)}</option>
+        ))}
+      </select>
+    </label>
+  );
+  const sizes = ['small', 'medium', 'large'] as const;
+  const weights = ['regular', 'semibold', 'bold'] as const;
+  const aligns = ['start', 'center', 'end'] as const;
+  return (
+    <div className="mt-3 grid border-t border-hairline">
+      <InspectorSection title="Chat header" defaultOpen={true}>
+        <div className="grid grid-cols-2 gap-2">
+          {select('Tone', 'headerTone', ['surface', 'canvas', 'primary', 'muted'])}
+          {select('Size', 'headerTextSize', sizes)}
+          {select('Weight', 'headerTextWeight', weights)}
+          {select('Align', 'headerTextAlign', aligns)}
+        </div>
+      </InspectorSection>
+      <InspectorSection title="Chat bubbles" defaultOpen={true}>
+        <div className="grid grid-cols-2 gap-2">
+          {select('Radius', 'bubbleRadius', ['sharp', 'soft', 'rounded', 'pill'])}
+          {select('User tone', 'userBubbleTone', ['primary', 'accent', 'surface', 'canvas'])}
+          {select('Assistant tone', 'assistantBubbleTone', ['surface', 'canvas', 'surface-elevated'])}
+          {select('Size', 'bubbleTextSize', sizes)}
+          {select('Weight', 'bubbleTextWeight', weights)}
+          {select('Width', 'bubbleMaxWidth', ['compact', 'normal', 'wide'])}
+        </div>
+      </InspectorSection>
+      <InspectorSection title="Chat send button" defaultOpen={true}>
+        <ChatControlStyleFields
+          control={current.sendButton ?? { kind: 'send' }}
+          designSystem={designSystem}
+          label="Send button"
+          onChange={(sendButton) => onChange({ ...current, sendButton })}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          {select('Text size', 'sendTextSize', sizes)}
+          {select('Text weight', 'sendTextWeight', weights)}
+        </div>
+      </InspectorSection>
+      <InspectorSection title="Chat composer input" defaultOpen={true}>
+        <ChatControlStyleFields
+          control={current.composerInput ?? { kind: 'input' }}
+          designSystem={designSystem}
+          label="Composer input"
+          onChange={(composerInput) => onChange({ ...current, composerInput })}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          {select('Text size', 'inputTextSize', sizes)}
+          {select('Text weight', 'inputTextWeight', weights)}
+        </div>
+      </InspectorSection>
+      <InspectorSection title="Chat surface" defaultOpen={true}>
+        <div className="grid grid-cols-2 gap-2">
+          {select('Composer tone', 'composerTone', ['surface', 'canvas', 'surface-elevated'])}
+          {select('Empty size', 'emptyTextSize', sizes)}
+          {select('Empty align', 'emptyTextAlign', aligns)}
+          {select('Border', 'border', ['none', 'subtle', 'outlined'])}
+          {select('Spacing', 'spacing', ['compact', 'comfortable', 'spacious'])}
+          {select('Citations tone', 'citationsTone', ['muted', 'primary', 'text'])}
+        </div>
+      </InspectorSection>
+    </div>
+  );
 }
 
 interface SegmentOption<T extends string> {
@@ -267,6 +511,7 @@ export function Inspector({
       <section aria-label="Inspector" className="flex-1 overflow-y-auto border-b border-hairline px-4 py-3">
         <ItemFrameSection
           collection={itemCollection}
+          designSystem={designSystem}
           itemFrame={itemFrame}
           onAction={onAction}
           onRecordIdentifierChange={onRecordIdentifierChange}
@@ -303,6 +548,14 @@ export function Inspector({
     : null;
   const hasBorderStyleControl = true;
   const activeBorderStyle = appearance?.borderStyle ?? 'solid';
+  // Mirrors the renderer's appearance cascade so a hidden dark override cannot
+  // silently win over the base color the Inspector displays.
+  const styleDarkTextColor = designSystem?.styles.find((style) => style.id === node.styleId)?.appearance?.dark?.textColor;
+  const effectiveDarkTextColor = device === 'desktop'
+    ? node.responsive?.desktop?.appearance?.dark?.textColor ?? node.responsive?.tablet?.appearance?.dark?.textColor ?? node.appearance?.dark?.textColor ?? styleDarkTextColor
+    : device === 'tablet'
+      ? node.responsive?.tablet?.appearance?.dark?.textColor ?? node.appearance?.dark?.textColor ?? styleDarkTextColor
+      : node.appearance?.dark?.textColor ?? styleDarkTextColor;
   function numberFromEvent(event: ChangeEvent<HTMLInputElement>): number | null {
     const raw = event.target.value;
     if (raw.trim().length === 0) {
@@ -482,6 +735,18 @@ export function Inspector({
               </select>
             </>
           ) : null}
+          <p className="inspector-section-label mt-1">Label style</p>
+          <TypographyFields
+            appFonts={designSystem}
+            namePrefix="inspector-button-text"
+            note="Blank values use the app font stack and the button's default size."
+            onChange={(patch) => onAction({
+              type: 'node/props-button',
+              nodeId: node.id,
+              props: { textStyle: { ...node.props.textStyle, ...patch } },
+            })}
+            value={node.props.textStyle}
+          />
         </div>
       ) : null}
 
@@ -500,6 +765,24 @@ export function Inspector({
             note="Blank values use the app font and selected text level preset."
             onChange={(patch) => onAction({ type: 'node/responsive-text-style', nodeId: node.id, textStyle: patch })}
             value={effectiveTextProps ?? undefined}
+          />
+          <TextInput
+            label="Max lines"
+            min={1}
+            name="inspector-text-line-clamp"
+            onChange={(event) => {
+              const raw = event.target.value;
+              if (raw.trim().length === 0) {
+                onAction({ type: 'node/props-text', nodeId: node.id, props: { lineClamp: undefined } });
+                return;
+              }
+              const parsed = Number(raw);
+              if (Number.isFinite(parsed) && parsed > 0) {
+                onAction({ type: 'node/props-text', nodeId: node.id, props: { lineClamp: Math.round(parsed) } });
+              }
+            }}
+            type="number"
+            value={node.props.lineClamp ?? ''}
           />
         </div>
       ) : null}
@@ -539,6 +822,18 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-icon', nodeId: node.id, props: { label: event.target.value } })}
             placeholder="Blank when decorative"
             value={node.props.label}
+          />
+          <ColorField
+            label="Color"
+            name="inspector-icon-color"
+            onChange={(textColor) => onAction({
+              type: 'node/appearance',
+              nodeId: node.id,
+              appearance: { ...appearance, textColor: textColor || undefined },
+              clearDark: 'textColor',
+            })}
+            placeholder="Inherit text color"
+            value={appearance?.textColor ?? ''}
           />
           <TextInput
             label="Stroke width"
@@ -604,11 +899,23 @@ export function Inspector({
             value={node.props.fieldStyle}
             onChange={(fieldStyle) => onAction({ type: 'node/props-input', nodeId: node.id, props: { fieldStyle } })}
           />
+          <p className="inspector-section-label mt-1">Field label style</p>
+          <TypographyFields
+            appFonts={designSystem}
+            namePrefix="inspector-input-label"
+            note="Blank values keep the default small label typography."
+            onChange={(patch) => onAction({
+              type: 'node/props-input',
+              nodeId: node.id,
+              props: { labelStyle: { ...node.props.labelStyle, ...patch } },
+            })}
+            value={node.props.labelStyle}
+          />
           <p className="inspector-section-label mt-1">Text style</p>
           <TypographyFields
             appFonts={designSystem}
             namePrefix="inspector-input-text"
-            note="Blank values use the app font stack. The field label keeps its own size."
+            note="Blank values use the app font stack."
             onChange={(patch) => onAction({
               type: 'node/props-input',
               nodeId: node.id,
@@ -706,7 +1013,20 @@ export function Inspector({
           <p className="inspector-section-label">File input</p>
           <TextInput label="Label" name="inspector-file-label" onChange={(event) => onAction({ type: 'node/props-file-input', nodeId: node.id, props: { label: event.target.value } })} value={node.props.label} />
           <TextInput label="Helper text" name="inspector-file-helper" onChange={(event) => onAction({ type: 'node/props-file-input', nodeId: node.id, props: { helperText: event.target.value } })} value={node.props.helperText} />
-          <p className="text-xs text-ink-muted">Text, Markdown, HTML, and PDF are extracted by the runtime; original bytes are discarded.</p>
+          <TextInput
+            label="Accepted MIME types"
+            name="inspector-file-accept"
+            onChange={(event) => onAction({
+              type: 'node/props-file-input',
+              nodeId: node.id,
+              props: {
+                accept: event.target.value.split(',').map((item) => item.trim()).filter((item) => item.length > 0),
+              },
+            })}
+            placeholder="application/pdf, text/plain"
+            value={node.props.accept.join(', ')}
+          />
+          <p className="text-xs text-ink-muted">Comma-separated MIME types. Text, Markdown, HTML, and PDF are extracted by the runtime; original bytes are discarded.</p>
         </div>
       ) : null}
 
@@ -717,9 +1037,22 @@ export function Inspector({
           <TextInput label="Composer placeholder" name="inspector-chat-placeholder" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { placeholder: event.target.value } })} value={node.props.placeholder} />
           <TextInput label="Send button label" name="inspector-chat-send" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { sendLabel: event.target.value } })} value={node.props.sendLabel} />
           <TextInput label="Empty text" name="inspector-chat-empty" onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { emptyText: event.target.value } })} value={node.props.emptyText} />
+          <label className="flex min-h-11 items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={node.props.showCitations}
+              onChange={(event) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { showCitations: event.target.checked } })}
+              type="checkbox"
+            />
+            <FieldHelpLabel label="Show citations" />
+          </label>
           <FieldStyleControl
             value={node.props.fieldStyle}
             onChange={(fieldStyle) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { fieldStyle } })}
+          />
+          <ChatStyleFields
+            designSystem={designSystem}
+            style={node.props.style}
+            onChange={(style) => onAction({ type: 'node/props-chat', nodeId: node.id, props: { style } })}
           />
         </div>
       ) : null}
@@ -1000,7 +1333,49 @@ export function Inspector({
             onChange={(event) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { options: event.target.value.split('\n') } })}
             value={node.props.options.join('\n')}
           />
-          {node.props.presentation === 'menu' ? <p className="text-xs text-ink-muted">Each option emits a change event. Use If / Else to choose its workflow.</p> : null}
+          {node.props.presentation === 'menu' ? (
+            <>
+              <TextInput
+                label="Dots size (px)"
+                max={48}
+                min={12}
+                name="inspector-dropdown-dots-size"
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (Number.isFinite(parsed) && parsed > 0) {
+                    onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { menuIconSize: Math.max(12, Math.min(48, Math.round(parsed))) } });
+                  }
+                }}
+                step={1}
+                type="number"
+                value={node.props.menuIconSize ?? 24}
+              />
+              <p className="inspector-section-label">Menu style</p>
+              <ColorField
+                allowTransparent
+                label="Menu background"
+                name="inspector-dropdown-menu-background"
+                onChange={(menuBackgroundColor) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { menuBackgroundColor: menuBackgroundColor || undefined } })}
+                placeholder="App theme"
+                value={node.props.menuBackgroundColor ?? ''}
+              />
+              <ColorField
+                label="Menu text"
+                name="inspector-dropdown-menu-text"
+                onChange={(menuTextColor) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { menuTextColor: menuTextColor || undefined } })}
+                placeholder="App theme"
+                value={node.props.menuTextColor ?? ''}
+              />
+              <ColorField
+                label="Hover background"
+                name="inspector-dropdown-menu-hover"
+                onChange={(menuHoverColor) => onAction({ type: 'node/props-dropdown', nodeId: node.id, props: { menuHoverColor: menuHoverColor || undefined } })}
+                placeholder="App theme"
+                value={node.props.menuHoverColor ?? ''}
+              />
+              <p className="text-xs text-ink-muted">Each option emits a change event. Use If / Else to choose its workflow.</p>
+            </>
+          ) : null}
           <TextInput
             label="Selected index (-1 for none)"
             name="inspector-dropdown-selected"
@@ -1123,6 +1498,13 @@ export function Inspector({
             type="number"
             value={node.props.thickness}
           />
+          <ColorField
+            label="Line color"
+            name="inspector-divider-color"
+            onChange={(color) => onAction({ type: 'node/props-divider', nodeId: node.id, props: { color: color || undefined } })}
+            placeholder="Theme border"
+            value={node.props.color ?? ''}
+          />
         </div>
       ) : null}
 
@@ -1188,11 +1570,13 @@ export function Inspector({
             value=""
           >
             <option value="">Choose a semantic token…</option>
+            <option value="transparent">Transparent</option>
             {(['primary', 'accent', 'canvas', 'surface', 'surfaceElevated'] as const).map((token) => <option key={token} value={colorTokenCssValue(token)}>{token}</option>)}
           </select>
         </label>
         <div className="mb-3 grid grid-cols-2 gap-2">
           <ColorField
+            allowTransparent
             label="Background"
             name="inspector-appearance-background"
             onChange={(value) => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance, backgroundColor: value || undefined }, clearDark: 'backgroundColor' })}
@@ -1213,6 +1597,18 @@ export function Inspector({
             placeholder="#d1d5db"
             value={appearance?.borderColor ?? ''}
           />
+          {effectiveDarkTextColor ? (
+            <div className="col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-tile border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] text-ink">
+              <span>Dark theme text: <strong>{effectiveDarkTextColor}</strong> overrides this color when the app is dark.</span>
+              <button
+                className="font-semibold text-brand-700 hover:underline dark:text-brand-300"
+                onClick={() => onAction({ type: 'node/appearance', nodeId: node.id, appearance: { ...appearance }, clearDark: 'textColor' })}
+                type="button"
+              >
+                Clear dark override
+              </button>
+            </div>
+          ) : null}
           <TextInput
             label="Corner radius"
             name="inspector-appearance-radius"
@@ -1560,16 +1956,84 @@ function uniqueFieldId(fields: readonly ListViewItemField[]): string {
   return `field_${index}`;
 }
 
+function ItemAppearanceFields({
+  label,
+  namePrefix,
+  onChange,
+  value,
+}: {
+  label: string;
+  namePrefix: string;
+  onChange: (appearance: ComponentAppearance | undefined) => void;
+  value: ComponentAppearance | undefined;
+}) {
+  const appearance = value ?? {};
+  const patch = (next: Partial<ComponentAppearance>): void => onChange({ ...appearance, ...next });
+  return (
+    <div className="grid gap-2">
+      <p className="text-xs font-medium text-ink-muted">{label}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <ColorField
+          allowTransparent
+          label="Background"
+          name={`${namePrefix}-background`}
+          onChange={(backgroundColor) => patch({ backgroundColor: backgroundColor || undefined })}
+          placeholder="Item surface"
+          value={appearance.backgroundColor ?? ''}
+        />
+        <ColorField
+          label="Text color"
+          name={`${namePrefix}-text`}
+          onChange={(textColor) => patch({ textColor: textColor || undefined })}
+          placeholder="Inherit"
+          value={appearance.textColor ?? ''}
+        />
+        <ColorField
+          label="Border color"
+          name={`${namePrefix}-border`}
+          onChange={(borderColor) => patch({ borderColor: borderColor || undefined })}
+          placeholder="Theme border"
+          value={appearance.borderColor ?? ''}
+        />
+        <TextInput
+          label="Corner radius"
+          min={0}
+          name={`${namePrefix}-radius`}
+          onChange={(event) => {
+            const parsed = numberFromEvent(event);
+            if (parsed !== null) patch({ borderRadius: Math.max(0, parsed) });
+          }}
+          type="number"
+          value={appearance.borderRadius ?? ''}
+        />
+        <TextInput
+          label="Border width"
+          min={0}
+          name={`${namePrefix}-border-width`}
+          onChange={(event) => {
+            const parsed = numberFromEvent(event);
+            if (parsed !== null) patch({ borderWidth: Math.max(0, parsed) });
+          }}
+          type="number"
+          value={appearance.borderWidth ?? ''}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ItemFrameSection({
   itemFrame,
   onAction,
   collection,
+  designSystem,
   recordRoutePaths,
   onRecordIdentifierChange,
 }: {
   itemFrame: ListViewNode;
   onAction: (action: EditorAction) => void;
   collection: DataCollection | null;
+  designSystem: AppDesignSystem | undefined;
   recordRoutePaths: readonly string[];
   onRecordIdentifierChange?: (collectionId: string, key: string) => Promise<void>;
 }) {
@@ -1618,6 +2082,106 @@ function ItemFrameSection({
         />
         <FieldHelpLabel label="Show dividers" />
       </label>
+      <ColorField
+        label="Divider color"
+        name="inspector-item-divider-color"
+        onChange={(dividerColor) => onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { dividerColor: dividerColor || undefined } })}
+        placeholder="Theme border"
+        value={itemFrame.props.dividerColor ?? ''}
+      />
+      <TextInput
+        label="Divider thickness"
+        min={0}
+        name="inspector-item-divider-thickness"
+        onChange={(event) => {
+          const parsed = numberFromEvent(event);
+          if (parsed !== null) onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { dividerThickness: Math.max(0, parsed) } });
+        }}
+        type="number"
+        value={itemFrame.props.dividerThickness ?? ''}
+      />
+      <ItemAppearanceFields
+        label="Item surface"
+        namePrefix="inspector-item-surface"
+        onChange={(itemAppearance) => onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { itemAppearance } })}
+        value={itemFrame.props.itemAppearance}
+      />
+      <label className="mt-2 flex items-center gap-2 text-xs font-medium text-ink-muted">
+        <input
+          checked={itemFrame.props.selectionEnabled === true}
+          onChange={(event) => onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { selectionEnabled: event.target.checked } })}
+          type="checkbox"
+        />
+        <FieldHelpLabel label="Enable row selection" />
+      </label>
+      <details>
+        <summary className="cursor-pointer text-xs font-medium text-ink-muted">Selected &amp; pressed states</summary>
+        <div className="mt-2 grid gap-4">
+          <ItemAppearanceFields
+            label="Selected item"
+            namePrefix="inspector-item-selected"
+            onChange={(itemSelectedAppearance) => onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { itemSelectedAppearance } })}
+            value={itemFrame.props.itemSelectedAppearance}
+          />
+          <ItemAppearanceFields
+            label="Pressed item"
+            namePrefix="inspector-item-pressed"
+            onChange={(itemPressedAppearance) => onAction({ type: 'node/props-listview', nodeId: itemFrame.id, props: { itemPressedAppearance } })}
+            value={itemFrame.props.itemPressedAppearance}
+          />
+        </div>
+      </details>
+      <details>
+        <summary className="cursor-pointer text-xs font-medium text-ink-muted">Empty state &amp; scrollbar</summary>
+        <div className="mt-2 grid gap-2">
+          <ColorField
+            allowTransparent
+            label="Empty surface"
+            name="inspector-item-empty-background"
+            onChange={(backgroundColor) => onAction({
+              type: 'node/props-listview',
+              nodeId: itemFrame.id,
+              props: { emptyStateAppearance: { ...itemFrame.props.emptyStateAppearance, backgroundColor: backgroundColor || undefined } },
+            })}
+            placeholder="Theme surface"
+            value={itemFrame.props.emptyStateAppearance?.backgroundColor ?? ''}
+          />
+          <ColorField
+            label="Empty text color"
+            name="inspector-item-empty-text"
+            onChange={(textColor) => onAction({
+              type: 'node/props-listview',
+              nodeId: itemFrame.id,
+              props: { emptyStateAppearance: { ...itemFrame.props.emptyStateAppearance, textColor: textColor || undefined } },
+            })}
+            placeholder="Muted text"
+            value={itemFrame.props.emptyStateAppearance?.textColor ?? ''}
+          />
+          <TypographyFields
+            appFonts={designSystem}
+            namePrefix="inspector-item-empty-text"
+            note="Blank values use the app font and default empty-state typography."
+            onChange={(patch) => onAction({
+              type: 'node/props-listview',
+              nodeId: itemFrame.id,
+              props: { emptyStateTextStyle: { ...itemFrame.props.emptyStateTextStyle, ...patch } },
+            })}
+            value={itemFrame.props.emptyStateTextStyle}
+          />
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+            <input
+              checked={itemFrame.props.scrollbarVisibility === 'hidden'}
+              onChange={(event) => onAction({
+                type: 'node/props-listview',
+                nodeId: itemFrame.id,
+                props: { scrollbarVisibility: event.target.checked ? 'hidden' : 'auto' },
+              })}
+              type="checkbox"
+            />
+            Hide scrollbar
+          </label>
+        </div>
+      </details>
     </div>
   );
 }

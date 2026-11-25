@@ -1,6 +1,7 @@
 import { TextInput } from '@presentation/components/ui/TextInput';
 
 interface ColorFieldProps {
+  allowTransparent?: boolean;
   label: string;
   name: string;
   onChange: (value: string) => void;
@@ -25,9 +26,10 @@ export function normalizeHexColor(value: string): string | null {
 }
 
 /** Hex input paired with a native color picker for the same appearance value. */
-export function ColorField({ label, name, onChange, placeholder, value }: ColorFieldProps) {
+export function ColorField({ allowTransparent, label, name, onChange, placeholder, value }: ColorFieldProps) {
+  const isTransparent = value.trim().toLowerCase() === 'transparent';
   return (
-    <div className="flex items-end gap-1.5">
+    <div className="flex flex-wrap items-end gap-1.5">
       <div className="min-w-0 flex-1">
         <TextInput
           label={label}
@@ -45,6 +47,22 @@ export function ColorField({ label, name, onChange, placeholder, value }: ColorF
         type="color"
         value={normalizeHexColor(value) ?? '#000000'}
       />
+      {allowTransparent ? (
+        <button
+          aria-label={`${label} transparent`}
+          aria-pressed={isTransparent}
+          className={`h-10 shrink-0 rounded-tile border px-2 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
+            isTransparent
+              ? 'border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300'
+              : 'border-hairline bg-surface text-ink-muted hover:bg-canvas'
+          }`}
+          onClick={() => onChange(isTransparent ? '' : 'transparent')}
+          title="Use no color"
+          type="button"
+        >
+          Transparent
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -38,7 +38,20 @@ export function ValidationPanel({
                 {issue.severity}
               </span>
               <span className="ml-2 text-ink">{issue.message}</span>
-              {issue.screenId ? <span className="mt-1 block text-[10px] text-ink-muted">Screen: {issue.screenId}</span> : null}
+              <span className="mt-1 block text-[10px] text-ink-muted">
+                {[
+                  issue.code ? `Code: ${issue.code}` : null,
+                  issue.area ? `Area: ${issue.area}` : null,
+                  issue.screenId ? `Screen: ${issue.screenId}` : null,
+                  issue.componentId ? `Component: ${issue.componentId}` : null,
+                  issue.fieldId ? `Field: ${issue.fieldId}` : null,
+                  issue.bindingTarget ? `Target: ${issue.bindingTarget}` : null,
+                  issue.collectionId ? `Collection: ${issue.collectionId}` : null,
+                  issue.behaviorId ? `Behavior: ${issue.behaviorId}` : null,
+                  issue.graphId ? `Graph: ${issue.graphId}` : null,
+                  issue.logicNodeId ? `Node: ${issue.logicNodeId}` : null,
+                ].filter(Boolean).join(' · ')}
+              </span>
             </button>
           ))}
         </div>

@@ -1,3 +1,4 @@
+import type { AppDesignSystem } from '@domain/entities/designSystem';
 import type { AppDataStoreDTO } from './appData.dto';
 import type { ProjectDTO, ScreenDTO } from './project.dto';
 
@@ -22,6 +23,7 @@ export interface ProjectResponseDTO {
   projectType?: 'app' | 'website';
   createdAt: string;
   updatedAt: string;
+  designSystem?: AppDesignSystem;
   screens: ScreenDTO[];
   revision: number;
 }

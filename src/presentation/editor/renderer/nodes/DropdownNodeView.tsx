@@ -23,8 +23,20 @@ export function DropdownNodeView({
   menuStyle?: CSSProperties;
 }) {
   if (props.presentation === 'menu') {
-    if (renderStatic || !isPreview) return <div aria-hidden="true" className="novy-widget-text flex h-full w-full items-center justify-center text-xl">⋮</div>;
-    return <ActionMenuNodeView isPreview={isPreview && !renderStatic} itemLabel={itemLabel} label={props.label} onSelect={onValueChange} options={props.options} menuStyle={menuStyle} />;
+    const iconStyle = props.menuIconSize ? { fontSize: `${props.menuIconSize}px` } : undefined;
+    if (renderStatic || !isPreview) return <div aria-hidden="true" className="novy-widget-text flex h-full w-full items-center justify-center text-xl" style={iconStyle}>⋮</div>;
+    return <ActionMenuNodeView
+      backgroundColor={props.menuBackgroundColor}
+      hoverColor={props.menuHoverColor}
+      iconSize={props.menuIconSize}
+      isPreview={isPreview && !renderStatic}
+      itemLabel={itemLabel}
+      label={props.label}
+      onSelect={onValueChange}
+      options={props.options}
+      menuStyle={menuStyle}
+      textColor={props.menuTextColor}
+    />;
   }
   return <SelectNodeView appearance={appearance} isPreview={isPreview} onValueChange={onValueChange} props={props} renderStatic={renderStatic} value={value} />;
 }

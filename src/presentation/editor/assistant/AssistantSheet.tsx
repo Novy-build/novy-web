@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
-import { ArrowUp, Bot, ChevronDown, Image as ImageIcon, MessageCircle, Plus, Shield, X } from 'lucide-react';
-import type { AssistantImageAttachment } from '@domain/entities/assistant';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { ArrowUp, Bot, ChevronDown, ChevronLeft, ChevronRight, MessageCircle, Plus, RefreshCw, Shield, X } from 'lucide-react';
+import type { AssistantReferenceAttachment } from '@domain/entities/assistant';
 import { useDialogFocus } from '@presentation/hooks/useDialogFocus';
 import type { AssistantConversation, AssistantMessage, AssistantMode } from './useAssistantConversation';
 import { AssistantActivityIndicator } from './AssistantActivityIndicator';
@@ -11,6 +11,8 @@ import { AssistantProposalCard } from './AssistantProposalCard';
 import { AssistantProposalActions } from './AssistantProposalActions';
 import { assistantPreviewCollections, assistantProposalTitle } from './assistantProposalPreview';
 import { PreviewOverlay } from '../workspace/PreviewOverlay';
+import { VisualCaptureStage } from './VisualCaptureStage';
+import { captureScreenFrames, screensForCapture } from './visualCapture';
 
 interface AssistantSheetProps {
   conversation: AssistantConversation;
@@ -21,9 +23,12 @@ interface AssistantSheetProps {
 
 export function AssistantSheet({ conversation, onClose, helpRequest }: AssistantSheetProps) {
   const {
-    messages, mode, isWorking, operation, isAvailable, providers, selectedProviderId,
-    setSelectedProviderId, selectedModelId, setSelectedModelId,
-    setMode, send, accept, reject,
+    messages, mode, isWorking, operation, isAvailable, providers,
+    capabilitiesStatus, capabilitiesError, reloadCapabilities, designPipelineV2,
+    referenceLimits, pendingReferences,
+    selectedProviderId, setSelectedProviderId, selectedModelId, setSelectedModelId,
+    qualityMode, setQualityMode,
+    setMode, send, accept, reviewVisual, continueUnreviewed, reject,
   } = conversation;
   const visibleMessages = useMemo(() => messages.filter((message) => message.mode === mode), [messages, mode]);
   const pendingMessage = [...visibleMessages].reverse().find((message) => message.status === 'pending' && message.proposal);
@@ -31,12 +36,34 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
   const previewMessage = messages.find((message) => message.id === previewMessageId);
   const previewProposal = previewMessage?.proposal;
   const previewCollections = useMemo(() => previewProposal ? assistantPreviewCollections(previewProposal) : [], [previewProposal]);
+  const previewSeedRecords = useMemo(() => {
+    const records = previewProposal?.preview.seedRecords;
+    if (!records) return undefined;
+    return Object.fromEntries(previewProposal.blueprint.collections.flatMap((collection, index) => {
+      const collectionId = previewCollections[index]?.id;
+      const values = records[collection.key];
+      return collectionId && values ? [[collectionId, values]] : [];
+    }));
+  }, [previewCollections, previewProposal]);
   const [isRefining, setIsRefining] = useState(false);
   const [draft, setDraft] = useState('');
-  const [image, setImage] = useState<AssistantImageAttachment | null>(null);
+  const [references, setReferences] = useState<AssistantReferenceAttachment[]>([]);
   const [imageError, setImageError] = useState('');
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [reviewState, setReviewState] = useState<{
+    messageId: string;
+    phase: 'capturing' | 'reviewing' | 'error';
+    error?: string;
+  } | null>(null);
+  const reviewStateRef = useRef(reviewState);
+  reviewStateRef.current = reviewState;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const captureStartedRef = useRef(false);
+  const reviewProposal = reviewState
+    ? messages.find((message) => message.id === reviewState.messageId)?.proposal
+    : undefined;
   const [appliedHelpToken, setAppliedHelpToken] = useState<number | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const focusTargetRef = useRef<HTMLElement | null>(null);
@@ -50,6 +77,8 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
     if (!helpRequest || appliedHelpToken === helpRequest.token) return;
     setAppliedHelpToken(helpRequest.token);
     setIsRefining(false);
+    setReferences([]);
+    setImageError('');
     setDraft(helpRequest.query);
     setMode('help');
     inputRef.current?.focus();
@@ -73,17 +102,26 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
 
   function selectMode(nextMode: AssistantMode): void {
     setMode(nextMode);
+    setReferences([]);
+    setImageError('');
     closeModeMenuAndFocusChip();
   }
 
   function openModelSettings(): void {
     setIsModeMenuOpen(false);
     setIsSettingsOpen(true);
+    // A fresh look at the provider controls retries a previously failed probe.
+    if (capabilitiesStatus === 'error') reloadCapabilities();
   }
 
   function closeModelSettings(): void {
     setIsSettingsOpen(false);
     settingsButtonRef.current?.focus();
+  }
+
+  function toggleModelSettings(): void {
+    if (isSettingsOpen) closeModelSettings();
+    else openModelSettings();
   }
 
   useEffect(() => {
@@ -95,14 +133,47 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
   }, [visibleMessages, isWorking]);
 
   function submitDraft(): void {
-    if (!draft.trim() || isWorking) return;
+    if ((!draft.trim() && (!designPipelineV2 || references.length === 0)) || isWorking) return;
     const message = draft;
     setDraft('');
     setIsRefining(false);
-    const images = image ? [image] : [];
-    setImage(null);
+    const submittedReferences = references;
+    setReferences([]);
     setImageError('');
-    void send(message, images);
+    void send(message, submittedReferences);
+  }
+
+  const handleCaptureReady = useCallback((container: HTMLElement): void => {
+    const state = reviewStateRef.current;
+    if (!state || state.phase !== 'capturing' || captureStartedRef.current) return;
+    captureStartedRef.current = true;
+    const proposal = messagesRef.current.find((message) => message.id === state.messageId)?.proposal;
+    const requests = proposal?.visualReview?.captureRequests;
+    if (!proposal || !requests?.length) return;
+    void (async () => {
+      try {
+        const captures = await captureScreenFrames(container, requests);
+        setReviewState({ messageId: state.messageId, phase: 'reviewing' });
+        await reviewVisual(state.messageId, captures);
+        setReviewState(null);
+      } catch {
+        setReviewState({
+          messageId: state.messageId,
+          phase: 'error',
+          error: 'Visual review could not be completed. Your draft was not changed.',
+        });
+      }
+    })();
+  }, [reviewVisual]);
+
+  const handleCaptureError = useCallback((message: string): void => {
+    const state = reviewStateRef.current;
+    if (state) setReviewState({ ...state, phase: 'error', error: message });
+  }, []);
+
+  function startVisualReview(messageId: string): void {
+    captureStartedRef.current = false;
+    setReviewState({ messageId, phase: 'capturing' });
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
@@ -131,46 +202,92 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
 
   function refineDraft(): void {
     setIsRefining(true);
+    setReferences(pendingReferences);
     inputRef.current?.focus();
   }
 
-  async function handleImage(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = event.target.files?.[0];
+  async function handleImages(
+    event: ChangeEvent<HTMLInputElement>,
+    replaceIndex?: number,
+  ): Promise<void> {
+    const files = [...(event.target.files ?? [])];
     event.target.value = '';
-    if (!file) return;
+    if (files.length === 0) return;
     const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
-    if (!allowed.includes(file.type as typeof allowed[number])) {
-      setImageError('Choose a PNG, JPEG, GIF, or WebP image.');
+    const selectedFiles = replaceIndex === undefined ? files : files.slice(0, 1);
+    const retained = replaceIndex === undefined
+      ? references
+      : references.filter((_, index) => index !== replaceIndex);
+    if (retained.length + selectedFiles.length > maxReferenceCount) {
+      setImageError(`Attach at most ${maxReferenceCount} design references for this model.`);
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      setImageError('Images must not exceed 3 MiB.');
+    if (selectedFiles.some((file) => !allowed.includes(file.type as typeof allowed[number]))) {
+      setImageError('Choose PNG, JPEG, GIF, or WebP references.');
       return;
     }
-    let dataUrl: string;
+    if (selectedFiles.some((file) => file.size > referenceLimits.maxBytesEach)) {
+      setImageError(`Each reference must not exceed ${formatMiB(referenceLimits.maxBytesEach)}.`);
+      return;
+    }
+    const retainedBytes = retained.reduce(
+      (total, reference) => total + base64ByteLength(reference.contentBase64),
+      0,
+    );
+    if (retainedBytes + selectedFiles.reduce((total, file) => total + file.size, 0) > referenceLimits.maxBytesTotal) {
+      setImageError(`References must not exceed ${formatMiB(referenceLimits.maxBytesTotal)} in total.`);
+      return;
+    }
+    let additions: AssistantReferenceAttachment[];
     try {
-      dataUrl = await readAsDataUrl(file);
+      additions = await Promise.all(selectedFiles.map(async (file, offset) => {
+        const dataUrl = await readAsDataUrl(file);
+        const encoded = dataUrl.split(',', 2)[1];
+        if (!encoded) throw new Error('Could not read image.');
+        return {
+          name: safeReferenceName(file.name),
+          mimeType: file.type as AssistantReferenceAttachment['mimeType'],
+          contentBase64: encoded,
+          role: replaceIndex === undefined
+            ? 'design-reference'
+            : references[replaceIndex]?.role ?? 'design-reference',
+          order: replaceIndex ?? retained.length + offset,
+        };
+      }));
     } catch {
-      setImageError('The image could not be read.');
+      setImageError('One or more references could not be read.');
       return;
     }
-    const encoded = dataUrl.split(',', 2)[1];
-    if (!encoded) {
-      setImageError('The image could not be read.');
-      return;
-    }
-    setImage({
-      name: file.name.slice(0, 120),
-      mimeType: file.type as AssistantImageAttachment['mimeType'],
-      contentBase64: encoded,
-    });
+    const next = replaceIndex === undefined
+      ? [...references, ...additions]
+      : references.map((reference, index) => index === replaceIndex ? additions[0]! : reference);
+    setReferences(canonicalReferences(next));
     setImageError('');
+  }
+
+  function removeReference(index: number): void {
+    setReferences((current) => canonicalReferences(current.filter((_, candidate) => candidate !== index)));
+    setImageError('');
+  }
+
+  function moveReference(index: number, direction: -1 | 1): void {
+    setReferences((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target]!, next[index]!];
+      return canonicalReferences(next);
+    });
   }
 
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId);
   const selectedModel = selectedProvider?.models.find((model) => model.id === selectedModelId);
   const selectedCapability = selectedModel ?? selectedProvider;
-  const imageUnsupported = Boolean(image && selectedCapability && !selectedCapability.imageInput);
+  const maxReferenceCount = Math.min(
+    referenceLimits.maxCount,
+    selectedCapability?.maxImages ?? referenceLimits.maxCount,
+  );
+  const imageUnsupported = Boolean(references.length > 0 && selectedCapability && !selectedCapability.imageInput);
   const providerUnavailable = Boolean(selectedCapability && !selectedCapability.available);
 
   return (
@@ -190,9 +307,15 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
           <div>
             <h2 className="text-base font-semibold text-ink" id="assistant-title">AI assistant</h2>
             <p className="mt-1 inline-block rounded-full bg-canvas px-2 py-0.5 text-[11px] font-medium text-ink-muted">
-              {isAvailable && selectedProvider
-                ? `${selectedModel?.name ?? assistantProviderLabel(selectedProvider.id)} · ${selectedCapability?.location === 'local' ? 'local' : 'remote processing'}`
-                : isAvailable ? 'Loading assistant providers…' : 'Backend connection required'}
+              {!isAvailable
+                ? 'Backend connection required'
+                : capabilitiesStatus === 'loading'
+                  ? 'Loading assistant providers…'
+                  : capabilitiesStatus === 'error'
+                    ? <>Couldn't load providers · <button className="underline transition-colors hover:text-ink" onClick={reloadCapabilities} title={capabilitiesError ?? undefined} type="button">Retry</button></>
+                    : selectedProvider
+                      ? `${selectedModel?.name ?? assistantProviderLabel(selectedProvider.id)} · ${selectedCapability?.location === 'local' ? 'local' : 'remote processing'}`
+                      : 'No assistant providers configured'}
             </p>
           </div>
           <button aria-label="Close assistant" className="flex min-h-11 min-w-11 items-center justify-center rounded-tile text-lg leading-none text-ink-muted transition-colors hover:bg-canvas hover:text-ink" onClick={onClose} type="button">×</button>
@@ -219,6 +342,65 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
           <AssistantActivityIndicator hasPendingDraft={Boolean(pendingMessage)} operation={operation} />
         </div>
 
+        {reviewState && reviewState.phase === 'capturing' && reviewProposal ? (
+          <VisualCaptureStage
+            designSystem={reviewProposal.preview.document.designSystem}
+            onError={handleCaptureError}
+            onReady={handleCaptureReady}
+            requests={reviewProposal.visualReview?.captureRequests ?? []}
+            screens={screensForCapture(
+              reviewProposal.preview.document,
+              reviewProposal.visualReview?.captureRequests ?? [],
+            )}
+          />
+        ) : null}
+        {designPipelineV2 && pendingMessage?.proposal?.visualReview?.required
+          && pendingMessage.proposal.visualReview.status !== 'reviewed'
+          && pendingMessage.proposal.visualReview.status !== 'continued-unreviewed' ? (
+          <div className="border-t border-hairline p-3" data-testid="assistant-visual-review-panel">
+            <p className="mb-2 text-xs text-ink-muted">
+              Compare the rendered draft with your references before applying it. Captures stay in
+              memory and are sent only to the explicitly selected provider.
+            </p>
+            {reviewState?.phase === 'error' ? (
+              <p className="mb-2 text-xs text-red-600" role="alert">{reviewState.error}</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="min-h-11 rounded-tile bg-brand-600 px-3 text-sm font-semibold text-white"
+                disabled={isWorking || reviewState?.phase === 'reviewing' || reviewState?.phase === 'capturing'}
+                onClick={() => startVisualReview(pendingMessage.id)}
+                type="button"
+              >
+                {reviewState?.phase === 'error' ? 'Retry visual review' : 'Review visual match'}
+              </button>
+              {reviewState?.phase === 'error' ? (
+                <>
+                  <button
+                    className="min-h-11 rounded-tile border border-hairline px-3 text-sm text-ink"
+                    onClick={() => {
+                      continueUnreviewed(pendingMessage.id);
+                      setReviewState(null);
+                    }}
+                    type="button"
+                  >
+                    Continue without review
+                  </button>
+                  <button
+                    className="min-h-11 rounded-tile px-3 text-sm text-ink-muted"
+                    onClick={() => setReviewState(null)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : null}
+            </div>
+            {reviewState?.phase === 'reviewing' ? (
+              <p className="mt-2 text-xs text-ink-muted" aria-live="polite">Comparing rendered screens…</p>
+            ) : null}
+          </div>
+        ) : null}
         {pendingMessage?.proposal ? (
           <AssistantProposalActions
             canApply={pendingMessage.proposal.verification?.passed !== false}
@@ -226,8 +408,16 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
             isApplying={operation === 'apply'}
             isWorking={isWorking}
             key={pendingMessage.id}
-            onAccept={() => accept(pendingMessage.id)}
-            onDiscard={() => reject(pendingMessage.id)}
+            onAccept={async () => {
+              setReferences([]);
+              setIsRefining(false);
+              await accept(pendingMessage.id);
+            }}
+            onDiscard={() => {
+              setReferences([]);
+              setIsRefining(false);
+              reject(pendingMessage.id);
+            }}
             onRefine={refineDraft}
           />
         ) : null}
@@ -238,21 +428,64 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
               {selectedModel?.usageNote || 'This remote provider may incur usage charges.'}
             </p>
           ) : null}
+          {designPipelineV2 && mode === 'build' ? (
+            <fieldset className="mb-2 flex flex-wrap items-center gap-3">
+              <legend className="sr-only">Generation quality</legend>
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-ink">
+                <input
+                  checked={qualityMode === 'standard'}
+                  disabled={isWorking}
+                  name="assistant-quality"
+                  onChange={() => setQualityMode('standard')}
+                  type="radio"
+                />
+                Standard
+              </label>
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-ink">
+                <input
+                  checked={qualityMode === 'high-fidelity'}
+                  disabled={isWorking}
+                  name="assistant-quality"
+                  onChange={() => setQualityMode('high-fidelity')}
+                  type="radio"
+                />
+                High fidelity
+              </label>
+              {qualityMode === 'high-fidelity' ? (
+                <p className="w-full text-xs text-ink-muted" data-testid="assistant-quality-disclosure">
+                  High fidelity runs additional bounded model stages, including a design review pass.
+                  It can take several minutes with GPT-6.1 Terra. With a remote provider, references
+                  and previews leave Novy and may incur cost. If a stage fails, no lower-fidelity
+                  draft is substituted.
+                </p>
+              ) : null}
+            </fieldset>
+          ) : null}
           {isRefining && pendingMessage ? <p className="mb-2 text-xs text-ink-muted">Describe what you’d like to change. Your current draft stays until a new one is ready.</p> : null}
           <div className="relative rounded-panel border border-hairline bg-surface p-2 transition-colors focus-within:border-brand-600">
-            {image ? (
-              <div className="mb-2 flex items-center gap-2 rounded-tile bg-canvas px-2 py-1.5 text-xs">
-                <ImageIcon aria-hidden="true" className="shrink-0 text-ink-muted" size={14} />
-                <span className="min-w-0 flex-1 truncate text-ink">Image: {image.name}</span>
-                <button
-                  aria-label="Remove image"
-                  className="rounded-tile p-0.5 text-ink-muted transition-colors hover:text-ink"
-                  onClick={() => setImage(null)}
-                  type="button"
-                >
-                  <X aria-hidden="true" size={14} />
-                </button>
-              </div>
+            {references.length > 0 ? (
+              <ul aria-label="Design references" className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {references.map((reference, index) => (
+                  <li className="min-w-0 rounded-tile border border-hairline bg-canvas p-2" key={`${reference.name}-${index}`}>
+                    <img
+                      alt={`Preview of ${reference.name}`}
+                      className="h-16 w-full rounded-tile object-cover"
+                      src={`data:${reference.mimeType};base64,${reference.contentBase64}`}
+                    />
+                    <p className="mt-1 truncate text-xs text-ink" title={reference.name}>{index + 1}. {reference.name}</p>
+                    <div className="mt-1 flex items-center justify-between gap-1">
+                      <button aria-label={`Move ${reference.name} earlier`} className="flex h-11 w-11 items-center justify-center rounded-tile text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-30" disabled={index === 0} onClick={() => moveReference(index, -1)} type="button"><ChevronLeft aria-hidden="true" size={16} /></button>
+                      <button aria-label={`Move ${reference.name} later`} className="flex h-11 w-11 items-center justify-center rounded-tile text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-30" disabled={index === references.length - 1} onClick={() => moveReference(index, 1)} type="button"><ChevronRight aria-hidden="true" size={16} /></button>
+                      <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-tile text-ink-muted hover:bg-surface hover:text-ink">
+                        <RefreshCw aria-hidden="true" size={15} />
+                        <span className="sr-only">Replace {reference.name}</span>
+                        <input accept="image/png,image/jpeg,image/gif,image/webp" aria-label={`Replace ${reference.name}`} className="sr-only" disabled={isWorking} onChange={(event) => void handleImages(event, index)} type="file" />
+                      </label>
+                      <button aria-label={`Remove ${reference.name}`} className="flex h-11 w-11 items-center justify-center rounded-tile text-ink-muted hover:bg-surface hover:text-ink" onClick={() => removeReference(index)} type="button"><X aria-hidden="true" size={16} /></button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             ) : null}
             {imageError ? <p className="mb-2 text-xs text-red-600" role="alert">{imageError}</p> : null}
             {imageUnsupported ? <p className="mb-2 text-xs text-red-600" role="alert">The selected model does not support images.</p> : null}
@@ -271,15 +504,16 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
               value={draft}
             />
             <div className="mt-1 flex items-center gap-1.5">
-              <label className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-tile text-ink-muted transition-colors hover:bg-canvas hover:text-ink">
+              <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-tile text-ink-muted transition-colors hover:bg-canvas hover:text-ink has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40">
                 <Plus aria-hidden="true" size={18} />
-                <span className="sr-only">Attach image</span>
+                <span className="sr-only">Attach design references</span>
                 <input
                   accept="image/png,image/jpeg,image/gif,image/webp"
-                  aria-label="Attach image"
+                  aria-label="Attach design references"
                   className="sr-only"
-                  disabled={isWorking}
-                  onChange={(event) => void handleImage(event)}
+                  disabled={isWorking || imageUnsupported || references.length >= maxReferenceCount}
+                  multiple={designPipelineV2}
+                  onChange={(event) => void handleImages(event)}
                   type="file"
                 />
               </label>
@@ -319,7 +553,7 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
                   aria-label="Model settings"
                   className="flex h-8 w-8 items-center justify-center rounded-tile text-ink-muted transition-colors hover:bg-canvas hover:text-ink focus-visible:outline-2 focus-visible:outline-brand-600"
                   data-assistant-settings-trigger
-                  onClick={() => setIsSettingsOpen((open) => !open)}
+                  onClick={toggleModelSettings}
                   ref={settingsButtonRef}
                   title="Model settings"
                   type="button"
@@ -331,7 +565,12 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
               <button
                 aria-label="Send"
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={draft.trim().length === 0 || isWorking || imageUnsupported || providerUnavailable}
+                disabled={
+                  (draft.trim().length === 0 && (!designPipelineV2 || references.length === 0))
+                  || isWorking
+                  || imageUnsupported
+                  || providerUnavailable
+                }
                 type="submit"
               >
                 <ArrowUp aria-hidden="true" size={18} />
@@ -342,6 +581,9 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
                 isWorking={isWorking}
                 onClose={closeModelSettings}
                 providers={providers}
+                capabilitiesStatus={capabilitiesStatus}
+                capabilitiesError={capabilitiesError}
+                onReloadCapabilities={reloadCapabilities}
                 selectedModelId={selectedModelId}
                 selectedProviderId={selectedProviderId}
                 setSelectedModelId={setSelectedModelId}
@@ -360,6 +602,7 @@ export function AssistantSheet({ conversation, onClose, helpRequest }: Assistant
           projectType={conversation.projectType}
           sandboxOnly
           screens={previewProposal.preview.document.screens}
+          seedRecords={previewSeedRecords}
         />
       ) : null}
     </div>
@@ -373,6 +616,26 @@ function readAsDataUrl(file: File): Promise<string> {
     reader.addEventListener('error', () => reject(reader.error ?? new Error('Could not read image.')));
     reader.readAsDataURL(file);
   });
+}
+
+function canonicalReferences(
+  references: AssistantReferenceAttachment[],
+): AssistantReferenceAttachment[] {
+  return references.map((reference, order) => ({ ...reference, order }));
+}
+
+function base64ByteLength(contentBase64: string): number {
+  const padding = contentBase64.endsWith('==') ? 2 : contentBase64.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor(contentBase64.length * 3 / 4) - padding);
+}
+
+function formatMiB(bytes: number): string {
+  const value = bytes / (1024 * 1024);
+  return `${Number.isInteger(value) ? value : value.toFixed(1)} MiB`;
+}
+
+function safeReferenceName(name: string): string {
+  return name.replace(/[\\/\0]/g, '-').slice(0, 120) || 'reference';
 }
 
 function MessageRow({

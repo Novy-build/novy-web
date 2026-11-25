@@ -4,7 +4,7 @@ import type { EditorAction } from '../state/editorState';
 import { Inspector } from './Inspector';
 import { makeButton, makeColumn, makeContainer, makeImage, makeListView, makeText } from '@test/editorFixtures';
 import type { DataCollection } from '@domain/entities/appData';
-import { createPadding } from '@domain/entities/componentNode';
+import { createPadding, type DropdownNode } from '@domain/entities/componentNode';
 import { createComponentNode } from '@domain/factories/componentNode';
 
 const COLLECTION: DataCollection = {
@@ -55,6 +55,27 @@ function renderInspector(
 }
 
 describe('Inspector', () => {
+  it('edits chat content typography and surface tokens', async () => {
+    const node = createComponentNode('chat');
+    const { onAction } = renderInspector(node);
+
+    const headerSize = screen.getAllByRole('combobox', { name: 'Chat Size' })[0];
+    fireEvent.change(headerSize, { target: { value: 'large' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-chat',
+      nodeId: node.id,
+      props: expect.objectContaining({ style: expect.objectContaining({ headerTextSize: 'large' }) }),
+    });
+
+    const sendWeight = screen.getAllByRole('combobox', { name: 'Chat Text weight' })[0];
+    fireEvent.change(sendWeight, { target: { value: 'bold' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-chat',
+      nodeId: node.id,
+      props: expect.objectContaining({ style: expect.objectContaining({ sendTextWeight: 'bold' }) }),
+    });
+  });
+
   it('offers a reusable actions-menu presentation and accepts newline-separated options', () => {
     const node = createComponentNode('dropdown');
     const { onAction } = renderInspector(node);
@@ -267,6 +288,76 @@ describe('Inspector', () => {
     });
   });
 
+  it('offers a transparent background through the quick token and field toggle', () => {
+    const { onAction } = renderInspector(makeButton('node_1'));
+
+    fireEvent.change(screen.getByLabelText('Quick background token'), { target: { value: 'transparent' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'node_1',
+      appearance: { backgroundColor: 'transparent', gradient: undefined },
+      clearDark: 'backgroundColor',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Background transparent' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'node_1',
+      appearance: { backgroundColor: 'transparent' },
+      clearDark: 'backgroundColor',
+    });
+  });
+
+  it('edits the Actions menu dots size', () => {
+    const dropdown = createComponentNode('dropdown') as DropdownNode;
+    const { onAction } = renderInspector({
+      ...dropdown,
+      props: { ...dropdown.props, presentation: 'menu' },
+    });
+
+    fireEvent.change(screen.getByLabelText('Dots size (px)'), { target: { value: '36' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-dropdown',
+      nodeId: dropdown.id,
+      props: { menuIconSize: 36 },
+    });
+
+    fireEvent.change(screen.getByLabelText('Menu background'), { target: { value: '#123456' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-dropdown',
+      nodeId: dropdown.id,
+      props: { menuBackgroundColor: '#123456' },
+    });
+    fireEvent.change(screen.getByLabelText('Menu text'), { target: { value: '#ffffff' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-dropdown',
+      nodeId: dropdown.id,
+      props: { menuTextColor: '#ffffff' },
+    });
+    fireEvent.change(screen.getByLabelText('Hover background'), { target: { value: '#654321' } });
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/props-dropdown',
+      nodeId: dropdown.id,
+      props: { menuHoverColor: '#654321' },
+    });
+  });
+
+  it('shows and clears an active dark text color override', () => {
+    const node = makeText('node_1', {
+      appearance: { textColor: '#ffffff', dark: { textColor: '#9ca3af' } },
+    });
+    const { onAction } = renderInspector(node);
+
+    expect(screen.getByText(/Dark theme text:/)).toHaveTextContent('#9ca3af');
+    fireEvent.click(screen.getByRole('button', { name: 'Clear dark override' }));
+    expect(onAction).toHaveBeenLastCalledWith({
+      type: 'node/appearance',
+      nodeId: 'node_1',
+      appearance: { textColor: '#ffffff', dark: { textColor: '#9ca3af' } },
+      clearDark: 'textColor',
+    });
+  });
+
   it('sets base and dark appearance colors through the color pickers', () => {
     const node = makeButton('node_1', {
       appearance: {
@@ -331,14 +422,16 @@ describe('Inspector', () => {
     const input = createComponentNode('input');
     const { onAction } = renderInspector(input);
 
-    fireEvent.change(screen.getByLabelText('Font size (px)'), { target: { value: '22' } });
+    const fontSize = document.querySelector('input[name="inspector-input-text-font-size"]');
+    expect(fontSize).not.toBeNull();
+    fireEvent.change(fontSize!, { target: { value: '22' } });
     expect(onAction).toHaveBeenLastCalledWith({
       type: 'node/props-input',
       nodeId: input.id,
       props: { textStyle: { fontSize: 22 } },
     });
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Italic' }));
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Italic' })[1]!);
     expect(onAction).toHaveBeenLastCalledWith({
       type: 'node/props-input',
       nodeId: input.id,

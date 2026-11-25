@@ -107,6 +107,8 @@ export interface GeneratedLayoutDTO {
     path: string;
     routeParameters?: readonly GeneratedRouteParameterDTO[];
     appearance?: ComponentAppearance;
+    viewportFill?: boolean;
+    bottomAnchorNodeId?: string;
     nodes: readonly GeneratedLayoutNodeDTO[];
   }[];
 }

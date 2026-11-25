@@ -19,6 +19,48 @@ describe('DesignSystemInspector field help', () => {
   });
 });
 
+describe('DesignSystemInspector Phase 5 layout intent', () => {
+  it('persists an explicit default app theme', () => {
+    const onAction = vi.fn();
+    render(<DesignSystemInspector onAction={onAction} screen={makeScreen('home', [])} />);
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Default theme' }), {
+      target: { value: 'dark' },
+    });
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'design/system',
+      designSystem: { ...DEFAULT_APP_DESIGN_SYSTEM, defaultTheme: 'dark' },
+    });
+  });
+
+  it('edits viewport fill and bottom anchoring without changing component geometry', () => {
+    const onAction = vi.fn();
+    const screenValue = makeScreen('home', [{
+      id: 'button_primary', type: 'button', x: 40, y: 520, w: 200, h: 44,
+      props: { label: 'Continue', variant: 'solid' },
+    }]);
+    render(<DesignSystemInspector onAction={onAction} screen={screenValue} />);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Fill viewport height' }));
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'screen/layout-intent',
+      screenId: 'home',
+      viewportFill: true,
+      bottomAnchorNodeId: undefined,
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Bottom action' }), {
+      target: { value: 'button_primary' },
+    });
+    expect(onAction).toHaveBeenCalledWith({
+      type: 'screen/layout-intent',
+      screenId: 'home',
+      viewportFill: false,
+      bottomAnchorNodeId: 'button_primary',
+    });
+    expect(screen.getByRole('option', { name: 'Continue' })).toBeInTheDocument();
+  });
+});
+
 describe('DesignSystemInspector typography', () => {
   it('uses font previews for both project font fields without permitting self-referencing app fonts', () => {
     const onAction = vi.fn();

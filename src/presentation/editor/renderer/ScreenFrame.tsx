@@ -10,6 +10,7 @@ import { useDocumentAppTheme } from './useDocumentAppTheme';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
 import { designSystemCssVariables } from '@domain/entities/designSystem';
 import type { ComponentAppearance } from '@domain/entities/componentNode';
+import { viewportFillStyle } from '@domain/entities/layoutIntent';
 
 /** Design-space dimensions rendered by ScreenFrame (MVP presets). */
 export interface ScreenFrameSize {
@@ -105,6 +106,7 @@ export function ScreenFrame({
         style={{
           height: size.height,
           width: size.width,
+          ...viewportFillStyle(screen?.viewportFill === true, size.height),
           transform: scale === 1 ? undefined : `scale(${scale})`,
           transformOrigin: 'top left',
           ...designVariables,
@@ -130,6 +132,7 @@ export function ScreenFrame({
             onSelect={onSelectNode}
             selected={selectedNodeId === node.id}
             selectedNodeId={selectedNodeId}
+            bottomAnchored={screen?.viewportFill === true && node.id === screen.bottomAnchorNodeId}
           />
         ))}
       </div>

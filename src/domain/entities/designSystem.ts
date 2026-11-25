@@ -34,6 +34,8 @@ export interface DesignRadiusTokens {
   pill: number;
 }
 
+export type DesignThemePreference = 'light' | 'dark' | 'system';
+
 export interface NamedComponentStyle {
   id: string;
   name: string;
@@ -49,6 +51,8 @@ export interface AppDesignSystem {
   typography: DesignTypographyTokens;
   radii: DesignRadiusTokens;
   styles: NamedComponentStyle[];
+  /** Project-level default for generated and previewed apps. Legacy documents omit it. */
+  defaultTheme?: DesignThemePreference;
 }
 
 export const DEFAULT_APP_DESIGN_SYSTEM: AppDesignSystem = {
@@ -84,6 +88,7 @@ export const DEFAULT_APP_DESIGN_SYSTEM: AppDesignSystem = {
   },
   radii: { small: 6, medium: 12, large: 24, pill: 999 },
   styles: [],
+  defaultTheme: 'system',
 };
 
 export function normalizeDesignSystem(value: AppDesignSystem | undefined): AppDesignSystem {
@@ -94,6 +99,11 @@ export function normalizeDesignSystem(value: AppDesignSystem | undefined): AppDe
     typography: { ...DEFAULT_APP_DESIGN_SYSTEM.typography, ...value.typography },
     radii: { ...DEFAULT_APP_DESIGN_SYSTEM.radii, ...value.radii },
     styles: Array.isArray(value.styles) ? structuredClone(value.styles) : [],
+    defaultTheme: (
+      value.defaultTheme === 'light'
+      || value.defaultTheme === 'dark'
+      || value.defaultTheme === 'system'
+    ) ? value.defaultTheme : 'system',
   };
 }
 

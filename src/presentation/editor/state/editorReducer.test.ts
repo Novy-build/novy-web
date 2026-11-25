@@ -52,6 +52,22 @@ describe('responsive italic styling', () => {
   });
 });
 
+describe('screen layout intent', () => {
+  it('stores viewport fill and bottom anchor with undo support', () => {
+    const initial = createEditorState(DOCUMENT);
+    const next = editorReducer(initial, {
+      type: 'screen/layout-intent',
+      screenId: 'screen_1',
+      viewportFill: true,
+      bottomAnchorNodeId: 'node_button',
+    });
+    expect(getActiveScreen(next).viewportFill).toBe(true);
+    expect(getActiveScreen(next).bottomAnchorNodeId).toBe('node_button');
+    expect(next.past).toHaveLength(1);
+    expect(editorReducer(next, { type: 'history/undo' }).document).toEqual(initial.document);
+  });
+});
+
 /** Convenience: build state fresh per reducer step (no cross-test leakage). */
 function stateAt(pastCount = 0): ReturnType<typeof createEditorState> {
   return {
@@ -1764,6 +1780,31 @@ describe('autosave + chrome', () => {
       appearance: { textColor: '#111111', dark: { textColor: '#9ca3af' } },
     });
     state = { ...state, device: 'desktop' };
+    state = editorReducer(state, {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { textColor: '#ffffff', dark: { textColor: '#9ca3af' } },
+      clearDark: 'textColor',
+    });
+
+    const node = findNodeInScreen(getActiveScreen(state), 'node_button');
+    expect(node?.appearance?.dark?.textColor).toBeUndefined();
+    expect(node?.responsive?.desktop?.appearance?.dark?.textColor).toBeUndefined();
+  });
+
+  it('clears responsive dark overrides when the base color is edited on Mobile', () => {
+    let state = editorReducer(stateAt(), {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { textColor: '#111111', dark: { textColor: '#9ca3af' } },
+    });
+    state = { ...state, device: 'desktop' };
+    state = editorReducer(state, {
+      type: 'node/appearance',
+      nodeId: 'node_button',
+      appearance: { textColor: '#111111', dark: { textColor: '#9ca3af' } },
+    });
+    state = { ...state, device: 'mobile' };
     state = editorReducer(state, {
       type: 'node/appearance',
       nodeId: 'node_button',

@@ -1,8 +1,8 @@
-import { CheckCircle2, CircleAlert, ExternalLink } from 'lucide-react';
+import { CheckCircle2, CircleAlert, ExternalLink, Gauge } from 'lucide-react';
 import type { AssistantProposalV1 } from '@domain/entities/assistant';
 import { ScreenFrame } from '../renderer/ScreenFrame';
 import type { AssistantProposalStatus } from './useAssistantConversation';
-import { assistantProposalTitle } from './assistantProposalPreview';
+import { assistantProposalRagDisclosure, assistantProposalTitle } from './assistantProposalPreview';
 
 interface AssistantProposalCardProps {
   proposal: AssistantProposalV1;
@@ -18,6 +18,7 @@ export function AssistantProposalCard({ proposal, status, onPreview, onContinue 
   const verification = proposal.verification;
   const failed = verification?.passed === false;
   const historical = status === 'rejected' || status === 'superseded';
+  const rag = assistantProposalRagDisclosure(proposal);
 
   if (historical) {
     return (
@@ -62,6 +63,58 @@ export function AssistantProposalCard({ proposal, status, onPreview, onContinue 
           {proposal.blueprint.screens.length} {proposal.blueprint.screens.length === 1 ? 'screen' : 'screens'}
           {' · '}{proposal.blueprint.collections.length} data {proposal.blueprint.collections.length === 1 ? 'collection' : 'collections'}
         </p>
+        {rag.usesRag ? (
+          <p className="rounded-tile bg-canvas p-2.5 text-xs text-ink-muted" data-testid="assistant-rag-disclosure">
+            Document upload and grounded answers run through Novy’s backend RAG pipeline with the
+            explicitly selected profiles. Raw files and provider credentials stay on the backend
+            and are never bundled into your exported app.
+            {rag.remoteProfiles.length
+              ? ` Remote profile ${rag.remoteProfiles.join(', ')} sends prompts and retrieved context outside Novy and may incur cost.`
+              : ''}
+          </p>
+        ) : null}
+
+        {proposal.feasibility ? (
+          <section aria-label="Design feasibility" className="rounded-tile border border-hairline bg-canvas p-3 text-xs">
+            <p className="flex items-center gap-2 font-medium text-ink">
+              <Gauge aria-hidden="true" size={16} />
+              Design match · {proposal.feasibility.predictedFidelity}% predicted fidelity
+            </p>
+            <p className="mt-1 leading-relaxed text-ink-muted">{proposal.feasibility.summary}</p>
+            {proposal.feasibility.notices.length ? (
+              <details className="mt-2 border-t border-hairline">
+                <summary className="cursor-pointer py-2 font-medium text-ink focus-visible:outline-2 focus-visible:outline-brand-600">
+                  Fidelity notes ({proposal.feasibility.notices.length})
+                </summary>
+                <ul className="space-y-2 pb-1">
+                  {proposal.feasibility.notices.map((notice, index) => (
+                    <li className="rounded-tile bg-surface p-2 text-ink-muted" key={`${notice.requirement}-${index}`}>
+                      <p className="font-medium text-ink">{notice.severity[0]!.toUpperCase()}{notice.severity.slice(1)} approximation</p>
+                      <p className="mt-1">{notice.impact}</p>
+                      {notice.safeAlternative ? <p className="mt-1">Safe alternative: {notice.safeAlternative}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </section>
+        ) : null}
+
+        {proposal.seedRecordCount ? (
+          <section aria-label="Seed data" className="rounded-tile border border-hairline bg-canvas p-3 text-xs" data-testid="assistant-seed-disclosure">
+            <p className="font-medium text-ink">
+              {proposal.seedRecordCount} seed {proposal.seedRecordCount === 1 ? 'record' : 'records'} will be created when you apply
+            </p>
+            <p className="mt-1 leading-relaxed text-ink-muted">
+              Values are checked against the collection fields and receive backend-generated IDs. The same records appear in Run App.
+            </p>
+            {proposal.seedExclusions?.length ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-ink-muted">
+                {proposal.seedExclusions.map((exclusion, index) => <li key={`${exclusion}-${index}`}>{exclusion}</li>)}
+              </ul>
+            ) : null}
+          </section>
+        ) : null}
 
         <section aria-label="Build verification" className="space-y-1 text-xs">
           <p className="flex items-center gap-2 font-medium text-ink">
@@ -91,6 +144,51 @@ export function AssistantProposalCard({ proposal, status, onPreview, onContinue 
             ))}
           </ul>
         </details>
+        {proposal.stageTrace?.length ? (
+          <section aria-label="Generation stages" className="border-t border-hairline py-3 text-xs" data-testid="assistant-stage-trace">
+            <h4 className="mb-1 font-medium text-ink">
+              {proposal.qualityMode === 'high-fidelity' ? 'High-fidelity stages' : 'Generation stages'}
+            </h4>
+            <ul className="space-y-1 text-ink-muted">
+              {proposal.stageTrace.map((stage) => (
+                <li key={stage.id}>
+                  {stage.id}: {stage.status}
+                  {stage.attempts > 1 ? ` (${stage.attempts} attempts)` : ''}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {proposal.visualReview?.required ? (
+          <section aria-label="Visual review" className="border-t border-hairline py-3 text-xs" data-testid="assistant-visual-review-status">
+            <h4 className="mb-1 font-medium text-ink">Visual review</h4>
+            <p className="text-ink-muted">
+              {proposal.visualReview.qualityStatus === 'reviewed'
+                ? `Completed · ${proposal.visualReview.score ?? '—'} / 100 fidelity`
+                : proposal.visualReview.qualityStatus === 'continued-unreviewed'
+                  ? 'Skipped — this draft was not visually compared with the reference.'
+                  : proposal.visualReview.status === 'review-failed'
+                    ? 'Failed — the draft was not changed.'
+                    : 'Pending'}
+            </p>
+            {proposal.visualReview.qualityStatus === 'reviewed' && proposal.visualReview.summary ? (
+              <p className="mt-1 text-ink-muted">{proposal.visualReview.summary}</p>
+            ) : null}
+            {proposal.visualReview.approximations?.length ? (
+              <p className="mt-1 text-ink-muted">
+                Approximations: {proposal.visualReview.approximations.join('; ')}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+        {proposal.quality ? (
+          <section aria-label="Quality gates" className="border-t border-hairline py-3 text-xs" data-testid="assistant-quality-report">
+            <h4 className="mb-1 font-medium text-ink">Quality gates</h4>
+            <p className="text-ink-muted">
+              {proposal.quality.label} · {proposal.quality.overallScore} / 100
+            </p>
+          </section>
+        ) : null}
         {verification ? (
           <details className="border-t border-hairline">
             <summary className="cursor-pointer py-3 text-sm font-medium text-ink focus-visible:outline-2 focus-visible:outline-brand-600">Check details</summary>

@@ -7,6 +7,7 @@ export type AssistantErrorCode =
   | 'knowledge-unavailable'
   | 'stale-revision'
   | 'validation'
+  | 'feasibility-blocked'
   | 'session-expired'
   | 'rate-limited'
   | 'quota-exceeded'

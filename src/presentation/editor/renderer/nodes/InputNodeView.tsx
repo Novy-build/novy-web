@@ -30,6 +30,7 @@ export function InputNodeView({
     || (props.multiline ? 'Text area' : `${props.inputType === 'text' ? 'Text' : props.inputType} field`);
   const hasVisibleLabel = showLabel && props.label.trim().length > 0;
   const widgetStyle: CSSProperties = { ...fieldStyleCss(appearance, props.fieldStyle), ...inputTextStyleCss(props.textStyle) };
+  const labelStyle: CSSProperties = inputTextStyleCss(props.labelStyle);
   const textVariableStyle = appearance?.textColor
     ? { '--novy-component-text': appearance.textColor } as CSSProperties
     : undefined;
@@ -40,9 +41,9 @@ export function InputNodeView({
     <div className="flex h-full w-full flex-col justify-center gap-1" style={textVariableStyle}>
       {hasVisibleLabel ? (
         renderStatic ? (
-          <span className="novy-widget-text-muted text-xs font-medium">{props.label}</span>
+          <span className="novy-widget-text-muted text-xs font-medium" style={labelStyle}>{props.label}</span>
         ) : (
-          <label className="novy-widget-text-muted text-xs font-medium" htmlFor={inputId}>{props.label}</label>
+          <label className="novy-widget-text-muted text-xs font-medium" htmlFor={inputId} style={labelStyle}>{props.label}</label>
         )
       ) : null}
       {renderStatic ? (

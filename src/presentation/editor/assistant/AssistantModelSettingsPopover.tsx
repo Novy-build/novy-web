@@ -1,11 +1,15 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type { AssistantProviderCapability, AssistantProviderId } from '@domain/entities/assistant';
 import { assistantProviderLabel } from './assistantProviderLabel';
+import type { AssistantCapabilitiesStatus } from './useAssistantConversation';
 
 interface AssistantModelSettingsPopoverProps {
   isWorking: boolean;
   onClose: () => void;
   providers: AssistantProviderCapability[];
+  capabilitiesStatus: AssistantCapabilitiesStatus;
+  capabilitiesError: string | null;
+  onReloadCapabilities: () => void;
   selectedModelId: string | null;
   selectedProviderId: AssistantProviderId;
   setSelectedModelId: (modelId: string) => void;
@@ -17,6 +21,9 @@ export function AssistantModelSettingsPopover({
   isWorking,
   onClose,
   providers,
+  capabilitiesStatus,
+  capabilitiesError,
+  onReloadCapabilities,
   selectedModelId,
   selectedProviderId,
   setSelectedModelId,
@@ -48,6 +55,8 @@ export function AssistantModelSettingsPopover({
   }
 
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId);
+  const isLoadingCapabilities = capabilitiesStatus === 'loading';
+  const hasCapabilityError = capabilitiesStatus === 'error';
 
   return (
     <div
@@ -64,12 +73,13 @@ export function AssistantModelSettingsPopover({
         <select
           aria-label="Assistant provider"
           className="min-w-0 flex-1 rounded-tile border border-hairline bg-surface px-2 py-1.5 text-xs text-ink"
-          disabled={isWorking || providers.length === 0}
+          disabled={isWorking || isLoadingCapabilities || providers.length === 0}
           id="assistant-provider"
           onChange={(event) => setSelectedProviderId(event.target.value as AssistantProviderId)}
           value={selectedProviderId}
         >
-          {providers.length === 0 ? <option value="opencode">Loading providers…</option> : null}
+          {isLoadingCapabilities ? <option value="">Loading providers…</option> : null}
+          {!isLoadingCapabilities && providers.length === 0 ? <option value="">No providers available</option> : null}
           {providers.map((provider) => (
             <option disabled={!provider.available} key={provider.id} value={provider.id}>
               {assistantProviderLabel(provider.id)} · {provider.location === 'local' ? 'Local' : 'Remote'}
@@ -78,6 +88,19 @@ export function AssistantModelSettingsPopover({
           ))}
         </select>
       </div>
+      {hasCapabilityError ? (
+        <div className="mb-2 rounded-tile border border-hairline bg-canvas p-2 text-xs text-ink-muted" role="alert">
+          <p>{capabilitiesError ?? 'Assistant providers could not be loaded.'}</p>
+          <button
+            className="mt-1 rounded-tile border border-hairline bg-surface px-2 py-1 font-medium text-ink transition-colors hover:bg-canvas disabled:opacity-50"
+            disabled={isLoadingCapabilities}
+            onClick={onReloadCapabilities}
+            type="button"
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
       {selectedProvider && selectedProvider.models.length > 0 ? (
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium text-ink-muted" htmlFor="assistant-model">Model</label>

@@ -21,7 +21,11 @@ import { computeFitWidthZoom, computeFitZoom } from '../state/geometry';
 import { CANVAS_PRESETS } from '../renderer/ScreenFrame';
 import type { RendererEventContext } from '../renderer/renderer';
 import type { AppThemePreference } from '../renderer/AppThemeContext';
-import { resolveAppTheme, useSystemAppTheme } from '../renderer/useAppThemePreference';
+import {
+  resolveAppTheme,
+  useEditorAppThemePreference,
+  useSystemAppTheme,
+} from '../renderer/useAppThemePreference';
 import { findNodeInScreen } from '../state/editorState';
 import type { ProjectType } from '@domain/entities/project';
 import type { AppDesignSystem } from '@domain/entities/designSystem';
@@ -48,6 +52,8 @@ interface PreviewOverlayProps {
   onClose: () => void;
   collections?: readonly DataCollection[];
   recordsByCollection?: ReadonlyMap<string, readonly DataRecord[]>;
+  /** Unapplied V2 proposal seed records, keyed by generated collection id. */
+  seedRecords?: Record<string, Array<{ values: Record<string, DataValue> }>>;
   persistence?: PreviewPersistenceActions;
   /** Current generated-app manifest used to start a real immutable runtime version. */
   runtimeManifest?: unknown;
@@ -82,7 +88,8 @@ export function PreviewOverlay({
   projectType = 'app',
   onClose,
   collections = [],
-  recordsByCollection = new Map(),
+  recordsByCollection,
+  seedRecords,
   persistence: suppliedPersistence,
   runtimeManifest: suppliedRuntimeManifest,
   runtimePreview: suppliedRuntimePreview,
@@ -108,7 +115,21 @@ export function PreviewOverlay({
   const [variables, setVariables] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [routeRecordContext, setRouteRecordContext] = useState<{ collectionId: string; recordId: string } | null>(null);
   const [previewRecords, setPreviewRecords] = useState<ReadonlyMap<string, readonly DataRecord[]>>(
-    () => new Map(recordsByCollection),
+    () => recordsByCollection
+      ? new Map(recordsByCollection)
+      : new Map(
+          Object.entries(seedRecords ?? {}).map(([collectionId, records]) => [
+            collectionId,
+            records.map((seed, index) => ({
+              id: `preview_seed_${collectionId}_${index}`,
+              projectId: 'preview',
+              collectionId,
+              values: { ...seed.values },
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            })),
+          ]),
+        ),
   );
   const [chartDataByNode, setChartDataByNode] = useState<ReadonlyMap<string, ChartDataSource>>(() => new Map());
   const [listReloadToken, setListReloadToken] = useState(0);
@@ -120,7 +141,9 @@ export function PreviewOverlay({
   const [pendingClicks, setPendingClicks] = useState(0);
   const activeOperationsRef = useRef(0);
   const [pendingOperations, setPendingOperations] = useState(0);
-  const [appThemePreference, setAppThemePreference] = useState<AppThemePreference>('system');
+  const [appThemePreference, setAppThemePreference] = useEditorAppThemePreference(
+    designSystem?.defaultTheme ?? 'system',
+  );
   const systemTheme = useSystemAppTheme();
   const appTheme = resolveAppTheme(appThemePreference, systemTheme);
   const [localItemsByListView, setLocalItemsByListView] = useState<
@@ -269,7 +292,11 @@ export function PreviewOverlay({
     payload: ActionPayload,
     inputs: Readonly<Record<string, unknown>>,
   ): Promise<unknown> {
-    if (!runtimeAppId || !runtimePreview) throw new Error('Start the real runtime before running server actions.');
+    if (!runtimeAppId || !runtimePreview) {
+      throw new Error(sandboxOnly
+        ? 'This is a draft preview. Apply the draft and start the real runtime to run backend document and chat actions.'
+        : 'Start the real runtime before running server actions.');
+    }
     activeOperationsRef.current += 1;
     setPendingOperations((current) => current + 1);
     try {

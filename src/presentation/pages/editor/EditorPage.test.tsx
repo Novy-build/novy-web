@@ -268,22 +268,26 @@ describe('EditorPage (integration over the real route tree)', () => {
     repositories.assistant = {
       isAvailable: true,
       getCapabilities: vi.fn().mockResolvedValue({
-        defaultProviderId: 'opencode', helpRetrievalAvailable: true,
+        defaultProviderId: 'opencode', helpRetrievalAvailable: true, designPipelineV2: false,
+        referenceLimits: { maxCount: 1, maxBytesEach: 3_145_728, maxBytesTotal: 3_145_728, maxPixelsEach: 16_000_000, maxPixelsTotal: 16_000_000 },
         providers: [{
           id: 'opencode', model: 'nemotron-free', available: true,
           imageInput: true, location: 'remote', costWarning: false,
           defaultModelId: 'nemotron-super',
+          maxImages: 1,
           models: [{
             id: 'nemotron-super', name: 'Nemotron 3.5 Super VL',
             model: 'opencode/nemotron-free', available: true,
             imageInput: true, location: 'remote', costWarning: false,
             usageNote: 'Free OpenCode quota.',
+            maxImages: 1,
           }],
         }],
       }),
       generateProposal: vi.fn().mockResolvedValue(proposal),
       answerHelp: vi.fn().mockResolvedValue({ answer: 'Help', insufficientContext: false, sources: [] }),
       acceptProposal: vi.fn().mockResolvedValue({ ...current, document: acceptedDocument }),
+      visualReview: vi.fn().mockResolvedValue(proposal),
     };
     renderRoutesAt(`/project/${projects[0]!.id}/editor`, repositories);
     const canvas = await screen.findByTestId('canvas-frame');
@@ -324,16 +328,19 @@ describe('EditorPage (integration over the real route tree)', () => {
     repositories.assistant = {
       isAvailable: true,
       getCapabilities: vi.fn().mockResolvedValue({
-        defaultProviderId: 'opencode', helpRetrievalAvailable: true,
+        defaultProviderId: 'opencode', helpRetrievalAvailable: true, designPipelineV2: false,
+        referenceLimits: { maxCount: 1, maxBytesEach: 3_145_728, maxBytesTotal: 3_145_728, maxPixelsEach: 16_000_000, maxPixelsTotal: 16_000_000 },
         providers: [{
           id: 'opencode', model: 'nemotron-free', available: true,
           imageInput: true, location: 'remote', costWarning: false,
           defaultModelId: 'nemotron-super',
+          maxImages: 1,
           models: [{
             id: 'nemotron-super', name: 'Nemotron 3.5 Super VL',
             model: 'opencode/nemotron-free', available: true,
             imageInput: true, location: 'remote', costWarning: false,
             usageNote: 'Free OpenCode quota.',
+            maxImages: 1,
           }],
         }],
       }),
@@ -345,6 +352,10 @@ describe('EditorPage (integration over the real route tree)', () => {
       acceptProposal: vi.fn(async () => {
         if (!proposal) throw new Error('Expected the collection proposal fixture.');
         return { ...current, document: proposal.preview.document };
+      }),
+      visualReview: vi.fn(async () => {
+        if (!proposal) throw new Error('Expected the collection proposal fixture.');
+        return proposal;
       }),
     };
     renderRoutesAt(`/project/${project.id}/editor`, repositories);

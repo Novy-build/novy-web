@@ -107,6 +107,8 @@ export function mapProjectToGeneratedLayout(
       screenId: screen.id,
       path: screen.path ?? '/',
       ...(screen.appearance ? { appearance: structuredClone(screen.appearance) } : {}),
+      ...(screen.viewportFill === true ? { viewportFill: true } : {}),
+      ...(screen.bottomAnchorNodeId ? { bottomAnchorNodeId: screen.bottomAnchorNodeId } : {}),
       ...(screen.routeParameters && screen.routeParameters.length > 0
         ? {
             routeParameters: screen.routeParameters.map((parameter) => ({

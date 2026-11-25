@@ -1,6 +1,6 @@
 # Novy Frontend Progress
 
-**Last reviewed:** 2026-11-22
+**Last reviewed:** 2026-11-24
 
 This document inventories frontend capabilities that are implemented in the repository. Novy is
 currently a **web app and website builder**. Native mobile and desktop application generation are
@@ -573,12 +573,19 @@ event binding, and its referenced logic graph:
   `borderWidth` values set a non-negative pixel width; older documents keep previous defaults.
 - Every appearance color field pairs its labeled hex input with a native color picker. The picker
   normalizes shorthand hex for the swatch, while the text input continues to accept free-form CSS
-  color strings; appearance values and DTO shapes are unchanged.
+  color strings; appearance values and DTO shapes are unchanged. The Background field and Quick
+  background token also offer a discoverable **Transparent** option for see-through frames.
 - Editing a base Background, Text, or Border color clears that color's matching dark-theme override
-  across the base and all responsive appearance layers, so the newly chosen color is the one rendered
-  in both themes. Dark-theme color pickers still set their overrides explicitly.
+  across the base and all responsive appearance layers (on every device, including Mobile edits), so
+  the newly chosen color is the one rendered in both themes. Dark-theme color pickers still set their
+  overrides explicitly. The Inspector surfaces an active dark text override with a one-click clear
+  action, and the design canvas labels the theme it follows (Novy shell Light/Dark).
 - A Dropdown with `props.presentation: "menu"` renders as an accessible actions menu and emits a
   change event containing the chosen option. Omitted presentation retains the original select.
+  Actions menus accept an optional `props.menuIconSize` (12–48 px) edited via **Dots size (px)** and
+  applied to the ⋮ trigger in every renderer mode and in generated apps. Optional `menuBackgroundColor`,
+  `menuTextColor`, and `menuHoverColor` props style the popup per widget, falling back to app theme
+  tokens when omitted.
 - A Switch with `props.controlsTheme: true` provides a simple off=Light/on=Dark app control without
   changing the Novy editor theme. Preview also has a Light/Dark/System selector, and generated apps
   persist their preference locally while System follows operating-system color-scheme changes.
@@ -620,7 +627,12 @@ event binding, and its referenced logic graph:
 - Input widgets accept an optional `props.textStyle` with the full Text typography set (font family,
   size, weight, line height, letter spacing, alignment, transform, italic). The Inspector edits it in
   a dedicated **Text style** section, and it styles the actual input/textarea in every renderer mode
-  and in generated apps; the field label keeps its own typography.
+  and in generated apps. An optional `props.labelStyle` with the same typography set styles the
+  field label and is edited in a separate **Field label style** section.
+- Divider widgets expose an optional line color; Buttons expose optional label typography and the
+  `chevron-right` icon; Icon widgets expose an explicit color field bound to appearance text color.
+  Text nodes expose a max-lines control, Chat exposes citation visibility, and File inputs expose
+  their accepted MIME types.
 - Text nodes expose optional `props.fontFamily` (a non-empty CSS font-family value),
   `props.fontSize`, weight, line height, letter spacing, alignment, italic style, transform, and line
   clamp. Typography can vary at tablet/desktop breakpoints and reusable Text styles; omitted values
@@ -653,7 +665,8 @@ event binding, and its referenced logic graph:
   centre guide no longer snaps or reads as a boundary; sibling alignment remains available.
   The item frame is now a first-class selectable container in item design: it appears as an
   **Item frame** root layer, can be selected from Layers or the canvas background, and exposes a
-  frame-only Inspector for Item padding, spacing, border radius, and dividers. Its guide is
+  frame-only Inspector for Item padding, spacing, border radius, dividers, item/selected/pressed
+  appearance, full empty-state typography, scrollbar visibility, and opt-in row selection. Its guide is
   selection-driven, so selecting a widget shows only that widget instead of a competing
   full-width dashed box. Pointer
   placement is retained, and close/reopen does not change responsive geometry. Legacy
@@ -670,7 +683,11 @@ event binding, and its referenced logic graph:
   controls without duplicating read-only field components.
 - The Inspector derives binding controls from the selected component and current item schema.
   Options show field labels with types, incompatible targets explain which field type to add, and
-  the section names the active collection or static source instead of assuming text records.
+  the section names the active collection or static source instead of assuming text records. For a
+  ListView loaded by Logic, the field list and source name come from the active `load-list-items`
+  action targeting that ListView (falling back to the ListView's collection or static fields), so
+  record fields are selectable for item-template bindings even when the ListView itself stores no
+  collection metadata.
 - Collection-backed ListViews keep an optional **Record label** for menus, sample selection,
   fallback items, and screen-reader text. **None** stores `displayFieldIds: []`; item templates
   render their own content and may be image-only or mixed media.
@@ -1014,7 +1031,9 @@ Production workflow execution remains a generated-app/backend responsibility.
 ## 7. Logic Builder
 
 - [x] Full Logic workspace with a searchable node library, graph canvas, and configuration
-  inspector.
+  inspector. Logic component names come from `nodeDisplayLabel()`, which prefers a Text field's
+  placeholder over its (possibly hidden) label, with `Untitled text field` as the final fallback;
+  explicit custom node names still win.
 - [x] Independently scrollable Logic node catalog with a non-overlapping minimize control.
 - [x] Independently collapsible Logic node groups, including consolidated RAG Nodes and Computer
   Vision sections.
@@ -1198,6 +1217,49 @@ remains blocked until a production provider is explicitly selected and implement
 
 ## 9. Selectable AI assistant providers
 
+- [x] Design-pipeline Phase 0 locks a mapper-derived Project schema v14 fixture, generated manifest
+  v2, generated layout v2, and serialized editor-preview/generated-layout geometry parity. Current
+  V1 request/response limitations are recorded in `docs/assistant-v1-baseline.md`; no V2 behavior is
+  enabled.
+- [x] Design-pipeline Phase 1 is implemented behind the same default-disabled flag: capability-aware
+  image-only or text-plus-reference requests, up to six bounded in-memory thumbnails with accessible
+  remove/replace/reorder controls, pending-draft reference reuse, and deterministic terminal cleanup.
+  Flag-off behavior remains text-required and maps one attachment to the legacy `images` field.
+- [x] Backend Phase 2 now performs strict observation-only reference analysis and independent design
+  intent before V1 blueprint generation when the flag is enabled. These stages do not change the
+  frontend HTTP contract or expose intermediate OCR/analysis; only the backend analysis stage receives
+  transient raw references, and explicit provider/model selection remains unchanged.
+- [x] Backend Phase 3 evaluates active capabilities before proposal generation. Feasible or
+  approximate drafts include a concise fidelity panel with safe alternatives; blocked primary
+  requirements fail closed with a dedicated `assistant_feasibility_blocked` message rather than a
+  misleading success or generic model-validation error.
+- [x] Backend Phase 4 adds `AppBlueprintV2` with bounded expressive design intent and a deterministic
+  Project v14 lowering. The frontend parses V2 strictly, round-trips it for refinement/acceptance,
+  and keeps existing V1 proposal rendering and acceptance unchanged when the flag is disabled.
+- [x] V2 validation failures display a clear retry/Standard message instead of a backend-outage
+  message.
+- [x] High-fidelity timeout errors identify the failing stage and suggest Terra Fast or Standard;
+  the disclosure notes that high fidelity can take several minutes.
+- [x] Backend Phase 10 enables V2 in development while keeping production fail-closed until explicit
+  operator rollout. The editor behavior is unchanged; rollback uses the existing V2 flag with no
+  project-data migration. Aggregate operations metrics contain no user content.
+- [x] Backend Phase 9 exposes weighted quality labels and scores from universal deterministic gates,
+  and the editor displays them on proposals. The mirrored layout-intent helpers are verified at mobile,
+  tablet, and desktop viewports.
+- [x] Backend Phase 8 compares offscreen production-renderer captures with the original references.
+  The editor reviews high-fidelity drafts before acceptance, supports retry/skip/cancel, and keeps all
+  capture data in memory. Review failure is reported distinctly and never labeled as success.
+- [x] Backend Phase 7 exposes guarded standard/high-fidelity quality modes with bounded stage
+  orchestration and traceable stage outcomes. The editor shows the quality control only when the V2
+  flag is on, discloses the extra cost/locality and no-fallback behavior, and lists stage results.
+- [x] Backend Phase 6 provisions bounded, typed seed records atomically with accepted V2 proposals.
+  The editor discloses seed counts and exclusions, and the sandbox Run App preview starts from the same
+  seed data that acceptance will persist with backend-generated IDs.
+- [x] Backend Phase 5 persists optional default-theme, viewport-fill, and bottom-action intent in the
+  Project v14 document and mirrored generated layout. The inspector edits them, the editor canvas and
+  generated runtime apply identical anchor/dynamic-viewport styles, and preview theme starts from the
+  project default unless the builder stored an explicit preference. Legacy documents omit the fields
+  and remain visually unchanged.
 - [x] Single right-edge rail with the Inspector tab above the AI Assistant tab in design mode
   (assistant only in logic/data) and keyboard-accessible slide-over conversation UI; the floating
   bottom-right button was removed.
@@ -1228,6 +1290,27 @@ remains blocked until a production provider is explicitly selected and implement
   preview and explicit Apply, with proposal-integrity errors distinct from model validation errors.
 - [x] Versioned `AppBlueprintV1` proposals for screens, components, event-condition-action workflows,
   and collection schemas rather than model-authored Project JSON or manifests.
+- [x] Document-chat proposals can include `file-input` and `chat` widgets and composite
+  `ingest-document`/`answer-with-documents`/`chat-message` actions. The frontend parses explicit
+  `ragProfiles` selections and shows a locality/cost disclosure in the proposal card; the backend
+  owns the full RAG graph, resource edges, profile validation, and credential boundary. Responsive
+  refinement of an existing document-chat app keeps its upload and chat widgets.
+- [x] Backend project responses preserve the project `designSystem` through repository adoption and
+  into generated runtime manifests, so reusable component styles referenced by assistant-generated
+  widgets resolve during Run App validation.
+- [x] Assistant-generated document-chat proposals include an explicit **Open document chat** button
+  and wait for the builder to click it instead of navigating automatically after upload.
+- [x] The built-in **Chat with a document** template follows the same manual flow: uploading indexes
+  the file, and an **Open document chat** button navigates to the chat screen.
+- [x] Assistant drafts can round-trip flat layout declarations and centered/minimal design controls;
+  the backend compiles and verifies the resulting nested layout and bordered surfaces.
+- [x] Assistant design requests can target one component, with clarification for ambiguous prompts,
+  and chat widgets support token-only custom styling in editor previews and generated apps.
+- [x] Proposals include the current editor screen and component alignment state so vague requests
+  like “center the button” resolve to the uncentered button on the viewed screen, while explicit
+  screen names remain authoritative.
+- [x] Chat widgets expose token-based content styling in the Inspector for header, bubbles, empty
+  state, input, and Send, and those presets survive into generated applications.
 - [x] Blueprint proposals preserve a strict allowlisted visual direction (style, palette, typography,
   radius, and density) selected using the backend Design Skill Pack. The frontend validates and
   round-trips it through refinement and Apply while the backend alone compiles real Project v14
@@ -1279,7 +1362,8 @@ remains blocked until a production provider is explicitly selected and implement
   item or the composer shield control.
 - [x] The composer uses a single bordered container with an auto-growing multiline textarea and a
   compact control row (attach, mode chip, model settings, circular Send). Enter sends and Shift+Enter
-  adds a newline; attached images render as a chip inside the container.
+  adds a newline; attached references render as bounded previews with keyboard-accessible 44px
+  remove, replace, and ordering controls.
 - [x] Draft Preview suspends the assistant modal and makes its controls inert, then restores focus
   to the preview opener on close. Shared dialog focus skips inert and collapsed-detail controls.
   Model settings collapse during review without hiding provider cost disclosure.
@@ -1300,6 +1384,9 @@ remains blocked until a production provider is explicitly selected and implement
   backend-validated citations from the approved local documentation index.
 - [x] Unavailable providers remain disabled and visible instead of falling back to static keyword
   responses or silently invoking a different provider.
+- [x] Capability loading exposes explicit `loading`, `ready`, `error`, and `unavailable` states. A
+  failed probe is retryable from the Model settings popover, the header badge, or by reopening Model
+  settings; it is no longer rendered as an endless **Loading providers…** dropdown.
 
 Implemented demo requests include:
 
@@ -1324,7 +1411,11 @@ provider. Ollama remains the local generation/testing and embedding runtime.
   accessibility checks.
 - [x] An undesigned ListView item template is a blocking component error until at least one item
   widget is added.
-- [x] Missing collection and field reference detection.
+- [x] Missing collection and field reference detection. Item bindings are checked against the same
+  Logic-owned field resolution the Inspector uses (load action fields, collection schema, `value`
+  alias, or legacy static fields), so Logic-loaded ListViews do not produce false missing-field errors.
+  Validation rows show the issue code, area, component, field, binding target, collection, and graph
+  identifiers for precise diagnosis.
 - [x] Validation uses the editor's live project-data collection state, including assistant-created
   schemas refreshed after Apply, rather than retaining a separate one-time collection snapshot.
 - [x] Behavior target and graph reference validation.
@@ -1441,6 +1532,15 @@ not been verified in this workspace because platform credentials are not configu
 - [x] Light and dark design tokens.
 
 ## 14. Automated test coverage
+
+Verified on 2026-11-23 for recoverable assistant capability loading:
+
+- `npm run typecheck` — passed.
+- `npm test -- --run --maxWorkers=2 --testTimeout=20000` — 148 files / 1,194 tests passed.
+- `npm run build` — passed.
+- New `useAssistantConversation` and `AssistantSheet` tests cover a failed capability probe, recovery
+  through Retry, and the loading badge. The provider dropdown no longer presents a failed probe as
+  an endless **Loading providers…** state.
 
 Verified on 2026-11-20 for smooth off-centre focus and cursor-away release:
 
